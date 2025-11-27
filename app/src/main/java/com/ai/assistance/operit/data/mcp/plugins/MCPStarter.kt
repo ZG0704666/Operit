@@ -261,6 +261,10 @@ class MCPStarter(private val context: Context) {
             if (serviceType == "remote") {
                 val endpoint = pluginInfo.endpoint
                 val connectionType = pluginInfo.connectionType
+                val bearerToken = pluginInfo.bearerToken
+                val headers = pluginInfo.headers
+
+                Log.d(TAG, "启动远程服务 $pluginId: endpoint=$endpoint, bearerToken=${bearerToken?.take(10)}..., headers=${headers?.keys}")
 
                 if (endpoint == null) {
                     statusCallback(StartStatus.Error("Remote service is missing endpoint: $pluginId"))
@@ -282,7 +286,9 @@ class MCPStarter(private val context: Context) {
                         type = "remote",
                         endpoint = endpoint,
                         connectionType = connectionType,
-                        description = "Remote MCP Server: $pluginId"
+                        description = "Remote MCP Server: $pluginId",
+                        bearerToken = bearerToken,
+                        headers = headers
                     )
 
                 if (registerResult == null || !registerResult.optBoolean("success", false)) {
@@ -654,7 +660,9 @@ class MCPStarter(private val context: Context) {
                             type = "remote",
                             endpoint = pluginInfo.endpoint,
                             connectionType = pluginInfo.connectionType,
-                            description = "Remote MCP Server: $pluginId"
+                            description = "Remote MCP Server: $pluginId",
+                            bearerToken = pluginInfo.bearerToken,
+                            headers = pluginInfo.headers
                         )
                     }
                 }

@@ -59,9 +59,22 @@ import kotlinx.coroutines.delay
 /**
  * 显示UI操作视觉反馈的悬浮窗
  * 可以显示点击、滑动、文本输入等操作的位置指示器
+ * 使用单例模式避免多实例创建导致窗口叠加
  */
-class UIOperationOverlay(private val context: Context) {
+class UIOperationOverlay private constructor(private val context: Context) {
     private val TAG = "UIOperationOverlay"
+    
+    companion object {
+        @Volatile
+        private var instance: UIOperationOverlay? = null
+        
+        fun getInstance(context: Context): UIOperationOverlay {
+            return instance ?: synchronized(this) {
+                instance ?: UIOperationOverlay(context.applicationContext).also { instance = it }
+            }
+        }
+    }
+    
     private var windowManager: WindowManager? = null
     private var overlayView: ComposeView? = null
     private var lifecycleOwner: ServiceLifecycleOwner? = null
@@ -78,6 +91,9 @@ class UIOperationOverlay(private val context: Context) {
     
     // 自动隐藏计时器
     private val handler = Handler(Looper.getMainLooper())
+    
+    // 自动清理延迟（毫秒）
+    private val AUTO_CLEANUP_DELAY_MS = 500L
     
     // 操作类型
     sealed class OperationType {
@@ -167,10 +183,12 @@ class UIOperationOverlay(private val context: Context) {
                 } else {
                     WindowManager.LayoutParams.TYPE_PHONE
                 }
-                // 关键flags：不接受焦点，不阻挡触摸事件传递到下层应用
+                // 关键flags：彻底不可聚焦，不阻挡触摸事件传递到下层应用
                 flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                 format = PixelFormat.TRANSLUCENT
                 gravity = Gravity.TOP or Gravity.START
                 // 设置足够高的层级确保可见性
@@ -227,7 +245,10 @@ class UIOperationOverlay(private val context: Context) {
             initOverlay()
             tapEvents.add(newTapEvent)
             // 为这个特定的事件安排移除
-            handler.postDelayed({ tapEvents.remove(newTapEvent) }, autoHideDelayMs)
+            handler.postDelayed({ 
+                tapEvents.remove(newTapEvent)
+                scheduleAutoCleanup()
+            }, autoHideDelayMs)
         }
     }
     
@@ -242,7 +263,10 @@ class UIOperationOverlay(private val context: Context) {
         runOnMainThread {
             initOverlay()
             swipeEvents.add(newSwipeEvent)
-            handler.postDelayed({ swipeEvents.remove(newSwipeEvent) }, autoHideDelayMs)
+            handler.postDelayed({ 
+                swipeEvents.remove(newSwipeEvent)
+                scheduleAutoCleanup()
+            }, autoHideDelayMs)
         }
     }
     
@@ -257,8 +281,23 @@ class UIOperationOverlay(private val context: Context) {
         runOnMainThread {
             initOverlay()
             textInputEvents.add(newTextInputEvent)
-            handler.postDelayed({ textInputEvents.remove(newTextInputEvent) }, autoHideDelayMs)
+            handler.postDelayed({ 
+                textInputEvents.remove(newTextInputEvent)
+                scheduleAutoCleanup()
+            }, autoHideDelayMs)
         }
+    }
+    
+    /**
+     * 安排自动清理：如果所有事件列表都为空，则延迟移除窗口
+     */
+    private fun scheduleAutoCleanup() {
+        handler.postDelayed({
+            if (tapEvents.isEmpty() && swipeEvents.isEmpty() && textInputEvents.isEmpty()) {
+                Log.d(TAG, "All events cleared, auto-cleaning overlay window")
+                hide()
+            }
+        }, AUTO_CLEANUP_DELAY_MS)
     }
     
     /**

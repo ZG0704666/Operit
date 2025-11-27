@@ -856,6 +856,8 @@ class MCPRepository(private val context: Context) {
                 installedTime = System.currentTimeMillis()
             )
             
+            Log.d(TAG, "添加远程服务器: ${server.id}, bearerToken: ${server.bearerToken?.take(10)}..., headers: ${server.headers?.keys}")
+            
             mcpLocalServer.addOrUpdatePluginMetadata(metadata)
 
             mcpLocalServer.updateServerStatus(
@@ -886,7 +888,9 @@ class MCPRepository(private val context: Context) {
                 longDescription = server.longDescription,
                 author = server.author,
                 endpoint = if (server.type == "remote") server.endpoint else metadata.endpoint,
-                connectionType = if (server.type == "remote") server.connectionType else metadata.connectionType
+                connectionType = if (server.type == "remote") server.connectionType else metadata.connectionType,
+                bearerToken = if (server.type == "remote") server.bearerToken else metadata.bearerToken,
+                headers = if (server.type == "remote") server.headers else metadata.headers
             )
             mcpLocalServer.addOrUpdatePluginMetadata(updatedMetadata)
 

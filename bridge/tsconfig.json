@@ -2,7 +2,7 @@
     "compilerOptions": {
         "target": "es2020",
         "module": "NodeNext",
-        "outDir": "../app/src/main/assets/bridge",
+        "outDir": "./dist",
         "rootDir": ".",
         "strict": true,
         "esModuleInterop": true,

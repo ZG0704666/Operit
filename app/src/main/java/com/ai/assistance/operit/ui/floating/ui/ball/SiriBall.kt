@@ -268,35 +268,33 @@ fun SiriBall(
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        // 只有短按才触发点击 (防止长按结束后触发点击)
-                        if (System.currentTimeMillis() - pressStartTime < 300) {
-                            onClick()
-                        }
-                    },
-                    onPress = {
-                        pressStartTime = System.currentTimeMillis()
-                        ballState = StatePressing
-                        // 开始录音
-                        speechManager.startListening()
-                        
-                        val released = tryAwaitRelease()
-                        // 松手逻辑
-                        if (released) {
-                            if (System.currentTimeMillis() - pressStartTime >= 300) {
-                                // 长按结束 -> 停止录音并发送 -> 进入 Loading 等待 AI 回复
-                                speechManager.stopListening(isCancel = false)
-                                ballState = StateLoading
-                            } else {
-                                // 短按 -> 取消录音 -> 重置为 Idle (onTap 会接管)
-                                speechManager.stopListening(isCancel = true)
-                                ballState = StateIdle
-                            }
-                        } else {
-                            // 手势被取消 -> 取消录音
-                            speechManager.stopListening(isCancel = true)
-                            ballState = StateIdle
-                        }
+                        onClick()
                     }
+                    // 长按功能已禁用
+                    // onPress = {
+                    //     pressStartTime = System.currentTimeMillis()
+                    //     ballState = StatePressing
+                    //     // 开始录音
+                    //     speechManager.startListening()
+                    //     
+                    //     val released = tryAwaitRelease()
+                    //     // 松手逻辑
+                    //     if (released) {
+                    //         if (System.currentTimeMillis() - pressStartTime >= 300) {
+                    //             // 长按结束 -> 停止录音并发送 -> 进入 Loading 等待 AI 回复
+                    //             speechManager.stopListening(isCancel = false)
+                    //             ballState = StateLoading
+                    //         } else {
+                    //             // 短按 -> 取消录音 -> 重置为 Idle (onTap 会接管)
+                    //             speechManager.stopListening(isCancel = true)
+                    //             ballState = StateIdle
+                    //         }
+                    //     } else {
+                    //         // 手势被取消 -> 取消录音
+                    //         speechManager.stopListening(isCancel = true)
+                    //         ballState = StateIdle
+                    //     }
+                    // }
                 )
             },
         contentAlignment = Alignment.Center

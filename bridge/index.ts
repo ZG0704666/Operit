@@ -41,6 +41,10 @@ export interface McpServiceInfo {
     endpoint?: string;
     connectionType?: 'httpStream' | 'sse';
 
+    // Authentication for remote services
+    bearerToken?: string;
+    headers?: Record<string, string>;
+
     created: number;
     lastUsed?: number;
 }
@@ -215,6 +219,8 @@ class McpBridge {
             cwd: info.cwd,
             endpoint: info.endpoint,
             connectionType: info.connectionType || 'httpStream', // Default to httpStream
+            bearerToken: info.bearerToken,
+            headers: info.headers,
             description: info.description || `MCP Service: ${name}`,
             env: info.env || {},
             created: Date.now(),
@@ -828,6 +834,8 @@ class McpBridge {
                         env: params.env,
                         endpoint: params.endpoint,
                         connectionType: params.connectionType,
+                        bearerToken: params.bearerToken,
+                        headers: params.headers,
                     });
 
                     response = {

@@ -2,8 +2,35 @@ import { MCPClient } from 'mcp-client';
 import * as path from 'path';
 import * as os from 'os';
 import { McpServiceInfo } from './index'; // Assuming McpServiceInfo is exported from index.ts
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
-let client: MCPClient | null = null;
+// 扩展 MCPClient 以支持自定义 headers
+class MCPClientWithHeaders extends MCPClient {
+    async connectWithHeaders(options: {
+        url: string;
+        headers?: Record<string, string>;
+    }): Promise<void> {
+        // 创建带有自定义 headers 的 transport
+        const transport = new StreamableHTTPClientTransport(
+            new URL(options.url),
+            {
+                requestInit: options.headers ? {
+                    headers: options.headers
+                } : undefined
+            }
+        );
+
+        // 访问私有的 client 和 transports (使用 any 绕过类型检查)
+        const clientInstance = (this as any).client as Client;
+        const transportsArray = (this as any).transports as any[];
+
+        transportsArray.push(transport);
+        await clientInstance.connect(transport);
+    }
+}
+
+let client: MCPClientWithHeaders | null = null;
 let serviceName: string;
 let serviceInfo: McpServiceInfo;
 
@@ -23,7 +50,7 @@ const handlers = {
         serviceName = params.serviceName;
         serviceInfo = params.serviceInfo;
 
-        client = new MCPClient({
+        client = new MCPClientWithHeaders({
             name: `helper-for-${serviceName}`,
             version: '1.0.0',
         });
@@ -59,9 +86,23 @@ const handlers = {
                 });
 
             } else if (serviceInfo.type === 'remote') {
-                await client.connect({
-                    type: serviceInfo.connectionType || 'httpStream',
+                // Build headers for authentication
+                const headers: Record<string, string> = {};
+
+                // Add bearer token if provided
+                if (serviceInfo.bearerToken) {
+                    headers['Authorization'] = `Bearer ${serviceInfo.bearerToken}`;
+                }
+
+                // Merge custom headers if provided
+                if (serviceInfo.headers) {
+                    Object.assign(headers, serviceInfo.headers);
+                }
+
+                // 使用扩展的 connectWithHeaders 方法传递 headers
+                await client.connectWithHeaders({
                     url: serviceInfo.endpoint!,
+                    headers: Object.keys(headers).length > 0 ? headers : undefined
                 });
             }
 

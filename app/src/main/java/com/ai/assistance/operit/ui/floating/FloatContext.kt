@@ -157,7 +157,7 @@ class FloatContext(
     var onMove: (Float, Float, Float) -> Unit = { _, _, _ -> }
     var snapToEdge: (Boolean) -> Unit = {}
     var saveWindowState: (() -> Unit)? = null
-    var onSendMessage: ((String, PromptFunctionType) -> Unit)? = null
+    var onSendMessage by mutableStateOf<((String, PromptFunctionType) -> Unit)?>(null)
     var onCancelMessage: (() -> Unit)? = null
     var onAttachmentRequest: ((String) -> Unit)? = null
     var onRemoveAttachment: ((String) -> Unit)? = null

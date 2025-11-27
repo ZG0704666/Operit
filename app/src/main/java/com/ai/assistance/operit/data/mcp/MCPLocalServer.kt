@@ -180,6 +180,11 @@ class MCPLocalServer private constructor(private val context: Context) {
         val endpoint: String? = null,
         @SerializedName("connectionType")
         val connectionType: String? = "httpStream",
+        // 认证相关字段（用于远程服务）
+        @SerializedName("bearerToken")
+        val bearerToken: String? = null,
+        @SerializedName("headers")
+        val headers: Map<String, String>? = null,
         // 本地安装相关字段
         @SerializedName("installedPath")
         val installedPath: String? = null,

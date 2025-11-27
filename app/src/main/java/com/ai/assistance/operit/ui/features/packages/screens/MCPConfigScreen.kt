@@ -179,6 +179,7 @@ fun MCPConfigScreen(
     var remoteEndpointInput by remember { mutableStateOf("") }
     var remoteConnectionType by remember { mutableStateOf("httpStream") }
     var remoteConnectionTypeExpanded by remember { mutableStateOf(false) }
+    var remoteBearerToken by remember { mutableStateOf("") }
     
     // 新增：配置导入相关状态
     var configJsonInput by remember { mutableStateOf("") }
@@ -636,6 +637,17 @@ fun MCPConfigScreen(
                                     }
                                 }
                             }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            OutlinedTextField(
+                                value = remoteBearerToken,
+                                onValueChange = { remoteBearerToken = it },
+                                label = { Text("Bearer Token (Optional)") },
+                                placeholder = { Text("Enter bearer token for authentication") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
                         }
                         3 -> {
                             // 配置导入
@@ -766,7 +778,8 @@ fun MCPConfigScreen(
                                 repoUrl = if (importTabIndex == 0) repoUrlInput else "",
                                 type = if(isRemote) "remote" else "local",
                                 endpoint = if(isRemote) remoteEndpointInput else null,
-                                connectionType = if(isRemote) remoteConnectionType else "httpStream"
+                                connectionType = if(isRemote) remoteConnectionType else "httpStream",
+                                bearerToken = if(isRemote && remoteBearerToken.isNotBlank()) remoteBearerToken else null
                             )
                             
                             if(isRemote){
@@ -789,6 +802,7 @@ fun MCPConfigScreen(
                             remoteEndpointInput = ""
                             remoteConnectionType = "httpStream"
                             remoteConnectionTypeExpanded = false
+                            remoteBearerToken = ""
                             showImportDialog = false
                             isImporting = false
                         } else {
@@ -828,6 +842,7 @@ fun MCPConfigScreen(
                     remoteEndpointInput = ""
                     remoteConnectionType = "httpStream"
                     remoteConnectionTypeExpanded = false
+                    remoteBearerToken = ""
                     configJsonInput = ""
                     showImportDialog = false 
                 }) {
@@ -1435,6 +1450,7 @@ fun RemoteServerEditDialog(
     var description by remember { mutableStateOf(server.description) }
     var endpoint by remember { mutableStateOf(server.endpoint ?: "") }
     var connectionType by remember { mutableStateOf(server.connectionType ?: "httpStream") }
+    var bearerToken by remember { mutableStateOf(server.bearerToken ?: "") }
     val connectionTypes = listOf("httpStream", "sse")
     var expanded by remember { mutableStateOf(false) }
     val isRemote = server.type == "remote"
@@ -1498,6 +1514,14 @@ fun RemoteServerEditDialog(
                             }
                         }
                     }
+                    
+                    OutlinedTextField(
+                        value = bearerToken,
+                        onValueChange = { bearerToken = it },
+                        label = { Text("Bearer Token (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Enter bearer token for authentication") }
+                    )
                 }
             }
         },
@@ -1508,7 +1532,8 @@ fun RemoteServerEditDialog(
                         name = name,
                         description = description,
                         endpoint = if(isRemote) endpoint else server.endpoint,
-                        connectionType = if(isRemote) connectionType else server.connectionType
+                        connectionType = if(isRemote) connectionType else server.connectionType,
+                        bearerToken = if(isRemote && bearerToken.isNotBlank()) bearerToken else null
                     )
                     onSave(updatedServer)
                 },

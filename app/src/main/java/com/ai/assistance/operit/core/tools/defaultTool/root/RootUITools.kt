@@ -44,7 +44,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             )
         }
 
-        withContext(Dispatchers.Main) { operationOverlay.showTap(x, y) }
+        val overlay = operationOverlay
+        withContext(Dispatchers.Main) { overlay.showTap(x, y) }
 
         try {
             Log.d(TAG, "Attempting to tap at coordinates: ($x, $y) via shell command")
@@ -53,6 +54,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
 
             return if (result.success) {
                 Log.d(TAG, "Tap successful at coordinates: ($x, $y)")
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { overlay.hide() }
                 ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -65,7 +68,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
                 )
             } else {
                 Log.e(TAG, "Tap failed at coordinates: ($x, $y), error: ${result.stderr}")
-                withContext(Dispatchers.Main) { operationOverlay.hide() }
+                withContext(Dispatchers.Main) { overlay.hide() }
                 ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -75,7 +78,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error tapping at coordinates ($x, $y)", e)
-            withContext(Dispatchers.Main) { operationOverlay.hide() }
+            withContext(Dispatchers.Main) { overlay.hide() }
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -103,7 +106,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             )
         }
 
-        withContext(Dispatchers.Main) { operationOverlay.showSwipe(startX, startY, endX, endY) }
+        val overlay = operationOverlay
+        withContext(Dispatchers.Main) { overlay.showSwipe(startX, startY, endX, endY) }
 
         try {
             Log.d(TAG, "Swiping from ($startX, $startY) to ($endX, $endY) via shell")
@@ -112,6 +116,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
 
             return if (result.success) {
                 Log.d(TAG, "Swipe successful")
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { overlay.hide() }
                 ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -123,7 +129,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
                 )
             } else {
                 Log.e(TAG, "Swipe failed: ${result.stderr}")
-                withContext(Dispatchers.Main) { operationOverlay.hide() }
+                withContext(Dispatchers.Main) { overlay.hide() }
                 ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -133,7 +139,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error performing swipe", e)
-            withContext(Dispatchers.Main) { operationOverlay.hide() }
+            withContext(Dispatchers.Main) { overlay.hide() }
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -181,9 +187,10 @@ open class RootUITools(context: Context) : AdminUITools(context) {
         val text = tool.parameters.find { it.name == "text" }?.value ?: ""
 
         try {
+            val overlay = operationOverlay
             val displayMetrics = context.resources.displayMetrics
             withContext(Dispatchers.Main) {
-                operationOverlay.showTextInput(displayMetrics.widthPixels / 2, displayMetrics.heightPixels / 2, text)
+                overlay.showTextInput(displayMetrics.widthPixels / 2, displayMetrics.heightPixels / 2, text)
             }
 
             Log.d(TAG, "Clearing text field with KEYCODE_CLEAR")
@@ -191,6 +198,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             delay(300)
 
             if (text.isEmpty()) {
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { overlay.hide() }
                 return ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -207,6 +216,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
 
             val pasteResult = AndroidShellExecutor.executeShellCommand("input keyevent KEYCODE_PASTE")
             return if (pasteResult.success) {
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { overlay.hide() }
                 ToolResult(
                     toolName = tool.name,
                     success = true,
@@ -217,7 +228,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
                         )
                 )
             } else {
-                withContext(Dispatchers.Main) { operationOverlay.hide() }
+                withContext(Dispatchers.Main) { overlay.hide() }
                 ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -227,7 +238,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting input text", e)
-            withContext(Dispatchers.Main) { operationOverlay.hide() }
+            val overlay = operationOverlay
+            withContext(Dispatchers.Main) { overlay.hide() }
             return ToolResult(
                 toolName = tool.name,
                 success = false,

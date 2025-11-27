@@ -23,8 +23,8 @@ open class StandardUITools(protected val context: Context) {
                 "This operation is not supported in the standard version. Please use the accessibility or debugger version."
     }
 
-    // UI操作反馈覆盖层
-    protected val operationOverlay = UIOperationOverlay(context)
+    // UI操作反馈覆盖层（使用单例避免多窗口叠加）
+    protected val operationOverlay = UIOperationOverlay.getInstance(context)
 
     /** Gets the current UI page/window information */
     open suspend fun getPageInfo(tool: AITool): ToolResult {

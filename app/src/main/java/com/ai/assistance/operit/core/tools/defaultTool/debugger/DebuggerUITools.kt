@@ -58,6 +58,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
             if (result.success) {
                 Log.d(TAG, "Tap successful at coordinates: ($x, $y)")
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { operationOverlay.hide() }
                 return ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -133,6 +135,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
             if (result.success) {
                 Log.d(TAG, "Swipe successful from ($startX, $startY) to ($endX, $endY)")
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { operationOverlay.hide() }
                 return ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -280,6 +284,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
             // 如果文本为空，只需清除字段
             if (text.isEmpty()) {
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { operationOverlay.hide() }
                 return ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -309,6 +315,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             val pasteResult = AndroidShellExecutor.executeShellCommand(pasteCommand)
 
             if (pasteResult.success) {
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { operationOverlay.hide() }
                 return ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -1073,6 +1081,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                             " (index $index of ${matchingNodes.size} matches)"
                         } else ""
 
+                // 成功后主动隐藏overlay
+                withContext(Dispatchers.Main) { operationOverlay.hide() }
                 return ToolResult(
                         toolName = tool.name,
                         success = true,

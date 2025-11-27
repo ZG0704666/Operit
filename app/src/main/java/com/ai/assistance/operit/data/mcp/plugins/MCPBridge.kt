@@ -106,36 +106,19 @@ class MCPBridge private constructor(private val context: Context) {
                         publicBridgeDir.mkdirs()
                     }
 
-                    // 复制index.js到公共目录
+                    // 复制打包后的 index.js 到公共目录（已包含所有依赖）
                     val inputStream = context.assets.open("bridge/index.js")
                     val indexJsContent = inputStream.bufferedReader().use { it.readText() }
                     val outputFile = File(publicBridgeDir, "index.js")
                     outputFile.writeText(indexJsContent)
                     inputStream.close()
 
-                    // 复制 spawn-helper.js 到公共目录
+                    // 复制打包后的 spawn-helper.js 到公共目录（已包含所有依赖）
                     val spawnHelperInputStream = context.assets.open("bridge/spawn-helper.js")
                     val spawnHelperJsContent = spawnHelperInputStream.bufferedReader().use { it.readText() }
                     val spawnHelperOutputFile = File(publicBridgeDir, "spawn-helper.js")
                     spawnHelperOutputFile.writeText(spawnHelperJsContent)
                     spawnHelperInputStream.close()
-
-                    // 创建package.json文件
-                    val packageJsonContent =
-                            """
-                        {
-                            "name": "mcp-tcp-bridge",
-                            "version": "1.0.0",
-                            "description": "将STDIO型MCP服务器桥接到TCP端口",
-                            "main": "index.js",
-                            "dependencies": {
-                                "uuid": "^9.0.0",
-                                "mcp-client": "^1.13.1"
-                            }
-                        }
-                    """.trimIndent()
-                    val packageJson = File(publicBridgeDir, "package.json")
-                    packageJson.writeText(packageJsonContent)
 
                     Log.d(TAG, "桥接器文件已复制到公共目录: ${publicBridgeDir.absolutePath}")
 
@@ -173,8 +156,9 @@ class MCPBridge private constructor(private val context: Context) {
                     terminal.executeCommand(actualSessionId, mkdirCommand)
                     delay(100) // 等待目录创建
                     
-                    // 使用 AIToolHandler 复制文件（跨环境复制：Android -> Linux）
-                    val filesToCopy = listOf("index.js", "spawn-helper.js", "package.json")
+                    // 使用 AIToolHandler 复制打包后的文件（跨环境复制：Android -> Linux）
+                    // 打包后的文件已包含所有依赖，不需要 package.json 和 node_modules
+                    val filesToCopy = listOf("index.js", "spawn-helper.js")
                     
                     for (fileName in filesToCopy) {
                         val copyTool = AITool(
@@ -196,15 +180,7 @@ class MCPBridge private constructor(private val context: Context) {
                         Log.d(TAG, "成功复制文件: $fileName")
                     }
                     
-                    // 安装依赖
-                    val installCommand = """
-                        cd $TERMUX_BRIDGE_PATH && 
-                        if [ ! -d "node_modules/mcp-client" ] || [ ! -d "node_modules/uuid" ]; then pnpm install; fi
-                    """.trimIndent()
-                    terminal.executeCommand(actualSessionId, installCommand)
-
-                    // 等待命令执行完成
-                    delay(100) // 给命令执行时间
+                    // 打包后的文件已包含所有依赖，无需安装 node_modules
 
                     Log.d(TAG, "桥接器成功部署到终端")
                     return@withContext true
@@ -499,7 +475,9 @@ class MCPBridge private constructor(private val context: Context) {
         type: String,
         endpoint: String,
         connectionType: String?,
-        description: String? = null
+        description: String? = null,
+        bearerToken: String? = null,
+        headers: Map<String, String>? = null
     ): JSONObject? {
         val params =
             JSONObject().apply {
@@ -511,6 +489,14 @@ class MCPBridge private constructor(private val context: Context) {
                 }
                 if (description != null) {
                     put("description", description)
+                }
+                if (bearerToken != null) {
+                    put("bearerToken", bearerToken)
+                }
+                if (headers != null && headers.isNotEmpty()) {
+                    val headersObj = JSONObject()
+                    headers.forEach { (key, value) -> headersObj.put(key, value) }
+                    put("headers", headersObj)
                 }
             }
 
