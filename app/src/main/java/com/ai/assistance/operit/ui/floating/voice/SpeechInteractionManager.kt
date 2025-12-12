@@ -94,7 +94,7 @@ class SpeechInteractionManager(
             return false
         }
         view.requestFocus()
-        inputMethodManager.showSoftInput(view, InputMethodManager.SHOW_FORCED)
+        inputMethodManager.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
         inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
         hasFocus = true
         return true

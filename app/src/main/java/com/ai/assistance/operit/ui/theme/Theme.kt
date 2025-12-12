@@ -188,7 +188,9 @@ fun OperitTheme(content: @Composable () -> Unit) {
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            val insetsController = ViewCompat.getWindowInsetsController(view)
+            val insetsController = window.decorView.let { decorView ->
+                androidx.core.view.WindowCompat.getInsetsController(window, decorView)
+            }
             
             // 始终保持沉浸式模式，让Compose处理状态栏背景
             WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -282,7 +284,9 @@ fun OperitTheme(content: @Composable () -> Unit) {
 
                                 // 加载视频
                                 try {
-                                    val mediaItem = MediaItem.fromUri(Uri.parse(backgroundImageUri))
+                                    val mediaItem = MediaItem.Builder()
+                                        .setUri(Uri.parse(backgroundImageUri))
+                                        .build()
                                     setMediaItem(mediaItem)
                                     prepare()
                                 } catch (e: Exception) {
