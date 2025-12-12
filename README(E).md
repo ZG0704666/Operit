@@ -149,6 +149,13 @@ Rich MCP ecosystem
 
 ---
 
+## 🔮 Roadmap / TODO
+
+- **UI automation & screenshot pipeline**  
+  - ⏳ Exploring deeper UI automation powered by Shizuku/Root (e.g., more robust pipelines, virtual-display-like flows)
+
+---
+
 ## 📅 Version History
 
 <table>
