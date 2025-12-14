@@ -527,8 +527,8 @@ private fun renderNodeContent(
                         .padding(vertical = 0.dp, horizontal = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // 提取LaTeX内容，移除$$分隔符
-                    val latexContent = content.trimAll().removeSurrounding("$$", "$$")
+                    // 提取LaTeX内容，移除各种分隔符
+                    val latexContent = extractLatexContent(content.trimAll())
                     
                     // 使用AndroidView和JLatexMath渲染LaTeX公式
                     AndroidView(
@@ -1086,7 +1086,7 @@ private fun buildSpannableFromChildren(
             }
             MarkdownProcessorType.INLINE_LATEX -> {
                 // 行内 LaTeX 渲染：使用 ImageSpan 嵌入渲染好的 LaTeX drawable
-                val latexContent = content.trimAll().removeSurrounding("$$", "$$")
+                val latexContent = extractLatexContent(content.trimAll())
                 
                 if (density != null && fontSize != null) {
                     try {
@@ -1216,6 +1216,17 @@ private fun determineHeaderLevel(content: String): Int {
 /**
  * 直接创建 StaticLayout (用于Spannable, 不走缓存)
  */
+/** 提取LaTeX内容，移除各种分隔符 */
+private fun extractLatexContent(content: String): String {
+    return when {
+        content.startsWith("$$") && content.endsWith("$$") -> content.removeSurrounding("$$")
+        content.startsWith("\\[") && content.endsWith("\\]") -> content.removeSurrounding("\\[", "\\]")
+        content.startsWith("$") && content.endsWith("$") -> content.removeSurrounding("$")
+        content.startsWith("\\(") && content.endsWith("\\)") -> content.removeSurrounding("\\(", "\\)")
+        else -> content
+    }
+}
+
 private fun createStaticLayout(text: CharSequence, paint: TextPaint, width: Int): StaticLayout {
     return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
         StaticLayout.Builder.obtain(text, 0, text.length, paint, width)

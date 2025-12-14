@@ -108,7 +108,9 @@ object NestedMarkdownProcessor {
                     StreamMarkdownOrderedListPlugin(),
                     StreamMarkdownUnorderedListPlugin(includeMarker = false),
                     StreamMarkdownHorizontalRulePlugin(),
+                    // LaTeX 块级公式：同时支持 $$...$$ 和 \\[...\\]
                     StreamMarkdownBlockLaTeXPlugin(includeDelimiters = false),
+                    StreamMarkdownBlockBracketLaTeXPlugin(includeDelimiters = false),
                     StreamMarkdownTablePlugin(),
                     StreamMarkdownImagePlugin(),
                     StreamXmlPlugin(includeTagsInOutput = true) // 使用现有的StreamXmlPlugin
@@ -122,8 +124,10 @@ object NestedMarkdownProcessor {
                     StreamMarkdownInlineCodePlugin(includeTicks = false),
                     StreamMarkdownLinkPlugin(),
                     StreamMarkdownStrikethroughPlugin(includeDelimiters = false),
-                    StreamMarkdownUnderlinePlugin(), // 先检测块级LaTeX
-                    StreamMarkdownInlineLaTeXPlugin(includeDelimiters = false) // 后检测行内LaTeX
+                    StreamMarkdownUnderlinePlugin(),
+                    // LaTeX 行内公式：支持 $...$ 与 \\(...\\)
+                    StreamMarkdownInlineLaTeXPlugin(includeDelimiters = false),
+                    StreamMarkdownInlineParenLaTeXPlugin(includeDelimiters = false)
             )
 
     /** 根据插件获取对应的Markdown处理器类型 */
@@ -144,7 +148,9 @@ object NestedMarkdownProcessor {
             is StreamMarkdownStrikethroughPlugin -> MarkdownProcessorType.STRIKETHROUGH
             is StreamMarkdownUnderlinePlugin -> MarkdownProcessorType.UNDERLINE
             is StreamMarkdownInlineLaTeXPlugin -> MarkdownProcessorType.INLINE_LATEX
+            is StreamMarkdownInlineParenLaTeXPlugin -> MarkdownProcessorType.INLINE_LATEX
             is StreamMarkdownBlockLaTeXPlugin -> MarkdownProcessorType.BLOCK_LATEX
+            is StreamMarkdownBlockBracketLaTeXPlugin -> MarkdownProcessorType.BLOCK_LATEX
             is StreamMarkdownTablePlugin -> MarkdownProcessorType.TABLE
             is StreamXmlPlugin -> MarkdownProcessorType.XML_BLOCK
             else -> MarkdownProcessorType.PLAIN_TEXT

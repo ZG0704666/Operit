@@ -162,6 +162,13 @@ class ToolPermissionSystem private constructor(private val context: Context) {
         }
     }
     
+    suspend fun clearToolPermission(toolName: String) {
+        context.toolPermissionsDataStore.edit { preferences ->
+            val key = toolPermissionKey(toolName)
+            preferences.remove(key)
+        }
+    }
+    
     /**
      * Save permission levels for multiple tools at once
      */
@@ -184,6 +191,13 @@ class ToolPermissionSystem private constructor(private val context: Context) {
         return PermissionLevel.fromString(preferences[key] ?: PermissionLevel.ASK.name)
     }
     
+    suspend fun getToolPermissionOverride(toolName: String): PermissionLevel? {
+        val preferences = context.toolPermissionsDataStore.data.first()
+        val key = toolPermissionKey(toolName)
+        val stored = preferences[key]
+        return stored?.let { PermissionLevel.fromString(it) }
+    }
+    
     /**
      * Check if a tool operation is dangerous
      */
@@ -204,21 +218,12 @@ class ToolPermissionSystem private constructor(private val context: Context) {
     suspend fun checkToolPermission(tool: AITool): Boolean {
         AppLogger.d(TAG, "Starting permission check: ${tool.name}")
         
-        // Check global permission switch
-        val masterSwitch = masterSwitchFlow.first()
+        val preferences = context.toolPermissionsDataStore.data.first()
+        val masterSwitch = PermissionLevel.fromString(preferences[MASTER_SWITCH] ?: DEFAULT_MASTER_SWITCH)
+        val key = toolPermissionKey(tool.name)
+        val overrideLevel = preferences[key]?.let { PermissionLevel.fromString(it) }
         
-        // If globally forbidden, all tools are denied
-        if (masterSwitch == PermissionLevel.FORBID) {
-            return false
-        }
-        
-        // If global ask, prompt for all tools
-        if (masterSwitch == PermissionLevel.ASK) {
-            return requestPermission(tool)
-        }
-        
-        // Get tool-specific permission level
-        val permissionLevel = getToolPermission(tool.name)
+        val permissionLevel = overrideLevel ?: masterSwitch
         
         return when (permissionLevel) {
             PermissionLevel.ALLOW -> true

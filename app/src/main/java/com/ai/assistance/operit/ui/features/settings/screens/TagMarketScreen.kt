@@ -360,9 +360,7 @@ fun TagMarketScreen(onBackPressed: () -> Unit) {
                                 )
                                 showCreateDialog = false
                                 showSaveSuccessHighlight = true
-                                // 延时 1.5s 后返回
-                                delay(1500)
-                                onBackPressed()
+                                // 保留在标签市场页面，用户可继续添加或编辑标签
                             }
                         }
                     }

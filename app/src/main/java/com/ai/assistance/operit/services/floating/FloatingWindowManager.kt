@@ -326,8 +326,16 @@ class FloatingWindowManager(
         if (Looper.myLooper() == Looper.getMainLooper()) {
             view.alpha = alpha
         } else {
+            val latch = java.util.concurrent.CountDownLatch(1)
             Handler(Looper.getMainLooper()).post {
                 statusIndicatorView?.alpha = alpha
+                latch.countDown()
+            }
+            try {
+                latch.await(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } catch (e: InterruptedException) {
+                AppLogger.e(TAG, "setStatusIndicatorAlpha interrupted", e)
+                Thread.currentThread().interrupt()
             }
         }
     }

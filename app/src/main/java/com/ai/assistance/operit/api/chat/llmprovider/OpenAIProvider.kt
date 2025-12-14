@@ -1245,7 +1245,6 @@ open class OpenAIProvider(
                 val line = reader.readLine() ?: break
 
                 if (!line.startsWith("data:")) {
-                    logLargeString("AIService", line, "【发送消息】收到非data行: ")
                     continue
                 }
                 

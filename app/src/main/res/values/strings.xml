@@ -895,7 +895,7 @@
     <string name="output_tokens">累计出: %1$s</string>
     <string name="context_window">请求: %1$s</string>
     <string name="auto_approve">自动批准:</string>
-    <string name="auto_approve_desc">将会自动把较为安全的工具直接执行而不询问。对于具体的分组批准，请前往设置-工具权限管理进行操作。</string>
+    <string name="auto_approve_desc">用于控制 AI 工具调用时的全局默认策略：开启后，默认直接执行所有工具调用而不再弹出确认；你在“设置 - 工具权限管理”中为单个工具设置的例外规则仍然会优先生效。关闭后，默认对所有工具调用都弹出确认。</string>
     <string name="enabled">已开启</string>
     <string name="ask">询问</string>
     <string name="ai_planning_mode">深度搜索:</string>
@@ -1398,7 +1398,19 @@
 
     <string name="tool_html_packager">HTML打包器</string>
     <string name="tool_html_packager_desc">将HTML文件及其依赖打包成单个HTML文件，方便分享和部署</string>
+
+    <string name="tool_autoglm_one_click">AutoGLM 一键配置</string>
+    <string name="tool_autoglm_one_click_desc">一键为 UI 控制器配置 autoglm-phone 模型并切换 AutoGLM 工具包</string>
     
+    <!-- AutoGLM One-Click Configuration -->
+    <string name="autoglm_config_name">AutoGLM 配置</string>
+    <string name="autoglm_one_click_title">AutoGLM 一键配置</string>
+    <string name="autoglm_one_click_subtitle">为 UI 控制器自动创建智谱 autoglm-phone 模型配置，并切换 AutoGLM 工具包。</string>
+    <string name="autoglm_open_apikey_center">前往智谱 API Key 页面</string>
+    <string name="autoglm_open_apikey_tip">登录后，在智谱平台创建并复制 API Key</string>
+    <string name="autoglm_api_key_placeholder">在此粘贴您的智谱 API Key</string>
+    <string name="autoglm_one_click_button">一键配置 AutoGLM</string>
+
     <!-- Process Limit Remover Screen -->
     <string name="process_limit_title">解除幻象进程限制</string>
     <string name="process_limit_subtitle">管理Android 12+的幻象进程数量限制</string>
@@ -1432,7 +1444,16 @@
     <string name="process_limit_exit_code">退出码：%d</string>
     <string name="process_limit_command">命令</string>
     <string name="toolbox_description">便捷实用的工具集合，提升您的工作效率</string>
-    
+    <string name="autoglm_status_running">正在执行一键配置，请稍候...</string>
+    <string name="autoglm_status_success">已完成 AutoGLM 一键配置：
+- 已创建或更新 AutoGLM UI 控制器模型配置（autoglm-phone, 智谱）
+- 已将“UI 控制器”功能切换为该配置
+- 已关闭 Automatic_ui_base，打开 Automatic_ui_subagent
+
+现在可以在对话界面使用 AutoGLM 模式了。</string>
+    <string name="autoglm_status_error">一键配置失败：%1$s</string>
+    <string name="autoglm_error_empty_api_key">请先填写智谱 API Key。</string>
+
     <!-- MCP Config Screen -->
     <string name="import_or_connect_mcp_service">导入或连接MCP服务</string>
     <string name="select_mcp_plugin_zip">请选择MCP插件压缩包</string>
@@ -2578,6 +2599,7 @@
     <string name="provider_openai">OpenAI (GPT系列)</string>
     <string name="provider_anthropic">Anthropic (Claude系列)</string>
     <string name="provider_google">Google (Gemini系列)</string>
+    <string name="provider_gemini_generic">Gemini通用</string>
     <string name="provider_baidu">百度 (文心一言系列)</string>
     <string name="provider_aliyun">阿里云 (通义千问系列)</string>
     <string name="provider_xunfei">讯飞 (星火认知系列)</string>
@@ -2592,7 +2614,8 @@
     <string name="provider_alipay_bailing">支付宝百灵大模型</string>
     <string name="provider_lmstudio">LM Studio</string>
     <string name="provider_ppinfra">派欧云</string>
-    <string name="provider_other">其他提供商</string>
+    <string name="provider_openai_generic">OpenAI通用</string>
+    <string name="provider_other">其他供应商</string>
     <string name="select_api_provider_title">选择API提供商</string>
     <string name="search_providers">搜索提供商</string>
     <!-- ModelParametersSection strings -->
@@ -2690,7 +2713,7 @@
     <string name="tavern_card_import_failed">酒馆角色卡导入失败</string>
     <string name="invalid_tavern_card_format">无效的酒馆角色卡格式</string>
     <string name="tavern_card_parse_error">解析酒馆角色卡时出错: %1$s</string>
-    
+
     <!-- Screen Titles -->
     <string name="screen_title_memory_base">记忆库</string>
     <string name="screen_title_tool_permissions">工具权限</string>
@@ -2723,11 +2746,12 @@
     <string name="screen_title_text_to_speech">文本转语音</string>
     <string name="screen_title_speech_to_text">语音识别</string>
     <string name="screen_title_process_limit_remover">解除幻象进程限制</string>
+    <string name="screen_title_autoglm_one_click">AutoGLM 一键配置</string>
+
     <string name="screen_title_default_assistant_guide">默认助手设置</string>
     <string name="screen_title_mcp_market">MCP 市场</string>
     <string name="screen_title_mcp_publish">发布 MCP 插件</string>
     <string name="screen_title_mcp_manage">管理我的插件</string>
-
     <!-- Model Prompts Settings Screen -->
     <string name="unknown_error">未知错误</string>
     <string name="file_read_error">读取文件失败: %1$s</string>
@@ -3211,9 +3235,9 @@
     <string name="dialog_button_dismiss">取消</string>
     
     <!-- Chat binding announcement -->
-    <string name="chat_binding_announcement_title">autoglm 自动操作兼容说明</string>
-    <string name="chat_binding_announcement_body">现已完成 autoglm 自动操作的兼容，前往用户手册查看具体教程。</string>
-    <string name="chat_binding_announcement_primary_button">前往用户手册</string>
+    <string name="chat_binding_announcement_title">autoglm 一键配置</string>
+    <string name="chat_binding_announcement_body">版本已再次提升效果，可前往工具箱-autoglm一键配置进行配置。</string>
+    <string name="chat_binding_announcement_primary_button">前往一键配置</string>
     <string name="chat_binding_announcement_acknowledge">我知道了</string>
     <string name="chat_binding_announcement_acknowledge_countdown">我知道了（%1$ds后可点击）</string>
 

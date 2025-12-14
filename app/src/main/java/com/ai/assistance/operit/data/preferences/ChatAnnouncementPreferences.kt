@@ -29,7 +29,7 @@ class ChatAnnouncementPreferences(context: Context) {
         private const val PREFS_NAME = "chat_announcement_preferences"
         private const val KEY_CHAT_BINDING_ANNOUNCEMENT_VERSION =
             "chat_binding_announcement_version"
-        private const val CURRENT_CHAT_BINDING_ANNOUNCEMENT_VERSION = 2
+        private const val CURRENT_CHAT_BINDING_ANNOUNCEMENT_VERSION = 3
     }
 }
 

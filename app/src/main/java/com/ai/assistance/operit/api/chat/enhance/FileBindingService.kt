@@ -203,7 +203,10 @@ class FileBindingService(context: Context) {
 
             for ((op, start, end) in enrichedOps) {
                 AppLogger.d(TAG, "Applying ${op.action} at lines ${start + 1}-${end + 1}")
-                
+
+                // Capture original segment before removal so we can preserve indentation if needed
+                val originalSegment = originalLines.subList(start, end + 1).toList()
+
                 // Remove the old lines
                 for (i in end downTo start) {
                     originalLines.removeAt(i)
@@ -211,7 +214,30 @@ class FileBindingService(context: Context) {
 
                 // If it's a REPLACE, add the new lines
                 if (op.action == EditAction.REPLACE) {
-                    originalLines.addAll(start, op.newContent.lines())
+                    val newLinesRaw = op.newContent.lines()
+
+                    // For simple single-line replacements, inherit the indentation of the original line
+                    val newLines = if (originalSegment.isNotEmpty() &&
+                        start == end &&
+                        newLinesRaw.size == 1
+                    ) {
+                        val originalFirstLine = originalSegment.first()
+                        val indentPrefix = originalFirstLine.takeWhile { it == ' ' || it == '\t' }
+                        val newLine = newLinesRaw.first()
+
+                        if (indentPrefix.isNotEmpty() &&
+                            !newLine.startsWith(" ") &&
+                            !newLine.startsWith("\t")
+                        ) {
+                            listOf(indentPrefix + newLine)
+                        } else {
+                            newLinesRaw
+                        }
+                    } else {
+                        newLinesRaw
+                    }
+
+                    originalLines.addAll(start, newLines)
                 }
             }
 
@@ -262,8 +288,8 @@ class FileBindingService(context: Context) {
                     i++
                 }
 
-                val normalizedOld = oldContent.trimTrailingNewline()
-                val normalizedNew = newContent.trimTrailingNewline()
+                val normalizedOld = oldContent.removeSuffix("\n").removeSuffix("\r")
+                val normalizedNew = newContent.removeSuffix("\n").removeSuffix("\r")
 
                 // Basic validation
                 if ((action == EditAction.REPLACE || action == EditAction.DELETE) && normalizedOld.isBlank()) {
@@ -296,6 +322,12 @@ class FileBindingService(context: Context) {
         // --- 优化1：预计算与规范化 ---
         AppLogger.d(TAG, "开始预计算与规范化...")
         val normalizedOldContent = oldContent.replace(Regex("\\s+"), "")
+        val baseNgrams = buildNgrams(normalizedOldContent)
+        if (baseNgrams.isEmpty()) {
+            AppLogger.w(TAG, "OLD 块在去空白后过短，无法构建 n-gram，放弃匹配。")
+            return -1 to -1
+        }
+
         val lineStartIndices = mutableListOf<Int>()
         val normalizedOriginalContent = buildString {
             originalLines.forEachIndexed { index, line ->
@@ -361,10 +393,10 @@ class FileBindingService(context: Context) {
                             val startCharIndex = lineStartIndices[i]
                             val endCharIndex = lineStartIndices[endLine]
                             val normalizedWindow =
-                                    normalizedOriginalContent.substring(startCharIndex, endCharIndex)
+                                normalizedOriginalContent.substring(startCharIndex, endCharIndex)
 
                             localLcs++
-                            val score = lcsRatio(normalizedOldContent, normalizedWindow)
+                            val score = ngramSimilarity(baseNgrams, normalizedWindow)
 
                             if (score > localBestScore) {
                                 localBestScore = score
@@ -372,19 +404,19 @@ class FileBindingService(context: Context) {
                                 localBestEnd = endLine - 1
                                 val matchPercentage = (localBestScore * 100).toInt()
                                 AppLogger.d(
-                                        TAG,
-                                        "并行块[$threadIndex] 发现更佳匹配: 行 ${i + 1}-$endLine, 相似度: $matchPercentage%"
+                                    TAG,
+                                    "并行块[$threadIndex] 发现更佳匹配: 行 ${i + 1}-$endLine, 相似度: $matchPercentage%"
                                 )
 
                                 if (localBestScore == 1.0) {
                                     foundPerfectMatch.set(true)
                                     AppLogger.d(TAG, "并行块[$threadIndex] 已找到100%匹配，提前结束该块搜索。")
                                     return@Callable MatchSearchResult(
-                                            localBestScore,
-                                            localBestStart,
-                                            localBestEnd,
-                                            localWindows,
-                                            localLcs
+                                        localBestScore,
+                                        localBestStart,
+                                        localBestEnd,
+                                        localWindows,
+                                        localLcs
                                     )
                                 }
                             }
@@ -423,9 +455,12 @@ class FileBindingService(context: Context) {
         val totalTime = (System.currentTimeMillis() - startTime) / 1000.0
         val result = if (bestMatchScore > 0.9) {
             val (start, end) = bestMatchRange
-            AppLogger.d(TAG, "匹配完成! 最佳匹配: 行 ${start + 1}-${end + 1}, 相似度: ${(bestMatchScore * 100).toInt()}%, " +
-                    "总耗时: ${String.format("%.2f", totalTime)}s, " +
-                    "总窗口数: $totalWindows, 总LCS计算: $lcsCalculations")
+            AppLogger.d(
+                TAG,
+                "匹配完成! 最佳匹配: 行 ${start + 1}-${end + 1}, 相似度: ${(bestMatchScore * 100).toInt()}%, " +
+                        "总耗时: ${String.format("%.2f", totalTime)}s, " +
+                        "总窗口数: $totalWindows, 总LCS计算: $lcsCalculations"
+            )
             bestMatchRange
         } else {
             AppLogger.w(TAG, "未找到足够好的匹配 (最高相似度: ${(bestMatchScore * 100).toInt()}% < 90%)")
@@ -435,26 +470,22 @@ class FileBindingService(context: Context) {
         return result
     }
 
-    private fun lcsRatio(s1: String, s2: String): Double {
-        val len1 = s1.length
-        val len2 = s2.length
-        if (len1 == 0 || len2 == 0) return 0.0
+    private fun buildNgrams(s: String, n: Int = 3): Set<String> {
+        if (s.length < n) return emptySet()
+        return s.windowed(n, 1).toSet()
+    }
 
-        // 动态规划表
-        val dp = Array(len1 + 1) { IntArray(len2 + 1) }
+    private fun ngramSimilarity(baseNgrams: Set<String>, s2: String, n: Int = 3): Double {
+        if (baseNgrams.isEmpty() || s2.isEmpty()) return 0.0
+        if (s2.length < n) return 0.0
 
-        for (i in 1..len1) {
-            for (j in 1..len2) {
-                if (s1[i - 1] == s2[j - 1]) {
-                    dp[i][j] = dp[i - 1][j - 1] + 1
-                } else {
-                    dp[i][j] = maxOf(dp[i - 1][j], dp[i][j - 1])
-                }
-            }
-        }
-        
-        val lcsLength = dp[len1][len2]
-        return (2.0 * lcsLength) / (len1 + len2)
+        val ngrams2 = s2.windowed(n, 1).toSet()
+        if (ngrams2.isEmpty()) return 0.0
+
+        val intersection = baseNgrams.intersect(ngrams2).size
+        val union = baseNgrams.size + ngrams2.size - intersection
+
+        return if (union == 0) 0.0 else intersection.toDouble() / union.toDouble()
     }
 
     private fun hasMultiplePerfectMatches(originalContent: String, oldContent: String): Boolean {

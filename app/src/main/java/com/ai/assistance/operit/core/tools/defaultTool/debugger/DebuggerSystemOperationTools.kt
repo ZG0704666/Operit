@@ -280,14 +280,40 @@ open class DebuggerSystemOperationTools(context: Context) :
         }
 
         return try {
-            val command =
-                if (activity.isBlank()) {
-                    // 使用 am start 命令而不是 monkey，避免修改系统设置（如屏幕旋转）
-                    // 通过 Intent 启动应用的主 Activity，让系统自动找到合适的启动器
-                    "am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $packageName"
+            val command: String
+            if (activity.isBlank()) {
+                // 使用 am start 命令而不是 monkey，避免修改系统设置（如屏幕旋转）
+                // 先获取应用的主 Activity，然后使用 -n 参数启动
+                val resolveCmd = "cmd package resolve-activity --brief $packageName 2>/dev/null | tail -n 1"
+                val resolveResult = AndroidShellExecutor.executeShellCommand(resolveCmd)
+                
+                if (resolveResult.success && resolveResult.stdout.isNotBlank()) {
+                    val output = resolveResult.stdout.trim()
+                    // resolve-activity 返回格式可能是：package/activity 或只有 activity
+                    // 也可能返回多行，最后一行是组件名
+                    val lines = output.lines().filter { it.isNotBlank() && !it.startsWith("name=") }
+                    val mainActivity = lines.lastOrNull()?.trim() ?: output.trim()
+                    
+                    // 如果返回的是完整组件名（package/activity），直接使用
+                    command = if (mainActivity.contains('/')) {
+                        "am start -n $mainActivity"
+                    } else {
+                        // 如果只返回了 Activity 名，拼接包名
+                        "am start -n $packageName/$mainActivity"
+                    }
+                    AppLogger.d(TAG, "解析到主 Activity: $mainActivity，使用命令: $command")
                 } else {
-                    "am start -n $packageName/$activity"
+                    // 如果无法解析 Activity，返回错误
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "无法解析应用主 Activity。请提供 activity 参数，或确保应用已正确安装。包名: $packageName"
+                    )
                 }
+            } else {
+                command = "am start -n $packageName/$activity"
+            }
 
             val result = AndroidShellExecutor.executeShellCommand(command)
 

@@ -304,7 +304,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             ChatBindingAnnouncementDialog(
                 onNavigateToChatManagement = {
                     dismissChatBindingAnnouncement()
-                    navigateTo(Screen.Help)
+                    navigateTo(Screen.AutoGlmOneClick)
                 },
                 onDismiss = { dismissChatBindingAnnouncement() }
             )

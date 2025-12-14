@@ -47,7 +47,10 @@ fun ToolPermissionSettingsScreen(navigateBack: () -> Unit) {
 
     LaunchedEffect(allTools) {
         allTools.forEach { toolName ->
-            toolPermissions[toolName] = toolPermissionSystem.getToolPermission(toolName)
+            val override = toolPermissionSystem.getToolPermissionOverride(toolName)
+            if (override != null) {
+                toolPermissions[toolName] = override
+            }
         }
     }
 
@@ -59,9 +62,9 @@ fun ToolPermissionSettingsScreen(navigateBack: () -> Unit) {
         val currentLevel = toolPermissions[toolName]
         if (currentLevel == newLevel) {
             // If the tool is already in the target level, move it back to ASK
-            toolPermissions[toolName] = PermissionLevel.ASK
+            toolPermissions.remove(toolName)
             scope.launch {
-                toolPermissionSystem.saveToolPermission(toolName, PermissionLevel.ASK)
+                toolPermissionSystem.clearToolPermission(toolName)
             }
         } else {
             // Otherwise, move it to the new level
@@ -121,6 +124,30 @@ fun ToolPermissionSettingsScreen(navigateBack: () -> Unit) {
                                 toolPermissionSystem.saveMasterSwitch(level)
                             }
                         }
+                    )
+                }
+            }
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "使用说明",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text =
+                            "1. 上面的\"全局默认权限\"控制所有工具的默认行为。\n" +
+                                    "2. 下面每个分组中添加的工具，是对该工具设置\"例外规则\"，会覆盖全局默认。\n" +
+                                    "3. 再次点击同一分组中的工具，或在选择对话框中取消勾选，即可移除该工具的例外配置，让它重新跟随全局默认。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

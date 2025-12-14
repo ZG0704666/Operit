@@ -1190,6 +1190,7 @@
     <string name="provider_openai">OpenAI (Serie GPT)</string>
     <string name="provider_anthropic">Anthropic (Serie Claude)</string>
     <string name="provider_google">Google (Serie Gemini)</string>
+    <string name="provider_gemini_generic">Gemini genérico</string>
     <string name="provider_baidu">Baidu (Serie ERNIE)</string>
     <string name="provider_aliyun">Alibaba Cloud (Serie Qwen)</string>
     <string name="provider_xunfei">iFLYTEK (Serie Spark)</string>
@@ -1202,7 +1203,7 @@
     <string name="provider_openrouter">OpenRouter (Hub Multi-modelo)</string>
     <string name="provider_infiniai">InfiniAI</string>
     <string name="provider_lmstudio">LM Studio</string>
-    <string name="provider_other">Otros Proveedores</string>
+    <string name="provider_other">OpenAI genérico</string>
     <string name="select_api_provider_title">Seleccionar Proveedor API</string>
     <string name="search_providers">Buscar proveedores</string>
     <!-- ModelParametersSection strings -->

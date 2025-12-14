@@ -2575,6 +2575,7 @@
     <string name="provider_openai">OpenAI (GPT Series)</string>
     <string name="provider_anthropic">Anthropic (Claude Series)</string>
     <string name="provider_google">Google (Gemini Series)</string>
+    <string name="provider_gemini_generic">Gemini (Generic)</string>
     <string name="provider_baidu">Baidu (ERNIE Series)</string>
     <string name="provider_aliyun">Alibaba Cloud (Qwen Series)</string>
     <string name="provider_xunfei">iFLYTEK (Spark Series)</string>
@@ -2589,7 +2590,7 @@
     <string name="provider_alipay_bailing">Alipay Bailing Model</string>
     <string name="provider_lmstudio">LM Studio</string>
     <string name="provider_ppinfra">PPInfra Cloud</string>
-    <string name="provider_other">Other Providers</string>
+    <string name="provider_other">OpenAI (Generic)</string>
     <string name="select_api_provider_title">Select API Provider</string>
     <string name="search_providers">Search providers</string>
     <!-- ModelParametersSection strings -->
@@ -3203,9 +3204,9 @@
     <string name="dialog_button_dismiss">Cancel</string>
     
     <!-- Chat binding announcement -->
-    <string name="chat_binding_announcement_title">Chats Are Now Linked to Character Cards</string>
-    <string name="chat_binding_announcement_body">Starting with this update, every conversation is linked to a character card.\n\nAll of your previous chats have been mapped to the &quot;Default character card&quot; automatically. Head to Settings &gt; Chat Management if you need to edit, regroup, or rename them.</string>
-    <string name="chat_binding_announcement_primary_button">Review</string>
+    <string name="chat_binding_announcement_title">AutoGLM One-Click Setup</string>
+    <string name="chat_binding_announcement_body">Model performance has been improved again. You can configure it via Toolbox - AutoGLM One-Click Setup.</string>
+    <string name="chat_binding_announcement_primary_button">Configure Now</string>
     <string name="chat_binding_announcement_acknowledge">Got it</string>
     <string name="chat_binding_announcement_acknowledge_countdown">Got it (%1$ds left)</string>
 

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.api.chat.llmprovider.ImageLinkParser
 import com.ai.assistance.operit.core.config.FunctionalPrompts
 import com.ai.assistance.operit.core.tools.AutomationExecutionResult
 import com.ai.assistance.operit.core.tools.SimplifiedUINode
@@ -12,7 +13,6 @@ import com.ai.assistance.operit.core.tools.UIPageResultData
 import com.ai.assistance.operit.core.tools.AppListData
 import com.ai.assistance.operit.core.tools.defaultTool.ToolGetter
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
-import com.ai.assistance.operit.api.chat.llmprovider.ImageLinkParser
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ToolParameter
@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -533,43 +535,17 @@ open class StandardUITools(protected val context: Context) {
 
             val floatingService = FloatingChatService.getInstance()
             try {
-                // Temporarily hide the floating status indicator from screenshots
-                floatingService?.setStatusIndicatorAlpha(0f)
+                // Temporarily hide the floating status indicator from screenshots (on main thread)
+                withContext(Dispatchers.Main) {
+                    floatingService?.setStatusIndicatorAlpha(0f)
+                }
+                // Give the system a brief moment to commit the alpha change to the compositor
+                delay(50)
                 val command = "screencap -p ${file.absolutePath}"
                 val result = AndroidShellExecutor.executeShellCommand(command)
                 if (!result.success) {
                     AppLogger.w(TAG, "captureScreenshotForAgent: screencap failed: ${result.stderr}")
                     return null
-                }
-
-                try {
-                    val originalBitmap = BitmapFactory.decodeFile(file.absolutePath)
-                    if (originalBitmap != null) {
-                        val width = originalBitmap.width
-                        val height = originalBitmap.height
-                        val maxDimension = 1080
-                        val maxOriginalDim = if (width > height) width else height
-                        val scale = maxOriginalDim.toFloat() / maxDimension.toFloat()
-
-                        val targetBitmap = if (scale > 1f) {
-                            val newWidth = (width / scale).toInt().coerceAtLeast(1)
-                            val newHeight = (height / scale).toInt().coerceAtLeast(1)
-                            Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, true)
-                        } else {
-                            originalBitmap
-                        }
-
-                        FileOutputStream(file).use { out ->
-                            targetBitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
-                        }
-
-                        if (targetBitmap !== originalBitmap) {
-                            originalBitmap.recycle()
-                        }
-                        targetBitmap.recycle()
-                    }
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "captureScreenshotForAgent: downscale/compress failed: ${file.absolutePath}", e)
                 }
 
                 val imageId = ImagePoolManager.addImage(file.absolutePath)
@@ -580,7 +556,9 @@ open class StandardUITools(protected val context: Context) {
                     "<link type=\"image\" id=\"$imageId\"></link>"
                 }
             } finally {
-                floatingService?.setStatusIndicatorAlpha(1f)
+                withContext(Dispatchers.Main) {
+                    floatingService?.setStatusIndicatorAlpha(1f)
+                }
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "captureScreenshotForAgent failed", e)

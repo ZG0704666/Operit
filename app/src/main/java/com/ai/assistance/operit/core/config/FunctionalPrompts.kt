@@ -131,9 +131,7 @@ object FunctionalPrompts {
 
 操作指令及其作用如下：
 - do(action="Launch", app="xxx")  
-    Launch是启动目标app的操作，这比通过主屏幕导航更快。**参数 app 必须是Android的包名字符串，而不是中文名称或简称**，例如微信=com.tencent.mm，B站=tv.danmaku.bili。此操作完成后，您将自动收到结果状态的截图。
-- do(action="List")  
-    List是列出已安装应用及其Android包名的操作。你可以在不知道某个应用包名时先调用一次List，查看结果中的应用名称和对应包名，然后在后续的Launch动作中使用准确的包名。
+    Launch是启动目标app的操作，这比通过主屏幕导航更快。此操作完成后，您将自动收到结果状态的截图。
 - do(action="Tap", element=[x,y])  
     Tap是点击操作，点击屏幕上的特定点。可用此操作点击按钮、选择项目、从主屏幕打开应用程序，或与任何可点击的用户界面元素进行交互。坐标系统从左上角 (0,0) 开始到右下角（999,999)结束。此操作完成后，您将自动收到结果状态的截图。
 - do(action="Tap", element=[x,y], message="重要操作")  

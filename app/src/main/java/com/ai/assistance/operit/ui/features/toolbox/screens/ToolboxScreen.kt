@@ -91,7 +91,8 @@ fun ToolboxScreen(
         onAgreementSelected: () -> Unit,
         onDefaultAssistantGuideSelected: () -> Unit,
         onProcessLimitRemoverSelected: () -> Unit,
-        onHtmlPackagerSelected: () -> Unit
+        onHtmlPackagerSelected: () -> Unit,
+        onAutoGlmOneClickSelected: () -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
@@ -207,6 +208,13 @@ fun ToolboxScreen(
                                 description = stringResource(R.string.tool_html_packager_desc),
                                 category = ToolCategory.DEVELOPMENT,
                                 onClick = onHtmlPackagerSelected
+                        ),
+                        Tool(
+                                name = stringResource(R.string.tool_autoglm_one_click),
+                                icon = Icons.Default.AutoMode,
+                                description = stringResource(R.string.tool_autoglm_one_click_desc),
+                                category = ToolCategory.DEVELOPMENT,
+                                onClick = onAutoGlmOneClickSelected
                         )
                 )
 
