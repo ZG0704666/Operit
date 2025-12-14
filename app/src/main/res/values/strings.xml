@@ -1401,6 +1401,8 @@
 
     <string name="tool_autoglm_one_click">AutoGLM 一键配置</string>
     <string name="tool_autoglm_one_click_desc">一键为 UI 控制器配置 autoglm-phone 模型并切换 AutoGLM 工具包</string>
+    <string name="tool_autoglm_tool">AutoGLM 执行</string>
+    <string name="tool_autoglm_tool_desc">使用 autoglm-phone 代理按步骤执行手机自动化任务</string>
     
     <!-- AutoGLM One-Click Configuration -->
     <string name="autoglm_config_name">AutoGLM 配置</string>
@@ -2747,6 +2749,7 @@
     <string name="screen_title_speech_to_text">语音识别</string>
     <string name="screen_title_process_limit_remover">解除幻象进程限制</string>
     <string name="screen_title_autoglm_one_click">AutoGLM 一键配置</string>
+    <string name="screen_title_autoglm_tool">autoglm执行</string>
 
     <string name="screen_title_default_assistant_guide">默认助手设置</string>
     <string name="screen_title_mcp_market">MCP 市场</string>
@@ -3235,8 +3238,8 @@
     <string name="dialog_button_dismiss">取消</string>
     
     <!-- Chat binding announcement -->
-    <string name="chat_binding_announcement_title">autoglm 一键配置</string>
-    <string name="chat_binding_announcement_body">版本已再次提升效果，可前往工具箱-autoglm一键配置进行配置。</string>
+    <string name="chat_binding_announcement_title">AutoGLM 一键配置</string>
+    <string name="chat_binding_announcement_body">版本已再次提升效果，可前往工具箱-AutoGLM一键配置进行配置。</string>
     <string name="chat_binding_announcement_primary_button">前往一键配置</string>
     <string name="chat_binding_announcement_acknowledge">我知道了</string>
     <string name="chat_binding_announcement_acknowledge_countdown">我知道了（%1$ds后可点击）</string>

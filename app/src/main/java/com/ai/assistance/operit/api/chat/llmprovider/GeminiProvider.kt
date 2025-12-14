@@ -360,7 +360,8 @@ class GeminiProvider(
     private fun buildContentsAndCountTokens(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            toolsJson: String? = null
+            toolsJson: String? = null,
+            preserveThinkInHistory: Boolean = false
     ): Pair<Pair<JSONArray, JSONObject?>, Int> {
         val contentsArray = JSONArray()
         var systemInstruction: JSONObject? = null
@@ -378,7 +379,7 @@ class GeminiProvider(
             chatHistory + ("user" to message)
         }
 
-        val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(effectiveHistory)
+        val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(effectiveHistory, extractThinking = preserveThinkInHistory)
 
         // Find and process system message first
         val systemMessage = standardizedHistory.find { it.first == "system" }
@@ -537,6 +538,7 @@ class GeminiProvider(
             enableThinking: Boolean,
             stream: Boolean,
             availableTools: List<ToolPrompt>?,
+            preserveThinkInHistory: Boolean,
             onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit,
             onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
@@ -595,7 +597,7 @@ class GeminiProvider(
                     currentHistory = chatHistory
                 }
 
-                val requestBody = createRequestBody(currentMessage, currentHistory, modelParameters, enableThinking, availableTools)
+                val requestBody = createRequestBody(currentMessage, currentHistory, modelParameters, enableThinking, availableTools, preserveThinkInHistory)
                 onTokensUpdated(
                         tokenCacheManager.totalInputTokenCount,
                         tokenCacheManager.cachedInputTokenCount,
@@ -714,7 +716,8 @@ class GeminiProvider(
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
             enableThinking: Boolean,
-            availableTools: List<ToolPrompt>? = null
+            availableTools: List<ToolPrompt>? = null,
+            preserveThinkInHistory: Boolean = false
     ): RequestBody {
         val json = JSONObject()
 
@@ -748,7 +751,7 @@ class GeminiProvider(
             null
         }
 
-        val (contentsResult, _) = buildContentsAndCountTokens(message, chatHistory, toolsJson)
+        val (contentsResult, _) = buildContentsAndCountTokens(message, chatHistory, toolsJson, preserveThinkInHistory)
         val (contentsArray, systemInstruction) = contentsResult
 
         if (systemInstruction != null) {

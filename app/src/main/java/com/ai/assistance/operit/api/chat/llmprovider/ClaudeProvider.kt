@@ -310,7 +310,8 @@ class ClaudeProvider(
      */
     private fun buildMessagesAndCountTokens(
             message: String,
-            chatHistory: List<Pair<String, String>>
+            chatHistory: List<Pair<String, String>>,
+            preserveThinkInHistory: Boolean
     ): Triple<JSONArray, String?, Int> {
         val messagesArray = JSONArray()
 
@@ -337,7 +338,7 @@ class ClaudeProvider(
 
         // 处理用户和助手消息
         val historyWithoutSystem =
-                ChatUtils.mapChatHistoryToStandardRoles(effectiveHistory).filter {
+                ChatUtils.mapChatHistoryToStandardRoles(effectiveHistory, extractThinking = preserveThinkInHistory).filter {
                     it.first != "system"
                 }
         
@@ -477,7 +478,8 @@ class ClaudeProvider(
             modelParameters: List<ModelParameter<*>> = emptyList(),
             enableThinking: Boolean,
             stream: Boolean = true,
-            availableTools: List<ToolPrompt>? = null
+            availableTools: List<ToolPrompt>? = null,
+            preserveThinkInHistory: Boolean = false
     ): RequestBody {
         val jsonObject = JSONObject()
         jsonObject.put("model", modelName)
@@ -499,7 +501,7 @@ class ClaudeProvider(
 
         // 使用TokenCacheManager计算输入token（包含工具定义），并继续使用原有逻辑构建消息体
         tokenCacheManager.calculateInputTokens(message, chatHistory, toolsJson)
-        val (messagesArray, systemPrompt, _) = buildMessagesAndCountTokens(message, chatHistory)
+        val (messagesArray, systemPrompt, _) = buildMessagesAndCountTokens(message, chatHistory, preserveThinkInHistory)
 
         jsonObject.put("messages", messagesArray)
 
@@ -621,6 +623,7 @@ class ClaudeProvider(
             enableThinking: Boolean,
             stream: Boolean,
             availableTools: List<ToolPrompt>?,
+            preserveThinkInHistory: Boolean,
             onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit,
             onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
@@ -660,7 +663,7 @@ class ClaudeProvider(
                     currentHistory = chatHistory
                 }
 
-                val requestBody = createRequestBody(currentMessage, currentHistory, modelParameters, enableThinking, stream, availableTools)
+                val requestBody = createRequestBody(currentMessage, currentHistory, modelParameters, enableThinking, stream, availableTools, preserveThinkInHistory)
                 onTokensUpdated(
                         tokenCacheManager.totalInputTokenCount,
                         tokenCacheManager.cachedInputTokenCount,

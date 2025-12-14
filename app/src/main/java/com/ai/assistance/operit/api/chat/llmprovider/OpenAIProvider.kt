@@ -249,10 +249,11 @@ open class OpenAIProvider(
         modelParameters: List<ModelParameter<*>> = emptyList(),
         enableThinking: Boolean = false,
         stream: Boolean = true,
-        availableTools: List<ToolPrompt>? = null
+        availableTools: List<ToolPrompt>? = null,
+        preserveThinkInHistory: Boolean = false
     ): RequestBody {
         val jsonString =
-            createRequestBodyInternal(message, chatHistory, modelParameters, stream, availableTools)
+            createRequestBodyInternal(message, chatHistory, modelParameters, stream, availableTools, preserveThinkInHistory)
         return jsonString.toRequestBody(JSON)
     }
 
@@ -264,7 +265,8 @@ open class OpenAIProvider(
         chatHistory: List<Pair<String, String>>,
         modelParameters: List<ModelParameter<*>> = emptyList(),
         stream: Boolean = true,
-        availableTools: List<ToolPrompt>? = null
+        availableTools: List<ToolPrompt>? = null,
+        preserveThinkInHistory: Boolean = false
     ): String {
         val jsonObject = JSONObject()
         jsonObject.put("model", modelName)
@@ -331,7 +333,8 @@ open class OpenAIProvider(
             message,
             chatHistory,
             effectiveEnableToolCall,
-            toolsJson
+            toolsJson,
+            preserveThinkInHistory
         )
         jsonObject.put("messages", messagesArray)
 
@@ -409,7 +412,8 @@ open class OpenAIProvider(
         message: String,
         chatHistory: List<Pair<String, String>>,
         useToolCall: Boolean = false,
-        toolsJson: String? = null
+        toolsJson: String? = null,
+        preserveThinkInHistory: Boolean = false
     ): Pair<JSONArray, Int> {
         val messagesArray = JSONArray()
 
@@ -431,7 +435,7 @@ open class OpenAIProvider(
 
         // 添加聊天历史（包含当前消息如果它不在历史中）
         if (effectiveHistory.isNotEmpty()) {
-            val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(effectiveHistory)
+            val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(effectiveHistory, extractThinking = preserveThinkInHistory)
             val mergedHistory = mutableListOf<Pair<String, String>>()
 
             for ((role, content) in standardizedHistory) {
@@ -1309,6 +1313,7 @@ open class OpenAIProvider(
         enableThinking: Boolean,
         stream: Boolean,
         availableTools: List<ToolPrompt>?,
+        preserveThinkInHistory: Boolean,
         onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit,
         onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
@@ -1371,7 +1376,8 @@ open class OpenAIProvider(
                     modelParameters,
                     enableThinking,
                     stream,
-                    availableTools
+                    availableTools,
+                    preserveThinkInHistory
                 )
                 onTokensUpdated(
                     tokenCacheManager.totalInputTokenCount,

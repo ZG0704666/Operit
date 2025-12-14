@@ -73,6 +73,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.speechtotext.SpeechT
 import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToSpeechToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.autoglm.AutoGlmOneClickToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.autoglm.AutoGlmToolScreen
 import com.ai.assistance.operit.ui.features.update.screens.UpdateScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowListScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowDetailScreen
@@ -297,7 +298,8 @@ sealed class Screen(
                     onDefaultAssistantGuideSelected = { navigateTo(DefaultAssistantGuide) },
                     onProcessLimitRemoverSelected = { navigateTo(ProcessLimitRemover) },
                     onHtmlPackagerSelected = { navigateTo(HtmlPackager) },
-                    onAutoGlmOneClickSelected = { navigateTo(AutoGlmOneClick) }
+                    onAutoGlmOneClickSelected = { navigateTo(AutoGlmOneClick) },
+                    onAutoGlmToolSelected = { navigateTo(AutoGlmTool) }
             )
         }
     }
@@ -1191,6 +1193,22 @@ sealed class Screen(
                     updateNavItem(NavItem.Settings)
                 }
             )
+        }
+    }
+    
+    data object AutoGlmTool : Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = R.string.screen_title_autoglm_tool) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            AutoGlmToolScreen()
         }
     }
 

@@ -33,10 +33,11 @@ class QwenAIProvider(
         modelParameters: List<ModelParameter<*>>,
         enableThinking: Boolean,
         stream: Boolean,
-        availableTools: List<ToolPrompt>?
+        availableTools: List<ToolPrompt>?,
+        preserveThinkInHistory: Boolean
     ): RequestBody {
         // 首先，调用父类的实现来获取一个标准的OpenAI格式的请求体JSON对象
-        val baseRequestBodyJson = super.createRequestBodyInternal(message, chatHistory, modelParameters, stream, availableTools)
+        val baseRequestBodyJson = super.createRequestBodyInternal(message, chatHistory, modelParameters, stream, availableTools, preserveThinkInHistory)
         val jsonObject = JSONObject(baseRequestBodyJson)
 
         // 如果启用了思考模式，则为Qwen模型添加特定的`enable_thinking`参数
@@ -58,16 +59,17 @@ class QwenAIProvider(
     }
 
     override suspend fun sendMessage(
-            message: String,
-            chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>>,
-            enableThinking: Boolean,
-            stream: Boolean,
-            availableTools: List<ToolPrompt>?,
-            onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit,
-            onNonFatalError: suspend (error: String) -> Unit
+        message: String,
+        chatHistory: List<Pair<String, String>>,
+        modelParameters: List<ModelParameter<*>>,
+        enableThinking: Boolean,
+        stream: Boolean,
+        availableTools: List<ToolPrompt>?,
+        preserveThinkInHistory: Boolean,
+        onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit,
+        onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> {
         // 直接调用父类的sendMessage实现，它已经包含了续写逻辑和stream参数处理
-        return super.sendMessage(message, chatHistory, modelParameters, enableThinking, stream, availableTools, onTokensUpdated, onNonFatalError)
+        return super.sendMessage(message, chatHistory, modelParameters, enableThinking, stream, availableTools, preserveThinkInHistory, onTokensUpdated, onNonFatalError)
     }
 }

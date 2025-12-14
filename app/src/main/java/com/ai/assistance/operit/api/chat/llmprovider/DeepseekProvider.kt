@@ -38,11 +38,12 @@ class DeepseekProvider(
         modelParameters: List<ModelParameter<*>>,
         enableThinking: Boolean,
         stream: Boolean,
-        availableTools: List<ToolPrompt>?
+        availableTools: List<ToolPrompt>?,
+        preserveThinkInHistory: Boolean
     ): RequestBody {
         // 如果未启用推理模式，直接使用父类的实现
         if (!enableReasoning) {
-            return super.createRequestBody(message, chatHistory, modelParameters, enableThinking, stream, availableTools)
+            return super.createRequestBody(message, chatHistory, modelParameters, enableThinking, stream, availableTools, preserveThinkInHistory)
         }
 
         // 启用推理模式时，需要特殊处理
@@ -303,10 +304,11 @@ class DeepseekProvider(
         enableThinking: Boolean,
         stream: Boolean,
         availableTools: List<ToolPrompt>?,
+        preserveThinkInHistory: Boolean,
         onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit,
         onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> {
         // 直接调用父类的sendMessage实现
-        return super.sendMessage(message, chatHistory, modelParameters, enableThinking, stream, availableTools, onTokensUpdated, onNonFatalError)
+        return super.sendMessage(message, chatHistory, modelParameters, enableThinking, stream, availableTools, preserveThinkInHistory, onTokensUpdated, onNonFatalError)
     }
 }
