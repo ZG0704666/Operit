@@ -70,8 +70,16 @@ class PhoneAgent(
 
     private suspend fun awaitIfPaused() {
         val flow = pauseFlow ?: return
-        while (flow.value) {
-            delay(200)
+        if (!flow.value) {
+            return
+        }
+        AppLogger.d("PhoneAgent", "awaitIfPaused: entering pause loop, delay starting")
+        try {
+            while (flow.value) {
+                delay(200)
+            }
+        } finally {
+            AppLogger.d("PhoneAgent", "awaitIfPaused: exiting pause loop")
         }
     }
 
@@ -120,9 +128,13 @@ class PhoneAgent(
             pauseFlow = isPausedFlow
 
             // First step with user prompt
+            AppLogger.d("PhoneAgent", "run: starting first step for task='$task', hasShowerDisplayAtStart=$hasShowerDisplayAtStart")
             awaitIfPaused()
+            AppLogger.d("PhoneAgent", "run: after awaitIfPaused for first step")
             var result = _executeStep(task, isFirst = true)
+            AppLogger.d("PhoneAgent", "run: first step _executeStep completed, stepCount=$_stepCount, finished=${result.finished}")
             onStep?.invoke(result)
+            AppLogger.d("PhoneAgent", "run: onStep callback for first step completed")
 
             if (result.finished) {
                 return result.message ?: "Task completed"
@@ -130,18 +142,24 @@ class PhoneAgent(
 
             // Continue until finished or max steps reached
             while (_stepCount < config.maxSteps) {
+                AppLogger.d("PhoneAgent", "run: starting loop iteration, current stepCount=$_stepCount")
                 awaitIfPaused()
+                AppLogger.d("PhoneAgent", "run: after awaitIfPaused in loop, current stepCount=$_stepCount")
                 result = _executeStep(null, isFirst = false)
+                AppLogger.d("PhoneAgent", "run: loop _executeStep completed, stepCount=$_stepCount, finished=${result.finished}")
                 onStep?.invoke(result)
+                AppLogger.d("PhoneAgent", "run: onStep callback for loop step completed, stepCount=$_stepCount")
 
                 if (result.finished) {
                     return result.message ?: "Task completed"
                 }
             }
 
+            AppLogger.d("PhoneAgent", "run: max steps reached, stepCount=$_stepCount")
             return "Max steps reached"
         } finally {
             // Restore UI after agent run: show window, hide any indicators, hide progress
+            AppLogger.d("PhoneAgent", "run: finishing, restoring UI")
             pauseFlow = null
             floatingService?.setFloatingWindowVisible(true)
             clearAgentIndicators(context)
@@ -158,8 +176,11 @@ class PhoneAgent(
     /** Execute a single step of the agent loop. */
     private suspend fun _executeStep(userPrompt: String?, isFirst: Boolean): StepResult {
         _stepCount++
+        AppLogger.d("PhoneAgent", "_executeStep: begin, step=$_stepCount, isFirst=$isFirst")
 
+        AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount calling captureScreenshotForAgent")
         val screenshotLink = actionHandler.captureScreenshotForAgent()
+        AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount captureScreenshotForAgent completed, linkNull=${screenshotLink == null}")
         val screenInfo = buildString {
             if (screenshotLink != null) {
                 appendLine("[SCREENSHOT] Below is the latest screen image:")
@@ -178,6 +199,7 @@ class PhoneAgent(
         _contextHistory.add("user" to userMessage)
 
         // 直接使用传入的、已经为UI_CONTROLLER配置好的AIService实例
+        AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount sending message to AI, messageLength=${userMessage.length}, historySize=${_contextHistory.size}")
         val responseStream = uiService.sendMessage(
             message = userMessage,
             chatHistory = _contextHistory.toList(),
@@ -189,11 +211,13 @@ class PhoneAgent(
         val contentBuilder = StringBuilder()
         responseStream.collect { chunk -> contentBuilder.append(chunk) }
         val fullResponse = contentBuilder.toString().trim()
+        AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount AI response collected, length=${fullResponse.length}")
 
         // 对齐官方 Python 客户端：
         // 1. 优先用 finish(message=) / do(action=) 切分思考和动作
         // 2. 没有这些标记时，再回退到 <think>/<answer> 标签解析
         val (thinking, answer) = parseThinkingAndAction(fullResponse)
+        AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount parsed thinking length=${thinking?.length ?: 0}, answer length=${answer.length}")
 
         // 严格按照官方格式将思考和动作重新组合，然后添加到历史记录中
         // 确保传递给模型的上下文是干净且格式正确的
@@ -201,19 +225,22 @@ class PhoneAgent(
         _contextHistory.add("assistant" to historyEntry)
 
         val parsedAction = parseAgentAction(answer)
-
-        AppLogger.d("PhoneAgent", "Step $_stepCount: metadata=${parsedAction.metadata}, action=${parsedAction.actionName}")
+        AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount parsedAction metadata=${parsedAction.metadata}, action=${parsedAction.actionName}")
 
         actionHandler.removeImagesFromLastUserMessage(_contextHistory)
 
         if (parsedAction.metadata == "finish") {
             val message = parsedAction.fields["message"] ?: "Task finished."
+            AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount finish with message length=${message.length}")
             return StepResult(success = true, finished = true, action = parsedAction, thinking = thinking, message = message)
         }
 
         if (parsedAction.metadata == "do") {
+            AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount about to awaitIfPaused before executeAgentAction, action=${parsedAction.actionName}")
             awaitIfPaused()
+            AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount calling executeAgentAction, action=${parsedAction.actionName}")
             val execResult = actionHandler.executeAgentAction(parsedAction)
+            AppLogger.d("PhoneAgent", "_executeStep: step=$_stepCount executeAgentAction completed, success=${execResult.success}, shouldFinish=${execResult.shouldFinish}")
             if (execResult.shouldFinish) {
                  return StepResult(success = execResult.success, finished = true, action = parsedAction, thinking = thinking, message = execResult.message)
             }
@@ -222,6 +249,7 @@ class PhoneAgent(
 
         // Unknown action type
         val errorMessage = "Unknown action format: ${parsedAction.metadata}"
+        AppLogger.e("PhoneAgent", "_executeStep: step=$_stepCount unknown action format, metadata=${parsedAction.metadata}")
         return StepResult(success = false, finished = true, action = parsedAction, thinking = thinking, message = errorMessage)
     }
 
@@ -358,7 +386,9 @@ class ActionHandler(
     }
 
     private fun resolveShowerUsageContext(): ShowerUsageContext {
+        AppLogger.d("ActionHandler", "resolveShowerUsageContext: fetching preferred permission level")
         val level = androidPermissionPreferences.getPreferredPermissionLevel() ?: AndroidPermissionLevel.STANDARD
+        AppLogger.d("ActionHandler", "resolveShowerUsageContext: level=$level")
         val isAdbOrHigher = when (level) {
             AndroidPermissionLevel.DEBUGGER,
             AndroidPermissionLevel.ADMIN,
@@ -375,31 +405,35 @@ class ActionHandler(
     }
 
     suspend fun captureScreenshotForAgent(): String? {
+        val showerCtx = resolveShowerUsageContext()
         val floatingService = FloatingChatService.getInstance()
         val progressOverlay = UIAutomationProgressOverlay.getInstance(context)
 
-        val showerCtx = resolveShowerUsageContext()
+        var screenshotLink: String? = null
+        var dimensions: Pair<Int, Int>? = null
 
-        try {
-            // Hide UI elements for the screenshot
-            floatingService?.setStatusIndicatorVisible(false)
-            progressOverlay.setOverlayVisible(false)
-            delay(200) // Give UI time to update
+        AppLogger.d("ActionHandler", "captureScreenshotForAgent: start, canUseShowerForInput=${showerCtx.canUseShowerForInput}, hasShowerDisplay=${showerCtx.hasShowerDisplay}")
 
-            var screenshotLink: String? = null
-            var dimensions: Pair<Int, Int>? = null
+        if (showerCtx.canUseShowerForInput) {
+            AppLogger.d("ActionHandler", "captureScreenshotForAgent: trying Shower screenshot")
+            val (link, dims) = captureScreenshotViaShower()
+            screenshotLink = link
+            dimensions = dims
+        }
 
-            // 优先尝试通过 Shower WebSocket 截图虚拟屏
-            if (showerCtx.canUseShowerForInput) {
-                val (link, dims) = captureScreenshotViaShower()
-                screenshotLink = link
-                dimensions = dims
-            }
+        if (screenshotLink == null) {
+            try {
+                floatingService?.setStatusIndicatorVisible(false)
+                progressOverlay.setOverlayVisible(false)
+                AppLogger.d("ActionHandler", "captureScreenshotForAgent: UI hidden, starting 200ms delay")
+                delay(200)
+                AppLogger.d("ActionHandler", "captureScreenshotForAgent: delay finished")
 
-            // 如果 Shower 截图不可用，则回退到工具层的通用截图实现
-            if (screenshotLink == null) {
                 val screenshotTool = buildScreenshotTool()
+                AppLogger.d("ActionHandler", "captureScreenshotForAgent: invoking toolImplementations.captureScreenshot...")
                 val (filePath, fallbackDims) = toolImplementations.captureScreenshot(screenshotTool)
+                AppLogger.d("ActionHandler", "captureScreenshotForAgent: toolImplementations.captureScreenshot returned. filePath=$filePath")
+                
                 if (filePath != null) {
                     val bitmap = BitmapFactory.decodeFile(filePath)
                     if (bitmap != null) {
@@ -413,21 +447,21 @@ class ActionHandler(
                 } else {
                     AppLogger.e("ActionHandler", "Fallback screenshot tool returned no file path")
                 }
+            } finally {
+                if (!showerCtx.hasShowerDisplay) {
+                    floatingService?.setStatusIndicatorVisible(true)
+                }
+                progressOverlay.setOverlayVisible(true)
             }
-
-            if (dimensions != null) {
-                screenWidth = dimensions.first
-                screenHeight = dimensions.second
-                AppLogger.d("ActionHandler", "Updated screen dimensions from screenshot: w=$screenWidth, h=$screenHeight")
-            }
-            return screenshotLink
-        } finally {
-            // Restore UI elements after the screenshot
-            if (!showerCtx.hasShowerDisplay) {
-                floatingService?.setStatusIndicatorVisible(true)
-            }
-            progressOverlay.setOverlayVisible(true)
         }
+
+        if (dimensions != null) {
+            screenWidth = dimensions.first
+            screenHeight = dimensions.second
+            AppLogger.d("ActionHandler", "Updated screen dimensions from screenshot: w=$screenWidth, h=$screenHeight")
+        }
+        AppLogger.d("ActionHandler", "captureScreenshotForAgent: end, linkNull=${screenshotLink == null}, width=${dimensions?.first}, height=${dimensions?.second}")
+        return screenshotLink
     }
 
     private fun buildScreenshotTool(): AITool {
@@ -626,7 +660,9 @@ class ActionHandler(
             }
             "Wait" -> {
                 val seconds = fields["duration"]?.replace("seconds", "")?.trim()?.toDoubleOrNull() ?: 1.0
+                AppLogger.d("ActionHandler", "Wait action: starting delay for $seconds seconds")
                 delay((seconds * 1000).toLong().coerceAtLeast(0L))
+                AppLogger.d("ActionHandler", "Wait action: delay finished")
                 ok()
             }
             "Take_over" -> ok(shouldFinish = true, message = fields["message"] ?: "User takeover required")
@@ -638,17 +674,17 @@ class ActionHandler(
         showerCtx: ShowerUsageContext,
         block: suspend () -> ActionExecResult
     ): ActionExecResult {
-        val floatingService = FloatingChatService.getInstance()
+        if (showerCtx.canUseShowerForInput) {
+            return block()
+        }
         val progressOverlay = UIAutomationProgressOverlay.getInstance(context)
         try {
-            floatingService?.setStatusIndicatorVisible(false)
             progressOverlay.setOverlayVisible(false)
+            AppLogger.d("ActionHandler", "withAgentUiHiddenForAction: UI hidden, starting 200ms delay")
             delay(200)
+            AppLogger.d("ActionHandler", "withAgentUiHiddenForAction: delay finished, executing block")
             return block()
         } finally {
-            if (!showerCtx.hasShowerDisplay) {
-                floatingService?.setStatusIndicatorVisible(true)
-            }
             progressOverlay.setOverlayVisible(true)
         }
     }

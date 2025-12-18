@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.font.FontWeight
@@ -152,7 +154,8 @@ class UIAutomationProgressOverlay private constructor(private val context: Conte
                                 onToggleTakeOver = { newPaused ->
                                     isPaused = newPaused
                                     takeOverToggleCallback?.invoke(newPaused)
-                                }
+                                },
+                                onDragBy = { dy -> moveOverlayBy(dy) }
                             )
                         }
                     }
@@ -256,6 +259,43 @@ class UIAutomationProgressOverlay private constructor(private val context: Conte
             AppLogger.e(TAG, "Error setting overlay visibility", e)
         }
     }
+
+    private fun moveOverlayBy(dy: Float) {
+        runOnMainThread {
+            val wm = windowManager ?: return@runOnMainThread
+            val view = overlayView ?: return@runOnMainThread
+            val params = (view.layoutParams as? WindowManager.LayoutParams) ?: layoutParams ?: return@runOnMainThread
+
+            val displayMetrics = context.resources.displayMetrics
+            val screenHeight = displayMetrics.heightPixels
+            val viewHeight = if (view.height > 0) view.height else params.height
+            if (viewHeight <= 0) return@runOnMainThread
+
+            val statusBarHeight = getStatusBarHeight()
+            val bottomMarginPx = (16 * displayMetrics.density).toInt()
+
+            val currentTop = screenHeight - params.y - viewHeight
+            var newTop = currentTop + dy.toInt()
+            val minTop = statusBarHeight
+            val maxTop = (screenHeight - viewHeight - bottomMarginPx).coerceAtLeast(minTop)
+            newTop = newTop.coerceIn(minTop, maxTop)
+
+            params.y = screenHeight - newTop - viewHeight
+
+            try {
+                wm.updateViewLayout(view, params)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error moving progress overlay", e)
+            }
+
+            layoutParams = params
+        }
+    }
+
+    private fun getStatusBarHeight(): Int {
+        val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (resourceId > 0) context.resources.getDimensionPixelSize(resourceId) else 0
+    }
 }
 
 @Composable
@@ -263,12 +303,21 @@ private fun ProgressCard(
     info: UIAutomationProgressOverlay.ProgressInfo,
     isPaused: Boolean,
     onCancel: () -> Unit,
-    onToggleTakeOver: (Boolean) -> Unit
+    onToggleTakeOver: (Boolean) -> Unit,
+    onDragBy: (Float) -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDragBy(dragAmount.y)
+                    }
+                )
+            }
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),

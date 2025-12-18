@@ -745,7 +745,6 @@ const dailyLife = (function () {
         try {
             if (!params.phone_number) {
                 throw new Error("Phone number is required");
-                throw new Error("Phone number is required");
             }
 
             console.log(`拨打电话: ${params.phone_number}`);
@@ -1450,6 +1449,7 @@ const dailyLife = (function () {
 //逐个导出
 exports.get_current_date = dailyLife.get_current_date;
 exports.device_status = dailyLife.device_status;
+exports.search_weather = dailyLife.search_weather;
 exports.set_reminder = dailyLife.set_reminder;
 exports.set_alarm = dailyLife.set_alarm;
 exports.send_message = dailyLife.send_message;
