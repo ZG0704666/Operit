@@ -16,7 +16,10 @@ import com.ai.assistance.operit.util.AppLogger
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.core.chat.AIMessageManager
 import com.ai.assistance.operit.core.application.ActivityLifecycleManager
+import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.services.UIDebuggerService
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
 import com.ai.assistance.operit.util.WaifuMessageProcessor
 import kotlinx.coroutines.flow.first
@@ -32,6 +35,12 @@ class AIForegroundService : Service() {
         private const val REPLY_NOTIFICATION_ID = 2001
         private const val CHANNEL_ID = "AI_SERVICE_CHANNEL"
         private const val CHANNEL_NAME = "AI Service"
+
+        private const val ACTION_CANCEL_CURRENT_OPERATION = "com.ai.assistance.operit.action.CANCEL_CURRENT_OPERATION"
+        private const val REQUEST_CODE_CANCEL_CURRENT_OPERATION = 9002
+
+        private const val ACTION_EXIT_APP = "com.ai.assistance.operit.action.EXIT_APP"
+        private const val REQUEST_CODE_EXIT_APP = 9003
 
         // 静态标志，用于从外部检查服务是否正在运行
         val isRunning = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -62,6 +71,74 @@ class AIForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_EXIT_APP) {
+            isRunning.set(false)
+            isAiBusy = false
+
+            try {
+                AIMessageManager.cancelCurrentOperation()
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "退出时取消当前AI任务失败: ${e.message}", e)
+            }
+
+            try {
+                stopService(Intent(this, FloatingChatService::class.java))
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "退出时停止 FloatingChatService 失败: ${e.message}", e)
+            }
+
+            try {
+                stopService(Intent(this, UIDebuggerService::class.java))
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "退出时停止 UIDebuggerService 失败: ${e.message}", e)
+            }
+
+            try {
+                val activity = ActivityLifecycleManager.getCurrentActivity()
+                activity?.runOnUiThread {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        activity.finishAndRemoveTask()
+                    } else {
+                        activity.finish()
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "退出时关闭前台界面失败: ${e.message}", e)
+            }
+
+            try {
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.cancel(NOTIFICATION_ID)
+                manager.cancel(REPLY_NOTIFICATION_ID)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "退出时取消通知失败: ${e.message}", e)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                @Suppress("DEPRECATION")
+                stopForeground(Service.STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (intent?.action == ACTION_CANCEL_CURRENT_OPERATION) {
+            try {
+                AIMessageManager.cancelCurrentOperation()
+                // 立即刷新通知状态（真正的状态重置由 EnhancedAIService.cancelConversation/stopAiService 完成）
+                isAiBusy = false
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "取消当前AI任务失败: ${e.message}", e)
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, createNotification())
+            return START_NOT_STICKY
+        }
+
         // 从Intent中提取通知信息
         intent?.let {
             characterName = it.getStringExtra(EXTRA_CHARACTER_NAME)
@@ -118,15 +195,58 @@ class AIForegroundService : Service() {
         val contentText = if (isAiBusy) {
             "AI 正在处理..."
         } else {
-            "AI 处理完成"
+            "Operit 正在运行"
         }
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("AI 助手")
-                .setContentText(contentText)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setOngoing(true) // 使通知不可被用户清除
-                .build()
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Operit")
+            .setContentText(contentText)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true) // 使通知不可被用户清除
+
+        val exitIntent = Intent(this, AIForegroundService::class.java).apply {
+            action = ACTION_EXIT_APP
+        }
+        val exitPendingIntent = PendingIntent.getService(
+            this,
+            REQUEST_CODE_EXIT_APP,
+            exitIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+        )
+
+        builder.addAction(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            "退出",
+            exitPendingIntent
+        )
+
+        if (isAiBusy) {
+            val cancelIntent = Intent(this, AIForegroundService::class.java).apply {
+                action = ACTION_CANCEL_CURRENT_OPERATION
+            }
+            val pendingIntent = PendingIntent.getService(
+                this,
+                REQUEST_CODE_CANCEL_CURRENT_OPERATION,
+                cancelIntent,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                } else {
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                }
+            )
+
+            builder.addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "停止",
+                pendingIntent
+            )
+        }
+
+        return builder.build()
     }
     
     /**

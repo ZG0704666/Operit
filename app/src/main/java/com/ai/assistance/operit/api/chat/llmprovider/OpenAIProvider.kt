@@ -740,6 +740,28 @@ open class OpenAIProvider(
         }
     }
 
+    private fun sanitizeToolCallId(raw: String): String {
+        val sb = StringBuilder(raw.length)
+        for (ch in raw) {
+            if ((ch in 'a'..'z') || (ch in 'A'..'Z') || (ch in '0'..'9') || ch == '_' || ch == '-') {
+                sb.append(ch)
+            } else {
+                sb.append('_')
+            }
+        }
+        var out = sb.toString().replace(Regex("_+"), "_")
+        out = out.trim('_')
+        return if (out.isEmpty()) "call" else out
+    }
+
+    private fun stableIdHashPart(raw: String): String {
+        val hash = raw.hashCode()
+        val positive = if (hash == Int.MIN_VALUE) 0 else kotlin.math.abs(hash)
+        var base = positive.toString(36)
+        base = base.filter { it.isLetterOrDigit() }.lowercase()
+        return if (base.isEmpty()) "0" else base
+    }
+
     // 向后兼容的快捷方法
     private fun escapeXml(text: String) = XmlEscaper.escape(text)
 
@@ -905,7 +927,9 @@ open class OpenAIProvider(
 
             // 构建tool_call对象
             // 使用工具名和参数的哈希生成确定性ID
-            val callId = "call_${toolName}_${params.toString().hashCode().toString(16)}_$callIndex"
+            val toolNamePart = sanitizeToolCallId(toolName)
+            val hashPart = stableIdHashPart("${toolName}:${params}")
+            val callId = sanitizeToolCallId("call_${toolNamePart}_${hashPart}_$callIndex")
             toolCalls.put(JSONObject().apply {
                 put("id", callId)
                 put("type", "function")

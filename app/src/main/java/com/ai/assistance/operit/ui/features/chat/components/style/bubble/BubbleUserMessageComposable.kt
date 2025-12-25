@@ -1,8 +1,6 @@
-
 package com.ai.assistance.operit.ui.features.chat.components.style.bubble
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import com.ai.assistance.operit.util.AppLogger
@@ -46,6 +44,7 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.util.ImageBitmapLimiter
 import com.ai.assistance.operit.util.ImagePoolManager
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -460,25 +459,22 @@ fun BubbleUserMessageComposable(
     }
 }
 
-/** Result of parsing message content, containing processed text and trailing attachments */
 data class MessageParseResult(
     val processedText: String,
     val trailingAttachments: List<AttachmentData>,
-    val replyInfo: ReplyInfo? = null, // 新增回复信息
-    val imageLinks: List<ImageLinkData> = emptyList() // 图片链接数据
+    val replyInfo: ReplyInfo? = null,
+    val imageLinks: List<ImageLinkData> = emptyList()
 )
 
-/** Data class for reply information */
 data class ReplyInfo(
     val sender: String,
     val timestamp: Long,
     val content: String
 )
 
-/** Data class for image link information */
 data class ImageLinkData(
     val id: String,
-    val bitmap: Bitmap? // null表示图片已过期
+    val bitmap: Bitmap?
 )
 
 /**
@@ -500,11 +496,12 @@ private fun parseMessageContent(content: String): MessageParseResult {
             if (imageData != null) {
                 val bitmap = try {
                     val bytes = Base64.decode(imageData.base64, Base64.DEFAULT)
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ImageBitmapLimiter.decodeDownsampledBitmap(bytes)
                 } catch (e: Exception) {
                     AppLogger.e("BubbleUserMessage", "Failed to decode image: $id", e)
                     null
                 }
+
                 imageLinks.add(ImageLinkData(id, bitmap))
             }
         }

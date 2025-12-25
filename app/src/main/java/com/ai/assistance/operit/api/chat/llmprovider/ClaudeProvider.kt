@@ -94,7 +94,7 @@ class ClaudeProvider(
     }
 
     // ==================== Tool Call 支持 ====================
-    
+
     /**
      * XML转义/反转义工具
      */
@@ -106,7 +106,7 @@ class ClaudeProvider(
                     .replace("\"", "&quot;")
                     .replace("'", "&apos;")
         }
-        
+
         fun unescape(text: String): String {
             return text.replace("&lt;", "<")
                     .replace("&gt;", ">")
@@ -115,51 +115,75 @@ class ClaudeProvider(
                     .replace("&amp;", "&")
         }
     }
-    
+
+    private fun sanitizeToolCallId(raw: String): String {
+        val sb = StringBuilder(raw.length)
+        for (ch in raw) {
+            if ((ch in 'a'..'z') || (ch in 'A'..'Z') || (ch in '0'..'9') || ch == '_' || ch == '-') {
+                sb.append(ch)
+            } else {
+                sb.append('_')
+            }
+        }
+        var out = sb.toString().replace(Regex("_+"), "_")
+        out = out.trim('_')
+        return if (out.isEmpty()) "toolu" else out
+    }
+
+    private fun stableIdHashPart(raw: String): String {
+        val hash = raw.hashCode()
+        val positive = if (hash == Int.MIN_VALUE) 0 else kotlin.math.abs(hash)
+        var base = positive.toString(36)
+        base = base.filter { it.isLetterOrDigit() }.lowercase()
+        return if (base.isEmpty()) "0" else base
+    }
+
     /**
      * 解析XML格式的tool调用，转换为Claude Tool格式
      * @return Pair<文本内容, tool_use数组>
      */
     private fun parseXmlToolCalls(content: String): Pair<String, JSONArray?> {
         if (!enableToolCall) return Pair(content, null)
-        
+
         val toolPattern = Regex("<tool\\s+name=\"([^\"]+)\">([\\s\\S]*?)</tool>", RegexOption.MULTILINE)
         val matches = toolPattern.findAll(content)
-        
+
         if (!matches.any()) {
             return Pair(content, null)
         }
-        
+
         val toolUses = JSONArray()
         var textContent = content
         var callIndex = 0
-        
+
         matches.forEach { match ->
             val toolName = match.groupValues[1]
             val toolBody = match.groupValues[2]
-            
+
             // 解析参数
             val paramPattern = Regex("<param\\s+name=\"([^\"]+)\">([\\s\\S]*?)</param>")
             val input = JSONObject()
-            
+
             paramPattern.findAll(toolBody).forEach { paramMatch ->
                 val paramName = paramMatch.groupValues[1]
                 val paramValue = XmlEscaper.unescape(paramMatch.groupValues[2].trim())
                 input.put(paramName, paramValue)
             }
-            
+
             // 构建tool_use对象（Claude格式）
-            val callId = "toolu_${toolName}_${input.toString().hashCode().toString(16)}_$callIndex"
+            val toolNamePart = sanitizeToolCallId(toolName)
+            val hashPart = stableIdHashPart("${toolName}:${input}")
+            val callId = sanitizeToolCallId("toolu_${toolNamePart}_${hashPart}_$callIndex")
             toolUses.put(JSONObject().apply {
                 put("type", "tool_use")
                 put("id", callId)
                 put("name", toolName)
                 put("input", input)
             })
-            
+
             callIndex++
             AppLogger.d("AIService", "XML→ClaudeToolUse: $toolName -> ID: $callId")
-            
+
             // 从文本内容中移除tool标签
             textContent = textContent.replace(match.value, "")
         }

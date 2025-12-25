@@ -1,7 +1,6 @@
 package com.ai.assistance.operit.ui.features.chat.components.style.cursor
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -62,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.util.ImageBitmapLimiter
 import com.ai.assistance.operit.util.ImagePoolManager
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -461,7 +461,7 @@ private fun parseMessageContent(content: String): MessageParseResult {
             if (imageData != null) {
                 val bitmap = try {
                     val bytes = Base64.decode(imageData.base64, Base64.DEFAULT)
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ImageBitmapLimiter.decodeDownsampledBitmap(bytes)
                 } catch (e: Exception) {
                     com.ai.assistance.operit.util.AppLogger.e("UserMessageComposable", "Failed to decode image: $id", e)
                     null
