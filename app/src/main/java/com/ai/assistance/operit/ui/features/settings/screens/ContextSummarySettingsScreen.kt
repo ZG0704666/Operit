@@ -52,6 +52,7 @@ fun ContextSummarySettingsScreen(
         var maxTextResultLengthInput by remember { mutableStateOf("") }
         var maxHttpResponseLengthInput by remember { mutableStateOf("") }
         var maxImageHistoryUserTurnsInput by remember { mutableStateOf("") }
+        var maxMediaHistoryUserTurnsInput by remember { mutableStateOf("") }
 
         val hasBackgroundImage by userPreferences.useBackgroundImage.collectAsState(initial = false)
 
@@ -62,6 +63,7 @@ fun ContextSummarySettingsScreen(
             maxTextResultLengthInput = (apiPreferences.maxTextResultLengthFlow.first() / 1000).toString() // Display as KB
             maxHttpResponseLengthInput = (apiPreferences.maxHttpResponseLengthFlow.first() / 1000).toString() // Display as KB
             maxImageHistoryUserTurnsInput = apiPreferences.maxImageHistoryUserTurnsFlow.first().toString()
+            maxMediaHistoryUserTurnsInput = apiPreferences.maxMediaHistoryUserTurnsFlow.first().toString()
         }
 
         var showSaveSuccessMessage by remember { mutableStateOf(false) }
@@ -102,6 +104,7 @@ fun ContextSummarySettingsScreen(
             if (!validateInt(maxTextResultLengthInput, "最大文本结果长度")) return false
             if (!validateInt(maxHttpResponseLengthInput, "最大HTTP响应长度")) return false
             if (!validateNonNegativeInt(maxImageHistoryUserTurnsInput, "历史图片保留回合数")) return false
+            if (!validateNonNegativeInt(maxMediaHistoryUserTurnsInput, "历史音视频保留回合数")) return false
 
             showValidationError = false
             return true
@@ -121,6 +124,7 @@ fun ContextSummarySettingsScreen(
                 apiPreferences.saveMaxTextResultLength(maxTextResultLengthInput.toInt() * 1000) // Convert KB to Bytes
                 apiPreferences.saveMaxHttpResponseLength(maxHttpResponseLengthInput.toInt() * 1000) // Convert KB to Bytes
                 apiPreferences.saveMaxImageHistoryUserTurns(maxImageHistoryUserTurnsInput.toInt())
+                apiPreferences.saveMaxMediaHistoryUserTurns(maxMediaHistoryUserTurnsInput.toInt())
                 showSaveSuccessMessage = true
             }
         }
@@ -203,6 +207,15 @@ fun ContextSummarySettingsScreen(
                             backgroundColor = componentBackgroundColor
                         )
 
+                        SettingsInputField(
+                            title = stringResource(id = R.string.settings_max_media_history_user_turns),
+                            subtitle = stringResource(id = R.string.settings_max_media_history_user_turns_subtitle),
+                            value = maxMediaHistoryUserTurnsInput,
+                            onValueChange = { maxMediaHistoryUserTurnsInput = it },
+                            unitText = "次",
+                            backgroundColor = componentBackgroundColor
+                        )
+
                         // 重置按钮
                         Button(
                                 onClick = {
@@ -213,6 +226,7 @@ fun ContextSummarySettingsScreen(
                                                 maxTextResultLengthInput = (apiPreferences.maxTextResultLengthFlow.first() / 1000).toString()
                                                 maxHttpResponseLengthInput = (apiPreferences.maxHttpResponseLengthFlow.first() / 1000).toString()
                                                 maxImageHistoryUserTurnsInput = apiPreferences.maxImageHistoryUserTurnsFlow.first().toString()
+                                                maxMediaHistoryUserTurnsInput = apiPreferences.maxMediaHistoryUserTurnsFlow.first().toString()
                                                 showSaveSuccessMessage = true
                                         }
                                 },

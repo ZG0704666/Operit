@@ -313,7 +313,11 @@ class MainActivity : ComponentActivity() {
         pluginLoadingState.startTimeoutCheck(30000L, lifecycleScope)
 
         // 初始化MCP服务器并启动插件
-        pluginLoadingState.initializeMCPServer(applicationContext, lifecycleScope)
+        // 轻微延迟让首帧 Compose 完成，避免启动阶段后台重任务立刻抢占导致掉帧
+        lifecycleScope.launch {
+            delay(500)
+            pluginLoadingState.initializeMCPServer(applicationContext, lifecycleScope)
+        }
     }
 
     // ======== 处理待处理的分享文件 ========
@@ -661,7 +665,7 @@ class MainActivity : ComponentActivity() {
         // 使用UpdateManager检查更新
         lifecycleScope.launch {
             try {
-                updateManager.checkForUpdates(appVersion)
+                updateManager.checkForUpdatesSilently(appVersion)
                 // 不需要显式处理更新状态，因为我们已经设置了观察者
             } catch (e: Exception) {
                 AppLogger.e(TAG, "更新检查失败: ${e.message}")

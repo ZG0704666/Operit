@@ -13,6 +13,11 @@ import com.ai.assistance.operit.util.exceptions.UserCancellationException
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.stream
+import android.net.Uri
+import android.os.Environment
+import android.util.Base64
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.URL
@@ -584,6 +589,38 @@ class GeminiProvider(
         sanitizeObject(json)
         return json
     }
+
+     private fun getOutputImagesDir(): File {
+         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+         return File(downloadsDir, "Operit/output images")
+     }
+
+     private fun fileExtensionForImageMime(mimeType: String): String {
+         return when (mimeType.lowercase().substringBefore(';')) {
+             "image/png" -> "png"
+             "image/jpeg", "image/jpg" -> "jpg"
+             "image/webp" -> "webp"
+             "image/gif" -> "gif"
+             else -> "png"
+         }
+     }
+
+     private fun writeOutputImage(bytes: ByteArray, mimeType: String, prefix: String): Uri? {
+         return try {
+             val dir = getOutputImagesDir()
+             if (!dir.exists()) {
+                 dir.mkdirs()
+             }
+             val ext = fileExtensionForImageMime(mimeType)
+             val fileName = "${prefix}_${System.currentTimeMillis()}.$ext"
+             val outFile = File(dir, fileName)
+             FileOutputStream(outFile).use { it.write(bytes) }
+             Uri.fromFile(outFile)
+         } catch (e: Exception) {
+             logError("保存输出图片失败", e)
+             null
+         }
+     }
 
     // 日志辅助方法
     private fun logDebug(message: String) {
@@ -1355,6 +1392,30 @@ class GeminiProvider(
                 val text = part.optString("text", "")
                 val isThought = part.optBoolean("thought", false)
                 val functionCall = part.optJSONObject("functionCall")
+
+                 val inlineData = part.optJSONObject("inline_data") ?: part.optJSONObject("inlineData")
+                 if (inlineData != null) {
+                     val mimeType = inlineData.optString("mime_type", inlineData.optString("mimeType", ""))
+                     val b64 = inlineData.optString("data", "")
+                     if (mimeType.startsWith("image/", ignoreCase = true) && b64.isNotEmpty()) {
+                         if (isInThinkingMode) {
+                             contentBuilder.append("</think>")
+                             isInThinkingMode = false
+                         }
+                         val bytes = try {
+                             Base64.decode(b64, Base64.DEFAULT)
+                         } catch (_: Exception) {
+                             null
+                         }
+                         if (bytes != null && bytes.isNotEmpty()) {
+                             val uri = writeOutputImage(bytes, mimeType, "gemini_image_$i")
+                             if (uri != null) {
+                                 contentBuilder.append("\n![gemini_image_$i](${uri})\n")
+                             }
+                         }
+                         continue
+                     }
+                 }
 
                 // 处理 functionCall（流式转换为XML）
                 if (functionCall != null && enableToolCall) {

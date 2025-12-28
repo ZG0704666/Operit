@@ -39,13 +39,15 @@ object ImagePoolManager {
      * 初始化图片池，设置本地缓存目录
      * @param cacheDirPath 本地缓存目录路径
      */
-    fun initialize(cacheDirPath: File) {
+    fun initialize(cacheDirPath: File, preloadNow: Boolean = true) {
         cacheDir = File(cacheDirPath, "image_pool")
         if (!cacheDir!!.exists()) {
             cacheDir!!.mkdirs()
             AppLogger.d(TAG, "创建图片缓存目录: ${cacheDir!!.absolutePath}")
         }
-        loadFromDisk()
+        if (preloadNow) {
+            loadAllFromDisk()
+        }
     }
 
     // LRU缓存：LinkedHashMap with accessOrder=true
@@ -307,7 +309,13 @@ object ImagePoolManager {
     /**
      * 启动时从磁盘加载所有缓存的图片
      */
-    private fun loadFromDisk() {
+    @Synchronized
+    fun preloadFromDisk() {
+        loadAllFromDisk()
+    }
+
+    @Synchronized
+    private fun loadAllFromDisk() {
         if (cacheDir == null || !cacheDir!!.exists()) return
         
         try {

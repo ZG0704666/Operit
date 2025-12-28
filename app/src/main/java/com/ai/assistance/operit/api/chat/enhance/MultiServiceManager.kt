@@ -29,16 +29,29 @@ class MultiServiceManager(private val context: Context) {
     private val serviceInstances = mutableMapOf<FunctionType, AIService>()
     private val serviceMutex = Mutex()
 
+    private val initMutex = Mutex()
+    @Volatile private var isInitialized = false
+
     // 默认AIService，用于兼容现有代码
     private var defaultService: AIService? = null
 
     /** 初始化服务管理器，确保配置已经准备好 */
     suspend fun initialize() {
-        functionalConfigManager.initializeIfNeeded()
+        ensureInitialized()
+    }
+
+    private suspend fun ensureInitialized() {
+        if (isInitialized) return
+        initMutex.withLock {
+            if (isInitialized) return
+            functionalConfigManager.initializeIfNeeded()
+            isInitialized = true
+        }
     }
 
     /** 获取指定功能类型的AIService */
     suspend fun getServiceForFunction(functionType: FunctionType): AIService {
+        ensureInitialized()
         return serviceMutex.withLock {
             // 如果缓存中已有该服务实例，直接返回
             serviceInstances[functionType]?.let {
@@ -64,6 +77,7 @@ class MultiServiceManager(private val context: Context) {
 
     /** 获取默认服务（通常是CHAT功能的服务） */
     suspend fun getDefaultService(): AIService {
+        ensureInitialized()
         return serviceMutex.withLock {
             defaultService ?: getServiceForFunction(FunctionType.CHAT).also { defaultService = it }
         }
@@ -87,6 +101,7 @@ class MultiServiceManager(private val context: Context) {
 
     /** 刷新指定功能类型的服务实例 当配置更改时调用此方法 */
     suspend fun refreshServiceForFunction(functionType: FunctionType) {
+        ensureInitialized()
         serviceMutex.withLock {
             // 释放旧实例的资源（对于本地模型如MNN，这很重要）
             serviceInstances[functionType]?.let { oldService ->
@@ -113,6 +128,7 @@ class MultiServiceManager(private val context: Context) {
 
     /** 刷新所有服务实例 当全局设置更改时调用此方法 */
     suspend fun refreshAllServices() {
+        ensureInitialized()
         serviceMutex.withLock {
             // 释放所有服务实例的资源
             serviceInstances.values.forEach { service ->
@@ -168,6 +184,7 @@ class MultiServiceManager(private val context: Context) {
     suspend fun getModelParametersForFunction(
             functionType: FunctionType
     ): List<com.ai.assistance.operit.data.model.ModelParameter<*>> {
+        ensureInitialized()
         val configMapping = functionalConfigManager.getConfigMappingForFunction(functionType)
         return modelConfigManager.getModelParametersForConfig(configMapping.configId)
     }
@@ -178,6 +195,7 @@ class MultiServiceManager(private val context: Context) {
      * @return 模型配置数据
      */
     suspend fun getModelConfigForFunction(functionType: FunctionType): ModelConfigData {
+        ensureInitialized()
         val configMapping = functionalConfigManager.getConfigMappingForFunction(functionType)
         return modelConfigManager.getModelConfigFlow(configMapping.configId).first()
     }
@@ -187,6 +205,7 @@ class MultiServiceManager(private val context: Context) {
      * @return 如果识图功能配置启用了直接图片处理则返回true
      */
     suspend fun hasImageRecognitionConfigured(): Boolean {
+        ensureInitialized()
         val configMapping = functionalConfigManager.getConfigMappingForFunction(FunctionType.IMAGE_RECOGNITION)
         val config = modelConfigManager.getModelConfigFlow(configMapping.configId).first()
         
@@ -195,12 +214,14 @@ class MultiServiceManager(private val context: Context) {
     }
 
     suspend fun hasAudioRecognitionConfigured(): Boolean {
+        ensureInitialized()
         val configMapping = functionalConfigManager.getConfigMappingForFunction(FunctionType.AUDIO_RECOGNITION)
         val config = modelConfigManager.getModelConfigFlow(configMapping.configId).first()
         return config.enableDirectAudioProcessing
     }
 
     suspend fun hasVideoRecognitionConfigured(): Boolean {
+        ensureInitialized()
         val configMapping = functionalConfigManager.getConfigMappingForFunction(FunctionType.VIDEO_RECOGNITION)
         val config = modelConfigManager.getModelConfigFlow(configMapping.configId).first()
         return config.enableDirectVideoProcessing

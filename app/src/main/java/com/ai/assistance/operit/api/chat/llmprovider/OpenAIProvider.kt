@@ -11,6 +11,12 @@ import com.ai.assistance.operit.util.TokenCacheManager
 import com.ai.assistance.operit.util.exceptions.UserCancellationException
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.stream
+import android.net.Uri
+import android.os.Environment
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -114,6 +120,47 @@ open class OpenAIProvider(
         tokenCacheManager.resetTokenCounts()
     }
 
+     override fun cancelStreaming() {
+         isManuallyCancelled = true
+         runCatching { activeResponse?.close() }
+         activeResponse = null
+         activeCall?.let {
+             if (!it.isCanceled()) {
+                 runCatching { it.cancel() }
+             }
+         }
+         activeCall = null
+     }
+
+     override suspend fun getModelsList(): Result<List<ModelOption>> {
+         return ModelListFetcher.getModelsList(
+             apiKey = apiKeyProvider.getApiKey(),
+             apiEndpoint = apiEndpoint,
+             apiProviderType = providerType
+         )
+     }
+
+     override suspend fun testConnection(): Result<String> {
+         return try {
+             val testHistory = listOf("system" to "You are a helpful assistant.")
+             val stream =
+                 sendMessage(
+                     "Hi",
+                     testHistory,
+                     emptyList(),
+                     false,
+                     onTokensUpdated = { _, _, _ -> },
+                     onNonFatalError = {}
+                 )
+
+             stream.collect { _ -> }
+             Result.success("连接成功！")
+         } catch (e: Exception) {
+             AppLogger.e("AIService", "连接测试失败", e)
+             Result.failure(IOException("连接测试失败: ${e.message}", e))
+         }
+     }
+
     // 工具函数：分块打印大型文本日志
     protected fun logLargeString(tag: String, message: String, prefix: String = "") {
         // 设置单次日志输出的最大长度（Android日志上限约为4000字符）
@@ -132,121 +179,255 @@ open class OpenAIProvider(
                 // 打印带有编号的日志
                 AppLogger.d(tag, "$prefix Part ${i + 1}/$chunkCount: $chunkMessage")
             }
+
         } else {
             // 消息长度在限制之内，直接打印
             AppLogger.d(tag, "$prefix$message")
         }
     }
 
-    protected fun sanitizeImageDataForLogging(json: JSONObject): JSONObject {
-        fun sanitizeObject(obj: JSONObject) {
-            fun sanitizeArray(arr: JSONArray) {
-                for (i in 0 until arr.length()) {
-                    val value = arr.get(i)
-                    when (value) {
-                        is JSONObject -> sanitizeObject(value)
-                        is JSONArray -> sanitizeArray(value)
-                        is String -> {
-                            if (value.startsWith("data:") && value.contains(";base64,")) {
-                                arr.put(i, "[image base64 omitted, length=${value.length}]")
+     protected fun sanitizeImageDataForLogging(json: JSONObject): JSONObject {
+         fun sanitizeObject(obj: JSONObject) {
+             fun sanitizeArray(arr: JSONArray) {
+                 for (i in 0 until arr.length()) {
+                     val value = arr.get(i)
+                     when (value) {
+                         is JSONObject -> sanitizeObject(value)
+                         is JSONArray -> sanitizeArray(value)
+                         is String -> {
+                             if (value.startsWith("data:") && value.contains(";base64,")) {
+                                 arr.put(i, "[image base64 omitted, length=${value.length}]")
+                             }
+                         }
+                     }
+                 }
+             }
+
+             val keys = obj.keys()
+             while (keys.hasNext()) {
+                 val key = keys.next()
+                 val value = obj.get(key)
+                 when (value) {
+                     is JSONObject -> sanitizeObject(value)
+                     is JSONArray -> sanitizeArray(value)
+                     is String -> {
+                         if (value.startsWith("data:") && value.contains(";base64,")) {
+                             obj.put(key, "[image base64 omitted, length=${value.length}]")
+                         } else if (
+                             key == "data" &&
+                                 value.length > 256 &&
+                                 value.all { it.isLetterOrDigit() || it == '+' || it == '/' || it == '=' || it == '\n' || it == '\r' }
+                         ) {
+                             obj.put(key, "[base64 omitted, length=${value.length}]")
+                         }
+                     }
+                 }
+             }
+         }
+
+         sanitizeObject(json)
+         return json
+     }
+
+    private fun getOutputImagesDir(): File {
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        return File(downloadsDir, "Operit/output images")
+    }
+
+    private fun fileExtensionForImageMime(mimeType: String): String {
+        return when (mimeType.lowercase().substringBefore(';')) {
+            "image/png" -> "png"
+            "image/jpeg", "image/jpg" -> "jpg"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            else -> "png"
+        }
+    }
+
+    private fun outputMimeTypeFromFormat(format: String?): String {
+        return when (format?.lowercase()) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "gif" -> "image/gif"
+            else -> "image/png"
+        }
+    }
+
+    private fun writeOutputImage(bytes: ByteArray, mimeType: String, prefix: String): Uri? {
+        return try {
+            val dir = getOutputImagesDir()
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+            val ext = fileExtensionForImageMime(mimeType)
+            val fileName = "${prefix}_${System.currentTimeMillis()}.$ext"
+            val outFile = File(dir, fileName)
+            FileOutputStream(outFile).use { it.write(bytes) }
+            Uri.fromFile(outFile)
+        } catch (e: Exception) {
+            AppLogger.e("AIService", "保存输出图片失败", e)
+            null
+        }
+    }
+
+    private suspend fun downloadBytes(url: String): ByteArray? {
+        return try {
+            val request = Request.Builder().url(url).get().build()
+            val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            response.use {
+                if (!it.isSuccessful) return null
+                val body = it.body ?: return null
+                body.bytes()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private suspend fun emitImageMarkdown(emitter: StreamEmitter, imageUri: Uri, alt: String) {
+        val safeAlt = alt.ifBlank { "image" }
+        emitter.emitContent("\n![${safeAlt}](${imageUri})\n")
+    }
+
+    private data class ImageBufferState(
+        val bytes: ByteArrayOutputStream = ByteArrayOutputStream(),
+        var mimeType: String = "image/png"
+    )
+
+    private suspend fun flushImageBuffers(state: StreamingState, emitter: StreamEmitter) {
+        if (state.imageBuffers.isEmpty()) return
+        val pending = state.imageBuffers.toMap()
+        state.imageBuffers.clear()
+        pending.forEach { (index, bufferState) ->
+            val bytes = bufferState.bytes.toByteArray()
+            if (bytes.isNotEmpty()) {
+                val uri = writeOutputImage(bytes, bufferState.mimeType, "openai_image_$index")
+                if (uri != null) {
+                    emitImageMarkdown(emitter, uri, "openai_image_$index")
+                }
+            }
+        }
+    }
+
+    private suspend fun tryHandleOpenAiImageResponse(
+        json: JSONObject,
+        emitter: StreamEmitter,
+        state: StreamingState?
+    ): Boolean {
+        val dataArr = json.optJSONArray("data")
+        if (dataArr != null && dataArr.length() > 0) {
+            for (i in 0 until dataArr.length()) {
+                val obj = dataArr.optJSONObject(i) ?: continue
+                val b64 = obj.optString("b64_json", "")
+                val url = obj.optString("url", "")
+                val mimeType = outputMimeTypeFromFormat(obj.optString("output_format", "").ifBlank { null })
+                if (b64.isNotEmpty()) {
+                    val bytes = try {
+                        Base64.decode(b64, Base64.DEFAULT)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val uri = writeOutputImage(bytes, mimeType, "openai_image_$i")
+                        if (uri != null) {
+                            emitImageMarkdown(emitter, uri, "openai_image_$i")
+                        }
+                    }
+                } else if (url.isNotEmpty()) {
+                    val bytes = downloadBytes(url)
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val uri = writeOutputImage(bytes, mimeType, "openai_image_$i")
+                        if (uri != null) {
+                            emitImageMarkdown(emitter, uri, "openai_image_$i")
+                        }
+                    }
+                }
+            }
+            return true
+        }
+
+        val eventType = json.optString("type", "")
+        if (eventType.startsWith("image_generation.")) {
+            val b64 = json.optString("b64_json", "")
+            val idx = json.optInt("partial_image_index", 0)
+            val format = json.optString("output_format", "").ifBlank { null }
+            val mimeType = outputMimeTypeFromFormat(format)
+            if (state != null && b64.isNotEmpty()) {
+                val decoded = try {
+                    Base64.decode(b64, Base64.DEFAULT)
+                } catch (_: Exception) {
+                    null
+                }
+                if (decoded != null) {
+                    val buf = state.imageBuffers.getOrPut(idx) { ImageBufferState() }
+                    buf.mimeType = mimeType
+                    buf.bytes.write(decoded)
+                }
+                if (eventType != "image_generation.partial_image") {
+                    flushImageBuffers(state, emitter)
+                }
+            }
+            return true
+        }
+
+        val outputArr = json.optJSONArray("output")
+        if (outputArr != null && outputArr.length() > 0) {
+            var handledAny = false
+            for (i in 0 until outputArr.length()) {
+                val item = outputArr.optJSONObject(i) ?: continue
+                val contentArr = item.optJSONArray("content") ?: continue
+                for (j in 0 until contentArr.length()) {
+                    val part = contentArr.optJSONObject(j) ?: continue
+                    val partType = part.optString("type", "")
+                    if (partType == "output_text" || partType == "text") {
+                        val text = part.optString("text", "")
+                        if (text.isNotEmpty()) {
+                            emitter.emitContent(text)
+                            handledAny = true
+                        }
+                    }
+                    val mimeType = part.optString("mime_type", part.optString("mimeType", "image/png"))
+                    val b64 = part.optString("b64_json", part.optString("data", ""))
+                    val imageUrlObj = part.optJSONObject("image_url")
+                    val url = part.optString("url", imageUrlObj?.optString("url", "") ?: part.optString("image_url", ""))
+                    val isImage = partType.contains("image") || mimeType.startsWith("image/")
+                    if (isImage) {
+                        if (b64.isNotEmpty()) {
+                            val bytes = try {
+                                Base64.decode(b64, Base64.DEFAULT)
+                            } catch (_: Exception) {
+                                null
+                            }
+                            if (bytes != null && bytes.isNotEmpty()) {
+                                val uri = writeOutputImage(bytes, mimeType, "openai_image_${i}_$j")
+                                if (uri != null) {
+                                    emitImageMarkdown(emitter, uri, "openai_image_${i}_$j")
+                                    handledAny = true
+                                }
+                            }
+                        } else if (url.isNotEmpty()) {
+                            val bytes = downloadBytes(url)
+                            if (bytes != null && bytes.isNotEmpty()) {
+                                val uri = writeOutputImage(bytes, mimeType, "openai_image_${i}_$j")
+                                if (uri != null) {
+                                    emitImageMarkdown(emitter, uri, "openai_image_${i}_$j")
+                                    handledAny = true
+                                }
                             }
                         }
                     }
                 }
             }
-
-            val keys = obj.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                val value = obj.get(key)
-                when (value) {
-                    is JSONObject -> sanitizeObject(value)
-                    is JSONArray -> sanitizeArray(value)
-                    is String -> {
-                        if (value.startsWith("data:") && value.contains(";base64,")) {
-                            obj.put(key, "[image base64 omitted, length=${value.length}]")
-                        } else if (
-                            key == "data" &&
-                                value.length > 256 &&
-                                value.all { it.isLetterOrDigit() || it == '+' || it == '/' || it == '=' || it == '\n' || it == '\r' }
-                        ) {
-                            obj.put(key, "[base64 omitted, length=${value.length}]")
-                        }
-                    }
-                }
-            }
+            return handledAny
         }
 
-        sanitizeObject(json)
-        return json
-    }
-
-    // 取消当前流式传输
-    override fun cancelStreaming() {
-        isManuallyCancelled = true
-
-        // 1. 强制关闭 Response（这会立即中断 readLine() 阻塞）
-        activeResponse?.let {
-            try {
-                it.close()
-                AppLogger.d("AIService", "已强制关闭Response流")
-            } catch (e: Exception) {
-                AppLogger.w("AIService", "关闭Response时出错: ${e.message}")
-            }
-        }
-        activeResponse = null
-
-        // 2. 取消 Call
-        activeCall?.let {
-            if (!it.isCanceled()) {
-                it.cancel()
-                AppLogger.d("AIService", "已取消当前流式传输，Call已中断")
-            }
-        }
-        activeCall = null
-
-        AppLogger.d("AIService", "取消标志已设置，readLine() 将立即被中断")
+        return false
     }
 
     /**
-     * 获取模型列表 注意：此方法直接调用ModelListFetcher获取模型列表
-     * @return 模型列表结果
+     * 解析服务器返回的内容，不再需要处理<think>标签
      */
-    override suspend fun getModelsList(): Result<List<ModelOption>> {
-        // 调用ModelListFetcher获取模型列表
-        return ModelListFetcher.getModelsList(
-            apiKey = apiKeyProvider.getApiKey(),
-            apiEndpoint = apiEndpoint,
-            apiProviderType = ApiProviderType.OPENAI // 默认为OpenAI类型
-        )
-    }
-
-    override suspend fun testConnection(): Result<String> {
-        return try {
-            // 通过发送一条短消息来测试完整的连接、认证和API端点。
-            // 这比getModelsList更可靠，因为它直接命中了聊天API。
-            // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
-            val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage(
-                "Hi",
-                testHistory,
-                emptyList(),
-                enableThinking = false,
-                onTokensUpdated = { _, _, _ -> },
-                onNonFatalError = {})
-
-            // 消耗流以确保连接有效。
-            // 对 "Hi" 的响应应该很短，所以这会很快完成。
-            stream.collect { _ -> }
-
-            Result.success("连接成功！")
-        } catch (e: Exception) {
-            AppLogger.e("AIService", "连接测试失败", e)
-            Result.failure(IOException("连接测试失败: ${e.message}", e))
-        }
-    }
-
-    // 解析服务器返回的内容，不再需要处理<think>标签
     private fun parseResponse(content: String): String {
         return content
     }
@@ -961,7 +1142,6 @@ open class OpenAIProvider(
         return newRetryCount
     }
 
-
     /**
      * 解析XML格式的tool调用，转换为OpenAI Tool Call格式
      * @return Pair<文本内容, tool_calls数组>
@@ -1092,7 +1272,8 @@ open class OpenAIProvider(
         var isFirstResponse: Boolean = true,
         val accumulatedToolCalls: MutableMap<Int, JSONObject> = mutableMapOf(),
         val toolCallState: ToolCallState = ToolCallState(),
-        var lastProcessedToolIndex: Int? = null
+        var lastProcessedToolIndex: Int? = null,
+        val imageBuffers: MutableMap<Int, ImageBufferState> = mutableMapOf()
     )
 
     /**
@@ -1346,6 +1527,7 @@ open class OpenAIProvider(
                 
                 val data = line.substring(5).trim()
                 if (data == "[DONE]") {
+                    flushImageBuffers(state, emitter)
                     // 收到流结束标记，关闭思考标签
                     if (state.isInReasoningMode) {
                         state.isInReasoningMode = false
@@ -1364,6 +1546,12 @@ open class OpenAIProvider(
 
                 try {
                     val jsonResponse = JSONObject(data)
+                    if (!jsonResponse.has("choices")) {
+                        val handled = tryHandleOpenAiImageResponse(jsonResponse, emitter, state)
+                        if (handled) {
+                            continue
+                        }
+                    }
                     processResponseChunk(jsonResponse, state, emitter, onTokensUpdated)
                 } catch (e: Exception) {
                     AppLogger.w("AIService", "【发送消息】JSON解析错误: ${e.message}")
@@ -1390,6 +1578,7 @@ open class OpenAIProvider(
                 throw e
             }
         } finally {
+            runCatching { flushImageBuffers(state, emitter) }
             // 确保 reader 被关闭
             try {
                 reader.close()
@@ -1541,38 +1730,41 @@ open class OpenAIProvider(
 
                             try {
                                 val jsonResponse = JSONObject(responseText)
-                                val choices = jsonResponse.getJSONArray("choices")
+                                val handledImages = tryHandleOpenAiImageResponse(jsonResponse, emitter, null)
+                                if (!handledImages) {
+                                    val choices = jsonResponse.getJSONArray("choices")
 
-                                if (choices.length() > 0) {
-                                    val choice = choices.getJSONObject(0)
-                                    val messageObj = choice.optJSONObject("message")
+                                    if (choices.length() > 0) {
+                                        val choice = choices.getJSONObject(0)
+                                        val messageObj = choice.optJSONObject("message")
 
-                                    if (messageObj != null) {
-                                        // 检查是否有tool_calls（Tool Call API）
-                                        val toolCalls = messageObj.optJSONArray("tool_calls")
-                                        if (toolCalls != null && toolCalls.length() > 0 && enableToolCall) {
-                                            val xmlToolCalls = convertToolCallsToXml(toolCalls)
-                                            if (xmlToolCalls.isNotEmpty()) {
-                                                emitter.emitContent("\n" + xmlToolCalls)
-                                                AppLogger.d(
-                                                    "AIService",
-                                                    "Tool Call转XML (非流式): $xmlToolCalls"
-                                                )
+                                        if (messageObj != null) {
+                                            // 检查是否有tool_calls（Tool Call API）
+                                            val toolCalls = messageObj.optJSONArray("tool_calls")
+                                            if (toolCalls != null && toolCalls.length() > 0 && enableToolCall) {
+                                                val xmlToolCalls = convertToolCallsToXml(toolCalls)
+                                                if (xmlToolCalls.isNotEmpty()) {
+                                                    emitter.emitContent("\n" + xmlToolCalls)
+                                                    AppLogger.d(
+                                                        "AIService",
+                                                        "Tool Call转XML (非流式): $xmlToolCalls"
+                                                    )
+                                                }
                                             }
-                                        }
 
-                                        val reasoningContent =
-                                            messageObj.optString("reasoning_content", "")
-                                        val regularContent = messageObj.optString("content", "")
+                                            val reasoningContent =
+                                                messageObj.optString("reasoning_content", "")
+                                            val regularContent = messageObj.optString("content", "")
 
-                                        // 处理思考内容（如果有）
-                                        if (reasoningContent.isNotNullOrEmpty()) {
-                                            emitter.emitThinkContent(reasoningContent)
-                                        }
+                                            // 处理思考内容（如果有）
+                                            if (reasoningContent.isNotNullOrEmpty()) {
+                                                emitter.emitThinkContent(reasoningContent)
+                                            }
 
-                                        // 处理常规内容
-                                        if (regularContent.isNotNullOrEmpty()) {
-                                            emitter.emitContent(regularContent)
+                                            // 处理常规内容
+                                            if (regularContent.isNotNullOrEmpty()) {
+                                                emitter.emitContent(regularContent)
+                                            }
                                         }
                                     }
                                 }

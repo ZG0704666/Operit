@@ -293,6 +293,11 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
   ): String {
     val importedPackages = packageManager.getImportedPackages()
     val mcpServers = packageManager.getAvailableServerPackages()
+    val skillPackages = try {
+        packageManager.getAvailableSkillPackages()
+    } catch (_: Exception) {
+        emptyMap()
+    }
 
     // Build the available packages section
     val packagesSection = StringBuilder()
@@ -302,8 +307,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
         packageManager.getPackageTools(packageName) != null
     }
 
-    // Check if any packages (JS or MCP) are available
-    val hasPackages = validImportedPackages.isNotEmpty() || mcpServers.isNotEmpty()
+    // Check if any packages (JS, MCP, or Skills) are available
+    val hasPackages = validImportedPackages.isNotEmpty() || mcpServers.isNotEmpty() || skillPackages.isNotEmpty()
 
     if (hasPackages) {
       packagesSection.appendLine("Available packages:")
@@ -319,6 +324,15 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
       // List available MCP servers as regular packages
       for ((serverName, serverConfig) in mcpServers) {
         packagesSection.appendLine("- $serverName : ${serverConfig.description}")
+      }
+
+      // List available Skills as regular packages
+      for ((skillName, skill) in skillPackages) {
+        if (skill.description.isNotBlank()) {
+          packagesSection.appendLine("- $skillName : ${skill.description}")
+        } else {
+          packagesSection.appendLine("- $skillName")
+        }
       }
     } else {
       packagesSection.appendLine("No packages are currently available.")

@@ -9,6 +9,7 @@ import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.util.stream.StreamCollector
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -18,6 +19,7 @@ import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
 import com.ai.assistance.operit.util.stream.splitBy
 import com.ai.assistance.operit.util.stream.stream
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
@@ -187,6 +189,12 @@ object ToolExecutionManager {
         packageManager: PackageManager,
         collector: StreamCollector<String>
     ): List<ToolResult> = coroutineScope {
+        // 默认工具注册现在可能在启动阶段被延后；这里确保在真正执行工具前已完成注册
+        // registerDefaultTools() 是幂等且线程安全的，可安全重复调用
+        withContext(Dispatchers.Default) {
+            toolHandler.registerDefaultTools()
+        }
+
         // 1. 权限检查
         val permittedInvocations = mutableListOf<ToolInvocation>()
         val permissionDeniedResults = mutableListOf<ToolResult>()

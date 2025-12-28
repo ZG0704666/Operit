@@ -54,6 +54,7 @@ import androidx.core.content.FileProvider
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.ImageBitmapLimiter
+import com.ai.assistance.operit.util.MediaBase64Limiter
 import com.ai.assistance.operit.util.MediaPoolManager
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -93,10 +94,20 @@ fun AttachmentViewerDialog(
         if (mediaPoolId.isNullOrBlank()) return@produceState
 
         val mediaData = MediaPoolManager.getMedia(mediaPoolId) ?: return@produceState
+        val estimatedBytes = MediaBase64Limiter.estimateDecodedSizeBytes(mediaData.base64)
+        if (estimatedBytes == null || estimatedBytes > 20 * 1024 * 1024) {
+            AppLogger.w("AttachmentViewerDialog", "Media pool item too large to preview: $mediaPoolId, estimatedBytes=$estimatedBytes")
+            return@produceState
+        }
         val bytes = try {
             Base64.decode(mediaData.base64, Base64.DEFAULT)
         } catch (e: Exception) {
             AppLogger.e("AttachmentViewerDialog", "Failed to decode media base64: $mediaPoolId", e)
+            return@produceState
+        }
+
+        if (bytes.size > 20 * 1024 * 1024) {
+            AppLogger.w("AttachmentViewerDialog", "Media pool item too large to preview after decode: $mediaPoolId, bytes=${bytes.size}")
             return@produceState
         }
 

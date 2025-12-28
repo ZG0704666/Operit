@@ -524,6 +524,7 @@
     
     <!-- Package Manager Screen -->
     <string name="packages">包管理</string>
+    <string name="skills">技能</string>
     <string name="package_manager">包管理器</string>
     <string name="available_packages">可用包</string>
     <string name="imported_packages">已导入包</string>
@@ -2299,6 +2300,8 @@
     <string name="settings_max_http_response_subtitle">网络请求响应的最大字符数限制</string>
     <string name="settings_max_image_history_user_turns">历史图片保留回合数</string>
     <string name="settings_max_image_history_user_turns_subtitle">仅保留最近 N 次用户对话中的图片，避免历史图片重复发送</string>
+    <string name="settings_max_media_history_user_turns">历史音视频保留回合数</string>
+    <string name="settings_max_media_history_user_turns_subtitle">仅保留最近 N 次用户对话中的音频/视频，避免历史音视频重复发送</string>
     <string name="settings_reset_truncation">重置截断设置</string>
     <string name="settings_reset_truncation_desc">重置所有截断设置为默认值</string>
     

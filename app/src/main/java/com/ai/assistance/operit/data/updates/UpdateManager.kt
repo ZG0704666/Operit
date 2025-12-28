@@ -119,6 +119,19 @@ class UpdateManager private constructor(private val context: Context) {
         }
     }
 
+    suspend fun checkForUpdatesSilently(currentVersion: String) {
+        AppLogger.d(TAG, "checkForUpdatesSilently() start: currentVersion=$currentVersion")
+        try {
+            val result = checkForUpdatesInternal(currentVersion)
+            AppLogger.d(TAG, "checkForUpdatesSilently() done: status=${result::class.java.simpleName}")
+            if (result is UpdateStatus.Available || result is UpdateStatus.PatchAvailable) {
+                _updateStatus.postValue(result)
+            }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "checkForUpdatesSilently() failed", e)
+        }
+    }
+
     /** 开始更新检查流程 */
     suspend fun checkForUpdates(currentVersion: String) {
         AppLogger.d(TAG, "checkForUpdates() start: currentVersion=$currentVersion")

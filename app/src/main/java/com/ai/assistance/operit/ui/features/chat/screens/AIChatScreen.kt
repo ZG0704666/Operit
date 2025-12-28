@@ -373,6 +373,18 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val showWebView by actualViewModel.showWebView.collectAsState()
     // 收集AI电脑显示状态
     val showAiComputer by actualViewModel.showAiComputer.collectAsState()
+    var hasEverShownWebView by remember { mutableStateOf(false) }
+    LaunchedEffect(showWebView) {
+        if (showWebView) {
+            hasEverShownWebView = true
+        }
+    }
+    var hasEverShownAiComputer by remember { mutableStateOf(false) }
+    LaunchedEffect(showAiComputer) {
+        if (showAiComputer) {
+            hasEverShownAiComputer = true
+        }
+    }
     val view = LocalView.current
 
     // 当手势状态改变时，通知父组件
@@ -756,7 +768,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
             content = {
                 // The content is composed unconditionally, keeping it "alive"
                 val currentChat = chatHistories.find { it.id == currentChatId }
-                if (currentChat != null) {
+                if (hasEverShownWebView && currentChat != null) {
                     WorkspaceScreen(
                         actualViewModel = actualViewModel,
                         currentChat = currentChat,
@@ -798,7 +810,9 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                 .clipToBounds(),
             content = {
                 // The content is composed unconditionally, keeping it "alive"
-                ComputerScreen()
+                if (hasEverShownAiComputer) {
+                    ComputerScreen()
+                }
             }
         ) { measurables, constraints ->
             if (measurables.isEmpty()) {

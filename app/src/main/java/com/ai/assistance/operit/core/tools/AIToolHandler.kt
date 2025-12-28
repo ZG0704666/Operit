@@ -12,6 +12,8 @@ import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import com.ai.assistance.operit.util.stream.splitBy
 import com.ai.assistance.operit.util.stream.stream
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
@@ -35,7 +37,10 @@ class AIToolHandler private constructor(private val context: Context) {
     }
 
     // Available tools registry
-    private val availableTools = mutableMapOf<String, ToolExecutor>()
+    private val availableTools = ConcurrentHashMap<String, ToolExecutor>()
+
+    private val defaultToolsRegistered = AtomicBoolean(false)
+    private val registrationLock = Any()
 
     // Tool permission system
     private val toolPermissionSystem = ToolPermissionSystem.getInstance(context)
@@ -49,7 +54,7 @@ class AIToolHandler private constructor(private val context: Context) {
      * Get all registered tool names
      */
     fun getAllToolNames(): List<String> {
-        return availableTools.keys.sorted()
+        return availableTools.keys.toList().sorted()
     }
 
     /** Force refresh permission request state Can be called if permission dialog is not showing */
@@ -99,10 +104,13 @@ class AIToolHandler private constructor(private val context: Context) {
 
     // Register all default tools
     fun registerDefaultTools() {
-        // Initialize the permission system with default rules
-        toolPermissionSystem.initializeDefaultRules()
-
-        registerAllTools(this, context)
+        if (defaultToolsRegistered.get()) return
+        synchronized(registrationLock) {
+            if (defaultToolsRegistered.get()) return
+            toolPermissionSystem.initializeDefaultRules()
+            registerAllTools(this, context)
+            defaultToolsRegistered.set(true)
+        }
     }
 
     // Package manager instance (lazy initialized)
@@ -159,7 +167,13 @@ class AIToolHandler private constructor(private val context: Context) {
     }
 
     /** Reset the tool execution state */
-    fun reset() {}
+    fun reset() {
+        synchronized(registrationLock) {
+            availableTools.clear()
+            packageManagerInstance = null
+            defaultToolsRegistered.set(false)
+        }
+    }
 
     /**
      * Get a registered tool executor by name

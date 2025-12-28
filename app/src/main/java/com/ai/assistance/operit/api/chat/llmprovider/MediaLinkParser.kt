@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.api.chat.llmprovider
 
+import com.ai.assistance.operit.util.MediaBase64Limiter
 import com.ai.assistance.operit.util.MediaPoolManager
 
 data class MediaLink(
@@ -42,12 +43,15 @@ object MediaLinkParser {
                 }
 
                 val mediaData = MediaPoolManager.getMedia(id) ?: return@forEach
+
+                val limited = MediaBase64Limiter.limitBase64ForAi(mediaData.base64, mediaData.mimeType)
+                    ?: return@forEach
                 links.add(
                     MediaLink(
                         type = type,
                         id = id,
-                        base64Data = mediaData.base64,
-                        mimeType = mediaData.mimeType
+                        base64Data = limited.base64,
+                        mimeType = limited.mimeType
                     )
                 )
             }

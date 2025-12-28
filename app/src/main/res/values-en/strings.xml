@@ -556,6 +556,7 @@
     
     <!-- Package Manager Screen -->
     <string name="packages">Packages</string>
+    <string name="skills">Skills</string>
     <string name="package_manager">Package Manager</string>
     <string name="available_packages">Available Packages</string>
     <string name="imported_packages">Imported Packages</string>
@@ -2268,6 +2269,8 @@
     <string name="settings_max_http_response_subtitle">Maximum character limit for network request responses</string>
     <string name="settings_max_image_history_user_turns">Keep Image History Turns</string>
     <string name="settings_max_image_history_user_turns_subtitle">Only keep images from the last N user turns to avoid resending old images</string>
+    <string name="settings_max_media_history_user_turns">Keep Media History Turns</string>
+    <string name="settings_max_media_history_user_turns_subtitle">Only keep audio/video from the last N user turns to avoid resending old media</string>
     <string name="settings_reset_truncation">Reset Truncation Settings</string>
     <string name="settings_reset_truncation_desc">Reset all truncation settings to default values</string>
     

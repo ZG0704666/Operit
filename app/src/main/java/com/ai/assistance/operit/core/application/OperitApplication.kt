@@ -55,6 +55,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 /** Application class for Operit */
@@ -221,17 +222,31 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
         AppLogger.d(TAG, "【启动计时】全局图片加载器初始化完成（超时配置：连接30s/读取60s） - ${System.currentTimeMillis() - startTime}ms")
         
         // 初始化图片池管理器，支持本地持久化缓存
-        ImagePoolManager.initialize(filesDir)
+        ImagePoolManager.initialize(filesDir, preloadNow = false)
         AppLogger.d(TAG, "【启动计时】图片池管理器初始化完成 - ${System.currentTimeMillis() - startTime}ms")
 
         // 初始化媒体池管理器（音频/视频），支持本地持久化缓存
-        MediaPoolManager.initialize(filesDir)
+        MediaPoolManager.initialize(filesDir, preloadNow = false)
         AppLogger.d(TAG, "【启动计时】媒体池管理器初始化完成 - ${System.currentTimeMillis() - startTime}ms")
-        
-        // 初始化AIToolHandler并注册默认工具
-        val toolHandler = AIToolHandler.getInstance(this)
-        toolHandler.registerDefaultTools()
-        AppLogger.d(TAG, "【启动计时】AIToolHandler初始化并注册工具完成 - ${System.currentTimeMillis() - startTime}ms")
+
+        // 启动后重任务统一后台串行执行，避免多个大任务同时跑导致首屏掉帧
+        applicationScope.launch(Dispatchers.Default) {
+            // 给 UI 一个缓冲时间先完成首屏渲染
+            kotlinx.coroutines.delay(800)
+
+            val imagePreloadStartTime = System.currentTimeMillis()
+            withContext(Dispatchers.IO) { ImagePoolManager.preloadFromDisk() }
+            AppLogger.d(TAG, "【启动计时】图片池磁盘预加载完成（异步/串行） - ${System.currentTimeMillis() - imagePreloadStartTime}ms")
+
+            val mediaPreloadStartTime = System.currentTimeMillis()
+            withContext(Dispatchers.IO) { MediaPoolManager.preloadFromDisk() }
+            AppLogger.d(TAG, "【启动计时】媒体池磁盘预加载完成（异步/串行） - ${System.currentTimeMillis() - mediaPreloadStartTime}ms")
+
+            val toolStartTime = System.currentTimeMillis()
+            val toolHandler = AIToolHandler.getInstance(this@OperitApplication)
+            toolHandler.registerDefaultTools()
+            AppLogger.d(TAG, "【启动计时】AIToolHandler初始化并注册工具完成（异步/串行） - ${System.currentTimeMillis() - toolStartTime}ms")
+        }
         
         // 初始化工作流调度器（异步）
         applicationScope.launch {

@@ -39,8 +39,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.async
@@ -179,9 +181,17 @@ class EnhancedAIService private constructor(private val context: Context) {
          */
         fun resetTokenCounters(context: Context) {
             val instance = getInstance(context)
-            instance.aiService.resetTokenCounts()
             instance.accumulatedInputTokenCount = 0
             instance.accumulatedOutputTokenCount = 0
+
+            instance.initScope.launch {
+                runCatching {
+                    instance.ensureInitialized()
+                    instance.multiServiceManager.getDefaultService().resetTokenCounts()
+                }.onFailure { e ->
+                    AppLogger.e(TAG, "重置token计数失败", e)
+                }
+            }
         }
 
         /**
@@ -227,25 +237,28 @@ class EnhancedAIService private constructor(private val context: Context) {
     // MultiServiceManager 管理不同功能的 AIService 实例
     private val multiServiceManager = MultiServiceManager(context)
 
+    private val initScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val initMutex = Mutex()
+    @Volatile private var isServiceManagerInitialized = false
+
     // 添加ConversationService实例
     private val conversationService = ConversationService(context, CustomEmojiRepository.getInstance(context))
 
     // 添加FileBindingService实例
     private val fileBindingService = FileBindingService(context)
 
-    // AIService 实例 - 保留为兼容现有代码，但实际使用 MultiServiceManager
-    private val aiService: AIService by lazy {
-        runBlocking { multiServiceManager.getDefaultService() }
-    }
-
     // Tool handler for executing tools
     private val toolHandler = AIToolHandler.getInstance(context)
 
-    // 初始化问题库
-    init {
-        com.ai.assistance.operit.api.chat.library.ProblemLibrary.initialize(context)
-        // 初始化 MultiServiceManager
-        runBlocking { multiServiceManager.initialize() }
+    private suspend fun ensureInitialized() {
+        if (isServiceManagerInitialized) return
+        initMutex.withLock {
+            if (isServiceManagerInitialized) return
+            withContext(Dispatchers.IO) {
+                multiServiceManager.initialize()
+            }
+            isServiceManagerInitialized = true
+        }
     }
 
     // State flows for UI updates
@@ -301,7 +314,21 @@ class EnhancedAIService private constructor(private val context: Context) {
     private var lastReplyContent: String? = null
 
     init {
-        toolHandler.registerDefaultTools()
+        com.ai.assistance.operit.api.chat.library.ProblemLibrary.initialize(context)
+        initScope.launch {
+            runCatching {
+                ensureInitialized()
+            }.onFailure { e ->
+                AppLogger.e(TAG, "MultiServiceManager初始化失败", e)
+            }
+        }
+        initScope.launch {
+            runCatching {
+                toolHandler.registerDefaultTools()
+            }.onFailure { e ->
+                AppLogger.e(TAG, "注册默认工具失败", e)
+            }
+        }
     }
 
     /**
@@ -1221,8 +1248,12 @@ class EnhancedAIService private constructor(private val context: Context) {
         // isConversationActive.set(false) // This is now per-context, can't set a global one
 
         // Cancel all underlying AIService streaming instances
-        runBlocking {
-            multiServiceManager.cancelAllStreaming()
+        initScope.launch {
+            runCatching {
+                multiServiceManager.cancelAllStreaming()
+            }.onFailure { e ->
+                AppLogger.e(TAG, "取消AIService流式输出失败", e)
+            }
         }
 
         // Cancel all tool executions
@@ -1360,21 +1391,19 @@ class EnhancedAIService private constructor(private val context: Context) {
 
     /** 启动或更新前台服务为“AI 正在运行”状态，以保持应用活跃 */
     private fun startAiService(characterName: String? = null, avatarUri: String? = null) {
-        runBlocking {
-            try {
-                val updateIntent = Intent(context, AIForegroundService::class.java).apply {
-                    putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_RUNNING)
-                    if (characterName != null) {
-                        putExtra(AIForegroundService.EXTRA_CHARACTER_NAME, characterName)
-                    }
-                    if (avatarUri != null) {
-                        putExtra(AIForegroundService.EXTRA_AVATAR_URI, avatarUri)
-                    }
+        try {
+            val updateIntent = Intent(context, AIForegroundService::class.java).apply {
+                putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_RUNNING)
+                if (characterName != null) {
+                    putExtra(AIForegroundService.EXTRA_CHARACTER_NAME, characterName)
                 }
-                context.startService(updateIntent)
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "更新AI前台服务为运行中状态失败: ${e.message}", e)
+                if (avatarUri != null) {
+                    putExtra(AIForegroundService.EXTRA_AVATAR_URI, avatarUri)
+                }
             }
+            context.startService(updateIntent)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "更新AI前台服务为运行中状态失败: ${e.message}", e)
         }
 
         ActivityLifecycleManager.checkAndApplyKeepScreenOn(true)
@@ -1386,22 +1415,20 @@ class EnhancedAIService private constructor(private val context: Context) {
             AppLogger.d(TAG, "更新AI前台服务为闲置状态...")
 
             // 准备通知数据并切换为 IDLE 状态
-            runBlocking {
-                try {
-                    val stopIntent = Intent(context, AIForegroundService::class.java).apply {
-                        putExtra(AIForegroundService.EXTRA_CHARACTER_NAME, characterName)
-                        putExtra(AIForegroundService.EXTRA_REPLY_CONTENT, lastReplyContent)
-                        putExtra(AIForegroundService.EXTRA_AVATAR_URI, avatarUri)
-                        putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_IDLE)
-                    }
-
-                    AppLogger.d(TAG, "传递通知数据(空闲) - 角色: $characterName, 内容长度: ${lastReplyContent?.length}, 头像: $avatarUri")
-
-                    // 仅发送更新，不再真正停止前台服务
-                    context.startService(stopIntent)
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "更新AI前台服务为闲置状态失败: ${e.message}", e)
+            try {
+                val stopIntent = Intent(context, AIForegroundService::class.java).apply {
+                    putExtra(AIForegroundService.EXTRA_CHARACTER_NAME, characterName)
+                    putExtra(AIForegroundService.EXTRA_REPLY_CONTENT, lastReplyContent)
+                    putExtra(AIForegroundService.EXTRA_AVATAR_URI, avatarUri)
+                    putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_IDLE)
                 }
+
+                AppLogger.d(TAG, "传递通知数据(空闲) - 角色: $characterName, 内容长度: ${lastReplyContent?.length}, 头像: $avatarUri")
+
+                // 仅发送更新，不再真正停止前台服务
+                context.startService(stopIntent)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "更新AI前台服务为闲置状态失败: ${e.message}", e)
             }
         } else {
             AppLogger.d(TAG, "AI前台服务未在运行，无需更新闲置状态。")
