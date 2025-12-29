@@ -10,15 +10,17 @@ import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.api.GitHubApiService
 import com.ai.assistance.operit.data.api.GitHubIssue
 import com.ai.assistance.operit.data.api.GitHubComment
+
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
 import com.ai.assistance.operit.data.preferences.GitHubAuthPreferences
-import com.ai.assistance.operit.data.preferences.GitHubAuthBus
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
 import com.ai.assistance.operit.util.AppLogger
 import android.content.SharedPreferences
 import kotlinx.serialization.Serializable
@@ -29,15 +31,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNames
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import java.util.regex.Pattern
 
 /**
  * MCP市场ViewModel
  * 处理GitHub认证、MCP浏览、安装和发布
  */
+
 class MCPMarketViewModel(
     private val context: Context,
     private val mcpRepository: MCPRepository
@@ -171,16 +170,6 @@ class MCPMarketViewModel(
     init {
         // 加载持久化的头像缓存
         loadAvatarCacheFromPrefs()
-        
-        viewModelScope.launch {
-            GitHubAuthBus.authCode.collect { code ->
-                code?.let {
-                    handleGitHubCallback(it)
-                    // Reset the code in the bus to prevent re-triggering
-                    GitHubAuthBus.postAuthCode(null)
-                }
-            }
-        }
     }
 
     class Factory(
@@ -229,13 +218,19 @@ class MCPMarketViewModel(
                     perPage = 50
                 )
 
+                val isLoggedIn = try {
+                    githubAuth.isLoggedIn()
+                } catch (_: Exception) {
+                    false
+                }
+
                 result.fold(
                     onSuccess = { issues ->
                         _mcpIssues.value = issues
                     },
                     onFailure = { error ->
                         val errorMessage = error.message ?: ""
-                        if (errorMessage.contains("HTTP 403") && !githubAuth.isLoggedIn()) {
+                        if (errorMessage.contains("HTTP 403") && !isLoggedIn) {
                             _errorMessage.value = "API请求超限，请登录GitHub后重试"
                             _isRateLimitError.value = true
                         } else {
@@ -280,16 +275,8 @@ class MCPMarketViewModel(
                             AppLogger.d(TAG, "Using config merge installation for plugin $pluginId (no physical installation needed)")
                             val mcpLocalServer = MCPLocalServer.getInstance(context)
                             val mergeResult = mcpLocalServer.mergeConfigFromJson(installInfo.installConfig)
-                            
-                            mergeResult.onSuccess { count ->
-                                _installingPlugins.value = _installingPlugins.value - pluginId
-                                Toast.makeText(
-                                    context,
-                                    "成功导入 ${issue.title} 配置，合并了 $count 个服务器",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                mcpRepository.refreshPluginList()
-                            }.onFailure { error ->
+
+                            val count = mergeResult.getOrElse { error ->
                                 _installingPlugins.value = _installingPlugins.value - pluginId
                                 Toast.makeText(
                                     context,
@@ -297,7 +284,16 @@ class MCPMarketViewModel(
                                     Toast.LENGTH_LONG
                                 ).show()
                                 AppLogger.e(TAG, "Config merge failed for plugin $pluginId", error)
+                                return@launch
                             }
+
+                            _installingPlugins.value = _installingPlugins.value - pluginId
+                            Toast.makeText(
+                                context,
+                                "成功导入 ${issue.title} 配置，合并了 $count 个服务器",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            mcpRepository.refreshPluginList()
                             return@launch
                         } else {
                             AppLogger.d(TAG, "Config contains commands that need physical installation, proceeding with normal installation flow")
@@ -452,40 +448,35 @@ class MCPMarketViewModel(
 
                 // 获取访问令牌
                 val tokenResult = githubApiService.getAccessToken(code)
-                
-                tokenResult.fold(
-                    onSuccess = { tokenResponse ->
-                        AppLogger.d(TAG, "Successfully obtained access token.")
-                        // 获取用户信息
-                        githubAuth.updateAccessToken(tokenResponse.access_token, tokenResponse.token_type)
-                        
-                        val userResult = githubApiService.getCurrentUser()
-                        userResult.fold(
-                            onSuccess = { user ->
-                                AppLogger.d(TAG, "Successfully fetched user info for ${user.login}")
-                                githubAuth.saveAuthInfo(
-                                    accessToken = tokenResponse.access_token,
-                                    tokenType = tokenResponse.token_type,
-                                    userInfo = user
-                                )
-                                
-                                Toast.makeText(
-                                    context,
-                                    "登录成功，欢迎 ${user.login}！",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            },
-                            onFailure = { error ->
-                                AppLogger.e(TAG, "Failed to get user info", error)
-                                _errorMessage.value = "获取用户信息失败: ${error.message}"
-                            }
-                        )
-                    },
-                    onFailure = { error ->
-                        AppLogger.e(TAG, "Failed to get access token", error)
-                        _errorMessage.value = "登录失败: ${error.message}"
-                    }
+
+                val tokenResponse = tokenResult.getOrElse { error ->
+                    AppLogger.e(TAG, "Failed to get access token", error)
+                    _errorMessage.value = "登录失败: ${error.message}"
+                    return@launch
+                }
+
+                AppLogger.d(TAG, "Successfully obtained access token.")
+                githubAuth.updateAccessToken(tokenResponse.access_token, tokenResponse.token_type)
+
+                val userResult = githubApiService.getCurrentUser()
+                val user = userResult.getOrElse { error ->
+                    AppLogger.e(TAG, "Failed to get user info", error)
+                    _errorMessage.value = "获取用户信息失败: ${error.message}"
+                    return@launch
+                }
+
+                AppLogger.d(TAG, "Successfully fetched user info for ${user.login}")
+                githubAuth.saveAuthInfo(
+                    accessToken = tokenResponse.access_token,
+                    tokenType = tokenResponse.token_type,
+                    userInfo = user
                 )
+
+                Toast.makeText(
+                    context,
+                    "登录成功，欢迎 ${user.login}！",
+                    Toast.LENGTH_LONG
+                ).show()
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Exception during GitHub callback handling", e)
                 _errorMessage.value = "登录过程中发生错误: ${e.message}"

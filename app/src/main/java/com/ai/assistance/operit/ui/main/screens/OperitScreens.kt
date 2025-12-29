@@ -41,6 +41,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettings
 import com.ai.assistance.operit.ui.features.settings.screens.ContextSummarySettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.GlobalDisplaySettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.GitHubAccountScreen
 import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.LayoutAdjustmentSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelConfigScreen
@@ -77,6 +78,10 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.autoglm.AutoGlmToolS
 import com.ai.assistance.operit.ui.features.update.screens.UpdateScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowListScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowDetailScreen
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
+import com.ai.assistance.operit.data.preferences.GitHubAuthPreferences
 
 // 路由配置类
 typealias ScreenNavigationHandler = (Screen) -> Unit
@@ -336,6 +341,7 @@ sealed class Screen(
             SettingsScreen(
                     navigateToToolPermissions = { navigateTo(ToolPermission) },
                     onNavigateToUserPreferences = { navigateTo(UserPreferencesSettings) },
+                    navigateToGitHubAccount = { navigateTo(GitHubAccount) },
                     navigateToModelConfig = { navigateTo(ModelConfig) },
                     navigateToThemeSettings = { navigateTo(ThemeSettings) },
                     navigateToGlobalDisplaySettings = { navigateTo(GlobalDisplaySettings) },
@@ -351,6 +357,34 @@ sealed class Screen(
                     navigateToTokenUsageStatistics = { navigateTo(TokenUsageStatistics) },
                     navigateToContextSummarySettings = { navigateTo(ContextSummarySettings) },
                     navigateToLayoutAdjustmentSettings = { navigateTo(LayoutAdjustmentSettings) }
+            )
+        }
+    }
+
+    data object GitHubAccount : Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = R.string.github_account) {
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            val context = LocalContext.current
+            val githubAuth = GitHubAuthPreferences.getInstance(context)
+
+            fun initiateGitHubLogin() {
+                val authUrl = githubAuth.getAuthorizationUrl()
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            }
+
+            GitHubAccountScreen(
+                onLogin = ::initiateGitHubLogin
             )
         }
     }

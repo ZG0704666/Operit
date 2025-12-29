@@ -99,6 +99,21 @@ class AttachmentDelegate(private val context: Context, private val toolHandler: 
     suspend fun handleAttachment(filePath: String) =
             withContext(Dispatchers.IO) {
                 try {
+                    when (filePath) {
+                        "screen_capture" -> {
+                            captureScreenContent()
+                            return@withContext
+                        }
+                        "notifications_capture" -> {
+                            captureNotifications()
+                            return@withContext
+                        }
+                        "location_capture" -> {
+                            captureLocation()
+                            return@withContext
+                        }
+                    }
+
                     // 检查是否是媒体选择器特殊路径
                     if (filePath.contains("/sdcard/.transforms/synthetic/picker/") ||
                                     filePath.contains("/com.android.providers.media.photopicker/")

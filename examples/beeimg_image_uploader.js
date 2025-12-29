@@ -21,6 +21,19 @@
 const beeimgUploader = (function () {
     // API配置
     const API_ENDPOINT = "https://beeimg.com/api/upload/file/json/";
+    function isRecord(value) {
+        return typeof value === "object" && value !== null;
+    }
+    function getErrorMessage(error) {
+        if (error instanceof Error)
+            return error.message;
+        return String(error);
+    }
+    function getErrorStack(error) {
+        if (error instanceof Error)
+            return error.stack;
+        return undefined;
+    }
     function getApiKey() {
         return getEnv("BEEIMG_API_KEY") || "";
     }
@@ -53,7 +66,9 @@ const beeimgUploader = (function () {
         }
     }
     async function upload_image(params) {
-        const { file_path, album_id, privacy } = params || {};
+        const file_path = params === null || params === void 0 ? void 0 : params.file_path;
+        const album_id = params === null || params === void 0 ? void 0 : params.album_id;
+        const privacy = params === null || params === void 0 ? void 0 : params.privacy;
         if (!file_path || String(file_path).trim().length === 0) {
             throw new Error("参数 file_path 不能为空。");
         }
@@ -106,16 +121,21 @@ const beeimgUploader = (function () {
         catch (e) {
             throw new Error(`API 响应解析失败。服务器返回内容不是 JSON:\n${responseText.substring(0, 200)}...`);
         }
-        if ((jsonResponse === null || jsonResponse === void 0 ? void 0 : jsonResponse.files) && (jsonResponse.files.status === "Success" || jsonResponse.files.code === "200" || jsonResponse.files.code === 200)) {
+        const files = isRecord(jsonResponse) && isRecord(jsonResponse["files"]) ? jsonResponse["files"] : null;
+        const ok = !!files && (files["status"] === "Success" || files["code"] === "200" || files["code"] === 200);
+        const url = files ? files["url"] : undefined;
+        if (ok && (typeof url === "string" || typeof url === "number") && String(url).trim().length > 0) {
             return {
-                url: String(jsonResponse.files.url),
-                thumbnail_url: jsonResponse.files.thumbnail_url ? String(jsonResponse.files.thumbnail_url) : undefined,
-                page_url: jsonResponse.files.view_url ? String(jsonResponse.files.view_url) : undefined,
-                details: `上传成功! URL: ${jsonResponse.files.url}`
+                url: String(url),
+                thumbnail_url: files && files["thumbnail_url"] ? String(files["thumbnail_url"]) : undefined,
+                page_url: files && files["view_url"] ? String(files["view_url"]) : undefined,
+                details: `上传成功! URL: ${String(url)}`
             };
         }
         else {
-            const errMsg = (jsonResponse === null || jsonResponse === void 0 ? void 0 : jsonResponse.files) ? (jsonResponse.files.status || jsonResponse.files.message || JSON.stringify(jsonResponse.files)) : "未知错误";
+            const errMsg = files
+                ? (files["status"] || files["message"] || JSON.stringify(files))
+                : "未知错误";
             throw new Error(`BeeIMG API 报错: ${errMsg}`);
         }
     }
@@ -125,8 +145,8 @@ const beeimgUploader = (function () {
             complete({ success: true, message: "图片上传成功", data: result });
         }
         catch (error) {
-            console.error(`Error: ${(error === null || error === void 0 ? void 0 : error.message) || error}`);
-            complete({ success: false, message: (error === null || error === void 0 ? void 0 : error.message) || String(error), error_stack: error === null || error === void 0 ? void 0 : error.stack });
+            console.error(`Error: ${getErrorMessage(error)}`);
+            complete({ success: false, message: getErrorMessage(error), error_stack: getErrorStack(error) });
         }
     }
     return {

@@ -23,6 +23,20 @@ const beeimgUploader = (function () {
     // API配置
     const API_ENDPOINT = "https://beeimg.com/api/upload/file/json/";
 
+    function isRecord(value: unknown): value is Record<string, unknown> {
+        return typeof value === "object" && value !== null;
+    }
+
+    function getErrorMessage(error: unknown): string {
+        if (error instanceof Error) return error.message;
+        return String(error);
+    }
+
+    function getErrorStack(error: unknown): string | undefined {
+        if (error instanceof Error) return error.stack;
+        return undefined;
+    }
+
     function getApiKey(): string {
         return getEnv("BEEIMG_API_KEY") || "";
     }
@@ -36,16 +50,16 @@ const beeimgUploader = (function () {
         return "application/octet-stream";
     }
 
-    function safeJsonParseLoose(text: string): any {
+    function safeJsonParseLoose(text: string): unknown {
         const trimmed = (text || "").trim();
         if (!trimmed) return null;
         try {
-            return JSON.parse(trimmed);
+            return JSON.parse(trimmed) as unknown;
         } catch (e) {
             const start = trimmed.indexOf("{");
             const end = trimmed.lastIndexOf("}");
             if (start !== -1 && end !== -1 && end > start) {
-                return JSON.parse(trimmed.substring(start, end + 1));
+                return JSON.parse(trimmed.substring(start, end + 1)) as unknown;
             }
             throw e;
         }
@@ -65,7 +79,9 @@ const beeimgUploader = (function () {
     }
 
     async function upload_image(params: UploadImageParams): Promise<UploadImageResult> {
-        const { file_path, album_id, privacy } = params || ({} as any);
+        const file_path = params?.file_path;
+        const album_id = params?.album_id;
+        const privacy = params?.privacy;
 
         if (!file_path || String(file_path).trim().length === 0) {
             throw new Error("参数 file_path 不能为空。");
@@ -118,34 +134,40 @@ const beeimgUploader = (function () {
             throw new Error("上传失败：服务器返回了空内容。请检查网络连接或尝试关闭 VPN。");
         }
 
-        let jsonResponse: any;
+        let jsonResponse: unknown;
         try {
             jsonResponse = safeJsonParseLoose(responseText);
-        } catch (e) {
+        } catch (e: unknown) {
             throw new Error(`API 响应解析失败。服务器返回内容不是 JSON:\n${responseText.substring(0, 200)}...`);
         }
 
-        if (jsonResponse?.files && (jsonResponse.files.status === "Success" || jsonResponse.files.code === "200" || jsonResponse.files.code === 200)) {
+        const files = isRecord(jsonResponse) && isRecord(jsonResponse["files"]) ? (jsonResponse["files"] as Record<string, unknown>) : null;
+        const ok = !!files && (files["status"] === "Success" || files["code"] === "200" || files["code"] === 200);
+        const url = files ? files["url"] : undefined;
+
+        if (ok && (typeof url === "string" || typeof url === "number") && String(url).trim().length > 0) {
             return {
-                url: String(jsonResponse.files.url),
-                thumbnail_url: jsonResponse.files.thumbnail_url ? String(jsonResponse.files.thumbnail_url) : undefined,
-                page_url: jsonResponse.files.view_url ? String(jsonResponse.files.view_url) : undefined,
-                details: `上传成功! URL: ${jsonResponse.files.url}`
+                url: String(url),
+                thumbnail_url: files && files["thumbnail_url"] ? String(files["thumbnail_url"]) : undefined,
+                page_url: files && files["view_url"] ? String(files["view_url"]) : undefined,
+                details: `上传成功! URL: ${String(url)}`
             };
         } else {
-            const errMsg = jsonResponse?.files ? (jsonResponse.files.status || jsonResponse.files.message || JSON.stringify(jsonResponse.files)) : "未知错误";
+            const errMsg = files
+                ? (files["status"] || files["message"] || JSON.stringify(files))
+                : "未知错误";
             throw new Error(`BeeIMG API 报错: ${errMsg}`);
         }
     }
 
-    async function wrap(func: (params: any) => Promise<any>, params: any) {
+    async function wrap<TParams, TResult>(func: (params: TParams) => Promise<TResult>, params: TParams) {
         try {
             const result = await func(params);
             complete({ success: true, message: "图片上传成功", data: result });
         }
-        catch (error: any) {
-            console.error(`Error: ${error?.message || error}`);
-            complete({ success: false, message: error?.message || String(error), error_stack: error?.stack });
+        catch (error: unknown) {
+            console.error(`Error: ${getErrorMessage(error)}`);
+            complete({ success: false, message: getErrorMessage(error), error_stack: getErrorStack(error) });
         }
     }
 

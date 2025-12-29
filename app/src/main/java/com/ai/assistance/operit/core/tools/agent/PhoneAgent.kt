@@ -817,6 +817,10 @@ class ActionHandler(
                         val launched = if (created && hasLaunchableTarget) ShowerController.launchApp(packageName) else false
 
                         if (created && launched) {
+                            try {
+                                VirtualDisplayOverlay.getInstance(context).updateCurrentAppPackageName(packageName)
+                            } catch (_: Exception) {
+                            }
                             // 成功在虚拟屏小窗启动后，切换到 Shower 边框指示并关闭全屏指示
                             useShowerIndicatorForAgent(context)
                             delay(POST_LAUNCH_DELAY_MS)
@@ -840,6 +844,10 @@ class ActionHandler(
                                 // 桌面应用已安装：直接在 Shower 虚拟屏上启动桌面
                                 val desktopLaunched = ShowerController.launchApp(desktopPackage)
                                 if (desktopLaunched) {
+                                    try {
+                                        VirtualDisplayOverlay.getInstance(context).updateCurrentAppPackageName(desktopPackage)
+                                    } catch (_: Exception) {
+                                    }
                                     useShowerIndicatorForAgent(context)
                                     delay(POST_LAUNCH_DELAY_MS)
                                     ok()

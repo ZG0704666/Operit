@@ -11,7 +11,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,12 +25,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,8 +51,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -87,6 +96,10 @@ fun BottomControlBar(
     onShowDragHintsChange: (Boolean) -> Unit,
     userMessage: String,
     onUserMessageChange: (String) -> Unit,
+    attachScreenContent: Boolean,
+    onAttachScreenContentChange: (Boolean) -> Unit,
+    attachNotifications: Boolean,
+    onAttachNotificationsChange: (Boolean) -> Unit,
     onSendClick: () -> Unit,
     volumeLevel: Float,
     modifier: Modifier = Modifier
@@ -136,230 +149,335 @@ fun BottomControlBar(
                 else -> Color.White
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = CircleShape,
-                        clip = false
-                    )
-                    .clip(CircleShape)
-                    .background(pillColor)
+            val canSend = userMessage.isNotBlank() || attachScreenContent || attachNotifications
+            val glowPadding = 8.dp
+            val glowPaddingPx = with(density) { glowPadding.toPx() }
+            val glowBaseColors = listOf(
+                Color(0xFF42A5F5),
+                Color(0xFF26C6DA),
+                Color(0xFF66BB6A)
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // 文本输入模式与按住说话模式共用的基础布局
-                OutlinedTextField(
-                    value = userMessage,
-                    onValueChange = { if (!isHoldToSpeakMode) onUserMessageChange(it) },
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(pillHeight)
-                        .focusRequester(focusRequester)
-                        .focusProperties {
-                            canFocus = userMessage.isNotBlank() || allowBlankFocus
-                        }
-                    ,
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                    singleLine = true,
-                    readOnly = isHoldToSpeakMode,
-                    placeholder = {
-                        if (!isHoldToSpeakMode) {
-                            Text(
-                                text = "输入或者长按语音",
-                                color = Color.Gray,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp)
+                        .padding(start = 12.dp)
+                        .offset(y = 6.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val chipColors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color.White.copy(alpha = 0.86f),
+                        labelColor = Color.Black,
+                        selectedContainerColor = Color.White,
+                        selectedLabelColor = Color.Black,
+                        iconColor = Color.Black,
+                        selectedLeadingIconColor = Color.Black
+                    )
+
+                    FilterChip(
+                        selected = attachScreenContent,
+                        onClick = { onAttachScreenContentChange(!attachScreenContent) },
+                        label = { Text(text = "屏幕内容", style = MaterialTheme.typography.labelSmall) },
+                        leadingIcon =
+                            if (attachScreenContent) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        colors = chipColors
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    FilterChip(
+                        selected = attachNotifications,
+                        onClick = { onAttachNotificationsChange(!attachNotifications) },
+                        label = { Text(text = "通知", style = MaterialTheme.typography.labelSmall) },
+                        leadingIcon =
+                            if (attachNotifications) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        colors = chipColors
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .drawBehind {
+                            val innerRect = Rect(
+                                left = glowPaddingPx,
+                                top = glowPaddingPx,
+                                right = size.width - glowPaddingPx,
+                                bottom = size.height - glowPaddingPx
                             )
-                        }
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black,
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        cursorColor = MaterialTheme.colorScheme.primary
-                    ),
-                    leadingIcon = {
-                        IconButton(onClick = onToggleWaveMode) {
-                            Icon(
-                                imageVector = Icons.Default.Phone,
-                                contentDescription = "语音通话",
-                                tint = if (isWaveActive) MaterialTheme.colorScheme.primary else Color.Gray,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    },
-                    trailingIcon = {
-                        if (!isHoldToSpeakMode) {
-                            IconButton(
-                                onClick = {
-                                    allowBlankFocus = false
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                    onSendClick()
-                                },
-                                enabled = userMessage.isNotBlank()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Send,
-                                    contentDescription = "发送",
-                                    tint = if (userMessage.isNotBlank()) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                    },
-                                    modifier = Modifier.size(22.dp)
+
+                            val baseRadius = innerRect.height / 2f
+                            val maxGlow = glowPaddingPx
+                            val layers = 6
+                            val alphaMax = 0.30f
+                            val alphaMin = 0.05f
+
+                            for (layer in 0 until layers) {
+                                val fraction = if (layers == 1) 1f else layer / (layers - 1f)
+                                val spread = maxGlow * fraction
+                                val alpha = alphaMax + (alphaMin - alphaMax) * fraction
+
+                                val rect = Rect(
+                                    left = innerRect.left - spread,
+                                    top = innerRect.top - spread,
+                                    right = innerRect.right + spread,
+                                    bottom = innerRect.bottom + spread
+                                )
+                                val radius = baseRadius + spread
+
+                                drawRoundRect(
+                                    brush = Brush.horizontalGradient(
+                                        colors = glowBaseColors.map { it.copy(alpha = alpha) }
+                                    ),
+                                    topLeft = Offset(rect.left, rect.top),
+                                    size = Size(rect.width, rect.height),
+                                    cornerRadius = CornerRadius(radius, radius)
                                 )
                             }
                         }
-                    }
-                )
-
-                // 当输入为空时，用覆盖层接管“单击聚焦/长按说话”。
-                // 注意：覆盖层必须在长按期间保持存在，否则 pointerInput 会被取消，导致无法收到松手事件。
-                if (userMessage.isBlank()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(pillHeight)
-                    ) {
-                        Spacer(modifier = Modifier.width(iconRegionWidth))
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(pillHeight)
-                                .pointerInput(cancelThresholdPx, userMessage) {
-                                    awaitEachGesture {
-                                        val down = awaitFirstDown(requireUnconsumed = false)
-
-                                        down.consume()
-                                        // 只要开始按下就先禁用空输入框的焦点，避免 IME 被 TextField 拉起
-                                        allowBlankFocus = false
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-
-                                        val releasedBeforeTimeout = withTimeoutOrNull(holdToSpeakTriggerMs) {
-                                            while (true) {
-                                                val event = awaitPointerEvent(PointerEventPass.Final)
-                                                if (event.changes.isEmpty()) {
-                                                    return@withTimeoutOrNull true
-                                                }
-                                                val change = event.changes.firstOrNull { it.id == down.id }
-                                                if (change == null) {
-                                                    // 某些情况下当前帧找不到这根 pointer，但手指其实还按着。
-                                                    // 只有当事件里没有任何 pressed pointer 时，才认为真正松手。
-                                                    if (event.changes.none { it.pressed }) {
-                                                        return@withTimeoutOrNull true
-                                                    }
-                                                    continue
-                                                }
-                                                if (!change.pressed) {
-                                                    return@withTimeoutOrNull true
-                                                }
-                                            }
-                                        }
-
-                                        if (releasedBeforeTimeout == true) {
-                                            allowBlankFocus = true
-                                            focusRequester.requestFocus()
-                                            keyboardController?.show()
-                                            return@awaitEachGesture
-                                        }
-
-                                        val startPosition = down.position
-                                        var totalDragY = 0f
-                                        isHoldToSpeakMode = true
-                                        isPressed = true
-                                        isCancelRegion = false
-                                        allowBlankFocus = false
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        onStartVoiceCapture()
-
-                                        while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Final)
-                                            if (event.changes.isEmpty()) {
-                                                allowBlankFocus = false
-                                                focusManager.clearFocus(force = true)
-                                                keyboardController?.hide()
-                                                onStopVoiceCapture(isCancelRegion)
-                                                isCancelRegion = false
-                                                isPressed = false
-                                                isHoldToSpeakMode = false
-                                                totalDragY = 0f
-                                                break
-                                            }
-
-                                            val change = event.changes.firstOrNull { it.id == down.id }
-                                            if (change == null || !change.pressed) {
-                                                allowBlankFocus = false
-                                                focusManager.clearFocus(force = true)
-                                                keyboardController?.hide()
-                                                onStopVoiceCapture(isCancelRegion)
-                                                isCancelRegion = false
-                                                isPressed = false
-                                                isHoldToSpeakMode = false
-                                                totalDragY = 0f
-                                                break
-                                            }
-
-                                            val position = change.position
-                                            val dy = position.y - startPosition.y
-                                            totalDragY = dy
-                                            isCancelRegion = abs(totalDragY) > cancelThresholdPx
-                                        }
-                                    }
-                                }
-                        )
-                        Spacer(modifier = Modifier.width(iconRegionWidth))
-                    }
-                }
-
-                if (isHoldToSpeakMode) {
-                    // 按住说话模式：在文本框之上叠加手势区域和提示文案
+                        .padding(glowPadding)
+                ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(pillHeight)
+                            .shadow(
+                                elevation = 10.dp,
+                                shape = CircleShape,
+                                clip = false,
+                                ambientColor = Color.Black.copy(alpha = 0.06f),
+                                spotColor = Color.Black.copy(alpha = 0.10f)
+                            )
+                            .clip(CircleShape)
+                            .background(pillColor)
                     ) {
-                        if (isPressed && !isCancelRegion) {
-                            // 在普通长按状态下绘制居中、较小的黑色音量波形，右侧为最新音量
-                            Canvas(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(pillHeight)
-                            ) {
-                                val barCount = volumeHistory.size
-                                if (barCount > 0) {
-                                    // 保留更大的左右空白，让波形更窄、更居中
-                                    val horizontalMargin = size.width * 0.28f
-                                    val availableWidth = size.width - horizontalMargin * 2f
-                                    val barWidth = availableWidth / (barCount * 1.4f)
-                                    val gap = barWidth * 0.4f
-                                    // 波形高度占胶囊高度的 30%，围绕垂直中心对称
-                                    val maxHeight = size.height * 0.3f
-                                    val centerY = size.height / 2f
-
-                                    volumeHistory.forEachIndexed { index: Int, value: Float ->
-                                        // index 越大，位置越靠右（最新的在最右侧）
-                                        val xRight = size.width - horizontalMargin - (barWidth + gap) * (barCount - 1 - index).toFloat()
-                                        val barHeight = (value.coerceIn(0f, 1f)) * maxHeight
-                                        val top = centerY - barHeight / 2f
-                                        drawRect(
-                                            color = Color.Black,
-                                            topLeft = Offset(xRight - barWidth, top),
-                                            size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
+                        OutlinedTextField(
+                            value = userMessage,
+                            onValueChange = { if (!isHoldToSpeakMode) onUserMessageChange(it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(pillHeight)
+                                .focusRequester(focusRequester)
+                                .focusProperties {
+                                    canFocus = userMessage.isNotBlank() || allowBlankFocus
+                                }
+                            ,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
+                            singleLine = true,
+                            readOnly = isHoldToSpeakMode,
+                            placeholder = {
+                                if (!isHoldToSpeakMode) {
+                                    Text(
+                                        text = "输入或者长按语音",
+                                        color = Color.Gray,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp)
+                                    )
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                cursorColor = MaterialTheme.colorScheme.primary
+                            ),
+                            leadingIcon = {
+                                IconButton(onClick = onToggleWaveMode) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = "语音通话",
+                                        tint = if (isWaveActive) MaterialTheme.colorScheme.primary else Color.Gray,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
+                            trailingIcon = {
+                                if (!isHoldToSpeakMode) {
+                                    IconButton(
+                                        onClick = {
+                                            allowBlankFocus = false
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            onSendClick()
+                                        },
+                                        enabled = canSend
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Send,
+                                            contentDescription = "发送",
+                                            tint = if (canSend) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                            },
+                                            modifier = Modifier.size(22.dp)
                                         )
                                     }
                                 }
                             }
-                        } else {
-                            // 未按下或处于取消区域时，显示提示文案
-                            Text(
-                                text = if (isCancelRegion) "松手取消" else "松手结束",
-                                color = if (isCancelRegion) Color.White else Color.Black,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.align(Alignment.Center)
-                            )
+                        )
+
+                        if (userMessage.isBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(pillHeight)
+                            ) {
+                                Spacer(modifier = Modifier.width(iconRegionWidth))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(pillHeight)
+                                        .pointerInput(cancelThresholdPx, userMessage) {
+                                            awaitEachGesture {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+
+                                                down.consume()
+                                                allowBlankFocus = false
+                                                focusManager.clearFocus(force = true)
+                                                keyboardController?.hide()
+
+                                                val releasedBeforeTimeout = withTimeoutOrNull(holdToSpeakTriggerMs) {
+                                                    while (true) {
+                                                        val event = awaitPointerEvent(PointerEventPass.Final)
+                                                        if (event.changes.isEmpty()) {
+                                                            return@withTimeoutOrNull true
+                                                        }
+                                                        val change = event.changes.firstOrNull { it.id == down.id }
+                                                        if (change == null) {
+                                                            if (event.changes.none { it.pressed }) {
+                                                                return@withTimeoutOrNull true
+                                                            }
+                                                            continue
+                                                        }
+                                                        if (!change.pressed) {
+                                                            return@withTimeoutOrNull true
+                                                        }
+                                                    }
+                                                }
+
+                                                if (releasedBeforeTimeout == true) {
+                                                    allowBlankFocus = true
+                                                    focusRequester.requestFocus()
+                                                    keyboardController?.show()
+                                                    return@awaitEachGesture
+                                                }
+
+                                                val startPosition = down.position
+                                                var totalDragY = 0f
+                                                isHoldToSpeakMode = true
+                                                isPressed = true
+                                                isCancelRegion = false
+                                                allowBlankFocus = false
+                                                focusManager.clearFocus(force = true)
+                                                keyboardController?.hide()
+                                                onStartVoiceCapture()
+
+                                                while (true) {
+                                                    val event = awaitPointerEvent(PointerEventPass.Final)
+                                                    if (event.changes.isEmpty()) {
+                                                        allowBlankFocus = false
+                                                        focusManager.clearFocus(force = true)
+                                                        keyboardController?.hide()
+                                                        onStopVoiceCapture(isCancelRegion)
+                                                        isCancelRegion = false
+                                                        isPressed = false
+                                                        isHoldToSpeakMode = false
+                                                        totalDragY = 0f
+                                                        break
+                                                    }
+
+                                                    val change = event.changes.firstOrNull { it.id == down.id }
+                                                    if (change == null || !change.pressed) {
+                                                        allowBlankFocus = false
+                                                        focusManager.clearFocus(force = true)
+                                                        keyboardController?.hide()
+                                                        onStopVoiceCapture(isCancelRegion)
+                                                        isCancelRegion = false
+                                                        isPressed = false
+                                                        isHoldToSpeakMode = false
+                                                        totalDragY = 0f
+                                                        break
+                                                    }
+
+                                                    val position = change.position
+                                                    val dy = position.y - startPosition.y
+                                                    totalDragY = dy
+                                                    isCancelRegion = abs(totalDragY) > cancelThresholdPx
+                                                }
+                                            }
+                                        }
+                                )
+                                Spacer(modifier = Modifier.width(iconRegionWidth))
+                            }
+                        }
+                    }
+
+                    if (isHoldToSpeakMode) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(pillHeight)
+                        ) {
+                            if (isPressed && !isCancelRegion) {
+                                Canvas(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(pillHeight)
+                                ) {
+                                    val barCount = volumeHistory.size
+                                    if (barCount > 0) {
+                                        val horizontalMargin = size.width * 0.28f
+                                        val availableWidth = size.width - horizontalMargin * 2f
+                                        val barWidth = availableWidth / (barCount * 1.4f)
+                                        val gap = barWidth * 0.4f
+                                        val maxHeight = size.height * 0.3f
+                                        val centerY = size.height / 2f
+
+                                        volumeHistory.forEachIndexed { index: Int, value: Float ->
+                                            val xRight = size.width - horizontalMargin - (barWidth + gap) * (barCount - 1 - index).toFloat()
+                                            val barHeight = (value.coerceIn(0f, 1f)) * maxHeight
+                                            val top = centerY - barHeight / 2f
+                                            drawRect(
+                                                color = Color.Black,
+                                                topLeft = Offset(xRight - barWidth, top),
+                                                size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = if (isCancelRegion) "松手取消" else "松手结束",
+                                    color = if (isCancelRegion) Color.White else Color.Black,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            }
                         }
                     }
                 }

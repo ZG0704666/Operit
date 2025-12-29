@@ -30,9 +30,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.style.TextOverflow
 import java.text.DecimalFormat
+import android.content.Intent
+import android.net.Uri
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.GitHubAuthPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import kotlinx.coroutines.launch
@@ -45,6 +48,7 @@ private val SettingsScreenScrollPosition = mutableStateOf(0)
 @Composable
 fun SettingsScreen(
         onNavigateToUserPreferences: () -> Unit,
+        navigateToGitHubAccount: () -> Unit,
         navigateToToolPermissions: () -> Unit,
         navigateToModelConfig: () -> Unit,
         navigateToThemeSettings: () -> Unit,
@@ -65,7 +69,18 @@ fun SettingsScreen(
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences.getInstance(context) }
         val userPreferences = remember { UserPreferencesManager.getInstance(context) }
+        val githubAuth = remember { GitHubAuthPreferences.getInstance(context) }
         val scope = rememberCoroutineScope()
+
+        val isGitHubLoggedIn = githubAuth.isLoggedInFlow.collectAsState(initial = false).value
+        val gitHubUser = githubAuth.userInfoFlow.collectAsState(initial = null).value
+
+        fun initiateGitHubLogin() {
+                val authUrl = githubAuth.getAuthorizationUrl()
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+        }
 
         // 创建和记住滚动状态，设置为上次保存的位置
         val scrollState = rememberScrollState(SettingsScreenScrollPosition.value)
@@ -98,6 +113,42 @@ fun SettingsScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .verticalScroll(scrollState)
         ) {
+                // ======= 账号 =======
+                SettingsSection(
+                        title = stringResource(id = R.string.settings_section_account),
+                        icon = Icons.Default.AccountCircle,
+                        containerColor = cardContainerColor
+                ) {
+                        CompactSettingsItem(
+                                title = stringResource(R.string.github_account),
+                                subtitle = if (isGitHubLoggedIn && gitHubUser != null) {
+                                        "@${gitHubUser!!.login}"
+                                } else {
+                                        stringResource(R.string.github_account_not_logged_in)
+                                },
+                                icon = Icons.Default.Person,
+                                onClick = navigateToGitHubAccount
+                        )
+
+                        if (isGitHubLoggedIn) {
+                                CompactSettingsItem(
+                                        title = stringResource(R.string.logout),
+                                        subtitle = stringResource(R.string.github_account_logout_desc),
+                                        icon = Icons.Default.Logout,
+                                        onClick = {
+                                                scope.launch { githubAuth.logout() }
+                                        }
+                                )
+                        } else {
+                                CompactSettingsItem(
+                                        title = stringResource(R.string.login_github),
+                                        subtitle = stringResource(R.string.github_account_login_desc),
+                                        icon = Icons.Default.Login,
+                                        onClick = ::initiateGitHubLogin
+                                )
+                        }
+                }
+
                 // ======= 个性化配置 =======
                 SettingsSection(
                         title = stringResource(id = R.string.settings_section_personalization),

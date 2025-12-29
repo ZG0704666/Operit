@@ -2818,6 +2818,19 @@
     <string name="feature_explanation">Feature Explanation</string>
     <string name="waifu_mode_explanation">• Normal Mode: AI responses sent all at once\n• Waifu Mode: AI responses split by sentences, each in separate bubbles\n• Smart Delay: Calculate delay time based on sentence length\n• Auto Cleanup: Remove status tags, show only plain text\n• Optional Features: Remove end punctuation, disable action emoticons, enable emoticons\n• Use Case: Simulate more natural conversation rhythm\n• Note: This mode may not adapt well to tool calls</string>
     <string name="settings_saved_message">Settings saved</string>
+
+    <string name="settings_section_account">Account</string>
+    <string name="github_account_not_logged_in">Not logged in</string>
+    <string name="github_account_login_desc">Login with GitHub to use MCP market publish/manage features</string>
+    <string name="github_account_logout_desc">Logout from current GitHub account</string>
+
+    <string name="github_account_info_title">Account info</string>
+    <string name="github_account_info_id">ID</string>
+    <string name="github_account_info_public_repos">Public repos</string>
+    <string name="github_account_info_followers">Followers</string>
+    <string name="github_account_info_following">Following</string>
+    <string name="github_account_info_not_available">Login to view account info</string>
+    <string name="github_account_not_logged_in_desc">Please login to GitHub first</string>
     
     <!-- Character Card Dialog -->
     <string name="character_card_description">Description</string>

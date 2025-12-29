@@ -38,7 +38,8 @@ fun BubbleStyleChatMessage(
                 message = message,
                 backgroundColor = aiMessageColor,
                 textColor = aiTextColor,
-                isHidden = isHidden
+                isHidden = isHidden,
+                enableDialogs = enableDialogs
             )
         }
         "summary" -> {

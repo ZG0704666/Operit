@@ -17,7 +17,9 @@
         { "name": "image_size", "description": "输出图像大小，仅 nano-banana-pro 支持，如 '1K', '2K', '4K'，可选", "type": "string", "required": false },
         { "name": "image_urls", "description": "参考图URL数组（图生图），支持格式：字符串数组['https://...'] 或 JSON字符串'[\"https://...\"]' 或逗号分隔'url1,url2'，可选", "type": "array", "required": false },
         { "name": "image_paths", "description": "参考图本地路径数组（图生图，会先上传图床再进行生成），支持格式：字符串数组['/sdcard/...'] 或 JSON字符串 或 逗号分隔，可选", "type": "array", "required": false },
-        { "name": "file_name", "description": "自定义保存到本地的文件名（不含路径和扩展名）", "type": "string", "required": false }
+        { "name": "file_name", "description": "自定义保存到本地的文件名（不含路径和扩展名）", "type": "string", "required": false },
+        { "name": "poll_interval_ms", "description": "轮询间隔（毫秒），默认 5000", "type": "number", "required": false },
+        { "name": "max_wait_time_ms", "description": "最长等待时间（毫秒）。默认 5 分钟；当 image_size=4K 时默认 15 分钟", "type": "number", "required": false }
       ]
     }
   ]
@@ -42,6 +44,31 @@ const nanobananaDraw = (function () {
     const POLL_INTERVAL = 5000;      // 每5秒查询一次
     const MAX_WAIT_TIME = 300000;    // 最多等待5分钟
 
+    function isRecord(value: unknown): value is Record<string, unknown> {
+        return typeof value === "object" && value !== null;
+    }
+
+    function getErrorMessage(error: unknown): string {
+        if (error instanceof Error) return error.message;
+        return String(error);
+    }
+
+    function getErrorStack(error: unknown): string | undefined {
+        if (error instanceof Error) return error.stack;
+        return undefined;
+    }
+
+    function normalizePositiveInt(value: unknown, fallback: number): number {
+        if (value === undefined || value === null) {
+            return fallback;
+        }
+        const n = typeof value === "number" ? value : parseInt(String(value), 10);
+        if (!Number.isFinite(n) || n <= 0) {
+            return fallback;
+        }
+        return Math.floor(n);
+    }
+
     function getApiKey(): string {
         const apiKey = getEnv("NANOBANANA_API_KEY");
         if (!apiKey) {
@@ -63,16 +90,16 @@ const nanobananaDraw = (function () {
         return "application/octet-stream";
     }
 
-    function safeJsonParseLoose(text: string): any {
+    function safeJsonParseLoose(text: string): unknown {
         const trimmed = (text || "").trim();
         if (!trimmed) return null;
         try {
-            return JSON.parse(trimmed);
+            return JSON.parse(trimmed) as unknown;
         } catch (e) {
             const start = trimmed.indexOf("{");
             const end = trimmed.lastIndexOf("}");
             if (start !== -1 && end !== -1 && end > start) {
-                return JSON.parse(trimmed.substring(start, end + 1));
+                return JSON.parse(trimmed.substring(start, end + 1)) as unknown;
             }
             throw e;
         }
@@ -108,17 +135,17 @@ const nanobananaDraw = (function () {
             throw new Error(`BeeIMG 上传失败: HTTP ${resp.statusCode} - ${resp.content}`);
         }
 
-        let parsed: any;
+        let parsed: unknown;
         try {
             parsed = safeJsonParseLoose(resp.content);
-        } catch (e: any) {
-            throw new Error(`BeeIMG 上传响应解析失败: ${e?.message || e}`);
+        } catch (e: unknown) {
+            throw new Error(`BeeIMG 上传响应解析失败: ${getErrorMessage(e)}`);
         }
 
-        const files = parsed?.files;
-        const ok = files && (files.status === "Success" || files.code === "200" || files.code === 200);
-        const url = files?.url;
-        if (!ok || !url) {
+        const files = isRecord(parsed) && isRecord(parsed["files"]) ? (parsed["files"] as Record<string, unknown>) : null;
+        const ok = !!files && (files["status"] === "Success" || files["code"] === "200" || files["code"] === 200);
+        const url = files ? files["url"] : undefined;
+        if (!ok || (typeof url !== "string" && typeof url !== "number") || String(url).trim().length === 0) {
             throw new Error(`BeeIMG 上传失败: ${resp.content}`);
         }
         return String(url);
@@ -150,8 +177,8 @@ const nanobananaDraw = (function () {
                 if (!result.successful) {
                     console.warn(`创建目录失败(可能已存在): ${dir} -> ${result.details}`);
                 }
-            } catch (e: any) {
-                console.warn(`创建目录异常: ${dir} -> ${e?.message || e}`);
+            } catch (e: unknown) {
+                console.warn(`创建目录异常: ${dir} -> ${getErrorMessage(e)}`);
             }
         }
     }
@@ -162,6 +189,8 @@ const nanobananaDraw = (function () {
         aspect_ratio?: string;
         image_size?: string;
         image_urls?: string[];
+        poll_interval_ms?: number;
+        max_wait_time_ms?: number;
     }): Promise<string> {
         const apiKey = getApiKey();
         const model = (params.model && params.model.trim().length > 0)
@@ -169,7 +198,7 @@ const nanobananaDraw = (function () {
             : DEFAULT_MODEL;
 
         // 构建请求体 - 使用异步模式（webHook: "-1"）
-        const body: any = {
+        const body: Record<string, unknown> = {
             model: model,
             prompt: params.prompt,
             webHook: "-1",  // 关键：立即返回任务ID
@@ -213,29 +242,33 @@ const nanobananaDraw = (function () {
             throw new Error(`Nano Banana API 调用失败: ${response.statusCode} - ${response.content}`);
         }
 
-        let parsed: any;
+        let parsed: unknown;
         try {
-            parsed = JSON.parse(response.content);
-        } catch (e: any) {
-            throw new Error(`解析 Nano Banana 响应失败: ${e?.message || e}`);
+            parsed = JSON.parse(response.content) as unknown;
+        } catch (e: unknown) {
+            throw new Error(`解析 Nano Banana 响应失败: ${getErrorMessage(e)}`);
         }
 
-        // 检查响应格式
-        if (!parsed || !parsed.data || !parsed.data.id) {
+        if (!isRecord(parsed) || !isRecord(parsed["data"]) || typeof (parsed["data"] as Record<string, unknown>)["id"] !== "string") {
             throw new Error("API响应中未找到任务ID，请检查参数是否正确。响应: " + JSON.stringify(parsed));
         }
 
-        const taskId: string = parsed.data.id;
+        const taskId: string = (parsed["data"] as Record<string, unknown>)["id"] as string;
         console.log(`任务提交成功! ID: ${taskId}`);
-        console.log(`步骤2/2: 等待任务完成（轮询中，每${POLL_INTERVAL / 1000}秒查询一次）...`);
+        const pollIntervalMs = params.poll_interval_ms ?? POLL_INTERVAL;
+        const maxWaitTimeMs = params.max_wait_time_ms ?? MAX_WAIT_TIME;
+        console.log(`步骤2/2: 等待任务完成（轮询中，每${pollIntervalMs / 1000}秒查询一次，最长等待${Math.ceil(maxWaitTimeMs / 60000)}分钟）...`);
 
         return taskId;
     }
 
-    async function pollForResult(taskId: string): Promise<string> {
+    async function pollForResult(taskId: string, options?: { poll_interval_ms?: number; max_wait_time_ms?: number }): Promise<string> {
         const apiKey = getApiKey();
         const startTime = Date.now();
         let attempts = 0;
+
+        const pollIntervalMs = normalizePositiveInt(options?.poll_interval_ms, POLL_INTERVAL);
+        const maxWaitTimeMs = normalizePositiveInt(options?.max_wait_time_ms, MAX_WAIT_TIME);
 
         // 构建结果查询请求
         const requestBody = JSON.stringify({ id: taskId });
@@ -245,7 +278,7 @@ const nanobananaDraw = (function () {
             "Authorization": `Bearer ${apiKey}`
         };
 
-        while (Date.now() - startTime < MAX_WAIT_TIME) {
+        while (Date.now() - startTime < maxWaitTimeMs) {
             attempts++;
             console.log(`第${attempts}次查询任务状态...`);
 
@@ -263,45 +296,47 @@ const nanobananaDraw = (function () {
                 throw new Error(`查询结果失败: ${response.statusCode} - ${response.content}`);
             }
 
-            let parsed: any;
+            let parsed: unknown;
             try {
-                parsed = JSON.parse(response.content);
-            } catch (e: any) {
-                throw new Error(`解析结果响应失败: ${e?.message || e}`);
+                parsed = JSON.parse(response.content) as unknown;
+            } catch (e: unknown) {
+                throw new Error(`解析结果响应失败: ${getErrorMessage(e)}`);
             }
 
-            // 检查响应格式
-            if (!parsed || parsed.code !== 0 || !parsed.data) {
+            if (!isRecord(parsed) || parsed["code"] !== 0 || !isRecord(parsed["data"])) {
                 console.warn(`查询响应异常: ${JSON.stringify(parsed)}`);
-                await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
                 continue;
             }
 
-            const data = parsed.data;
-            const progress: number = data.progress || 0;
-            const status: string = data.status || "unknown";
+            const data = parsed["data"] as Record<string, unknown>;
+            const progress: number = typeof data["progress"] === "number" ? data["progress"] : 0;
+            const status: string = typeof data["status"] === "string" ? data["status"] : "unknown";
 
             console.log(`当前进度: ${progress}% | 状态: ${status}`);
 
             if (status === "succeeded") {
                 console.log("✅ 任务完成!");
-                if (!data.results || !data.results[0] || !data.results[0].url) {
+                const results = data["results"];
+                const first = Array.isArray(results) && results.length > 0 ? results[0] : null;
+                const url = isRecord(first) ? first["url"] : undefined;
+                if ((typeof url !== "string" && typeof url !== "number") || String(url).trim().length === 0) {
                     throw new Error("任务完成但响应中未找到图片URL: " + JSON.stringify(data));
                 }
-                return String(data.results[0].url);
+                return String(url);
             } else if (status === "failed") {
-                const reason: string = data.failure_reason || "未知原因";
-                const error: string = data.error || "";
+                const reason: string = typeof data["failure_reason"] === "string" ? data["failure_reason"] : "未知原因";
+                const error: string = typeof data["error"] === "string" ? data["error"] : "";
                 throw new Error(`任务执行失败: ${reason} - ${error}`);
             } else if (status === "running" && progress > 0) {
                 console.log(`生成中... 进度: ${progress}%`);
             }
 
             // 等待后再次查询
-            await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+            await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
         }
 
-        throw new Error(`任务超时: 等待超过${MAX_WAIT_TIME / 60000}分钟仍未完成`);
+        throw new Error(`任务超时: 等待超过${Math.ceil(maxWaitTimeMs / 60000)}分钟仍未完成`);
     }
 
     function guessExtensionFromUrl(url: string): string {
@@ -320,6 +355,8 @@ const nanobananaDraw = (function () {
         image_urls?: string[] | string;
         image_paths?: string[] | string;
         file_name?: string;
+        poll_interval_ms?: number | string;
+        max_wait_time_ms?: number | string;
     }
 
     interface DrawImageResult {
@@ -342,6 +379,11 @@ const nanobananaDraw = (function () {
 
         const prompt = params.prompt.trim();
 
+        const pollIntervalMs = normalizePositiveInt(params.poll_interval_ms, POLL_INTERVAL);
+        const normalizedImageSize = params.image_size ? params.image_size.trim().toUpperCase() : "";
+        const defaultMaxWaitTimeMs = normalizedImageSize === "4K" ? 900000 : MAX_WAIT_TIME;
+        const maxWaitTimeMs = normalizePositiveInt(params.max_wait_time_ms, defaultMaxWaitTimeMs);
+
         // 添加辅助函数来解析URL数组
         function parseImageUrls(image_urls: string[] | string): string[] {
             // 如果已经是数组，直接过滤空值返回
@@ -353,9 +395,9 @@ const nanobananaDraw = (function () {
             if (typeof image_urls === "string") {
                 // 方法一：尝试JSON解析
                 try {
-                    const parsed = JSON.parse(image_urls);
+                    const parsed: unknown = JSON.parse(image_urls) as unknown;
                     if (Array.isArray(parsed)) {
-                        return parsed.filter((url: string) => url && url.trim().length > 0);
+                        return parsed.filter((url) => typeof url === "string" && url.trim().length > 0);
                     }
                 } catch (e) {
                     // 解析失败继续方法二
@@ -379,9 +421,9 @@ const nanobananaDraw = (function () {
             }
             if (typeof image_paths === "string") {
                 try {
-                    const parsed = JSON.parse(image_paths);
+                    const parsed: unknown = JSON.parse(image_paths) as unknown;
                     if (Array.isArray(parsed)) {
-                        return parsed.filter((p: string) => p && String(p).trim().length > 0).map((p: string) => String(p).trim());
+                        return parsed.filter((p) => p && String(p).trim().length > 0).map((p) => String(p).trim());
                     }
                 } catch (e) {
                     // ignore
@@ -431,11 +473,13 @@ const nanobananaDraw = (function () {
             model: params.model,
             aspect_ratio: params.aspect_ratio,
             image_size: params.image_size,
-            image_urls: imageUrlsArray
+            image_urls: imageUrlsArray,
+            poll_interval_ms: pollIntervalMs,
+            max_wait_time_ms: maxWaitTimeMs
         });
 
         // 步骤2: 轮询等待任务完成
-        const imageUrl = await pollForResult(taskId);
+        const imageUrl = await pollForResult(taskId, { poll_interval_ms: pollIntervalMs, max_wait_time_ms: maxWaitTimeMs });
 
         const ext = guessExtensionFromUrl(imageUrl);
         const baseName = buildFileName(prompt, params.file_name ?? null);
@@ -479,12 +523,12 @@ const nanobananaDraw = (function () {
                 message: "图片生成成功，已保存到 /sdcard/Download/Operit/draws/，并返回 Markdown 图片提示。",
                 data: result
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("draw_image 执行失败:", error);
             complete({
                 success: false,
-                message: `图片生成失败: ${error?.message || error}`,
-                error_stack: error?.stack
+                message: `图片生成失败: ${getErrorMessage(error)}`,
+                error_stack: getErrorStack(error)
             });
         }
     }

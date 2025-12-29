@@ -10,6 +10,7 @@ import android.view.View
 import android.view.WindowManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -38,6 +39,8 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,9 +66,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.*
 import kotlin.random.Random
 import com.ai.assistance.operit.ui.floating.ui.ball.rememberParticleSystem
+import androidx.core.graphics.drawable.toBitmap
 
 class VirtualDisplayOverlay private constructor(private val context: Context) {
 
@@ -105,6 +110,7 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
     private var lastWindowWidth: Int = 0
     private var lastWindowHeight: Int = 0
     private var previewPath by mutableStateOf<String?>(null)
+    private var currentAppPackageName by mutableStateOf<String?>(null)
     private var controlsVisible by mutableStateOf(false)
     private var rainbowBorderVisible by mutableStateOf(false)
     private var automationCurrentStep by mutableStateOf<Int?>(null)
@@ -169,8 +175,9 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                     val id = displayId
                     val fullscreen = isFullscreen
                     val path = previewPath
+                    val pkg = currentAppPackageName
                     if (id != null) {
-                        OverlayCard(id = id, isFullscreen = fullscreen, previewPath = path)
+                        OverlayCard(id = id, isFullscreen = fullscreen, previewPath = path, currentAppPackageName = pkg)
                     }
                 }
             }
@@ -188,11 +195,22 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
         runOnMainThread {
             this.displayId = displayId
             isFullscreen = false
-            isSnapped = false
+            val isFirstShow = (lastWindowWidth == 0 || lastWindowHeight == 0)
+            isSnapped = true
+            if (isFirstShow) {
+                snappedToRight = true
+            }
             AppLogger.d("VirtualDisplayOverlay", "show: displayId=$displayId")
             ensureOverlay()
             overlayView?.visibility = View.VISIBLE
+            controlsVisible = false
             updateLayoutParams()
+        }
+    }
+
+    fun updateCurrentAppPackageName(packageName: String?) {
+        runOnMainThread {
+            currentAppPackageName = packageName
         }
     }
 
@@ -259,6 +277,7 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                 layoutParams = null
                 windowManager = null
                 displayId = null
+                currentAppPackageName = null
             } catch (e: Exception) {
                 AppLogger.e("VirtualDisplayOverlay", "Error hiding overlay", e)
             }
@@ -296,9 +315,15 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                 val centerX = params.x + params.width / 2
                 snappedToRight = centerX >= screenWidth / 2
 
-                val snappedWidthPx = (36 * context.resources.displayMetrics.density).roundToInt()
-                val snappedHeightPx = (48 * context.resources.displayMetrics.density).roundToInt()
-                val targetX = if (snappedToRight) screenWidth - snappedWidthPx else 0
+                val visibleWidthPx = (36 * metrics.density).roundToInt()
+                val extraOffscreenWidthPx = (12 * metrics.density).roundToInt()
+                val snappedWidthPx = (visibleWidthPx + extraOffscreenWidthPx).coerceAtLeast(1)
+                val snappedHeightPx = (48 * metrics.density).roundToInt().coerceAtLeast(1)
+                val targetX = if (snappedToRight) {
+                    screenWidth - visibleWidthPx
+                } else {
+                    -extraOffscreenWidthPx
+                }
                 val maxY = metrics.heightPixels - snappedHeightPx
                 val targetY = params.y.coerceIn(statusBarHeight, maxY)
                 animateToPosition(targetX, targetY, isSnapping = true)
@@ -333,8 +358,10 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
         val startWidth = params.width
         val startHeight = params.height
         val metrics = context.resources.displayMetrics
-        val snappedWidth = (36 * metrics.density).roundToInt()
-        val snappedHeight = (48 * metrics.density).roundToInt()
+        val visibleWidthPx = (36 * metrics.density).roundToInt()
+        val extraOffscreenWidthPx = (12 * metrics.density).roundToInt()
+        val snappedWidth = (visibleWidthPx + extraOffscreenWidthPx).coerceAtLeast(1)
+        val snappedHeight = (48 * metrics.density).roundToInt().coerceAtLeast(1)
         val (endWidth, endHeight) = if (isSnapping) {
             snappedWidth to snappedHeight
         } else {
@@ -384,6 +411,22 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
             params.height = metrics.heightPixels
             params.x = 0
             params.y = 0
+        } else if (isSnapped) {
+            val visibleWidthPx = (36 * metrics.density).roundToInt()
+            val extraOffscreenWidthPx = (12 * metrics.density).roundToInt()
+            val snappedWidthPx = (visibleWidthPx + extraOffscreenWidthPx).coerceAtLeast(1)
+            val snappedHeightPx = (48 * metrics.density).roundToInt().coerceAtLeast(1)
+            params.width = snappedWidthPx
+            params.height = snappedHeightPx
+
+            val screenWidth = metrics.widthPixels
+            val maxY = metrics.heightPixels - snappedHeightPx
+            params.y = lastWindowY.coerceIn(statusBarHeight, maxY)
+            params.x = if (snappedToRight) {
+                screenWidth - visibleWidthPx
+            } else {
+                -extraOffscreenWidthPx
+            }
         } else {
             // Small window: keep the video region at 0.4x of the screen width, and
             // add a fixed-width left control panel. This keeps the video size and
@@ -414,7 +457,13 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
             val maxY = metrics.heightPixels - snappedSize
             params.y = (params.y + dy.toInt()).coerceIn(statusBarHeight, maxY)
             val screenWidth = metrics.widthPixels
-            params.x = if (snappedToRight) screenWidth - params.width else 0
+            val visibleWidthPx = (36 * metrics.density).roundToInt()
+            val extraOffscreenWidthPx = (12 * metrics.density).roundToInt()
+            params.x = if (snappedToRight) {
+                screenWidth - visibleWidthPx
+            } else {
+                -extraOffscreenWidthPx
+            }
             // 保留 lastWindowX 为缩小前的小窗 X，只更新垂直位置用于恢复时的 Y
             lastWindowY = params.y
             try {
@@ -445,7 +494,7 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
     }
 
     @Composable
-    private fun OverlayCard(id: Int, isFullscreen: Boolean, previewPath: String?) {
+    private fun OverlayCard(id: Int, isFullscreen: Boolean, previewPath: String?, currentAppPackageName: String?) {
         var overlaySize by remember { mutableStateOf(IntSize.Zero) }
         val snapped = isSnapped
 
@@ -694,12 +743,33 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                     }
 
                     if (snapped) {
-                        val handleShape = if (snappedToRight) {
-                            RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 0.dp, bottomEnd = 0.dp)
-                        } else {
-                            RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 12.dp, bottomEnd = 12.dp)
-                        }
+                        val handleShape = RoundedCornerShape(12.dp)
                         val arrowIcon = if (snappedToRight) Icons.Filled.ChevronLeft else Icons.Filled.ChevronRight
+
+                        val density = LocalDensity.current
+                        val iconSizeDp = 30.dp
+                        val iconShape = RoundedCornerShape(8.dp)
+                        val offscreenPaddingDp = 12.dp
+                        val iconSizePx = with(density) { iconSizeDp.roundToPx().coerceAtLeast(1) }
+                        val appIconBitmap: ImageBitmap? by produceState<ImageBitmap?>(
+                            initialValue = null,
+                            key1 = currentAppPackageName,
+                            key2 = iconSizePx
+                        ) {
+                            val pkg = currentAppPackageName
+                            value = if (pkg.isNullOrBlank()) {
+                                null
+                            } else {
+                                withContext(Dispatchers.IO) {
+                                    try {
+                                        val drawable = context.packageManager.getApplicationIcon(pkg)
+                                        drawable.toBitmap(iconSizePx, iconSizePx).asImageBitmap()
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                }
+                            }
+                        }
 
                         Box(
                             modifier = Modifier
@@ -710,12 +780,44 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = arrowIcon,
-                                contentDescription = "Restore",
-                                modifier = Modifier.size(18.dp),
-                                tint = Color.White
-                            )
+                            val visibleRegionModifier = if (snappedToRight) {
+                                Modifier.fillMaxSize().padding(end = offscreenPaddingDp)
+                            } else {
+                                Modifier.fillMaxSize().padding(start = offscreenPaddingDp)
+                            }
+
+                            Box(
+                                modifier = visibleRegionModifier,
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (appIconBitmap != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(iconSizeDp)
+                                            .clip(iconShape)
+                                    ) {
+                                        Image(
+                                            bitmap = appIconBitmap!!,
+                                            contentDescription = "Restore",
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(iconSizeDp)
+                                            .clip(iconShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = arrowIcon,
+                                            contentDescription = "Restore",
+                                            modifier = Modifier.fillMaxSize(),
+                                            tint = Color.White
+                                        )
+                                    }
+                                }
+                            }
                         }
                     } else {
                         if (!isFullscreen) {

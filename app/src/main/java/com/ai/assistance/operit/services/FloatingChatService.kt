@@ -10,7 +10,9 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Binder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import com.ai.assistance.operit.util.AppLogger
 import android.view.View
@@ -466,6 +468,19 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
     override fun onClose() {
         AppLogger.d(TAG, "Close request from window manager")
+        try {
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                windowManager.prepareForExit()
+            } else {
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        windowManager.prepareForExit()
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
         binder.notifyClose()
         stopSelf()
     }

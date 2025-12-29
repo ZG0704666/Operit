@@ -30,6 +30,9 @@ class FloatingFullscreenModeViewModel(
     var editableText by mutableStateOf("")
     var inputText by mutableStateOf("")
     var showDragHints by mutableStateOf(false)
+
+    var attachScreenContent by mutableStateOf(false)
+    var attachNotifications by mutableStateOf(false)
     
     val isInitialLoad = mutableStateOf(true)
 
@@ -247,9 +250,24 @@ class FloatingFullscreenModeViewModel(
     
     fun sendInputMessage() {
         val text = inputText.trim()
-        if (text.isNotEmpty()) {
+        if (text.isEmpty() && !attachScreenContent && !attachNotifications) return
+
+        coroutineScope.launch {
+            try {
+                val attachmentDelegate = floatContext.chatService?.getChatCore()?.getAttachmentDelegate()
+                if (attachScreenContent) {
+                    attachmentDelegate?.captureScreenContent()
+                }
+                if (attachNotifications) {
+                    attachmentDelegate?.captureNotifications()
+                }
+            } catch (_: Exception) {
+            }
+
             floatContext.onSendMessage?.invoke(text, PromptFunctionType.VOICE)
             inputText = ""
+            attachScreenContent = false
+            attachNotifications = false
             aiMessage = "思考中..."
         }
     }

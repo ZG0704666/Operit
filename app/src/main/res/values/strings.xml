@@ -2864,6 +2864,19 @@
     <string name="feature_explanation">功能说明</string>
     <string name="waifu_mode_explanation">• 普通模式：AI回复一次性全部发送\n• Waifu模式：AI回复按句子分割，每句独立气泡\n• 智能延迟：根据句子长度计算延迟时间\n• 自动清理：移除状态标签，只显示纯文本\n• 可选功能：移除句末标点、禁止动作表情、启用表情包\n• 适用场景：模拟更自然的对话节奏\n• 注意：此模式对工具调用的适配可能不佳</string>
     <string name="settings_saved_message">设置已保存</string>
+
+    <string name="settings_section_account">账号</string>
+    <string name="github_account_not_logged_in">未登录</string>
+    <string name="github_account_login_desc">使用 GitHub 登录以使用 MCP 市场发布/管理等功能</string>
+    <string name="github_account_logout_desc">退出当前 GitHub 登录状态</string>
+
+    <string name="github_account_info_title">账号信息</string>
+    <string name="github_account_info_id">ID</string>
+    <string name="github_account_info_public_repos">公开仓库</string>
+    <string name="github_account_info_followers">粉丝</string>
+    <string name="github_account_info_following">关注</string>
+    <string name="github_account_info_not_available">登录后可查看账号信息</string>
+    <string name="github_account_not_logged_in_desc">请先登录 GitHub 账号</string>
     
     <!-- 角色卡对话框 -->
     <string name="character_card_description">描述</string>

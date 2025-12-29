@@ -27,6 +27,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import java.io.File
+import com.ai.assistance.operit.services.notification.OperitNotificationStore
 
 /** 提供系统级操作的工具类 包括系统设置修改、应用安装和卸载等 这些操作需要用户明确授权 */
 open class StandardSystemOperationTools(private val context: Context) {
@@ -417,26 +418,58 @@ open class StandardSystemOperationTools(private val context: Context) {
 
     /** 读取设备通知内容 获取当前设备上的通知信息 */
     open suspend fun getNotifications(tool: AITool): ToolResult {
-        val enabledListeners = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+        val limit = tool.parameters.find { it.name == "limit" }?.value?.toIntOrNull() ?: 10
+        val includeOngoing =
+            tool.parameters.find { it.name == "include_ongoing" }?.value?.toBoolean() ?: false
+
+        val enabledListeners =
+            Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+                ?: ""
         val myPackageName = context.packageName
 
-        if (enabledListeners == null || !enabledListeners.contains(myPackageName)) {
+        val hasNotificationAccess = enabledListeners
+            .split(":")
+            .asSequence()
+            .mapNotNull { ComponentName.unflattenFromString(it) }
+            .any { it.packageName == myPackageName }
+
+        if (!hasNotificationAccess) {
+            try {
+                val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "打开通知使用权设置页面失败", e)
+            }
+
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "无法读取通知. 本应用需要被授权为通知监听服务 (Notification Listener Service). " +
-                        "请在系统的通知使用权设置中为本应用授权, 并确保应用中已实现对应的服务."
+                error = "无法读取通知。本应用需要被授权为通知监听服务 (Notification Listener Service)。"
             )
         }
 
-        return ToolResult(
+        return try {
+            val notifications = OperitNotificationStore.snapshot(
+                limit = limit,
+                includeOngoing = includeOngoing
+            )
+            val resultData = NotificationData(
+                notifications = notifications,
+                timestamp = System.currentTimeMillis()
+            )
+            ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "获取通知时出错", e)
+            ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "原生获取通知的功能需要一个在后台运行的 NotificationListenerService. " +
-                        "当前工具无法直接获取, 需要应用架构支持. "
-        )
+                error = "获取通知时出错: ${e.message}"
+            )
+        }
     }
 
     /** 获取设备位置信息 通过系统API获取当前设备位置 */

@@ -49,7 +49,8 @@ fun BubbleAiMessageComposable(
     backgroundColor: Color,
     textColor: Color,
     onLinkClick: ((String) -> Unit)? = null,
-    isHidden: Boolean = false
+    isHidden: Boolean = false,
+    enableDialogs: Boolean = true
 ) {
     val context = LocalContext.current
     val preferencesManager = remember { UserPreferencesManager.getInstance(context) }
@@ -100,16 +101,21 @@ fun BubbleAiMessageComposable(
     // 创建并保存StreamMarkdownRenderer的状态，使用message.timestamp作为key确保同一条消息共享状态
     val rendererState = remember(message.timestamp) { StreamMarkdownRendererState() }
 
-    val xmlRenderer = remember(showThinkingProcess, showStatusTags) {
+    val xmlRenderer = remember(showThinkingProcess, showStatusTags, enableDialogs) {
         CustomXmlRenderer(
             showThinkingProcess = showThinkingProcess,
-            showStatusTags = showStatusTags
+            showStatusTags = showStatusTags,
+            enableDialogs = enableDialogs
         )
     }
-    val rememberedOnLinkClick = remember(context, onLinkClick) {
-        onLinkClick ?: { url ->
-            linkToPreview = url
-            showLinkDialog = true
+    val rememberedOnLinkClick = remember(context, onLinkClick, enableDialogs) {
+        if (!enableDialogs) {
+            { _: String -> }
+        } else {
+            onLinkClick ?: { url ->
+                linkToPreview = url
+                showLinkDialog = true
+            }
         }
     }
 
@@ -258,7 +264,7 @@ fun BubbleAiMessageComposable(
     }
 
     // 链接预览弹窗
-    if (showLinkDialog && linkToPreview.isNotEmpty()) {
+    if (showLinkDialog && linkToPreview.isNotEmpty() && enableDialogs) {
         LinkPreviewDialog(
             url = linkToPreview,
             onDismiss = {

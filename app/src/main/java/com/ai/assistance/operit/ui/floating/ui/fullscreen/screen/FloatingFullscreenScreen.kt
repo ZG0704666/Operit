@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -136,18 +137,20 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     }
     
     // UI 布局
+    val fullscreenScrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.22f)
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(fullscreenScrimColor)
             .background(
                 brush = Brush.verticalGradient(
                     colorStops = arrayOf(
                         // 上半部分完全透明
                         0.0f to Color.Transparent,
-                        0.5f to Color.Transparent,
+                        0.10f to Color.Transparent,
                         // 从屏幕中间往下开始出现更暗一些的蓝绿色渐变（降低明度，不是加厚遮罩）
-                        0.75f to Color(0xFF42A5F5).copy(alpha = 0.45f),  // 深一点的蓝
-                        0.9f  to Color(0xFF26C6DA).copy(alpha = 0.45f),  // 深一点的蓝绿
+                        0.35f to Color(0xFF42A5F5).copy(alpha = 0.45f),  // 深一点的蓝
+                        0.75f  to Color(0xFF26C6DA).copy(alpha = 0.45f),  // 深一点的蓝绿
                         1.0f  to Color(0xFF66BB6A).copy(alpha = 0.45f)   // 深一点的绿色
                     )
                 )
@@ -269,7 +272,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                             .align(Alignment.Center)
                             .offset(y = 72.dp)
                             .fillMaxWidth()
-                            .padding(top = 120.dp, bottom = 60.dp) // Timon: 依照顶部和底部组件距离估算
+                            .padding(top = 40.dp, bottom = 60.dp) // Timon: 依照顶部和底部组件距离估算
                             .padding(horizontal = 16.dp)
                     }
 
@@ -314,6 +317,10 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
             onShowDragHintsChange = { viewModel.showDragHints = it },
             userMessage = viewModel.inputText,
             onUserMessageChange = { viewModel.inputText = it },
+            attachScreenContent = viewModel.attachScreenContent,
+            onAttachScreenContentChange = { viewModel.attachScreenContent = it },
+            attachNotifications = viewModel.attachNotifications,
+            onAttachNotificationsChange = { viewModel.attachNotifications = it },
             onSendClick = { viewModel.sendInputMessage() },
             volumeLevel = volumeLevel,
             modifier = Modifier.align(Alignment.BottomCenter)

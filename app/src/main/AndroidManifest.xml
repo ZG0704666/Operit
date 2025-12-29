@@ -229,6 +229,16 @@
             android:exported="false"
             android:foregroundServiceType="dataSync|specialUse|microphone" />
 
+        <service
+            android:name=".services.notification.OperitNotificationListenerService"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- AI 前台服务 - 保持网络连接稳定 -->
         <service
             android:name=".api.chat.AIForegroundService"

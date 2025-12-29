@@ -110,6 +110,27 @@ class FloatingWindowManager(
     private var indicatorDisplayEnabled: Boolean = true
     private var indicatorPersistentEnabled: Boolean = false
 
+    private fun cancelFocusBeforeExit() {
+        val view = composeView ?: return
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        try {
+            view.clearFocus()
+        } catch (_: Exception) {
+        }
+        try {
+            imm.hideSoftInputFromWindow(view.windowToken, 0)
+        } catch (_: Exception) {
+        }
+        updateViewLayout { params ->
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
+        }
+    }
+
+    fun prepareForExit() {
+        cancelFocusBeforeExit()
+    }
+
     companion object {
         // Private flag to disable window move animations
         private const val PRIVATE_FLAG_NO_MOVE_ANIMATION = 0x00000040
@@ -147,6 +168,7 @@ class FloatingWindowManager(
         hideStatusIndicator()
         if (isViewAdded) {
             composeView?.let {
+                cancelFocusBeforeExit()
                 try {
                     windowManager.removeView(it)
                 } catch (e: Exception) {
@@ -170,7 +192,10 @@ class FloatingWindowManager(
                     updateWindowSizeInLayoutParams()
                     callback.saveState()
                 },
-                onClose = { callback.onClose() },
+                onClose = {
+                    cancelFocusBeforeExit()
+                    callback.onClose()
+                },
                 onResize = { newWidth, newHeight ->
                     state.windowWidth.value = newWidth
                     state.windowHeight.value = newHeight
@@ -616,6 +641,10 @@ class FloatingWindowManager(
     private fun switchMode(newMode: FloatingMode) {
         if (state.isTransitioning || state.currentMode.value == newMode) return
         state.isTransitioning = true
+
+        if (newMode == FloatingMode.BALL || newMode == FloatingMode.VOICE_BALL) {
+            cancelFocusBeforeExit()
+        }
 
         // 取消之前的动画
         sizeAnimator?.cancel()

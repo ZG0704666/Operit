@@ -49,7 +49,8 @@ import java.util.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.ai.assistance.operit.data.mcp.MCPRepository
-import com.ai.assistance.operit.data.preferences.GitHubAuthBus
+import com.ai.assistance.operit.data.api.GitHubApiService
+import com.ai.assistance.operit.data.preferences.GitHubAuthPreferences
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.remember
@@ -106,6 +107,61 @@ class MainActivity : ComponentActivity() {
         } else {
             AppLogger.d(TAG, "通知权限被拒绝")
             Toast.makeText(this, getString(R.string.notification_permission_denied), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun handleGitHubOAuthCode(code: String) {
+        lifecycleScope.launch {
+            try {
+                val githubApiService = GitHubApiService(this@MainActivity)
+                val githubAuth = GitHubAuthPreferences.getInstance(this@MainActivity)
+
+                val tokenResult = githubApiService.getAccessToken(code)
+                tokenResult.fold(
+                    onSuccess = { tokenResponse ->
+                        githubAuth.updateAccessToken(tokenResponse.access_token, tokenResponse.token_type)
+
+                        val userResult = githubApiService.getCurrentUser()
+                        userResult.fold(
+                            onSuccess = { user ->
+                                githubAuth.saveAuthInfo(
+                                    accessToken = tokenResponse.access_token,
+                                    tokenType = tokenResponse.token_type,
+                                    userInfo = user
+                                )
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "登录成功，欢迎 ${user.login}！",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            },
+                            onFailure = { error ->
+                                AppLogger.e(TAG, "Failed to get user info", error)
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "获取用户信息失败: ${error.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        )
+                    },
+                    onFailure = { error ->
+                        AppLogger.e(TAG, "Failed to get access token", error)
+                        Toast.makeText(
+                            this@MainActivity,
+                            "登录失败: ${error.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Exception during GitHub callback handling", e)
+                Toast.makeText(
+                    this@MainActivity,
+                    "登录过程中发生错误: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
@@ -183,20 +239,14 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent) // 重要：更新当前Intent
         AppLogger.d(TAG, "onNewIntent: Received intent with action: ${intent?.action}")
-        intent?.data?.let { uri ->
-            if (uri.scheme == "operit" && uri.host == "github-oauth-callback") {
-                val code = uri.getQueryParameter("code")
-                if (code != null) {
-                    AppLogger.d(TAG, "GitHub OAuth code received: $code")
-                    GitHubAuthBus.postAuthCode(code)
-                } else {
-                    val error = uri.getQueryParameter("error")
-                    AppLogger.e(TAG, "GitHub OAuth error: $error")
-                }
-            }
-        }
-        
+        val isGitHubOAuthCallback = intent?.data?.let { uri ->
+            uri.scheme == "operit" && uri.host == "github-oauth-callback"
+        } == true
         handleIntent(intent)
+
+        if (isGitHubOAuthCallback) {
+            return
+        }
         
         // 如果是文件分享，立即处理
         if (intent?.action == Intent.ACTION_VIEW || intent?.action == Intent.ACTION_SEND) {
@@ -205,17 +255,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        intent?.data?.let { uri ->
-            if (uri.scheme == "operit" && uri.host == "github-oauth-callback") {
-                val code = uri.getQueryParameter("code")
-                if (code != null) {
-                    AppLogger.d(TAG, "GitHub OAuth code received from onCreate: $code")
-                    GitHubAuthBus.postAuthCode(code)
-                } else {
-                    val error = uri.getQueryParameter("error")
-                    AppLogger.e(TAG, "GitHub OAuth error from onCreate: $error")
-                }
+        val uri = intent?.data
+        if (uri != null && uri.scheme == "operit" && uri.host == "github-oauth-callback") {
+            val code = uri.getQueryParameter("code")
+            if (code != null) {
+                AppLogger.d(TAG, "GitHub OAuth code received from onCreate: $code")
+                handleGitHubOAuthCode(code)
+            } else {
+                val error = uri.getQueryParameter("error")
+                AppLogger.e(TAG, "GitHub OAuth error from onCreate: $error")
             }
+            return
         }
         
         // Handle opened and shared files

@@ -1116,7 +1116,11 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     handler.registerTool(
             name = "get_page_info",
             descriptionGenerator = { _ -> "获取当前页面信息" },
-            executor = { tool -> runBlocking(Dispatchers.IO) { uiTools.getPageInfo(tool) } }
+            executor = { tool ->
+                runBlocking(Dispatchers.IO) {
+                    executeUiToolWithVisibility(tool) { uiTools.getPageInfo(it) }
+                }
+            }
     )
 
     // 运行UI子代理（多步自动化决策，仅记录动作日志）
