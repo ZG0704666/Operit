@@ -34,11 +34,15 @@ class AutoGlmViewModel(private val context: Context) : ViewModel() {
 
     private var executionJob: Job? = null
 
+    private val sessionAgentId: String = java.util.UUID.randomUUID().toString().take(8)
+
     private val _uiState = MutableStateFlow(AutoGlmUiState())
     val uiState: StateFlow<AutoGlmUiState> = _uiState.asStateFlow()
 
     fun executeTask(task: String) {
         if (task.isBlank()) return
+
+        executionJob?.cancel()
 
         executionJob = viewModelScope.launch {
             _uiState.value = AutoGlmUiState(isLoading = true, log = "Initializing agent...")
@@ -62,7 +66,9 @@ class AutoGlmViewModel(private val context: Context) : ViewModel() {
                     context = context,
                     config = agentConfig,
                     uiService = uiService, // Directly pass the specialized AIService
-                    actionHandler = actionHandler
+                    actionHandler = actionHandler,
+                    agentId = sessionAgentId,
+                    cleanupOnFinish = false
                 )
 
                 val logBuilder = StringBuilder()

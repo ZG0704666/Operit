@@ -31,6 +31,7 @@ import com.ai.assistance.operit.util.ImagePoolManager
 import com.ai.assistance.operit.core.tools.agent.ActionHandler
 import com.ai.assistance.operit.core.tools.agent.AgentConfig
 import com.ai.assistance.operit.core.tools.agent.PhoneAgent
+import com.ai.assistance.operit.core.tools.agent.ShowerController
 import com.ai.assistance.operit.core.tools.agent.ToolImplementations
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -407,6 +408,7 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
     open suspend fun runUiSubAgent(tool: AITool): ToolResult {
         val intent = tool.parameters.find { it.name == "intent" }?.value
         val maxSteps = tool.parameters.find { it.name == "max_steps" }?.value?.toIntOrNull() ?: 20
+        val requestedAgentId = tool.parameters.find { it.name == "agent_id" }?.value
 
         if (intent.isNullOrBlank()) {
             return ToolResult(
@@ -444,11 +446,18 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
                 toolImplementations = this
             )
 
+            val agentId = if (!requestedAgentId.isNullOrBlank()) {
+                requestedAgentId
+            } else {
+                java.util.UUID.randomUUID().toString().take(8)
+            }
             val agent = PhoneAgent(
                 context = context,
                 config = agentConfig,
                 uiService = uiService, // 传递专用的 AIService
-                actionHandler = actionHandler
+                actionHandler = actionHandler,
+                agentId = agentId,
+                cleanupOnFinish = false
             )
 
             val pausedState = MutableStateFlow(false)
@@ -458,6 +467,12 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
                 systemPrompt = systemPrompt,
                 isPausedFlow = pausedState
             )
+
+            val displayId = try {
+                ShowerController.getDisplayId(agentId)
+            } catch (_: Exception) {
+                null
+            }
 
             val success = !finalMessage.contains("Max steps reached") && !finalMessage.contains("Error")
             val executionMessage = buildString {
@@ -475,7 +490,15 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
 
             val resultData = AutomationExecutionResult(
                 functionName = "UIAutomationSubAgent",
-                providedParameters = mapOf("intent" to intent, "max_steps" to maxSteps.toString()),
+                providedParameters = buildMap {
+                    put("intent", intent)
+                    put("max_steps", maxSteps.toString())
+                    if (!requestedAgentId.isNullOrBlank()) {
+                        put("agent_id", requestedAgentId)
+                    }
+                },
+                agentId = agentId,
+                displayId = displayId,
                 executionSuccess = success,
                 executionMessage = executionMessage,
                 executionError = if (!success) finalMessage else null,

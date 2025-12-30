@@ -13,7 +13,7 @@ import android.view.Surface
  */
 object ShowerVideoRenderer {
 
-    private val core get() = com.ai.assistance.showerclient.ShowerVideoRenderer
+    private val core = com.ai.assistance.showerclient.ShowerVideoRenderer()
 
     fun attach(surface: Surface, videoWidth: Int, videoHeight: Int) =
         core.attach(surface, videoWidth, videoHeight)

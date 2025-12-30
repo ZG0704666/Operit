@@ -1150,13 +1150,19 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
-    // 运行UI子代理（多步自动化决策，仅记录动作日志）
     handler.registerTool(
             name = "run_ui_subagent",
             descriptionGenerator = { tool ->
                 val intent = tool.parameters.find { it.name == "intent" }?.value ?: ""
                 val maxSteps = tool.parameters.find { it.name == "max_steps" }?.value ?: "20"
-                "运行UI子代理以完成任务: $intent (最多执行 $maxSteps 步)"
+                val agentId = tool.parameters.find { it.name == "agent_id" }?.value
+                buildString {
+                    append("运行UI子代理以完成任务: $intent (最多执行 $maxSteps 步)")
+                    if (!agentId.isNullOrBlank()) {
+                        append(" (agent_id=$agentId)")
+                    }
+                    append("。建议在多次调用中尽量复用同一个 agent_id，以持续操作同一虚拟屏幕会话（可沿用上一次返回的 agentId 作为 agent_id）。")
+                }
             },
             executor = { tool -> runBlocking(Dispatchers.IO) { uiTools.runUiSubAgent(tool) } }
     )

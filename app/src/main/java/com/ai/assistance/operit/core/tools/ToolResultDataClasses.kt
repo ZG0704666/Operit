@@ -961,6 +961,8 @@ data class AutomationPlanParametersResult(
 data class AutomationExecutionResult(
     val functionName: String,
     val providedParameters: Map<String, String>,
+    val agentId: String? = null,
+    val displayId: Int? = null,
     val executionSuccess: Boolean,
     val executionMessage: String,
     val executionError: String?,
@@ -979,6 +981,7 @@ data class AutomationExecutionResult(
         val sb = StringBuilder()
         sb.appendLine("自动化执行结果:")
         sb.appendLine("功能名称: $functionName")
+        agentId?.let { sb.appendLine("AgentId: $it") }
         sb.appendLine("执行状态: ${if (executionSuccess) "成功" else "失败"}")
         sb.appendLine("执行步骤: $executionSteps")
         sb.appendLine("结果消息: $executionMessage")

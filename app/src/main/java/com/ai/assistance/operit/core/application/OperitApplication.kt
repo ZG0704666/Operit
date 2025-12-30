@@ -423,7 +423,7 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
 
         // 在应用终止时，关闭虚拟屏幕 Overlay 并断开 Shower WebSocket 连接
         try {
-            VirtualDisplayOverlay.getInstance(applicationContext).hide()
+            VirtualDisplayOverlay.hideAll()
         } catch (e: Exception) {
             AppLogger.e(TAG, "终止时隐藏 VirtualDisplayOverlay 失败: ${e.message}", e)
         }

@@ -52,7 +52,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ai.assistance.operit.services.ServiceLifecycleOwner
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.core.tools.agent.ShowerController
-import com.ai.assistance.operit.core.tools.agent.ShowerServerManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -62,25 +61,40 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.math.*
 import kotlin.random.Random
 import com.ai.assistance.operit.ui.floating.ui.ball.rememberParticleSystem
 import androidx.core.graphics.drawable.toBitmap
+import java.util.concurrent.ConcurrentHashMap
 
-class VirtualDisplayOverlay private constructor(private val context: Context) {
+class VirtualDisplayOverlay private constructor(private val context: Context, private val agentId: String) {
 
     companion object {
-        @Volatile
-        private var instance: VirtualDisplayOverlay? = null
+        private val instances = ConcurrentHashMap<String, VirtualDisplayOverlay>()
 
-        fun getInstance(context: Context): VirtualDisplayOverlay {
-            return instance ?: synchronized(this) {
-                instance ?: VirtualDisplayOverlay(context.applicationContext).also { instance = it }
+        fun getInstance(context: Context): VirtualDisplayOverlay = getInstance(context, "default")
+
+        fun getInstance(context: Context, agentId: String): VirtualDisplayOverlay {
+            val key = if (agentId.isBlank()) "default" else agentId
+            return instances.getOrPut(key) { VirtualDisplayOverlay(context.applicationContext, key) }
+        }
+
+        fun hide(agentId: String) {
+            val key = if (agentId.isBlank()) "default" else agentId
+            instances.remove(key)?.hide()
+        }
+
+        fun hideAll() {
+            val overlays = instances.values.toList()
+            instances.clear()
+            overlays.forEach { overlay ->
+                try {
+                    overlay.hide()
+                } catch (_: Exception) {
+                }
             }
         }
     }
@@ -101,6 +115,8 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
     private var lifecycleOwner: ServiceLifecycleOwner? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var displayId: Int? = null
+    @Volatile
+    private var surfaceView: ShowerSurfaceView? = null
     private var isFullscreen by mutableStateOf(false)
     private var isSnapped by mutableStateOf(false)
     private var snappedToRight by mutableStateOf(false)
@@ -193,17 +209,20 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
 
     fun show(displayId: Int) {
         runOnMainThread {
+            val hadView = overlayView != null
             this.displayId = displayId
-            isFullscreen = false
-            val isFirstShow = (lastWindowWidth == 0 || lastWindowHeight == 0)
-            isSnapped = true
-            if (isFirstShow) {
-                snappedToRight = true
-            }
-            AppLogger.d("VirtualDisplayOverlay", "show: displayId=$displayId")
+            AppLogger.d("VirtualDisplayOverlay", "show: agentId=$agentId displayId=$displayId")
             ensureOverlay()
             overlayView?.visibility = View.VISIBLE
-            controlsVisible = false
+            if (!hadView) {
+                isFullscreen = false
+                val isFirstShow = (lastWindowWidth == 0 || lastWindowHeight == 0)
+                isSnapped = true
+                if (isFirstShow) {
+                    snappedToRight = true
+                }
+                controlsVisible = false
+            }
             updateLayoutParams()
         }
     }
@@ -213,6 +232,8 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
             currentAppPackageName = packageName
         }
     }
+
+    suspend fun captureCurrentFramePng(): ByteArray? = surfaceView?.captureCurrentFramePng()
 
     fun showAutomationControls(
         totalSteps: Int,
@@ -252,16 +273,10 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
     }
 
     fun hide() {
+        Companion.instances.remove(agentId, this)
         runOnMainThread {
             try {
-                ShowerController.shutdown()
-                GlobalScope.launch(Dispatchers.IO) {
-                    try {
-                        ShowerServerManager.stopServer()
-                    } catch (e: Exception) {
-                        AppLogger.e("VirtualDisplayOverlay", "Error stopping Shower server", e)
-                    }
-                }
+                ShowerController.shutdown(agentId)
                 overlayView?.let { view ->
                     lifecycleOwner?.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
                     lifecycleOwner?.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
@@ -278,6 +293,7 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                 windowManager = null
                 displayId = null
                 currentAppPackageName = null
+                surfaceView = null
             } catch (e: Exception) {
                 AppLogger.e("VirtualDisplayOverlay", "Error hiding overlay", e)
             }
@@ -514,35 +530,35 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                         var lastPoint: Pair<Int, Int>? = null
                         detectDragGestures(
                             onDragStart = { start ->
-                                val pt = mapOffsetToRemote(start, overlaySize, ShowerController.getVideoSize())
+                                val pt = mapOffsetToRemote(start, overlaySize, ShowerController.getVideoSize(agentId))
                                 if (pt != null) {
                                     lastPoint = pt
-                                    kotlinx.coroutines.runBlocking { ShowerController.touchDown(pt.first, pt.second) }
+                                    kotlinx.coroutines.runBlocking { ShowerController.touchDown(agentId, pt.first, pt.second) }
                                 }
                             },
                             onDrag = { change, _ ->
                                 change.consume()
-                                val pt = mapOffsetToRemote(change.position, overlaySize, ShowerController.getVideoSize())
+                                val pt = mapOffsetToRemote(change.position, overlaySize, ShowerController.getVideoSize(agentId))
                                 if (pt != null && pt != lastPoint) {
                                     lastPoint = pt
-                                    kotlinx.coroutines.runBlocking { ShowerController.touchMove(pt.first, pt.second) }
+                                    kotlinx.coroutines.runBlocking { ShowerController.touchMove(agentId, pt.first, pt.second) }
                                 }
                             },
                             onDragEnd = {
                                 lastPoint?.let { pt ->
-                                    kotlinx.coroutines.runBlocking { ShowerController.touchUp(pt.first, pt.second) }
+                                    kotlinx.coroutines.runBlocking { ShowerController.touchUp(agentId, pt.first, pt.second) }
                                 }
                                 lastPoint = null
                             },
                             onDragCancel = {
                                 lastPoint?.let { pt ->
-                                    kotlinx.coroutines.runBlocking { ShowerController.touchUp(pt.first, pt.second) }
+                                    kotlinx.coroutines.runBlocking { ShowerController.touchUp(agentId, pt.first, pt.second) }
                                 }
                                 lastPoint = null
                             }
                         )
                     } else {
-                         detectDragGestures(
+                        detectDragGestures(
                             onDragStart = { controlsVisible = true },
                             onDrag = { change, dragAmount ->
                                 change.consume()
@@ -558,11 +574,11 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                                 isSnapped = false
                                 animateToDefaultPosition()
                             } else if (isFullscreen) {
-                                val pt = mapOffsetToRemote(offset, overlaySize, ShowerController.getVideoSize())
+                                val pt = mapOffsetToRemote(offset, overlaySize, ShowerController.getVideoSize(agentId))
                                 if (pt != null) {
                                     kotlinx.coroutines.runBlocking {
-                                        ShowerController.touchDown(pt.first, pt.second)
-                                        ShowerController.touchUp(pt.first, pt.second)
+                                        ShowerController.touchDown(agentId, pt.first, pt.second)
+                                        ShowerController.touchUp(agentId, pt.first, pt.second)
                                     }
                                 }
                             } else {
@@ -577,21 +593,21 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                var hasShowerDisplay by remember { mutableStateOf(ShowerController.getVideoSize() != null) }
+                var hasShowerDisplay by remember { mutableStateOf(ShowerController.getVideoSize(agentId) != null) }
                 LaunchedEffect(Unit) {
                     while (true) {
-                        val ready = ShowerController.getVideoSize() != null
+                        val ready = ShowerController.getVideoSize(agentId) != null
                         if (hasShowerDisplay != ready) {
                             AppLogger.d(
                                 "VirtualDisplayOverlay",
-                                "OverlayCard: hasShowerDisplay changed from $hasShowerDisplay to $ready, videoSize=${ShowerController.getVideoSize()}"
+                                "OverlayCard: hasShowerDisplay changed from $hasShowerDisplay to $ready, videoSize=${ShowerController.getVideoSize(agentId)}"
                             )
                             hasShowerDisplay = ready
                         }
                         delay(500)
                     }
                 }
-                if (id == 0 && hasShowerDisplay) {
+                if (hasShowerDisplay) {
                     val density = LocalDensity.current
 
                     // Always keep a single ShowerSurfaceView attached; only adjust its layout
@@ -619,7 +635,22 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                     ) {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
-                            factory = { ctx -> ShowerSurfaceView(ctx) }
+                            factory = { ctx ->
+                                ShowerSurfaceView(ctx).also { view ->
+                                    try {
+                                        view.bindController(ShowerController.getInstance(agentId))
+                                    } catch (_: Exception) {
+                                    }
+                                    surfaceView = view
+                                }
+                            },
+                            update = { view ->
+                                surfaceView = view
+                                try {
+                                    view.bindController(ShowerController.getInstance(agentId))
+                                } catch (_: Exception) {
+                                }
+                            }
                         )
                         if (rainbowBorderVisible && !snapped) {
                             RainbowStatusBorderOverlay()
@@ -850,7 +881,7 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
                 } else {
                     AppLogger.d(
                         "VirtualDisplayOverlay",
-                        "OverlayCard: Shower 虚拟屏尚未就绪, id=$id, hasShowerDisplay=$hasShowerDisplay, videoSize=${ShowerController.getVideoSize()}"
+                        "OverlayCard: Shower 虚拟屏尚未就绪, id=$id, hasShowerDisplay=$hasShowerDisplay, videoSize=${ShowerController.getVideoSize(agentId)}"
                     )
                     Text(
                         text = "Shower 虚拟屏尚未就绪",
@@ -861,6 +892,7 @@ class VirtualDisplayOverlay private constructor(private val context: Context) {
             }
         }
     }
+
     @Composable
     private fun AutomationControlBar(
         currentStep: Int,

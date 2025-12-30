@@ -8,29 +8,29 @@ import android.os.RemoteException;
 
 public interface IShowerService extends IInterface {
 
-    void ensureDisplay(int width, int height, int dpi, int bitrateKbps) throws RemoteException;
+    int ensureDisplay(int width, int height, int dpi, int bitrateKbps) throws RemoteException;
 
-    void destroyDisplay() throws RemoteException;
+    void destroyDisplay(int displayId) throws RemoteException;
 
-    void launchApp(String packageName) throws RemoteException;
+    void launchApp(String packageName, int displayId) throws RemoteException;
 
-    void tap(float x, float y) throws RemoteException;
+    void tap(int displayId, float x, float y) throws RemoteException;
 
-    void swipe(float x1, float y1, float x2, float y2, long durationMs) throws RemoteException;
+    void swipe(int displayId, float x1, float y1, float x2, float y2, long durationMs) throws RemoteException;
 
-    void touchDown(float x, float y) throws RemoteException;
+    void touchDown(int displayId, float x, float y) throws RemoteException;
 
-    void touchMove(float x, float y) throws RemoteException;
+    void touchMove(int displayId, float x, float y) throws RemoteException;
 
-    void touchUp(float x, float y) throws RemoteException;
+    void touchUp(int displayId, float x, float y) throws RemoteException;
 
-    void injectKey(int keyCode) throws RemoteException;
+    void injectKey(int displayId, int keyCode) throws RemoteException;
 
-    byte[] requestScreenshot() throws RemoteException;
+    byte[] requestScreenshot(int displayId) throws RemoteException;
 
-    int getDisplayId() throws RemoteException;
+    // getDisplayId is removed regarding ensureDisplay returns the ID.
 
-    void setVideoSink(IBinder sink) throws RemoteException;
+    void setVideoSink(int displayId, IBinder sink) throws RemoteException;
 
     abstract class Stub extends Binder implements IShowerService {
 
@@ -45,7 +45,7 @@ public interface IShowerService extends IInterface {
         static final int TRANSACTION_touchUp = IBinder.FIRST_CALL_TRANSACTION + 7;
         static final int TRANSACTION_injectKey = IBinder.FIRST_CALL_TRANSACTION + 8;
         static final int TRANSACTION_requestScreenshot = IBinder.FIRST_CALL_TRANSACTION + 9;
-        static final int TRANSACTION_getDisplayId = IBinder.FIRST_CALL_TRANSACTION + 10;
+        // getDisplayId removed
         static final int TRANSACTION_setVideoSink = IBinder.FIRST_CALL_TRANSACTION + 11;
 
         public Stub() {
@@ -81,91 +81,95 @@ public interface IShowerService extends IInterface {
                     int height = data.readInt();
                     int dpi = data.readInt();
                     int bitrate = data.readInt();
-                    ensureDisplay(width, height, dpi, bitrate);
+                    int _result = ensureDisplay(width, height, dpi, bitrate);
                     reply.writeNoException();
+                    reply.writeInt(_result);
                     return true;
                 }
                 case TRANSACTION_destroyDisplay: {
                     data.enforceInterface(DESCRIPTOR);
-                    destroyDisplay();
+                    int displayId = data.readInt();
+                    destroyDisplay(displayId);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_launchApp: {
                     data.enforceInterface(DESCRIPTOR);
                     String pkg = data.readString();
-                    launchApp(pkg);
+                    int displayId = data.readInt();
+                    launchApp(pkg, displayId);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_tap: {
                     data.enforceInterface(DESCRIPTOR);
+                    int displayId = data.readInt();
                     float x = data.readFloat();
                     float y = data.readFloat();
-                    tap(x, y);
+                    tap(displayId, x, y);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_swipe: {
                     data.enforceInterface(DESCRIPTOR);
+                    int displayId = data.readInt();
                     float x1 = data.readFloat();
                     float y1 = data.readFloat();
                     float x2 = data.readFloat();
                     float y2 = data.readFloat();
                     long duration = data.readLong();
-                    swipe(x1, y1, x2, y2, duration);
+                    swipe(displayId, x1, y1, x2, y2, duration);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_touchDown: {
                     data.enforceInterface(DESCRIPTOR);
+                    int displayId = data.readInt();
                     float x = data.readFloat();
                     float y = data.readFloat();
-                    touchDown(x, y);
+                    touchDown(displayId, x, y);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_touchMove: {
                     data.enforceInterface(DESCRIPTOR);
+                    int displayId = data.readInt();
                     float x = data.readFloat();
                     float y = data.readFloat();
-                    touchMove(x, y);
+                    touchMove(displayId, x, y);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_touchUp: {
                     data.enforceInterface(DESCRIPTOR);
+                    int displayId = data.readInt();
                     float x = data.readFloat();
                     float y = data.readFloat();
-                    touchUp(x, y);
+                    touchUp(displayId, x, y);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_injectKey: {
                     data.enforceInterface(DESCRIPTOR);
+                    int displayId = data.readInt();
                     int keyCode = data.readInt();
-                    injectKey(keyCode);
+                    injectKey(displayId, keyCode);
                     reply.writeNoException();
                     return true;
                 }
                 case TRANSACTION_requestScreenshot: {
                     data.enforceInterface(DESCRIPTOR);
-                    byte[] result = requestScreenshot();
+                    int displayId = data.readInt();
+                    byte[] result = requestScreenshot(displayId);
                     reply.writeNoException();
                     reply.writeByteArray(result);
                     return true;
                 }
-                case TRANSACTION_getDisplayId: {
-                    data.enforceInterface(DESCRIPTOR);
-                    int id = getDisplayId();
-                    reply.writeNoException();
-                    reply.writeInt(id);
-                    return true;
-                }
                 case TRANSACTION_setVideoSink: {
                     data.enforceInterface(DESCRIPTOR);
+                    int displayId = data.readInt();
                     IBinder sink = data.readStrongBinder();
-                    setVideoSink(sink);
+                    setVideoSink(displayId, sink);
                     reply.writeNoException();
                     return true;
                 }
@@ -187,7 +191,7 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void ensureDisplay(int width, int height, int dpi, int bitrateKbps) throws RemoteException {
+            public int ensureDisplay(int width, int height, int dpi, int bitrateKbps) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
@@ -198,6 +202,7 @@ public interface IShowerService extends IInterface {
                     data.writeInt(bitrateKbps);
                     remote.transact(TRANSACTION_ensureDisplay, data, reply, 0);
                     reply.readException();
+                    return reply.readInt();
                 } finally {
                     reply.recycle();
                     data.recycle();
@@ -205,11 +210,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void destroyDisplay() throws RemoteException {
+            public void destroyDisplay(int displayId) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     remote.transact(TRANSACTION_destroyDisplay, data, reply, 0);
                     reply.readException();
                 } finally {
@@ -219,12 +225,13 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void launchApp(String packageName) throws RemoteException {
+            public void launchApp(String packageName, int displayId) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
                     data.writeString(packageName);
+                    data.writeInt(displayId);
                     remote.transact(TRANSACTION_launchApp, data, reply, 0);
                     reply.readException();
                 } finally {
@@ -234,11 +241,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void tap(float x, float y) throws RemoteException {
+            public void tap(int displayId, float x, float y) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     data.writeFloat(x);
                     data.writeFloat(y);
                     remote.transact(TRANSACTION_tap, data, reply, 0);
@@ -250,11 +258,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void swipe(float x1, float y1, float x2, float y2, long durationMs) throws RemoteException {
+            public void swipe(int displayId, float x1, float y1, float x2, float y2, long durationMs) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     data.writeFloat(x1);
                     data.writeFloat(y1);
                     data.writeFloat(x2);
@@ -269,11 +278,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void touchDown(float x, float y) throws RemoteException {
+            public void touchDown(int displayId, float x, float y) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     data.writeFloat(x);
                     data.writeFloat(y);
                     remote.transact(TRANSACTION_touchDown, data, reply, 0);
@@ -285,11 +295,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void touchMove(float x, float y) throws RemoteException {
+            public void touchMove(int displayId, float x, float y) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     data.writeFloat(x);
                     data.writeFloat(y);
                     remote.transact(TRANSACTION_touchMove, data, reply, 0);
@@ -301,11 +312,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void touchUp(float x, float y) throws RemoteException {
+            public void touchUp(int displayId, float x, float y) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     data.writeFloat(x);
                     data.writeFloat(y);
                     remote.transact(TRANSACTION_touchUp, data, reply, 0);
@@ -317,11 +329,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public void injectKey(int keyCode) throws RemoteException {
+            public void injectKey(int displayId, int keyCode) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     data.writeInt(keyCode);
                     remote.transact(TRANSACTION_injectKey, data, reply, 0);
                     reply.readException();
@@ -332,11 +345,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public byte[] requestScreenshot() throws RemoteException {
+            public byte[] requestScreenshot(int displayId) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     remote.transact(TRANSACTION_requestScreenshot, data, reply, 0);
                     reply.readException();
                     return reply.createByteArray();
@@ -347,26 +361,12 @@ public interface IShowerService extends IInterface {
             }
 
             @Override
-            public int getDisplayId() throws RemoteException {
+            public void setVideoSink(int displayId, IBinder sink) throws RemoteException {
                 Parcel data = Parcel.obtain();
                 Parcel reply = Parcel.obtain();
                 try {
                     data.writeInterfaceToken(DESCRIPTOR);
-                    remote.transact(TRANSACTION_getDisplayId, data, reply, 0);
-                    reply.readException();
-                    return reply.readInt();
-                } finally {
-                    reply.recycle();
-                    data.recycle();
-                }
-            }
-
-            @Override
-            public void setVideoSink(IBinder sink) throws RemoteException {
-                Parcel data = Parcel.obtain();
-                Parcel reply = Parcel.obtain();
-                try {
-                    data.writeInterfaceToken(DESCRIPTOR);
+                    data.writeInt(displayId);
                     data.writeStrongBinder(sink);
                     remote.transact(TRANSACTION_setVideoSink, data, reply, 0);
                     reply.readException();

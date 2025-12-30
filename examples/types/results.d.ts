@@ -418,6 +418,10 @@ export interface AutomationExecutionResultData {
     functionName: string;
     /** Parameters provided to the automation */
     providedParameters: Record<string, string>;
+    /** Optional agent id used for this run (can be reused to keep operating on the same virtual screen session) */
+    agentId?: string | null;
+    /** Optional virtual display id associated with the agent session */
+    displayId?: number | null;
     /** Whether the execution succeeded */
     executionSuccess: boolean;
     /** Detailed execution message and action logs */

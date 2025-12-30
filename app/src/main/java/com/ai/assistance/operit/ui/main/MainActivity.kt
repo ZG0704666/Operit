@@ -432,7 +432,7 @@ class MainActivity : ComponentActivity() {
 
         // 主界面销毁时，确保关闭虚拟屏幕 Overlay 并断开 Shower WebSocket 连接
         try {
-            VirtualDisplayOverlay.getInstance(applicationContext).hide()
+            VirtualDisplayOverlay.hideAll()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error hiding VirtualDisplayOverlay in MainActivity.onDestroy", e)
         }

@@ -287,10 +287,12 @@ fun getJsToolsDefinition(): String {
                  * Run the built-in UI automation subagent.
                  * @param intent High-level task description for the subagent.
                  * @param maxSteps Optional maximum number of steps (default 20).
+                 * @param agentId Optional agent id to reuse the same virtual screen session.
                  */
-                runSubAgent: (intent, maxSteps) => {
+                runSubAgent: (intent, maxSteps, agentId) => {
                     const params = { intent: String(intent || "") };
                     if (maxSteps !== undefined) params.max_steps = String(maxSteps);
+                    if (agentId !== undefined && agentId !== null && String(agentId).length > 0) params.agent_id = String(agentId);
                     return toolCall("run_ui_subagent", params);
                 },
             },

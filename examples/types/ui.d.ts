@@ -121,8 +121,9 @@ export namespace UI {
      * Run the built-in UI automation subagent.
      * @param intent - High-level task description for the subagent (e.g. "打开微信并发送一条消息").
      * @param maxSteps - Optional maximum number of steps (default 20).
+     * @param agentId - Optional agent id to reuse the same virtual screen session.
      */
-    function runSubAgent(intent: string, maxSteps?: number): Promise<AutomationExecutionResultData>;
+    function runSubAgent(intent: string, maxSteps?: number, agentId?: string): Promise<AutomationExecutionResultData>;
 }
 
 /**

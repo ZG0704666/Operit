@@ -38,6 +38,8 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Local WebSocket server which can create a virtual display via reflection and
@@ -70,21 +72,12 @@ public class Main {
 
     private final Context appContext;
 
-    private VirtualDisplay virtualDisplay;
-    private int virtualDisplayId = -1;
-    private MediaCodec videoEncoder;
-    private Surface encoderSurface;
-    private Thread encoderThread;
-    private volatile boolean encoderRunning;
-    private InputController inputController;
-    private IShowerVideoSink videoSink;
+    // Map of displayId -> DisplaySession
+    private final Map<Integer, DisplaySession> displays = new ConcurrentHashMap<>();
 
     private static final long CLIENT_IDLE_TIMEOUT_MS = 15_000L;
     private volatile long lastClientActiveTime = System.currentTimeMillis();
     private Thread idleWatcherThread;
-    private final Object clientLock = new Object();
-    private IBinder videoSinkBinder;
-    private IBinder.DeathRecipient videoSinkDeathRecipient;
 
     private static PrintWriter fileLog;
     private static final SimpleDateFormat LOG_TIME_FORMAT =
@@ -111,14 +104,193 @@ public class Main {
         }
     }
 
-    private byte[] captureScreenshotBytes() {
-        if (virtualDisplay == null || virtualDisplay.getDisplay() == null || virtualDisplayId == -1) {
-            logToFile("captureScreenshotBytes requested but no virtual display", null);
-            return null;
+    private class DisplaySession {
+        final int displayId;
+        final VirtualDisplay virtualDisplay;
+        final MediaCodec videoEncoder;
+        final Surface encoderSurface;
+        final Thread encoderThread;
+        volatile boolean encoderRunning;
+        final InputController inputController;
+        IShowerVideoSink videoSink;
+        IBinder videoSinkBinder;
+        IBinder.DeathRecipient videoSinkDeathRecipient;
+        final Object lock = new Object();
+
+        DisplaySession(int displayId, VirtualDisplay virtualDisplay, MediaCodec videoEncoder, Surface encoderSurface, InputController inputController) {
+            this.displayId = displayId;
+            this.virtualDisplay = virtualDisplay;
+            this.videoEncoder = videoEncoder;
+            this.encoderSurface = encoderSurface;
+            this.inputController = inputController;
+            this.encoderRunning = true;
+            this.encoderThread = new Thread(this::encodeLoop, "ShowerEncoder-" + displayId);
+            this.encoderThread.start();
         }
 
-        String path = "/data/local/tmp/shower_screenshot.png";
-        String cmd = "screencap -d " + virtualDisplayId + " -p " + path;
+        void release() {
+            logToFile("Releasing display session " + displayId, null);
+            stopEncoder();
+            
+            if (virtualDisplay != null) {
+                virtualDisplay.release();
+            }
+            
+            if (inputController != null) {
+                // Reset input controller display ID, though it matters less as we discard it
+                inputController.setDisplayId(0);
+            }
+            
+            setVideoSink(null);
+        }
+
+        private void stopEncoder() {
+            encoderRunning = false;
+            MediaCodec codec = videoEncoder;
+            if (codec != null) {
+                try {
+                    codec.signalEndOfInputStream();
+                } catch (Exception e) {
+                    logToFile("signalEndOfInputStream failed: " + e.getMessage(), e);
+                }
+            }
+            if (encoderThread != null) {
+                try {
+                    encoderThread.join(1000);
+                } catch (InterruptedException e) {
+                    logToFile("Encoder thread join interrupted: " + e.getMessage(), e);
+                    Thread.currentThread().interrupt();
+                }
+            }
+            if (codec != null) {
+                try {
+                    codec.stop();
+                } catch (Exception e) {
+                    logToFile("Error stopping codec: " + e.getMessage(), e);
+                }
+                codec.release();
+            }
+            if (encoderSurface != null) {
+                encoderSurface.release();
+            }
+        }
+
+        void setVideoSink(IBinder sink) {
+            synchronized (lock) {
+                if (videoSinkBinder != null && videoSinkBinder != sink && videoSinkDeathRecipient != null) {
+                    try {
+                        videoSinkBinder.unlinkToDeath(videoSinkDeathRecipient, 0);
+                    } catch (Throwable t) {
+                        logToFile("unlinkToDeath previous video sink failed: " + t.getMessage(), t);
+                    }
+                    videoSinkBinder = null;
+                    videoSinkDeathRecipient = null;
+                }
+                if (sink == null) {
+                    videoSink = null;
+                    videoSinkBinder = null;
+                    videoSinkDeathRecipient = null;
+                    return;
+                }
+                videoSinkBinder = sink;
+                videoSinkDeathRecipient = () -> {
+                    synchronized (lock) {
+                        logToFile("Video sink binder died, clearing sink for display " + displayId, null);
+                        videoSink = null;
+                        videoSinkBinder = null;
+                        videoSinkDeathRecipient = null;
+                    }
+                };
+                try {
+                    sink.linkToDeath(videoSinkDeathRecipient, 0);
+                } catch (Throwable t) {
+                    logToFile("linkToDeath for video sink failed: " + t.getMessage(), t);
+                }
+                videoSink = IShowerVideoSink.Stub.asInterface(sink);
+            }
+        }
+
+        private void encodeLoop() {
+            MediaCodec codec = videoEncoder;
+            if (codec == null) {
+                return;
+            }
+
+            BufferInfo bufferInfo = new BufferInfo();
+
+            while (encoderRunning) {
+                int index;
+                try {
+                    index = codec.dequeueOutputBuffer(bufferInfo, 10_000);
+                } catch (IllegalStateException e) {
+                    logToFile("dequeueOutputBuffer failed: " + e.getMessage(), e);
+                    break;
+                }
+
+                if (index == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    continue;
+                } else if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    MediaFormat format = codec.getOutputFormat();
+                    trySendConfig(format);
+                } else if (index >= 0) {
+                    if (bufferInfo.size > 0) {
+                        ByteBuffer outputBuffer = codec.getOutputBuffer(index);
+                        if (outputBuffer != null) {
+                            outputBuffer.position(bufferInfo.offset);
+                            outputBuffer.limit(bufferInfo.offset + bufferInfo.size);
+                            byte[] data = new byte[bufferInfo.size];
+                            outputBuffer.get(data);
+                            sendVideoFrame(data);
+                        }
+                    }
+                    codec.releaseOutputBuffer(index, false);
+
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        private void trySendConfig(MediaFormat format) {
+            ByteBuffer csd0 = format.getByteBuffer("csd-0");
+            ByteBuffer csd1 = format.getByteBuffer("csd-1");
+            sendVideoFrame(csd0);
+            sendVideoFrame(csd1);
+        }
+
+        private void sendVideoFrame(ByteBuffer buffer) {
+            if (buffer == null || !buffer.hasRemaining()) {
+                return;
+            }
+            ByteBuffer dup = buffer.duplicate();
+            dup.position(0);
+            byte[] data = new byte[dup.remaining()];
+            dup.get(data);
+            sendVideoFrame(data);
+        }
+
+        private void sendVideoFrame(byte[] data) {
+            IShowerVideoSink sink;
+             synchronized (lock) {
+                 sink = videoSink;
+             }
+            if (sink != null) {
+                try {
+                    sink.onVideoFrame(data);
+                } catch (Exception e) {
+                    // Client may have died, invalidate the sink.
+                    synchronized (lock) {
+                        videoSink = null;
+                    }
+                }
+            }
+        }
+    }
+
+    private byte[] captureScreenshotBytes(int displayId) {
+        String path = "/data/local/tmp/shower_screenshot_" + displayId + ".png";
+        String cmd = "screencap -d " + displayId + " -p " + path;
         Process proc = null;
         try {
             logToFile("captureScreenshotBytes executing: " + cmd, null);
@@ -154,6 +326,8 @@ public class Main {
                 } catch (Exception ignored) {
                 }
             }
+            // Cleanup file
+            new File(path).delete();
         }
     }
 
@@ -173,7 +347,18 @@ public class Main {
                         return;
                     }
                     long now = System.currentTimeMillis();
-                    if (videoSink == null && now - lastClientActiveTime > CLIENT_IDLE_TIMEOUT_MS) {
+                    // Check if *any* display has a sink
+                    boolean hasActiveSink = false;
+                    for (DisplaySession session : displays.values()) {
+                        synchronized(session.lock) {
+                            if (session.videoSink != null) {
+                                hasActiveSink = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!hasActiveSink && now - lastClientActiveTime > CLIENT_IDLE_TIMEOUT_MS) {
                         logToFile("No active Binder clients for " + CLIENT_IDLE_TIMEOUT_MS + "ms, exiting", null);
                         System.exit(0);
                     }
@@ -228,137 +413,101 @@ public class Main {
     public Main(Context context) {
         this.appContext = context.getApplicationContext();
         sInstance = this;
-        try {
-            this.inputController = new InputController();
-            logToFile("InputController initialized", null);
-        } catch (Throwable t) {
-            logToFile("Failed to init InputController: " + t.getMessage(), t);
-            this.inputController = null;
-        }
 
         try {
             IShowerService service = new IShowerService.Stub() {
                 @Override
-                public void ensureDisplay(int width, int height, int dpi, int bitrateKbps) {
+                public int ensureDisplay(int width, int height, int dpi, int bitrateKbps) {
                     markClientActive();
                     int bitRate = bitrateKbps > 0 ? bitrateKbps * 1000 : DEFAULT_BIT_RATE;
-                    ensureVirtualDisplay(width, height, dpi, bitRate);
+                    return createVirtualDisplay(width, height, dpi, bitRate);
                 }
 
                 @Override
-                public void destroyDisplay() {
+                public void destroyDisplay(int displayId) {
                     markClientActive();
-                    releaseDisplay();
+                    releaseDisplay(displayId);
                 }
 
                 @Override
-                public void launchApp(String packageName) {
+                public void launchApp(String packageName, int displayId) {
                     markClientActive();
                     if (packageName != null && !packageName.isEmpty()) {
-                        launchPackageOnVirtualDisplay(packageName);
+                        launchPackageOnVirtualDisplay(packageName, displayId);
                     }
                 }
 
                 @Override
-                public void tap(float x, float y) {
+                public void tap(int displayId, float x, float y) {
                     markClientActive();
-                    if (inputController != null) {
-                        inputController.injectTap(x, y);
-                        logToFile("Binder TAP injected: " + x + "," + y, null);
+                    DisplaySession session = displays.get(displayId);
+                    if (session != null && session.inputController != null) {
+                        session.inputController.injectTap(x, y);
+                        logToFile("Binder TAP injected: " + x + "," + y + " on " + displayId, null);
                     }
                 }
 
                 @Override
-                public void swipe(float x1, float y1, float x2, float y2, long durationMs) {
+                public void swipe(int displayId, float x1, float y1, float x2, float y2, long durationMs) {
                     markClientActive();
-                    if (inputController != null) {
-                        inputController.injectSwipe(x1, y1, x2, y2, durationMs);
-                        logToFile("Binder SWIPE injected: " + x1 + "," + y1 + " -> " + x2 + "," + y2 + " d=" + durationMs, null);
+                    DisplaySession session = displays.get(displayId);
+                    if (session != null && session.inputController != null) {
+                        session.inputController.injectSwipe(x1, y1, x2, y2, durationMs);
+                        logToFile("Binder SWIPE injected on " + displayId, null);
                     }
                 }
 
                 @Override
-                public void touchDown(float x, float y) {
+                public void touchDown(int displayId, float x, float y) {
                     markClientActive();
-                    if (inputController != null) {
-                        inputController.touchDown(x, y);
+                    DisplaySession session = displays.get(displayId);
+                    if (session != null && session.inputController != null) {
+                        session.inputController.touchDown(x, y);
                     }
                 }
 
                 @Override
-                public void touchMove(float x, float y) {
+                public void touchMove(int displayId, float x, float y) {
                     markClientActive();
-                    if (inputController != null) {
-                        inputController.touchMove(x, y);
+                    DisplaySession session = displays.get(displayId);
+                    if (session != null && session.inputController != null) {
+                        session.inputController.touchMove(x, y);
                     }
                 }
 
                 @Override
-                public void touchUp(float x, float y) {
+                public void touchUp(int displayId, float x, float y) {
                     markClientActive();
-                    if (inputController != null) {
-                        inputController.touchUp(x, y);
+                    DisplaySession session = displays.get(displayId);
+                    if (session != null && session.inputController != null) {
+                        session.inputController.touchUp(x, y);
                     }
                 }
 
                 @Override
-                public void injectKey(int keyCode) {
+                public void injectKey(int displayId, int keyCode) {
                     markClientActive();
-                    if (inputController != null) {
-                        inputController.injectKey(keyCode);
-                        logToFile("Binder KEY injected: " + keyCode, null);
+                    DisplaySession session = displays.get(displayId);
+                    if (session != null && session.inputController != null) {
+                        session.inputController.injectKey(keyCode);
+                        logToFile("Binder KEY injected: " + keyCode + " on " + displayId, null);
                     }
                 }
 
                 @Override
-                public byte[] requestScreenshot() {
+                public byte[] requestScreenshot(int displayId) {
                     markClientActive();
-                    return captureScreenshotBytes();
+                    return captureScreenshotBytes(displayId);
                 }
 
                 @Override
-                public int getDisplayId() {
+                public void setVideoSink(int displayId, IBinder sink) {
                     markClientActive();
-                    return virtualDisplayId;
-                }
-
-                @Override
-                public void setVideoSink(IBinder sink) {
-                    markClientActive();
-                    synchronized (clientLock) {
-                        if (videoSinkBinder != null && videoSinkBinder != sink && videoSinkDeathRecipient != null) {
-                            try {
-                                videoSinkBinder.unlinkToDeath(videoSinkDeathRecipient, 0);
-                            } catch (Throwable t) {
-                                logToFile("unlinkToDeath previous video sink failed: " + t.getMessage(), t);
-                            }
-                            videoSinkBinder = null;
-                            videoSinkDeathRecipient = null;
-                        }
-                        if (sink == null) {
-                            videoSink = null;
-                            videoSinkBinder = null;
-                            videoSinkDeathRecipient = null;
-                            return;
-                        }
-                        videoSinkBinder = sink;
-                        videoSinkDeathRecipient = new IBinder.DeathRecipient() {
-                            @Override
-                            public void binderDied() {
-                                synchronized (clientLock) {
-                                    logToFile("Video sink binder died, clearing sink", null);
-                                    videoSink = null;
-                                    videoSinkBinder = null;
-                                    videoSinkDeathRecipient = null;
-                                }
-                            }
-                        };
-                        try {
-                            sink.linkToDeath(videoSinkDeathRecipient, 0);
-                        } catch (Throwable t) {
-                            logToFile("linkToDeath for video sink failed: " + t.getMessage(), t);
-                        }
-                        videoSink = IShowerVideoSink.Stub.asInterface(sink);
+                    DisplaySession session = displays.get(displayId);
+                    if (session != null) {
+                        session.setVideoSink(sink);
+                    } else {
+                        logToFile("setVideoSink for unknown displayId: " + displayId, null);
                     }
                 }
             };
@@ -441,34 +590,30 @@ public class Main {
     }
 
 
-    private synchronized void ensureVirtualDisplay(int width, int height, int dpi, int bitRate) {
+    private synchronized int createVirtualDisplay(int width, int height, int dpi, int bitRate) {
         logToFile("ensureVirtualDisplay requested: " + width + "x" + height + " dpi=" + dpi + " bitRate=" + bitRate, null);
-        if (virtualDisplay != null) {
-            logToFile("ensureVirtualDisplay: virtualDisplay already exists", null);
-            return;
-        }
-
-        if (videoEncoder != null) {
-            logToFile("ensureVirtualDisplay: videoEncoder already exists", null);
-            return;
-        }
+        
+        // Removed check for existing display, we now support multiple.
+        
+        MediaCodec videoEncoder = null;
+        Surface encoderSurface = null;
+        VirtualDisplay virtualDisplay = null;
+        InputController inputController = null;
+        int virtualDisplayId = -1;
 
         // Use RGBA_8888 so that we can easily convert to Bitmap
         try {
             int actualBitRate = bitRate > 0 ? bitRate : DEFAULT_BIT_RATE;
 
-            // Many H.264 encoders require width/height to be aligned to a multiple of 8 (or 16).
-            // Using odd sizes (like 1080x2319) can cause MediaCodec.configure() to throw
-            // CodecException with no clear message. Align the capture size down to the
-            // nearest multiple of 8, similar to scrcpy's alignment logic.
-            int alignedWidth = width & ~7;  // multiple of 8
-            int alignedHeight = height & ~7; // multiple of 8
+            // Alignment logic...
+            int alignedWidth = width & ~7;
+            int alignedHeight = height & ~7;
             if (alignedWidth <= 0 || alignedHeight <= 0) {
                 alignedWidth = Math.max(2, width);
                 alignedHeight = Math.max(2, height);
             }
 
-            logToFile("ensureVirtualDisplay using aligned size: " + alignedWidth + "x" + alignedHeight, null);
+            logToFile("createVirtualDisplay using aligned size: " + alignedWidth + "x" + alignedHeight, null);
 
             MediaFormat format = MediaFormat.createVideoFormat("video/avc", alignedWidth, alignedHeight);
             format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
@@ -500,14 +645,12 @@ public class Main {
                         | VIRTUAL_DISPLAY_FLAG_DEVICE_DISPLAY_GROUP;
             }
 
-            // 与 scrcpy 的 DisplayManager.createNewVirtualDisplay 一致：
-            // 通过隐藏构造函数 DisplayManager(Context) + FakeContext 创建实例，再调用 createVirtualDisplay。
             java.lang.reflect.Constructor<DisplayManager> ctor = DisplayManager.class.getDeclaredConstructor(Context.class);
             ctor.setAccessible(true);
             DisplayManager dm = ctor.newInstance(FakeContext.get());
 
             virtualDisplay = dm.createVirtualDisplay(
-                    "ShowerVirtualDisplay",
+                    "ShowerVirtualDisplay-" + System.currentTimeMillis() % 1000,
                     alignedWidth,
                     alignedHeight,
                     dpi,
@@ -517,7 +660,7 @@ public class Main {
 
             if (virtualDisplay != null && virtualDisplay.getDisplay() != null) {
                 virtualDisplayId = virtualDisplay.getDisplay().getDisplayId();
-                logToFile("Virtual display id=" + virtualDisplayId, null);
+                logToFile("Created virtual display id=" + virtualDisplayId, null);
                 try {
                     WindowManager wm = ServiceManager.getWindowManager();
                     wm.setDisplayImePolicy(virtualDisplayId, WindowManager.DISPLAY_IME_POLICY_LOCAL);
@@ -526,165 +669,58 @@ public class Main {
                     logToFile("setDisplayImePolicy failed: " + t.getMessage(), t);
                 }
             } else {
+                logToFile("Failed to get virtual display id", null);
                 virtualDisplayId = -1;
             }
 
-            if (inputController != null) {
-                int id = virtualDisplayId > 0 ? virtualDisplayId : 0;
-                inputController.setDisplayId(id);
+            if (virtualDisplayId != -1) {
+                try {
+                     inputController = new InputController();
+                     inputController.setDisplayId(virtualDisplayId);
+                } catch (Throwable t) {
+                    logToFile("Failed to init InputController: " + t.getMessage(), t);
+                    inputController = null;
+                }
+                
+                DisplaySession session = new DisplaySession(virtualDisplayId, virtualDisplay, videoEncoder, encoderSurface, inputController);
+                displays.put(virtualDisplayId, session);
+                logToFile("Registered DisplaySession for id=" + virtualDisplayId, null);
+                return virtualDisplayId;
             }
+            
+            // Clean up if failure
+            videoEncoder.stop();
+            videoEncoder.release();
+            encoderSurface.release();
+            return -1;
 
-            encoderRunning = true;
-            encoderThread = new Thread(this::encodeLoop, "ShowerVideoEncoder");
-            encoderThread.start();
-
-            logToFile("Created virtual display and started encoder: " + virtualDisplay, null);
         } catch (Exception e) {
             logToFile("Failed to create virtual display or encoder: " + e.getMessage(), e);
-            stopEncoder();
+            if (videoEncoder != null) videoEncoder.release();
+            if (encoderSurface != null) encoderSurface.release();
+            return -1;
         }
     }
 
-    /**
-     * Handle a SCREENSHOT command from a specific WebSocket connection.
-     *
-     * This captures a PNG of the current virtual display using the shell `screencap -d` command
-     * and sends it back to the requesting client as a Base64-encoded text frame:
-     *   SCREENSHOT_DATA <base64_png>
-     */
 
-    private void encodeLoop() {
-        MediaCodec codec = videoEncoder;
-        if (codec == null) {
-            return;
-        }
-
-        BufferInfo bufferInfo = new BufferInfo();
-
-        while (encoderRunning) {
-            int index;
-            try {
-                index = codec.dequeueOutputBuffer(bufferInfo, 10_000);
-            } catch (IllegalStateException e) {
-                logToFile("dequeueOutputBuffer failed: " + e.getMessage(), e);
-                break;
-            }
-
-            if (index == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                continue;
-            } else if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                MediaFormat format = codec.getOutputFormat();
-                trySendConfig(format);
-            } else if (index >= 0) {
-                if (bufferInfo.size > 0) {
-                    ByteBuffer outputBuffer = codec.getOutputBuffer(index);
-                    if (outputBuffer != null) {
-                        outputBuffer.position(bufferInfo.offset);
-                        outputBuffer.limit(bufferInfo.offset + bufferInfo.size);
-                        byte[] data = new byte[bufferInfo.size];
-                        outputBuffer.get(data);
-                        sendVideoFrame(data);
-                    }
-                }
-                codec.releaseOutputBuffer(index, false);
-
-                if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    break;
-                }
-            }
+    private synchronized void releaseDisplay(int displayId) {
+        DisplaySession session = displays.remove(displayId);
+        if (session != null) {
+             session.release();
+        } else {
+            logToFile("releaseDisplay ignored for unknown id=" + displayId, null);
         }
     }
 
-    private void trySendConfig(MediaFormat format) {
-        ByteBuffer csd0 = format.getByteBuffer("csd-0");
-        ByteBuffer csd1 = format.getByteBuffer("csd-1");
-        sendVideoFrame(csd0);
-        sendVideoFrame(csd1);
-    }
-
-    private void sendVideoFrame(ByteBuffer buffer) {
-        if (buffer == null || !buffer.hasRemaining()) {
-            return;
-        }
-        ByteBuffer dup = buffer.duplicate();
-        dup.position(0);
-        byte[] data = new byte[dup.remaining()];
-        dup.get(data);
-        sendVideoFrame(data);
-    }
-
-    private void sendVideoFrame(byte[] data) {
-        IShowerVideoSink sink = videoSink;
-        if (sink != null) {
-            try {
-                sink.onVideoFrame(data);
-            } catch (Exception e) {
-                // Client may have died, invalidate the sink.
-                videoSink = null;
-            }
-        }
-    }
-
-    private synchronized void releaseDisplay() {
-        if (virtualDisplay != null) {
-            virtualDisplay.release();
-            virtualDisplay = null;
-        }
-        virtualDisplayId = -1;
-        if (inputController != null) {
-            inputController.setDisplayId(0);
-        }
-        stopEncoder();
-    }
-
-    private void stopEncoder() {
-        encoderRunning = false;
-        MediaCodec codec = videoEncoder;
-        if (codec != null) {
-            try {
-                codec.signalEndOfInputStream();
-            } catch (Exception e) {
-                logToFile("signalEndOfInputStream failed: " + e.getMessage(), e);
-            }
-        }
-        if (encoderThread != null) {
-            try {
-                encoderThread.join(1000);
-            } catch (InterruptedException e) {
-                logToFile("Encoder thread join interrupted: " + e.getMessage(), e);
-                Thread.currentThread().interrupt();
-            }
-            encoderThread = null;
-        }
-        if (codec != null) {
-            try {
-                codec.stop();
-            } catch (Exception e) {
-                logToFile("Error stopping codec: " + e.getMessage(), e);
-            }
-            codec.release();
-        }
-        if (encoderSurface != null) {
-            encoderSurface.release();
-            encoderSurface = null;
-        }
-        videoEncoder = null;
-    }
-
-    private void launchPackageOnVirtualDisplay(String packageName) {
-        logToFile("launchPackageOnVirtualDisplay: " + packageName, null);
+    private void launchPackageOnVirtualDisplay(String packageName, int displayId) {
+        logToFile("launchPackageOnVirtualDisplay: " + packageName + " on " + displayId, null);
         try {
-            if (virtualDisplay == null || virtualDisplay.getDisplay() == null || virtualDisplayId == -1) {
-                logToFile("launchPackageOnVirtualDisplay: no virtual display", null);
+            if (displayId == -1) {
+                logToFile("launchPackageOnVirtualDisplay: invalid displayId", null);
                 return;
             }
 
             PackageManager pm = appContext.getPackageManager();
-            if (pm == null) {
-                logToFile("launchPackageOnVirtualDisplay: PackageManager is null", null);
-                return;
-            }
-
             Intent intent = pm.getLaunchIntentForPackage(packageName);
             if (intent == null) {
                 logToFile("launchPackageOnVirtualDisplay: no launch intent for " + packageName, null);
@@ -696,15 +732,14 @@ public class Main {
             android.os.Bundle options = null;
             if (Build.VERSION.SDK_INT >= 26) {
                 android.app.ActivityOptions launchOptions = android.app.ActivityOptions.makeBasic();
-                launchOptions.setLaunchDisplayId(virtualDisplayId);
+                launchOptions.setLaunchDisplayId(displayId);
                 options = launchOptions.toBundle();
             }
 
             com.ai.assistance.shower.wrappers.ActivityManager am = ServiceManager.getActivityManager();
-            // Do not force-stop for now; mirror scrcpy Device.startApp(forceStop=false)
             am.startActivity(intent, options);
 
-            logToFile("launchPackageOnVirtualDisplay: started " + packageName + " on display " + virtualDisplayId, null);
+            logToFile("launchPackageOnVirtualDisplay: started " + packageName + " on display " + displayId, null);
         } catch (Exception e) {
             logToFile("launchPackageOnVirtualDisplay failed: " + e.getMessage(), e);
         }

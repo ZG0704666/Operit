@@ -126,8 +126,7 @@ object ActivityLifecycleManager : Application.ActivityLifecycleCallbacks {
         if (activityCount <= 0) {
             AppLogger.d(TAG, "最后一个 Activity 被销毁，清理虚拟屏幕资源")
             try {
-                val context = activity.applicationContext
-                VirtualDisplayOverlay.getInstance(context).hide()
+                VirtualDisplayOverlay.hideAll()
                 AppLogger.d(TAG, "已关闭 VirtualDisplayOverlay")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "清理 VirtualDisplayOverlay 失败", e)
