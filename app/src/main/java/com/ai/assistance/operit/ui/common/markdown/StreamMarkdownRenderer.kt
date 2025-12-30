@@ -71,7 +71,7 @@ import kotlinx.coroutines.withContext
 import ru.noties.jlatexmath.JLatexMathDrawable
 
 private const val TAG = "MarkdownRenderer"
-private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
+private const val RENDER_INTERVAL_MS = 200L // 渲染间隔 0.2 秒
 private const val FADE_IN_DURATION_MS = 800 // 淡入动画持续时间
 
 /**
@@ -482,7 +482,7 @@ fun StreamMarkdownRenderer(
             // 确保动画状态也被设置
             val newStates = mutableMapOf<String, Boolean>()
             cachedNodes.forEachIndexed { index, node ->
-                val nodeKey = "static-node-$rendererId-$index-${node.type}"
+                val nodeKey = "static-node-$rendererId-$index"
                 newStates[nodeKey] = true
             }
             nodeAnimationStates.putAll(newStates)
@@ -646,7 +646,7 @@ fun StreamMarkdownRenderer(
                     // 更新所有节点的动画状态为可见
                     val newStates = mutableMapOf<String, Boolean>()
                     parsedNodes.forEachIndexed { index, node ->
-                        val nodeKey = "static-node-$rendererId-$index-${node.type}"
+                        val nodeKey = "static-node-$rendererId-$index"
                         newStates[nodeKey] = true
                     }
                     nodeAnimationStates.putAll(newStates)
@@ -720,6 +720,7 @@ private fun AnimatedNode(
         // 所有节点都使用CanvasMarkdownNodeRenderer
         // 它内部已经实现了Canvas绘制优化和基于内容长度的 key 控制
         CanvasMarkdownNodeRenderer(
+            nodeKey = nodeKey,
             node = node,
             textColor = textColor,
             modifier = Modifier,
@@ -746,6 +747,11 @@ private fun UnifiedMarkdownCanvas(
     
     val density = LocalDensity.current
     val typography = MaterialTheme.typography
+
+    val lastRenderableIndex = run {
+        val idx = nodes.indexOfLast { it.content.isNotEmpty() || it.children.isNotEmpty() }
+        if (idx >= 0) idx else nodes.lastIndex
+    }
     
     // 缓存字体大小
     val fontSizes = remember(typography) {
@@ -764,9 +770,9 @@ private fun UnifiedMarkdownCanvas(
         
         nodes.forEachIndexed { index, node ->
             val nodeKey = if (rendererId.startsWith("static-")) {
-                "static-node-$rendererId-$index-${node.type}"
+                "static-node-$rendererId-$index"
             } else {
-                "node-$rendererId-$index-${node.type}"
+                "node-$rendererId-$index"
             }
             
             key(nodeKey) {
@@ -780,7 +786,7 @@ private fun UnifiedMarkdownCanvas(
                     onLinkClick = onLinkClick,
                     xmlRenderer = xmlRenderer,
                     fillMaxWidth = fillMaxWidth,
-                    isLastNode = index == nodes.lastIndex  // 判断是否是最后一个节点
+                    isLastNode = index == lastRenderableIndex  // 判断是否是最后一个可渲染节点
                 )
             }
         }
@@ -798,6 +804,12 @@ private class BatchNodeUpdater(
         private val scope: CoroutineScope
 ) {
     private var updateJob: Job? = null
+
+    private var lastLoggedNodesSize: Int = -1
+    private var lastLoggedRenderNodesSize: Int = -1
+    private var lastLoggedLastSourceLen: Int = -1
+    private var lastLoggedLastRenderLen: Int = -1
+    private var lastLoggedLastRenderType: MarkdownProcessorType? = null
 
     fun startBatchUpdates() {
         if (updateJob?.isActive == true) {
@@ -819,6 +831,58 @@ private class BatchNodeUpdater(
     private fun performBatchUpdate() {
         // 使用synchronizeRenderNodes函数进行节点同步
         synchronizeRenderNodes(nodes, renderNodes, conversionCache, nodeAnimationStates, rendererId, scope)
+
+        val currentNodesSize = nodes.size
+        val currentRenderNodesSize = renderNodes.size
+        val lastSource = nodes.lastOrNull()
+        val lastRender = renderNodes.lastOrNull()
+        val lastSourceLen = lastSource?.content?.length ?: -1
+        val lastRenderLen = lastRender?.content?.length ?: -1
+        val lastRenderType = lastRender?.type
+
+        val shouldLog =
+            currentNodesSize != lastLoggedNodesSize ||
+                currentRenderNodesSize != lastLoggedRenderNodesSize ||
+                lastSourceLen != lastLoggedLastSourceLen ||
+                lastRenderLen != lastLoggedLastRenderLen ||
+                lastRenderType != lastLoggedLastRenderType
+
+        val hasRegression =
+            (lastLoggedNodesSize != -1 && currentNodesSize < lastLoggedNodesSize) ||
+                (lastLoggedRenderNodesSize != -1 && currentRenderNodesSize < lastLoggedRenderNodesSize) ||
+                (lastLoggedLastSourceLen != -1 && lastSourceLen != -1 && lastSourceLen < lastLoggedLastSourceLen) ||
+                (lastLoggedLastRenderLen != -1 && lastRenderLen != -1 && lastRenderLen < lastLoggedLastRenderLen)
+
+        if (shouldLog || hasRegression) {
+            val nodeKey = if (currentRenderNodesSize > 0) {
+                "node-$rendererId-${currentRenderNodesSize - 1}"
+            } else {
+                "node-$rendererId--1"
+            }
+            val renderTail = lastRender?.content?.takeLast(24)
+                ?.replace("\n", "\\n")
+                ?.replace("\r", "\\r")
+                ?.replace("\t", "\\t")
+            val sourceTail = lastSource?.content?.toString()?.takeLast(24)
+                ?.replace("\n", "\\n")
+                ?.replace("\r", "\\r")
+                ?.replace("\t", "\\t")
+
+            val msg =
+                "[md-batch] rendererId=$rendererId nodeKey=$nodeKey nodesSize=$currentNodesSize renderSize=$currentRenderNodesSize " +
+                    "lastSourceLen=$lastSourceLen lastRenderLen=$lastRenderLen lastRenderType=${lastRenderType?.name} " +
+                    "sourceTail=\"${sourceTail ?: ""}\" renderTail=\"${renderTail ?: ""}\""
+
+            if (hasRegression) {
+                AppLogger.w(TAG, msg)
+            }
+
+            lastLoggedNodesSize = currentNodesSize
+            lastLoggedRenderNodesSize = currentRenderNodesSize
+            lastLoggedLastSourceLen = lastSourceLen
+            lastLoggedLastRenderLen = lastRenderLen
+            lastLoggedLastRenderType = lastRenderType
+        }
     }
 }
 
@@ -849,19 +913,48 @@ private fun synchronizeRenderNodes(
         if (i < renderNodes.size) {
             // 如果节点内容发生变化，则更新
             if (renderNodes[i] != stableNode) {
+                val oldNode = renderNodes[i]
+                val oldLen = oldNode.content.length
+                val newLen = stableNode.content.length
+                val oldType = oldNode.type
+                val newType = stableNode.type
+                val oldChildren = oldNode.children.size
+                val newChildren = stableNode.children.size
+
+                if (newLen < oldLen) {
+                    val oldTail = oldNode.content.takeLast(24)
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t")
+                    val newTail = stableNode.content.takeLast(24)
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t")
+                    AppLogger.w(
+                        TAG,
+                        "[md-sync] rendererId=$rendererId index=$i nodeKey=node-$rendererId-$i contentLen decreased $oldLen -> $newLen type=$oldType->$newType children=$oldChildren->$newChildren oldTail=\"$oldTail\" newTail=\"$newTail\""
+                    )
+                }
+
                 renderNodes[i] = stableNode
                 // AppLogger.d(TAG, "【渲染性能】最终同步：替换节点 at index $i")
             }
         } else {
             // 添加新节点
             renderNodes.add(stableNode)
-            val nodeKey = "node-$rendererId-$i-${stableNode.type}"
+            val nodeKey = "node-$rendererId-$i"
             nodeAnimationStates[nodeKey] = false // 准备播放动画
             keysToAnimate.add(nodeKey)
         }
     }
 
     // 2. 如果源列表变小，则移除多余的节点
+    if (renderNodes.size > nodes.size) {
+        AppLogger.w(
+            TAG,
+            "[md-sync] rendererId=$rendererId renderNodes shrinks ${renderNodes.size} -> ${nodes.size}"
+        )
+    }
     while (renderNodes.size > nodes.size) {
         renderNodes.removeLast()
     }

@@ -54,6 +54,7 @@
     <string name="screen_content">Screen Content</string>
     <string name="current_notifications">Current Notifications</string>
     <string name="current_location">Current Location</string>
+    <string name="screen_ocr_select">Select OCR</string>
     
     <!-- Model Suggestion Dialog -->
     <string name="model_suggestion_title">Model Suggestion</string>

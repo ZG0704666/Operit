@@ -191,4 +191,7 @@ class FloatContext(
     var userMessage: String by mutableStateOf("")
     var contentVisible: Boolean by mutableStateOf(true)
     var showAttachmentPanel: Boolean by mutableStateOf(false)
+    
+     // 标识是否刚完成了屏幕圈选，用于返回全屏模式时自动勾选"屏幕内容"
+    var pendingScreenSelection: Boolean by mutableStateOf(false)
 }

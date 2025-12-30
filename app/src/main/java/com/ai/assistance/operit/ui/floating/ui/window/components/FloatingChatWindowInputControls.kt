@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
 import com.ai.assistance.operit.ui.floating.FloatContext
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.floating.ui.window.viewmodel.FloatingChatWindowModeViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -269,6 +270,10 @@ private fun AttachmentPanelOverlay(
             delay(500)
                 floatContext.showAttachmentPanel = false
             }
+        },
+        onAttachScreenOcr = {
+            floatContext.onModeChange(FloatingMode.SCREEN_OCR)
+            floatContext.showAttachmentPanel = false
         },
         onDismiss = { floatContext.showAttachmentPanel = false }
     )

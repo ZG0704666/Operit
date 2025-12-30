@@ -8,6 +8,7 @@ import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ToolParameter
+import com.ai.assistance.operit.util.OCRUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,18 @@ class AttachmentDelegate(private val context: Context, private val toolHandler: 
     // Events
     private val _toastEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val toastEvent: SharedFlow<String> = _toastEvent
+
+    /** Adds multiple attachments in one shot (dedup by filePath) */
+    fun addAttachments(attachments: List<AttachmentInfo>) {
+        if (attachments.isEmpty()) return
+        val currentList = _attachments.value
+        val toAdd = attachments.filterNot { incoming ->
+            currentList.any { existing -> existing.filePath == incoming.filePath }
+        }
+        if (toAdd.isNotEmpty()) {
+            _attachments.value = currentList + toAdd
+        }
+    }
 
     /**
      * Inserts a reference to an attachment at the current cursor position in the user's message
@@ -325,36 +338,50 @@ class AttachmentDelegate(private val context: Context, private val toolHandler: 
     suspend fun captureScreenContent() =
             withContext(Dispatchers.IO) {
                 try {
-                    // Create a tool to get page info
-                    val pageInfoTool = AITool(name = "get_page_info", parameters = emptyList())
-
-                    // Execute the tool
-                    val result = toolHandler.executeTool(pageInfoTool)
-
-                    if (result.success) {
-                        // Generate a unique ID for this screen capture
-                        val captureId = "screen_${System.currentTimeMillis()}"
-                        val screenContent = result.result.toString()
-
-                        // Create attachment info with content as filePath
-                        val attachmentInfo =
-                                AttachmentInfo(
-                                        filePath = captureId, // Use ID as virtual path
-                                        fileName = "screen_content.json",
-                                        mimeType = "text/json",
-                                        fileSize = screenContent.length.toLong(),
-                                        content = screenContent // Add content field to store actual
-                                        // data
-                                        )
-
-                        // Add to attachments list
-                        val currentList = _attachments.value
-                        _attachments.value = currentList + attachmentInfo
-
-                        _toastEvent.emit("已添加屏幕内容")
-                    } else {
-                        _toastEvent.emit("获取屏幕内容失败: ${result.error ?: "未知错误"}")
+                    val screenshotTool = AITool(name = "capture_screenshot", parameters = emptyList())
+                    val screenshotResult = toolHandler.executeTool(screenshotTool)
+                    if (!screenshotResult.success) {
+                        _toastEvent.emit("获取屏幕内容失败: ${screenshotResult.error ?: "截图失败"}")
+                        return@withContext
                     }
+
+                    val screenshotPath = screenshotResult.result.toString().trim()
+                    if (screenshotPath.isBlank()) {
+                        _toastEvent.emit("获取屏幕内容失败: 截图失败")
+                        return@withContext
+                    }
+
+                    val ocrText = OCRUtils.recognizeText(
+                        context = context,
+                        uri = Uri.fromFile(File(screenshotPath)),
+                        quality = OCRUtils.Quality.HIGH
+                    ).trim()
+
+                    if (ocrText.isBlank()) {
+                        _toastEvent.emit("未识别到屏幕文字")
+                        return@withContext
+                    }
+
+                    val captureId = "screen_ocr_${System.currentTimeMillis()}"
+                    val content = "【屏幕内容】\n$ocrText"
+                    val attachmentInfo =
+                        AttachmentInfo(
+                            filePath = captureId,
+                            fileName = "screen_content.txt",
+                            mimeType = "text/plain",
+                            fileSize = content.length.toLong(),
+                            content = content
+                        )
+
+                    val currentList = _attachments.value
+                    _attachments.value = currentList + attachmentInfo
+
+                    _toastEvent.emit("已添加屏幕内容")
+                    
+                    // 清理临时截图文件
+                    try {
+                        File(screenshotPath).delete()
+                    } catch (_: Exception) {}
                 } catch (e: Exception) {
                     _toastEvent.emit("获取屏幕内容失败: ${e.message}")
                     AppLogger.e(TAG, "Error capturing screen content", e)

@@ -31,13 +31,19 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     // Helper function to wrap UI tool execution with visibility changes
     suspend fun executeUiToolWithVisibility(
         tool: AITool,
+        showStatusIndicator: Boolean = true,
+        delayMs: Long = 50,
         action: suspend (AITool) -> ToolResult
     ): ToolResult {
         val floatingService = FloatingChatService.getInstance()
         return try {
             floatingService?.setFloatingWindowVisible(false)
-            floatingService?.setStatusIndicatorVisible(true)
-            delay(50) // Allow UI to update
+            if (showStatusIndicator) {
+                floatingService?.setStatusIndicatorVisible(true)
+            } else {
+                floatingService?.setStatusIndicatorVisible(false)
+            }
+            delay(delayMs)
             action(tool)
         } finally {
             floatingService?.setFloatingWindowVisible(true)
@@ -1119,6 +1125,27 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool ->
                 runBlocking(Dispatchers.IO) {
                     executeUiToolWithVisibility(tool) { uiTools.getPageInfo(it) }
+                }
+            }
+    )
+
+    handler.registerTool(
+            name = "capture_screenshot",
+            descriptionGenerator = { _ -> "截取屏幕截图，返回文件路径" },
+            executor = { tool ->
+                runBlocking(Dispatchers.IO) {
+                    executeUiToolWithVisibility(
+                        tool = tool,
+                        showStatusIndicator = false,
+                        delayMs = 200
+                    ) { t ->
+                        val (path, _) = uiTools.captureScreenshot(t)
+                        if (path.isNullOrBlank()) {
+                            ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed")
+                        } else {
+                            ToolResult(toolName = t.name, success = true, result = StringResultData(path), error = null)
+                        }
+                    }
                 }
             }
     )

@@ -136,6 +136,14 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         }
     }
     
+    // 监听是否需要自动勾选"圈选识别" (来自圈选识别返回)
+    LaunchedEffect(floatContext.currentMode, floatContext.pendingScreenSelection) {
+        if (floatContext.currentMode == FloatingMode.FULLSCREEN && floatContext.pendingScreenSelection) {
+            viewModel.hasOcrSelection = true
+            floatContext.pendingScreenSelection = false
+        }
+    }
+
     // UI 布局
     val fullscreenScrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.22f)
     Box(
@@ -321,6 +329,8 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
             onAttachScreenContentChange = { viewModel.attachScreenContent = it },
             attachNotifications = viewModel.attachNotifications,
             onAttachNotificationsChange = { viewModel.attachNotifications = it },
+            hasOcrSelection = viewModel.hasOcrSelection,
+            onHasOcrSelectionChange = { viewModel.hasOcrSelection = it },
             onSendClick = { viewModel.sendInputMessage() },
             volumeLevel = volumeLevel,
             modifier = Modifier.align(Alignment.BottomCenter)

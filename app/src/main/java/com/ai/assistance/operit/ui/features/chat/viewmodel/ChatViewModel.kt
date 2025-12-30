@@ -1111,6 +1111,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     launchFloatingModeIn(FloatingMode.WINDOW, colorScheme, typography)
                 }
                 FloatingMode.FULLSCREEN -> launchFullscreenVoiceModeWithPermissionCheck(permissionLauncher, colorScheme, typography)
+                FloatingMode.SCREEN_OCR -> launchFloatingWindowWithPermissionCheck(permissionLauncher) {
+                    launchFloatingModeIn(FloatingMode.WINDOW, colorScheme, typography)
+                }
                 FloatingMode.BALL,
                 FloatingMode.VOICE_BALL,
                 FloatingMode.RESULT_DISPLAY -> {

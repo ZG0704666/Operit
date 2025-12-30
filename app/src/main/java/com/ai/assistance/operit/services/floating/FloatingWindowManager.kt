@@ -518,7 +518,7 @@ class FloatingWindowManager(
         setPrivateFlag(params, PRIVATE_FLAG_NO_MOVE_ANIMATION)
 
         when (state.currentMode.value) {
-            FloatingMode.FULLSCREEN -> {
+            FloatingMode.FULLSCREEN, FloatingMode.SCREEN_OCR -> {
                 params.width = WindowManager.LayoutParams.MATCH_PARENT
                 params.height = WindowManager.LayoutParams.MATCH_PARENT
                 params.flags = 0 // Focusable
@@ -682,6 +682,9 @@ class FloatingWindowManager(
             FloatingMode.FULLSCREEN -> {
                 // Leaving fullscreen, no special state to save
             }
+            FloatingMode.SCREEN_OCR -> {
+                // Leaving screen ocr, no special state to save
+            }
             FloatingMode.RESULT_DISPLAY -> {
                 // Leaving result display, no special state to save
             }
@@ -784,7 +787,7 @@ class FloatingWindowManager(
                 
                 TargetParams(width, height, finalX, finalY, flags)
                 }
-                FloatingMode.FULLSCREEN -> {
+                FloatingMode.FULLSCREEN, FloatingMode.SCREEN_OCR -> {
                 val flags = 0 // Remove all flags, making it focusable
                 TargetParams(screenWidth, screenHeight, 0, 0, flags)
             }
@@ -992,7 +995,7 @@ class FloatingWindowManager(
                     {
                         updateViewLayout { params ->
                             // 在非全屏模式下，恢复FLAG_NOT_FOCUSABLE，以便与窗口下的内容交互
-                            if (state.currentMode.value != FloatingMode.FULLSCREEN) {
+                            if (state.currentMode.value != FloatingMode.FULLSCREEN && state.currentMode.value != FloatingMode.SCREEN_OCR) {
                                 params.flags =
                                         params.flags or
                                                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE

@@ -16,6 +16,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.foundation.layout.*
@@ -55,8 +58,11 @@ import java.util.concurrent.ConcurrentHashMap
 import android.graphics.Typeface
 import android.widget.TextView
 import ru.noties.jlatexmath.JLatexMathDrawable
+import kotlin.math.floor
 
 private const val TAG = "CanvasMarkdownRenderer"
+private const val MAX_CANVAS_HEIGHT_PX = 250_000f
+private const val TYPEWRITER_WINDOW_MS = 200
 
 /**
  * 通用性能优化 Modifier：仅在组件进入屏幕可见区域时才进行绘制。
@@ -249,8 +255,6 @@ private data class LayoutResult(
     val instructions: List<DrawInstruction>
 )
 
-private const val MAX_CANVAS_HEIGHT_PX = 250_000f
-
 /**
  * 从绘制指令中提取文本内容用于无障碍朗读
  */
@@ -293,6 +297,7 @@ private fun extractAccessibleText(instructions: List<DrawInstruction>): String {
  */
 @Composable
 fun CanvasMarkdownNodeRenderer(
+    nodeKey: String,
     node: MarkdownNodeStable,
     textColor: Color,
     modifier: Modifier = Modifier,
@@ -335,6 +340,7 @@ fun CanvasMarkdownNodeRenderer(
     // 让内部的 remember 和组件自己根据 content 的变化来决定是否重组
     // 这样 xmlRenderer 和 onLinkClick 的引用变化不会导致重组
     renderNodeContent(
+        nodeKey = nodeKey,
         node = node,
         content = content,
         textColor = textColor,
@@ -362,6 +368,7 @@ private data class FontSizes(
 
 @Composable
 private fun renderNodeContent(
+    nodeKey: String,
     node: MarkdownNodeStable,
     content: String,
     textColor: Color,
@@ -384,6 +391,7 @@ private fun renderNodeContent(
         MarkdownProcessorType.ORDERED_LIST,
         MarkdownProcessorType.UNORDERED_LIST -> {
             UnifiedCanvasRenderer(
+                nodeKey = nodeKey,
                 node = stableNode,
                 textColor = textColor,
                 bodyMediumSize = fontSizes.bodyMedium,
@@ -596,6 +604,7 @@ private fun renderNodeContent(
  */
 @Composable
 private fun UnifiedCanvasRenderer(
+    nodeKey: String,
     node: MarkdownNodeStable,
     textColor: Color,
     bodyMediumSize: TextUnit,
@@ -627,13 +636,17 @@ private fun UnifiedCanvasRenderer(
 
     BoxWithConstraints(modifier = modifier) {
         val availableWidthPx = with(density) { maxWidth.toPx() }.toInt()
-        
-        // 使用 node.content.length 作为 key 来感知内容变化
-        // 这样在流式渲染时，内容追加会触发重新计算
-        val contentLength = node.content.length
-        
-        // 计算布局和绘制指令
-        val layoutResult = remember(contentLength, textColor, availableWidthPx, node.type, normalTypeface, boldTypeface, isLastNode) {
+
+        val enableTypewriter = !nodeKey.startsWith("static-node-") && isLastNode && (node.content.isNotEmpty() || node.children.isNotEmpty()) &&
+                (node.type == MarkdownProcessorType.PLAIN_TEXT ||
+                        node.type == MarkdownProcessorType.HEADER ||
+                        node.type == MarkdownProcessorType.ORDERED_LIST ||
+                        node.type == MarkdownProcessorType.UNORDERED_LIST)
+
+        val contentKey = node.content.length
+
+        // 计算布局和绘制指令（用于稳定高度/宽度）
+        val layoutResult = remember(contentKey, textColor, availableWidthPx, node.type, normalTypeface, boldTypeface, isLastNode, node.children) {
             calculateLayout(
                 node = node,
                 textColor = textColor,
@@ -651,6 +664,66 @@ private fun UnifiedCanvasRenderer(
                 availableWidthPx = availableWidthPx,
                 isLastNode = isLastNode
             )
+        }
+
+        val revealInstruction = layoutResult.instructions.filterIsInstance<DrawInstruction.TextLayout>().firstOrNull()
+        val targetLength = revealInstruction?.layout?.text?.length ?: 0
+        val revealAnim = remember(nodeKey) { Animatable(0f) }
+        val lastLoggedTargetLength = remember(nodeKey) { mutableStateOf(-1) }
+        LaunchedEffect(enableTypewriter) {
+            if (!enableTypewriter) {
+                revealAnim.snapTo(targetLength.toFloat())
+            }
+        }
+        LaunchedEffect(targetLength, enableTypewriter) {
+            val prevTarget = lastLoggedTargetLength.value
+            if (prevTarget != -1 && targetLength < prevTarget) {
+                AppLogger.w(
+                    TAG,
+                    "[md-typewriter] nodeKey=$nodeKey targetLength decreased $prevTarget -> $targetLength enableTypewriter=$enableTypewriter type=${node.type.name} children=${node.children.size}"
+                )
+            }
+            lastLoggedTargetLength.value = targetLength
+
+            if (!enableTypewriter) {
+                return@LaunchedEffect
+            }
+            if (targetLength <= 0) {
+                AppLogger.w(
+                    TAG,
+                    "[md-typewriter] nodeKey=$nodeKey targetLength<=0 enableTypewriter=true type=${node.type.name} children=${node.children.size}"
+                )
+                return@LaunchedEffect
+            }
+            val current = revealAnim.value
+            if (targetLength.toFloat() < current) {
+                AppLogger.w(
+                    TAG,
+                    "[md-typewriter] nodeKey=$nodeKey snap backward current=${current.toInt()} targetLength=$targetLength type=${node.type.name}"
+                )
+                revealAnim.snapTo(targetLength.toFloat())
+            } else {
+                val deltaChars = (targetLength - floor(current).toInt()).coerceAtLeast(0)
+                if (deltaChars <= 0) {
+                    return@LaunchedEffect
+                }
+                val durationMs = TYPEWRITER_WINDOW_MS
+                revealAnim.animateTo(
+                    targetValue = targetLength.toFloat(),
+                    animationSpec = tween(
+                        durationMillis = durationMs,
+                        easing = LinearEasing
+                    )
+                )
+            }
+        }
+
+        val revealValue = if (enableTypewriter) revealAnim.value else targetLength.toFloat()
+        val baseLen = floor(revealValue).toInt().coerceIn(0, targetLength)
+        val partial = if (enableTypewriter) {
+            (revealValue - baseLen.toFloat()).coerceIn(0f, 1f)
+        } else {
+            1f
         }
         
         // 提取文本内容用于无障碍朗读
@@ -736,7 +809,7 @@ private fun UnifiedCanvasRenderer(
                 // 获取可见区域（屏幕内区域）
                 val clipBounds = android.graphics.Rect()
                 canvas.nativeCanvas.getClipBounds(clipBounds)
-                
+
                 // 只绘制在可见区域内的指令
                 layoutResult.instructions.forEach { instruction ->
                     when (instruction) {
@@ -744,7 +817,7 @@ private fun UnifiedCanvasRenderer(
                             // 判断文本是否在可见区域内
                             val textTop = instruction.y - instruction.paint.textSize
                             val textBottom = instruction.y + instruction.paint.descent()
-                            
+
                             if (textBottom >= clipBounds.top && textTop <= clipBounds.bottom) {
                                 canvas.nativeCanvas.drawText(
                                     instruction.text,
@@ -758,7 +831,7 @@ private fun UnifiedCanvasRenderer(
                             // 判断线条是否在可见区域内
                             val lineTop = minOf(instruction.startY, instruction.endY)
                             val lineBottom = maxOf(instruction.startY, instruction.endY)
-                            
+
                             if (lineBottom >= clipBounds.top && lineTop <= clipBounds.bottom) {
                                 canvas.nativeCanvas.drawLine(
                                     instruction.startX,
@@ -773,11 +846,76 @@ private fun UnifiedCanvasRenderer(
                             // 使用 StaticLayout 绘制（自动换行）
                             val layoutTop = instruction.y
                             val layoutBottom = instruction.y + instruction.layout.height
-                            
+
                             if (layoutBottom >= clipBounds.top && layoutTop <= clipBounds.bottom) {
                                 canvas.nativeCanvas.save()
                                 canvas.nativeCanvas.translate(instruction.x, instruction.y)
-                                instruction.layout.draw(canvas.nativeCanvas)
+
+                                if (enableTypewriter && revealInstruction === instruction && targetLength > 0 && baseLen < targetLength) {
+                                    val layout = instruction.layout
+
+                                    val offsetForLine = baseLen.coerceIn(0, (targetLength - 1).coerceAtLeast(0))
+                                    val line = layout.getLineForOffset(offsetForLine)
+                                    val lineTopPx = layout.getLineTop(line).toFloat()
+                                    val lineBottomPx = layout.getLineBottom(line).toFloat()
+
+                                    val safeBaseLen = baseLen.coerceIn(0, targetLength)
+                                    val safeNextLen = (baseLen + 1).coerceAtMost(targetLength)
+                                    val x0 = layout.getPrimaryHorizontal(safeBaseLen)
+                                    
+                                    // 检查下一个字符是否换行
+                                    val lineOfNext = if (safeNextLen < layout.text.length) layout.getLineForOffset(safeNextLen) else line
+                                    val x1 = if (lineOfNext != line) {
+                                        // 如果换行了，说明当前字符是该行的最后一个字符（可能是\n，或者是被wrap的字符）
+                                        // 这种情况下 getPrimaryHorizontal(safeNextLen) 会返回下一行的坐标（通常是0），导致计算出的 charWidth 巨大且不仅确
+                                        // 我们需要手动测量这个字符的宽度，并加在 x0 上 (假设 LTR)
+                                        // 注意：如果是 RTL，逻辑需要反过来，这里简单处理常规情况，更严谨可以使用 layout.getParagraphDirection
+                                        val charWidthMeasured = layout.paint.measureText(layout.text, safeBaseLen, safeNextLen)
+                                        if (layout.getParagraphDirection(line) == android.text.Layout.DIR_RIGHT_TO_LEFT) {
+                                            x0 - charWidthMeasured
+                                        } else {
+                                            x0 + charWidthMeasured
+                                        }
+                                    } else {
+                                        layout.getPrimaryHorizontal(safeNextLen)
+                                    }
+
+                                    val charMinX = minOf(x0, x1)
+                                    val charMaxX = maxOf(x0, x1)
+                                    val charWidth = (charMaxX - charMinX).coerceAtLeast(0f)
+                                    // 修正闪烁问题：
+                                    // 之前对 charWidth <= 0.01f 的处理（直接显示整行）会导致在换行处如果有零宽字符（如某些空格或换行符处理），
+                                    // 会瞬间显示出该行后续的文字，产生闪烁。
+                                    // 现在统一使用分段绘制逻辑，并仅在字符宽度有效时才绘制淡入部分。
+
+                                    val visibleRight = (charMinX + charWidth * partial).coerceIn(charMinX, charMaxX)
+
+                                    // 1. 绘制当前行之前的所有行
+                                    canvas.nativeCanvas.save()
+                                    canvas.nativeCanvas.clipRect(0f, 0f, layout.width.toFloat(), lineTopPx)
+                                    layout.draw(canvas.nativeCanvas)
+                                    canvas.nativeCanvas.restore()
+
+                                    // 2. 绘制当前行，直到当前正在显示的字符之前
+                                    canvas.nativeCanvas.save()
+                                    canvas.nativeCanvas.clipRect(0f, lineTopPx, charMinX, lineBottomPx)
+                                    layout.draw(canvas.nativeCanvas)
+                                    canvas.nativeCanvas.restore()
+
+                                    // 3. 绘制当前正在显示的字符（带淡入效果）
+                                    if (charWidth > 0.01f) {
+                                        val alphaInt = (partial * 255f).toInt().coerceIn(0, 255)
+                                        canvas.nativeCanvas.save()
+                                        canvas.nativeCanvas.clipRect(charMinX, lineTopPx, visibleRight, lineBottomPx)
+                                        // 注意：saveLayerAlpha 在某些情况下可能会对其包含的内容做混合，如果不需要可以简化
+                                        canvas.nativeCanvas.saveLayerAlpha(charMinX, lineTopPx, visibleRight, lineBottomPx, alphaInt)
+                                        layout.draw(canvas.nativeCanvas)
+                                        canvas.nativeCanvas.restore()
+                                        canvas.nativeCanvas.restore()
+                                    }
+                                } else {
+                                    instruction.layout.draw(canvas.nativeCanvas)
+                                }
                                 canvas.nativeCanvas.restore()
                             }
                         }
@@ -828,7 +966,9 @@ private fun calculateLayout(
     boldTypeface: Typeface,
     density: Density,
     availableWidthPx: Int,
-    isLastNode: Boolean = false
+    isLastNode: Boolean = false,
+    disableLayoutCache: Boolean = false,
+    typewriterTailAlpha: Float = 1f
 ): LayoutResult {
     if (availableWidthPx <= 0) return LayoutResult(0f, 0f, emptyList())
 
@@ -951,7 +1091,6 @@ private fun calculateLayout(
             } else {
                 LayoutCache.getLayout(itemText, textPaint, contentWidth, textColor, normalTypeface)
             }
-
             instructions.add(DrawInstruction.TextLayout(layout, contentX, currentY, layout.text))
             currentY += layout.height
             maxWidth = maxOf(maxWidth, calculateActualWidth(layout, contentX, safeAvailableWidthPx))
@@ -1036,7 +1175,26 @@ private fun calculateLayout(
                 )
                 createStaticLayout(spannable, textPaint, safeAvailableWidthPx)
             } else {
-                LayoutCache.getLayout(content.trimAll(), textPaint, safeAvailableWidthPx, textColor, normalTypeface)
+                if (disableLayoutCache) {
+                    val trimmed = content.trimAll()
+                    val tail = typewriterTailAlpha.coerceIn(0f, 1f)
+                    if (tail < 0.999f && trimmed.isNotEmpty()) {
+                        val spannable = SpannableStringBuilder(trimmed)
+                        val lastIndex = spannable.length - 1
+                        val fadedColor = textColor.copy(alpha = textColor.alpha * tail)
+                        spannable.setSpan(
+                            ForegroundColorSpan(fadedColor.toArgb()),
+                            lastIndex,
+                            lastIndex + 1,
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                        createStaticLayout(spannable, textPaint, safeAvailableWidthPx)
+                    } else {
+                        createStaticLayout(trimmed, textPaint, safeAvailableWidthPx)
+                    }
+                } else {
+                    LayoutCache.getLayout(content.trimAll(), textPaint, safeAvailableWidthPx, textColor, normalTypeface)
+                }
             }
 
             instructions.add(DrawInstruction.TextLayout(layout, 0f, currentY, layout.text))

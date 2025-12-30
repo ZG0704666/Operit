@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.ScreenshotMonitor
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,6 +54,7 @@ fun FloatingAttachmentPanel(
     onAttachScreenContent: () -> Unit,
     onAttachNotifications: () -> Unit,
     onAttachLocation: () -> Unit,
+    onAttachScreenOcr: () -> Unit,
     onDismiss: () -> Unit
 ) {
     // 定义附件选项列表，便于使用LazyRow
@@ -71,6 +73,11 @@ fun FloatingAttachmentPanel(
             icon = Icons.Default.LocationOn,
             label = stringResource(R.string.current_location),
             onClick = onAttachLocation
+        ),
+        AttachmentOptionData(
+            icon = Icons.Default.Crop,
+            label = stringResource(R.string.screen_ocr_select),
+            onClick = onAttachScreenOcr
         )
     )
 

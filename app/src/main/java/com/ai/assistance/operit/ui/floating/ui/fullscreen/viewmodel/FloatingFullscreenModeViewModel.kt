@@ -33,6 +33,7 @@ class FloatingFullscreenModeViewModel(
 
     var attachScreenContent by mutableStateOf(false)
     var attachNotifications by mutableStateOf(false)
+    var hasOcrSelection by mutableStateOf(false)
     
     val isInitialLoad = mutableStateOf(true)
 
@@ -250,25 +251,32 @@ class FloatingFullscreenModeViewModel(
     
     fun sendInputMessage() {
         val text = inputText.trim()
-        if (text.isEmpty() && !attachScreenContent && !attachNotifications) return
+        if (text.isEmpty() && !attachScreenContent && !attachNotifications && !hasOcrSelection) return
+
+        // 立即清理UI状态，不等待协程
+        val shouldCaptureScreen = attachScreenContent
+        val shouldCaptureNotifications = attachNotifications
+        
+        inputText = ""
+        attachScreenContent = false
+        attachNotifications = false
+        hasOcrSelection = false
+        aiMessage = "思考中..."
 
         coroutineScope.launch {
             try {
                 val attachmentDelegate = floatContext.chatService?.getChatCore()?.getAttachmentDelegate()
-                if (attachScreenContent) {
+                if (shouldCaptureScreen) {
                     attachmentDelegate?.captureScreenContent()
                 }
-                if (attachNotifications) {
+                if (shouldCaptureNotifications) {
                     attachmentDelegate?.captureNotifications()
                 }
+                // hasOcrSelection 的附件已经在 FloatingScreenOcrScreen 中添加了
             } catch (_: Exception) {
             }
 
             floatContext.onSendMessage?.invoke(text, PromptFunctionType.VOICE)
-            inputText = ""
-            attachScreenContent = false
-            attachNotifications = false
-            aiMessage = "思考中..."
         }
     }
 }

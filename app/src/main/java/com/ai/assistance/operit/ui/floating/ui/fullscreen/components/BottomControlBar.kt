@@ -26,14 +26,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -100,6 +100,8 @@ fun BottomControlBar(
     onAttachScreenContentChange: (Boolean) -> Unit,
     attachNotifications: Boolean,
     onAttachNotificationsChange: (Boolean) -> Unit,
+    hasOcrSelection: Boolean,
+    onHasOcrSelectionChange: (Boolean) -> Unit,
     onSendClick: () -> Unit,
     volumeLevel: Float,
     modifier: Modifier = Modifier
@@ -149,8 +151,8 @@ fun BottomControlBar(
                 else -> Color.White
             }
 
-            val canSend = userMessage.isNotBlank() || attachScreenContent || attachNotifications
-            val glowPadding = 8.dp
+            val canSend = userMessage.isNotBlank() || attachScreenContent || attachNotifications || hasOcrSelection
+            val glowPadding = 10.dp
             val glowPaddingPx = with(density) { glowPadding.toPx() }
             val glowBaseColors = listOf(
                 Color(0xFF42A5F5),
@@ -170,53 +172,47 @@ fun BottomControlBar(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val chipColors = FilterChipDefaults.filterChipColors(
-                        containerColor = Color.White.copy(alpha = 0.86f),
-                        labelColor = Color.Black,
-                        selectedContainerColor = Color.White,
-                        selectedLabelColor = Color.Black,
-                        iconColor = Color.Black,
-                        selectedLeadingIconColor = Color.Black
-                    )
+                    val isScreenOcrMode = floatContext.currentMode == FloatingMode.SCREEN_OCR
+                    val isScreenOcrSelected = isScreenOcrMode || hasOcrSelection
 
-                    FilterChip(
+                    // 屏幕内容
+                    GlassyChip(
                         selected = attachScreenContent,
-                        onClick = { onAttachScreenContentChange(!attachScreenContent) },
-                        label = { Text(text = "屏幕内容", style = MaterialTheme.typography.labelSmall) },
-                        leadingIcon =
-                            if (attachScreenContent) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                        colors = chipColors
+                        text = "屏幕内容",
+                        icon = Icons.Default.Check,
+                        showIcon = attachScreenContent,
+                        onClick = { onAttachScreenContentChange(!attachScreenContent) }
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    FilterChip(
+                    // 通知
+                    GlassyChip(
                         selected = attachNotifications,
-                        onClick = { onAttachNotificationsChange(!attachNotifications) },
-                        label = { Text(text = "通知", style = MaterialTheme.typography.labelSmall) },
-                        leadingIcon =
-                            if (attachNotifications) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
+                        text = "通知",
+                        icon = Icons.Default.Check,
+                        showIcon = attachNotifications,
+                        onClick = { onAttachNotificationsChange(!attachNotifications) }
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // 圈选识别
+                    GlassyChip(
+                        selected = isScreenOcrSelected,
+                        text = if (hasOcrSelection) "已圈选" else "圈选识别",
+                        icon = if (isScreenOcrSelected) Icons.Default.Check else Icons.Default.Crop,
+                        showIcon = true,
+                        onClick = {
+                            if (hasOcrSelection) {
+                                // 已有圈选内容，点击清除
+                                onHasOcrSelectionChange(false)
+                            } else if (isScreenOcrMode) {
+                                floatContext.onModeChange(floatContext.previousMode)
                             } else {
-                                null
-                            },
-                        colors = chipColors
+                                floatContext.onModeChange(FloatingMode.SCREEN_OCR)
+                            }
+                        }
                     )
                 }
 
@@ -233,14 +229,27 @@ fun BottomControlBar(
 
                             val baseRadius = innerRect.height / 2f
                             val maxGlow = glowPaddingPx
-                            val layers = 6
-                            val alphaMax = 0.30f
-                            val alphaMin = 0.05f
+                            val layers = 12
+                            
+                            // Draw from largest (outer) to smallest (inner)
+                            for (i in 0 until layers) {
+                                val progress = i / (layers - 1f) // 0.0 -> 1.0
+                                // progress 0 = Outer (Faint), progress 1 = Inner (Bright)
+                                
+                                val spread = maxGlow * (1f - progress)
+                                val radius = baseRadius + spread
+                                
+                                // Steeper curve (pow 4) means the outer layers drop off much faster
+                                val boost = progress * progress * progress * progress
+                                // Base alpha extremely low for outer layers
+                                val alpha = 0.005f + 0.7f * boost
 
-                            for (layer in 0 until layers) {
-                                val fraction = if (layers == 1) 1f else layer / (layers - 1f)
-                                val spread = maxGlow * fraction
-                                val alpha = alphaMax + (alphaMin - alphaMax) * fraction
+                                // Whiteness only at the very core
+                                val whiteFactor = progress * progress * progress * 0.9f 
+
+                                val layerColors = glowBaseColors.map { color ->
+                                    androidx.compose.ui.graphics.lerp(color, Color.White, whiteFactor).copy(alpha = alpha)
+                                }
 
                                 val rect = Rect(
                                     left = innerRect.left - spread,
@@ -248,12 +257,9 @@ fun BottomControlBar(
                                     right = innerRect.right + spread,
                                     bottom = innerRect.bottom + spread
                                 )
-                                val radius = baseRadius + spread
 
                                 drawRoundRect(
-                                    brush = Brush.horizontalGradient(
-                                        colors = glowBaseColors.map { it.copy(alpha = alpha) }
-                                    ),
+                                    brush = Brush.horizontalGradient(colors = layerColors),
                                     topLeft = Offset(rect.left, rect.top),
                                     size = Size(rect.width, rect.height),
                                     cornerRadius = CornerRadius(radius, radius)

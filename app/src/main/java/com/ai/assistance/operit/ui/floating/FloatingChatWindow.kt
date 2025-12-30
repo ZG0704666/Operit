@@ -24,6 +24,7 @@ import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingResultDisplay
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingVoiceBallMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
+import com.ai.assistance.operit.ui.floating.ui.screenocr.FloatingScreenOcrMode
 import com.ai.assistance.operit.ui.floating.ui.window.screen.FloatingChatWindowMode
 
 /**
@@ -149,8 +150,8 @@ fun FloatingChatWindow(
 
             // 判断是否是窗口和全屏之间的切换
             val isWindowFullscreenTransition =
-                (initialMode == FloatingMode.WINDOW && targetMode == FloatingMode.FULLSCREEN) ||
-                (initialMode == FloatingMode.FULLSCREEN && targetMode == FloatingMode.WINDOW)
+                (initialMode == FloatingMode.WINDOW && (targetMode == FloatingMode.FULLSCREEN || targetMode == FloatingMode.SCREEN_OCR)) ||
+                ((initialMode == FloatingMode.FULLSCREEN || initialMode == FloatingMode.SCREEN_OCR) && targetMode == FloatingMode.WINDOW)
 
             if (isWindowFullscreenTransition) {
                 // 窗口 ↔ 全屏：使用简洁的缩放 + 淡入淡出动画
@@ -196,6 +197,7 @@ fun FloatingChatWindow(
             FloatingMode.VOICE_BALL -> FloatingVoiceBallMode(floatContext = floatContext)
             FloatingMode.FULLSCREEN -> FloatingFullscreenMode(floatContext = floatContext)
             FloatingMode.RESULT_DISPLAY -> FloatingResultDisplay(floatContext = floatContext)
+            FloatingMode.SCREEN_OCR -> FloatingScreenOcrMode(floatContext = floatContext)
         }
     }
 }

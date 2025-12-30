@@ -49,6 +49,7 @@
     <string name="screen_content">屏幕内容</string>
     <string name="current_notifications">当前通知</string>
     <string name="current_location">当前位置</string>
+    <string name="screen_ocr_select">圈选识别</string>
     
     <!-- 模型建议对话框 -->
     <string name="model_suggestion_title">模型建议</string>
