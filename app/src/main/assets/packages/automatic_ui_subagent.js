@@ -113,6 +113,7 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
    - Do not increase parallelism in later rounds; keep the same upper bound and only retry failed branches, or switch to serial.
  - Failure vs done (important): partial success is not done; keep correcting and progressing. Only stop after 2-3 consecutive failures with a clear reason and alternatives.
 '''
+                    }
                     parameters: []
                 }
 
@@ -123,12 +124,8 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
  运行内置UI子代理（使用独立UI控制器模型）根据高层意图自动规划并执行一系列UI操作，例如自动点击、滑动、输入等一系列界面操作。
 
  推荐：用于“单个明确子目标”或“清单阶段/单对象阶段”。多平台并行搜索、多入口确认等独立子任务优先用 run_subagent_parallel.
- ''',
-                        en: '''
- Run the built-in UI sub-agent (using an independent UI-controller model) to plan and execute UI actions such as tap, swipe, and text input from a high-level intent.
-
- Recommended for a single clear sub-goal, or the "list phase / single-item phase". For independent subtasks across multiple apps, prefer run_subagent_parallel.
  '''
+                    }
                     parameters: [
                         {
                             name: "intent"
@@ -180,15 +177,8 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
  如果并行任务中仅有部分子代理失败，则只对失败的子代理继续发起后续调用（补充纠错信息、提高约束），不要让已成功的子代理重复执行。
  每个 intent_i 必须自包含；建议不同 agent_id；只重试失败的 intent_i。
  典型场景：多平台并行搜索；同一对象多入口确认/交叉校验；把“同一对象A”的分工并行做完后再进入B.
- ''',
-                        en: '''
-Run 1-4 UI sub-agents in parallel.
-
-Notes: in parallel mode, each sub-agent is a fresh conversation, so intent_1..4 must include its own context (Completed so far / Next objective / Useful info).
-It is recommended to use different agent_id for each branch (or leave empty to auto-create) to avoid conflicts on the same virtual display.
-If only some branches fail, only retry the failed branches (add correction info and stronger constraints). Do not rerun successful branches.
-Each intent_i must be self-contained. Typical scenarios: multi-platform search in parallel; multi-entry verification for the same object; parallel work on object A before moving to object B.
-'''
+ '''
+                    }
                     parameters: [
                         {
                             name: "intent_1"
@@ -373,6 +363,7 @@ Each intent_i must be self-contained. Typical scenarios: multi-platform search i
  - No session reuse (important): main-screen mode does not support agent_id; session reuse strategies do not apply.
  - Failure vs done (important): partial success is not done; keep progressing. Only stop after 2-3 consecutive failures with a clear reason and alternatives.
 '''
+                    }
                     parameters: []
                 }
 
@@ -389,6 +380,7 @@ Each intent_i must be self-contained. Typical scenarios: multi-platform search i
 
  Note: main-screen mode does not support agent_id session reuse and does not support parallel tools.
  '''
+                    }
                     parameters: [
                         {
                             name: "intent"

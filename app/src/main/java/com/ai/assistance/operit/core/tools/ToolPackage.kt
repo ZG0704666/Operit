@@ -17,11 +17,14 @@ package com.ai.assistance.operit.core.tools
  import kotlinx.serialization.descriptors.element
  import kotlinx.serialization.encoding.Decoder
  import kotlinx.serialization.encoding.Encoder
+ import kotlinx.serialization.json.Json
  import kotlinx.serialization.json.JsonDecoder
  import kotlinx.serialization.json.JsonElement
  import kotlinx.serialization.json.JsonObject
  import kotlinx.serialization.json.JsonPrimitive
+ import kotlinx.serialization.json.buildJsonObject
  import kotlinx.serialization.json.jsonPrimitive
+ import kotlinx.serialization.json.put
  import kotlinx.coroutines.runBlocking
  import kotlinx.coroutines.flow.last
  import java.util.Locale
@@ -127,6 +130,107 @@ package com.ai.assistance.operit.core.tools
      }
  }
  
+ /**
+  * Represents an environment variable declaration for a package
+  */
+ @Serializable(with = EnvVarSerializer::class)
+ data class EnvVar(
+     val name: String,
+     val description: LocalizedText,
+     val required: Boolean = true,
+     val defaultValue: String? = null
+ )
+ 
+ /**
+  * Custom serializer for EnvVar that handles both old format (string) and new format (object)
+  * Old format: "GITHUB_TOKEN"
+  * New format: { "name": "GITHUB_TOKEN", "description": "...", "required": true, "defaultValue": "..." }
+  */
+ object EnvVarSerializer : KSerializer<EnvVar> {
+     private val delegateSerializer = JsonObject.serializer()
+     
+     override val descriptor: SerialDescriptor = delegateSerializer.descriptor
+     
+     override fun deserialize(decoder: Decoder): EnvVar {
+         val jsonDecoder = decoder as? JsonDecoder
+             ?: throw IllegalArgumentException("EnvVarSerializer can only be used with JSON")
+         
+         val element = jsonDecoder.decodeJsonElement()
+         
+         // Handle old format: simple string
+         if (element is JsonPrimitive) {
+             return EnvVar(
+                 name = element.content,
+                 description = LocalizedText.of(""),
+                 required = true,
+                 defaultValue = null
+             )
+         }
+         
+         // Handle new format: object
+         if (element is JsonObject) {
+             val name = element["name"]?.jsonPrimitive?.content
+                 ?: throw IllegalArgumentException("EnvVar must have a 'name' field")
+             
+             val descriptionElement = element["description"]
+             val description = if (descriptionElement != null) {
+                 val json = Json { ignoreUnknownKeys = true }
+                 json.decodeFromString(LocalizedTextSerializer, descriptionElement.toString())
+             } else {
+                 LocalizedText.of("")
+             }
+             
+             val requiredElement = element["required"]
+             val required = if (requiredElement != null) {
+                 when (requiredElement) {
+                     is JsonPrimitive -> {
+                         if (requiredElement.isString) {
+                             // Handle string boolean values
+                             requiredElement.content.toBooleanStrictOrNull() ?: true
+                         } else {
+                             // Handle boolean values directly
+                             try {
+                                 requiredElement.content.toBooleanStrictOrNull() ?: true
+                             } catch (e: Exception) {
+                                 true
+                             }
+                         }
+                     }
+                     else -> true
+                 }
+             } else {
+                 true
+             }
+             
+             val defaultValue = element["defaultValue"]?.jsonPrimitive?.content
+             
+             return EnvVar(
+                 name = name,
+                 description = description,
+                 required = required,
+                 defaultValue = defaultValue
+             )
+         }
+         
+         throw IllegalArgumentException("EnvVar must be a string or an object")
+     }
+     
+     override fun serialize(encoder: Encoder, value: EnvVar) {
+         // Always serialize in new format
+         val jsonObject = buildJsonObject {
+             put("name", value.name)
+             put("description", Json.encodeToString(LocalizedTextSerializer, value.description).let {
+                 Json.parseToJsonElement(it)
+             })
+             put("required", value.required)
+             if (value.defaultValue != null) {
+                 put("defaultValue", value.defaultValue)
+             }
+         }
+         encoder.encodeSerializableValue(JsonObject.serializer(), jsonObject)
+     }
+ }
+ 
  @Serializable
  data class ToolPackage(
      val name: String,
@@ -134,11 +238,27 @@ package com.ai.assistance.operit.core.tools
      val tools: List<PackageTool>,
      val states: List<ToolPackageState> = emptyList(),
      /**
-      * Optional list of required environment variable names for this package.
-      * If non-empty, PackageManager will validate that these variables exist
-      * before activating the package.
+      * Optional list of environment variable declarations for this package.
+      * Each environment variable can be marked as required or optional.
+      * If required variables are missing, PackageManager will validate that
+      * these variables exist before activating the package.
+      *
+      * Example format:
+      * env: [
+      *   {
+      *     name: "GITHUB_API_BASE_URL",
+      *     description: "GitHub API base URL",
+      *     required: true
+      *   },
+      *   {
+      *     name: "MAX_RETRIES",
+      *     description: "Maximum number of retry attempts",
+      *     required: false,
+      *     defaultValue: "3"
+      *   }
+      * ]
       */
-     val env: List<String> = emptyList(),
+     val env: List<EnvVar> = emptyList(),
      val isBuiltIn: Boolean = false,
      val enabledByDefault: Boolean = false
  )

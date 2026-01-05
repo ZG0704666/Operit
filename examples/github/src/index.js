@@ -3,7 +3,19 @@
 {
   "name": "github",
   "description": { "zh": "基于 GitHub REST API 的工具集合（不依赖 GitHub MCP）。包含 GitHub 侧（仓库/Issues/PR/文件提交/分支/差异提交）与本地侧（apply_file 差异更新、terminal 终端）能力。", "en": "A toolkit built on the GitHub REST API (does not depend on GitHub MCP). Includes GitHub-side operations (repos/issues/PRs/commits/branches/diffs) and local-side utilities (apply_file patch updates, terminal)." },
-  "env": ["GITHUB_TOKEN", "GITHUB_API_BASE_URL"],
+  "env": [
+    {
+      "name": "GITHUB_TOKEN",
+      "description": { "zh": "GitHub API 认证令牌", "en": "GitHub API authentication token" },
+      "required": true
+    },
+    {
+      "name": "GITHUB_API_BASE_URL",
+      "description": { "zh": "GitHub API 基础 URL", "en": "GitHub API base URL" },
+      "required": false,
+      "defaultValue": "https://api.github.com"
+    }
+  ],
   "enabledByDefault": false,
   "tools": [
     {
@@ -220,6 +232,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 /// <reference path="../../types/index.d.ts" />
 const tools_1 = require("./tools");
+const repos_1 = require("./github/repos");
+const api_1 = require("./github/api");
 exports.search_repositories = tools_1.toolImpl.search_repositories;
 exports.get_repository = tools_1.toolImpl.get_repository;
 exports.list_issues = tools_1.toolImpl.list_issues;
@@ -239,3 +253,32 @@ exports.apply_local_replace = tools_1.toolImpl.apply_local_replace;
 exports.apply_local_delete = tools_1.toolImpl.apply_local_delete;
 exports.overwrite_local_file = tools_1.toolImpl.overwrite_local_file;
 exports.terminal_exec = tools_1.toolImpl.terminal_exec;
+async function main(params) {
+    try {
+        const owner = String((params === null || params === void 0 ? void 0 : params.owner) || 'octocat');
+        const repo = String((params === null || params === void 0 ? void 0 : params.repo) || 'Hello-World');
+        const query = String((params === null || params === void 0 ? void 0 : params.query) || 'operit');
+        const baseUrl = (0, api_1.getBaseUrl)();
+        const token = (0, api_1.getToken)();
+        const repoInfo = await (0, repos_1.getRepository)({ owner, repo });
+        const searchResult = await (0, repos_1.searchRepositories)({ query, per_page: 5 });
+        complete({
+            success: true,
+            message: 'GitHub tools main test finished.',
+            data: {
+                baseUrl,
+                hasToken: Boolean(token),
+                get_repository: repoInfo,
+                search_repositories: searchResult
+            }
+        });
+    }
+    catch (error) {
+        complete({
+            success: false,
+            message: `GitHub tools main test failed: ${String(error && error.message ? error.message : error)}`,
+            error_stack: String(error && error.stack ? error.stack : '')
+        });
+    }
+}
+exports.main = main;
