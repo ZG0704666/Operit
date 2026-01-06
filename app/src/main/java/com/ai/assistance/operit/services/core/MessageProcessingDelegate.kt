@@ -49,7 +49,7 @@ class MessageProcessingDelegate(
         private val saveCurrentChat: () -> Unit,
         private val showErrorMessage: (String) -> Unit,
         private val updateChatTitle: (chatId: String, title: String) -> Unit,
-        private val onTurnComplete: () -> Unit,
+        private val onTurnComplete: (chatId: String?, service: EnhancedAIService) -> Unit,
         private val onTokenLimitExceeded: suspend () -> Unit, // 新增：Token超限回调
         // 添加自动朗读相关的回调
         private val getIsAutoReadEnabled: () -> Boolean,
@@ -443,6 +443,8 @@ class MessageProcessingDelegate(
                 deferred.await()
 
                 setChatInputProcessingState(chatId, EnhancedInputProcessingState.Completed)
+
+                onTurnComplete(activeChatId, service)
 
                 AppLogger.d(TAG, "AI响应处理完成，总耗时: ${System.currentTimeMillis() - startTime}ms")
             } catch (e: Exception) {

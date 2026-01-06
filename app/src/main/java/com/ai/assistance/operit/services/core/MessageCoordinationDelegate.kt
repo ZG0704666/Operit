@@ -51,7 +51,7 @@ class MessageCoordinationDelegate(
 
     // 保存总结任务的 Job 引用，用于取消
     private var summaryJob: Job? = null
-    
+
     // 保存当前的 promptFunctionType，用于自动继续时保持提示词一致性
     private var currentPromptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
 
@@ -293,7 +293,10 @@ class MessageCoordinationDelegate(
 
                 val currentChatId = chatHistoryDelegate.currentChatId.value
                 if (currentChatId != originalChatId) {
-                    AppLogger.d(TAG, "Async summary skipped: chat switched from $originalChatId to $currentChatId")
+                    AppLogger.d(
+                        TAG,
+                        "Async summary skipped: chat switched from $originalChatId to $currentChatId"
+                    )
                     return@launch
                 }
 
@@ -312,10 +315,17 @@ class MessageCoordinationDelegate(
                     AIMessageManager.getMemoryFromMessages(chatHistoryDelegate.chatHistory.value)
                 val chatService = service.getAIServiceForFunction(FunctionType.CHAT)
                 val newWindowSize = chatService.calculateInputTokens("", newHistoryForTokens)
-                val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts()
+                val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts(
+                    originalChatId
+                )
                 chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, newWindowSize)
                 withContext(Dispatchers.Main) {
-                    tokenStatsDelegate.setTokenCounts(inputTokens, outputTokens, newWindowSize)
+                    tokenStatsDelegate.setTokenCounts(
+                        originalChatId,
+                        inputTokens,
+                        outputTokens,
+                        newWindowSize
+                    )
                 }
                 AppLogger.d(TAG, "Async summary completed, updated window size: $newWindowSize")
             } catch (e: CancellationException) {
@@ -366,7 +376,8 @@ class MessageCoordinationDelegate(
             }
 
             val insertPosition = chatHistoryDelegate.findProperSummaryPosition(currentMessages)
-            val summaryMessage = AIMessageManager.summarizeMemory(service, currentMessages, autoContinue)
+            val summaryMessage =
+                AIMessageManager.summarizeMemory(service, currentMessages, autoContinue)
 
             if (summaryMessage != null) {
                 chatHistoryDelegate.addSummaryMessage(summaryMessage, insertPosition)
@@ -376,10 +387,18 @@ class MessageCoordinationDelegate(
                     AIMessageManager.getMemoryFromMessages(chatHistoryDelegate.chatHistory.value)
                 val chatService = service.getAIServiceForFunction(FunctionType.CHAT)
                 val newWindowSize = chatService.calculateInputTokens("", newHistoryForTokens)
-                val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts()
+                val currentChatIdForStats = chatHistoryDelegate.currentChatId.value
+                val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts(
+                    currentChatIdForStats
+                )
                 chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, newWindowSize)
                 withContext(Dispatchers.Main) {
-                    tokenStatsDelegate.setTokenCounts(inputTokens, outputTokens, newWindowSize)
+                    tokenStatsDelegate.setTokenCounts(
+                        currentChatIdForStats,
+                        inputTokens,
+                        outputTokens,
+                        newWindowSize
+                    )
                 }
                 AppLogger.d(TAG, "总结完成，更新窗口大小为: $newWindowSize")
                 summarySuccess = true

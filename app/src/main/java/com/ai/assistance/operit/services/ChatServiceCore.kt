@@ -95,8 +95,9 @@ class ChatServiceCore(
         chatHistoryDelegate = ChatHistoryDelegate(
             context = context,
             coroutineScope = coroutineScope,
-            onTokenStatisticsLoaded = { inputTokens, outputTokens, windowSize ->
-                tokenStatisticsDelegate.setTokenCounts(inputTokens, outputTokens, windowSize)
+            onTokenStatisticsLoaded = { chatId, inputTokens, outputTokens, windowSize ->
+                tokenStatisticsDelegate.setActiveChatId(chatId)
+                tokenStatisticsDelegate.setTokenCounts(chatId, inputTokens, outputTokens, windowSize)
             },
             getEnhancedAiService = { enhancedAiService },
             ensureAiServiceAvailable = {
@@ -136,13 +137,11 @@ class ChatServiceCore(
             updateChatTitle = { chatId, title ->
                 chatHistoryDelegate.updateChatTitle(chatId, title)
             },
-            onTurnComplete = {
-                // 对话轮次完成后的处理
-                tokenStatisticsDelegate.updateCumulativeStatistics()
-                val (inputTokens, outputTokens) = tokenStatisticsDelegate.getCumulativeTokenCounts()
-                val windowSize = tokenStatisticsDelegate.getLastCurrentWindowSize()
-                chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, windowSize)
-                // 调用额外的回调（用于悬浮窗通知应用等场景）
+            onTurnComplete = { chatId, service ->
+                tokenStatisticsDelegate.updateCumulativeStatistics(chatId, service)
+                val (inputTokens, outputTokens) = tokenStatisticsDelegate.getCumulativeTokenCounts(chatId)
+                val windowSize = tokenStatisticsDelegate.getLastCurrentWindowSize(chatId)
+                chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, windowSize, chatIdOverride = chatId)
                 additionalOnTurnComplete?.invoke()
             },
             getIsAutoReadEnabled = {

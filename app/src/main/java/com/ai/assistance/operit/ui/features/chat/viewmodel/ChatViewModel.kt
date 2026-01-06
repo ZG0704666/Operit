@@ -357,8 +357,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 ChatHistoryDelegate(
                         context = context,
                         coroutineScope = viewModelScope,
-                        onTokenStatisticsLoaded = { inputTokens, outputTokens, windowSize ->
-                            tokenStatsDelegate.setTokenCounts(inputTokens, outputTokens, windowSize)
+                        onTokenStatisticsLoaded = { chatId, inputTokens, outputTokens, windowSize ->
+                            tokenStatsDelegate.setActiveChatId(chatId)
+                            tokenStatsDelegate.setTokenCounts(chatId, inputTokens, outputTokens, windowSize)
                         },
                         getEnhancedAiService = { enhancedAiService },
                         ensureAiServiceAvailable = { ensureAiServiceAvailable() },
@@ -401,13 +402,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         updateChatTitle = { chatId, title ->
                             chatHistoryDelegate.updateChatTitle(chatId, title)
                         },
-                        onTurnComplete = {
+                        onTurnComplete = { chatId, service ->
                             // 轮次完成后，更新累计统计并保存聊天
-                            tokenStatsDelegate.updateCumulativeStatistics()
+                            tokenStatsDelegate.updateCumulativeStatistics(chatId, service)
                             val (inputTokens, outputTokens) =
-                                tokenStatsDelegate.getCumulativeTokenCounts()
-                            val windowSize = tokenStatsDelegate.getLastCurrentWindowSize()
-                            chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, windowSize)
+                                tokenStatsDelegate.getCumulativeTokenCounts(chatId)
+                            val windowSize = tokenStatsDelegate.getLastCurrentWindowSize(chatId)
+                            chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, windowSize, chatIdOverride = chatId)
                             
                             // 如果悬浮窗正在运行，通知其重新加载消息
                             if (isFloatingMode.value) {
@@ -450,6 +451,15 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         chatHistoryFlow = chatHistoryDelegate.chatHistory,
                         chatHistoryDelegate = chatHistoryDelegate
                 )
+
+        viewModelScope.launch {
+            chatHistoryDelegate.currentChatId.collect { chatId ->
+                tokenStatsDelegate.setActiveChatId(chatId)
+                if (chatId != null) {
+                    tokenStatsDelegate.bindChatService(chatId, EnhancedAIService.getChatInstance(context, chatId))
+                }
+            }
+        }
     }
 
     private fun setupPermissionSystemCollection() {

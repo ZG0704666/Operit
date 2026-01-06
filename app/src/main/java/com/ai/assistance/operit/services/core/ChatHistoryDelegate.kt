@@ -25,7 +25,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class ChatHistoryDelegate(
         private val context: Context,
         private val coroutineScope: CoroutineScope,
-        private val onTokenStatisticsLoaded: (inputTokens: Int, outputTokens: Int, windowSize: Int) -> Unit,
+        private val onTokenStatisticsLoaded: (chatId: String, inputTokens: Int, outputTokens: Int, windowSize: Int) -> Unit,
         private val getEnhancedAiService: () -> EnhancedAIService?,
         private val ensureAiServiceAvailable: () -> Unit = {}, // 确保AI服务可用的回调
         private val getChatStatistics: () -> Triple<Int, Int, Int> = { Triple(0, 0, 0) }, // 获取（输入token, 输出token, 窗口大小）
@@ -112,7 +112,7 @@ class ChatHistoryDelegate(
             // 查找聊天元数据，更新token统计
             val selectedChat = _chatHistories.value.find { it.id == chatId }
             if (selectedChat != null) {
-                onTokenStatisticsLoaded(selectedChat.inputTokens, selectedChat.outputTokens, selectedChat.currentWindowSize)
+                onTokenStatisticsLoaded(chatId, selectedChat.inputTokens, selectedChat.outputTokens, selectedChat.currentWindowSize)
 
 
             }
@@ -316,7 +316,7 @@ class ChatHistoryDelegate(
             // _currentChatId.value will be updated by the collector
             // loadChatMessages will also be called by the collector
 
-            onTokenStatisticsLoaded(0, 0, 0)
+            onTokenStatisticsLoaded(newChat.id, 0, 0, 0)
         }
     }
 
@@ -359,6 +359,7 @@ class ChatHistoryDelegate(
                 
                 // 加载分支的 token 统计（继承自父对话）
                 onTokenStatisticsLoaded(
+                    branchChat.id,
                     branchChat.inputTokens,
                     branchChat.outputTokens,
                     branchChat.currentWindowSize
@@ -447,13 +448,15 @@ class ChatHistoryDelegate(
     fun saveCurrentChat(
         inputTokens: Int = 0,
         outputTokens: Int = 0,
-        actualContextWindowSize: Int = 0
+        actualContextWindowSize: Int = 0,
+        chatIdOverride: String? = null
     ) {
         coroutineScope.launch {
-            _currentChatId.value?.let { chatId ->
+            val chatId = chatIdOverride ?: _currentChatId.value
+            chatId?.let {
                 if (_chatHistory.value.isNotEmpty()) {
                     chatHistoryManager.updateChatTokenCounts(
-                        chatId,
+                        it,
                         inputTokens,
                         outputTokens,
                         actualContextWindowSize
@@ -710,7 +713,7 @@ class ChatHistoryDelegate(
             _currentChatId.value = newChat.id
             _chatHistory.value = newChat.messages
 
-            onTokenStatisticsLoaded(0, 0, 0)
+            onTokenStatisticsLoaded(newChat.id, 0, 0, 0)
         }
     }
 
