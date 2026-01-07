@@ -193,6 +193,8 @@ fun MessageEditor(
                             textStyle = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace
                             ),
+                            maxLines = 16,
+                            minLines = 6,
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -233,7 +235,8 @@ fun MessageEditor(
                                                     partsState = updatedParts
                                                 },
                                                 modifier = Modifier
-                                                    .fillMaxWidth(),
+                                                    .fillMaxWidth()
+                                                    .heightIn(min = 56.dp, max = 260.dp),
                                                 label = { Text(context.getString(R.string.text_label), style = MaterialTheme.typography.bodySmall) },
                                                 placeholder = { Text(context.getString(R.string.input_text_content)) },
                                                 shape = RoundedCornerShape(12.dp),
@@ -243,7 +246,9 @@ fun MessageEditor(
                                                     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f),
                                                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f)
                                                 ),
-                                                textStyle = MaterialTheme.typography.bodyMedium
+                                                textStyle = MaterialTheme.typography.bodyMedium,
+                                                maxLines = 12,
+                                                minLines = 1
                                             )
                                             ActionIconButton(
                                                 icon = Icons.Default.Delete,

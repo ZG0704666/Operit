@@ -8,8 +8,11 @@ import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import java.util.regex.Pattern
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -20,6 +23,7 @@ class JsToolManager
 private constructor(private val context: Context, private val packageManager: PackageManager) {
     companion object {
         private const val TAG = "JsToolManager"
+        private const val MAX_CONCURRENT_ENGINES = 4
 
         @Volatile private var INSTANCE: JsToolManager? = null
 
@@ -34,8 +38,24 @@ private constructor(private val context: Context, private val packageManager: Pa
         }
     }
 
-    // JavaScript engine for executing code
-    private val jsEngine = JsEngine(context)
+    private val enginePool = Channel<JsEngine>(capacity = MAX_CONCURRENT_ENGINES)
+    private val allEngines = ConcurrentHashMap.newKeySet<JsEngine>()
+
+    init {
+        repeat(MAX_CONCURRENT_ENGINES) {
+            val engine = JsEngine(context)
+            allEngines.add(engine)
+            enginePool.trySend(engine)
+        }
+    }
+
+    private suspend fun acquireEngine(): JsEngine = enginePool.receive()
+
+    private fun acquireEngineBlocking(): JsEngine = runBlocking { acquireEngine() }
+
+    private fun releaseEngine(engine: JsEngine) {
+        enginePool.trySend(engine)
+    }
 
     // Tool handler for executing tools
     private val toolHandler = AIToolHandler.getInstance(context)
@@ -47,6 +67,7 @@ private constructor(private val context: Context, private val packageManager: Pa
      * @return The result of tool execution
      */
     fun executeScript(toolName: String, params: Map<String, String>): String {
+        val engine = acquireEngineBlocking()
         try {
             // Split the tool name to get package and function names
             val parts = toolName.split(".")
@@ -72,12 +93,14 @@ private constructor(private val context: Context, private val packageManager: Pa
             } else {
                 injectedParams.remove("__operit_package_state")
             }
-            val result = jsEngine.executeScriptFunction(script, functionName, injectedParams)
+            val result = engine.executeScriptFunction(script, functionName, injectedParams)
 
             return result?.toString() ?: "null"
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error executing script: ${e.message}", e)
             return "Error: ${e.message}"
+        } finally {
+            releaseEngine(engine)
         }
     }
 
@@ -88,8 +111,11 @@ private constructor(private val context: Context, private val packageManager: Pa
      * @return The result of script execution
      */
     fun executeScript(script: String, tool: AITool): Flow<ToolResult> = channelFlow {
+        var engine: JsEngine? = null
         try {
             AppLogger.d(TAG, "Executing script for tool: ${tool.name}")
+
+            engine = acquireEngine()
 
             // Extract the function name from the tool name (packageName:toolName)
             val parts = tool.name.split(":")
@@ -147,7 +173,7 @@ private constructor(private val context: Context, private val packageManager: Pa
 
                     val startTime = System.currentTimeMillis()
                     val scriptResult =
-                            jsEngine.executeScriptFunction(
+                            engine!!.executeScriptFunction(
                                     script,
                                     functionName,
                                     injectedParams
@@ -241,11 +267,15 @@ private constructor(private val context: Context, private val packageManager: Pa
                             error = "Script execution error: ${e.message}"
                     )
             )
+        } finally {
+            engine?.let { releaseEngine(it) }
         }
     }
 
     /** Clean up resources when the manager is no longer needed */
     fun destroy() {
-        jsEngine.destroy()
+        enginePool.close()
+        allEngines.forEach { it.destroy() }
+        allEngines.clear()
     }
 }
