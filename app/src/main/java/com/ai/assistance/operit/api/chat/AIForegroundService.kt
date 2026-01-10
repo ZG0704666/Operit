@@ -30,6 +30,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.api.speech.SpeechPrerollStore
 import com.ai.assistance.operit.api.speech.SpeechService
 import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.core.chat.AIMessageManager
@@ -264,6 +265,9 @@ class AIForegroundService : Service() {
 
     @Volatile
     private var currentWakePhrase: String = WakeWordPreferences.DEFAULT_WAKE_PHRASE
+
+    @Volatile
+    private var wakePhraseRegexEnabled: Boolean = WakeWordPreferences.DEFAULT_WAKE_PHRASE_REGEX_ENABLED
 
     @Volatile
     private var wakeListeningEnabled: Boolean = false
@@ -505,6 +509,13 @@ class AIForegroundService : Service() {
                     }
                 }
 
+                launch {
+                    wakePrefs.wakePhraseRegexEnabledFlow.collectLatest { enabled ->
+                        wakePhraseRegexEnabled = enabled
+                        AppLogger.d(TAG, "唤醒词正则开关更新: enabled=$enabled")
+                    }
+                }
+
                 wakePrefs.alwaysListeningEnabledFlow.collectLatest { enabled ->
                     wakeListeningEnabled = enabled
                     AppLogger.d(TAG, "唤醒监听开关更新: enabled=$enabled")
@@ -711,12 +722,14 @@ class AIForegroundService : Service() {
                         AppLogger.e(TAG, "Speech trigger processing failed: ${e.message}", e)
                     }
 
-                    if (matchWakePhrase(text, currentWakePhrase)) {
+                    if (matchWakePhrase(text, currentWakePhrase, wakePhraseRegexEnabled)) {
                         val now = System.currentTimeMillis()
                         if (now - lastWakeTriggerAtMs < 3000L) return@collectLatest
                         lastWakeTriggerAtMs = now
 
                         AppLogger.d(TAG, "命中唤醒词: '$currentWakePhrase' in '$text'")
+                        SpeechPrerollStore.capturePending(windowMs = 1600)
+                        SpeechPrerollStore.armPending()
                         triggerWakeLaunch()
 
                         stopWakeListening()
@@ -788,7 +801,17 @@ class AIForegroundService : Service() {
         }
     }
 
-    private fun matchWakePhrase(recognized: String, phrase: String): Boolean {
+    private fun matchWakePhrase(recognized: String, phrase: String, regexEnabled: Boolean): Boolean {
+        if (regexEnabled) {
+            if (phrase.isBlank()) return false
+            return try {
+                Regex(phrase).containsMatchIn(recognized)
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Invalid wake phrase regex: '$phrase' (${e.message})")
+                false
+            }
+        }
+
         val target = normalizeWakeText(phrase)
         if (target.isBlank()) return false
         val text = normalizeWakeText(recognized)

@@ -6,6 +6,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -275,6 +277,10 @@ class CustomXmlRenderer(
         val isThinkingInProgress = !isXmlFullyClosed(content)
 
         var expanded by remember { mutableStateOf(false) }
+        val scrollState = rememberScrollState()
+        var autoScrollEnabled by remember { mutableStateOf(true) }
+        var userHasInteractedWithScroll by remember { mutableStateOf(false) }
+        var isProgrammaticScroll by remember { mutableStateOf(false) }
 
         val accessibilityDesc = stringResource(R.string.thinking_process_block)
 
@@ -286,6 +292,44 @@ class CustomXmlRenderer(
             } else {
                 // 思考结束后，总是折叠
                 false
+            }
+        }
+
+        LaunchedEffect(expanded) {
+            if (expanded) {
+                autoScrollEnabled = true
+                userHasInteractedWithScroll = false
+            }
+        }
+
+        LaunchedEffect(expanded, scrollState.isScrollInProgress) {
+            if (!expanded) return@LaunchedEffect
+
+            if (scrollState.isScrollInProgress) {
+                if (!isProgrammaticScroll) {
+                    userHasInteractedWithScroll = true
+                }
+                return@LaunchedEffect
+            }
+
+            // 只有用户真的滚动过之后，才根据是否在底部来切换“自动贴底”。
+            // 否则在内容第一次溢出时 scrollState.value 仍为 0，会被误判为“不在底部”。
+            if (userHasInteractedWithScroll && !isProgrammaticScroll) {
+                val threshold = 80
+                val atBottom = scrollState.value >= (scrollState.maxValue - threshold)
+                autoScrollEnabled = atBottom
+            }
+        }
+
+        LaunchedEffect(expanded, thinkText) {
+            if (expanded && autoScrollEnabled) {
+                isProgrammaticScroll = true
+                try {
+                    withFrameNanos { }
+                    scrollState.scrollTo(scrollState.maxValue)
+                } finally {
+                    isProgrammaticScroll = false
+                }
             }
         }
 
@@ -345,6 +389,8 @@ class CustomXmlRenderer(
                             modifier =
                                     Modifier.fillMaxWidth()
                                             .padding(top = 4.dp, bottom = 8.dp, start = 24.dp)
+                                            .heightIn(max = 300.dp)
+                                            .verticalScroll(scrollState)
                     ) {
                         Text(
                                 text = thinkText,

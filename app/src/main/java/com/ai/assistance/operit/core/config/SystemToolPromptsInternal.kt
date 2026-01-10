@@ -340,7 +340,34 @@ object SystemToolPromptsInternal {
                         ToolPrompt(
                             name = "start_chat_service",
                             description = "Start the floating chat service.",
-                            parametersStructured = listOf()
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "initial_mode",
+                                        type = "string",
+                                        description = "optional, initial floating mode: WINDOW, BALL, VOICE_BALL, FULLSCREEN, RESULT_DISPLAY, SCREEN_OCR",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "auto_enter_voice_chat",
+                                        type = "boolean",
+                                        description = "optional, if true then enter voice mode automatically when opening FULLSCREEN",
+                                        required = false,
+                                        default = "false"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "wake_launched",
+                                        type = "boolean",
+                                        description = "optional, true if launched by wake word so UI can adjust behavior",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "timeout_ms",
+                                        type = "integer",
+                                        description = "optional, auto close the floating window after this timeout (milliseconds). <=0 disables auto-exit.",
+                                        required = false
+                                    )
+                                )
                         ),
                         ToolPrompt(
                             name = "stop_chat_service",

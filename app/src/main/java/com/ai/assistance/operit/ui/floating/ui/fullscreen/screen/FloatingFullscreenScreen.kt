@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.floating.ui.fullscreen.screen
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.floating.FloatContext
@@ -53,6 +55,7 @@ import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.WaveVisuali
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.viewmodel.rememberFloatingFullscreenModeViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 /**
@@ -62,11 +65,20 @@ import kotlinx.coroutines.launch
 fun FloatingFullscreenMode(floatContext: FloatContext) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val viewModel = rememberFloatingFullscreenModeViewModel(context, floatContext, coroutineScope)
+    val service = floatContext.chatService
+    val autoEnterVoiceChat = remember(service) { service?.consumeAutoEnterVoiceChat() == true }
+    var autoEnteringVoice by remember(autoEnterVoiceChat) { mutableStateOf(autoEnterVoiceChat) }
+    val viewModel = rememberFloatingFullscreenModeViewModel(context, floatContext, coroutineScope, initialWaveActive = autoEnterVoiceChat)
     
     // 偏好设置
     val preferencesManager = UserPreferencesManager.getInstance(context)
-    val aiAvatarUri by preferencesManager.customAiAvatarUri.collectAsState(initial = null)
+    val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val activeCharacterCard by characterCardManager.activeCharacterCardFlow.collectAsState(initial = null)
+    val activeCharacterAvatarUri by remember(activeCharacterCard?.id) {
+        activeCharacterCard?.id?.let { preferencesManager.getAiAvatarForCharacterCardFlow(it) } ?: flowOf(null)
+    }.collectAsState(initial = null)
+    val globalAiAvatarUri by preferencesManager.customAiAvatarUri.collectAsState(initial = null)
+    val aiAvatarUri = activeCharacterAvatarUri ?: globalAiAvatarUri
     
     val speechServicesPrefs = SpeechServicesPreferences(context)
     val ttsCleanerRegexs by speechServicesPrefs.ttsCleanerRegexsFlow.collectAsState(initial = emptyList())
@@ -119,10 +131,15 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     
     // 初始化
     LaunchedEffect(Unit) {
-        viewModel.initialize()
-        val service = floatContext.chatService
-        if (service?.consumeAutoEnterVoiceChat() == true) {
-            viewModel.enterWaveMode(wakeLaunched = service.isWakeLaunched())
+        viewModel.initialize(
+            autoEnterVoiceChat = autoEnterVoiceChat,
+            wakeLaunched = service?.isWakeLaunched() == true
+        )
+    }
+
+    LaunchedEffect(viewModel.isWaveActive) {
+        if (viewModel.isWaveActive) {
+            autoEnteringVoice = false
         }
     }
     
@@ -150,7 +167,18 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     }
 
     // UI 布局
-    val fullscreenScrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.22f)
+    val effectiveWaveActive = viewModel.isWaveActive || autoEnteringVoice
+    val fullscreenBgAlpha by animateFloatAsState(
+        targetValue = if (autoEnteringVoice) 0f else 0.22f,
+        animationSpec = tween(durationMillis = 260),
+        label = "fullscreen_bg_alpha"
+    )
+    val fullscreenGradientAlpha by animateFloatAsState(
+        targetValue = if (autoEnteringVoice) 0f else 0.45f,
+        animationSpec = tween(durationMillis = 260),
+        label = "fullscreen_gradient_alpha"
+    )
+    val fullscreenScrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = fullscreenBgAlpha)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -162,9 +190,9 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         0.0f to Color.Transparent,
                         0.10f to Color.Transparent,
                         // 从屏幕中间往下开始出现更暗一些的蓝绿色渐变（降低明度，不是加厚遮罩）
-                        0.35f to Color(0xFF42A5F5).copy(alpha = 0.45f),  // 深一点的蓝
-                        0.75f  to Color(0xFF26C6DA).copy(alpha = 0.45f),  // 深一点的蓝绿
-                        1.0f  to Color(0xFF66BB6A).copy(alpha = 0.45f)   // 深一点的绿色
+                        0.35f to Color(0xFF42A5F5).copy(alpha = fullscreenGradientAlpha),  // 深一点的蓝
+                        0.75f  to Color(0xFF26C6DA).copy(alpha = fullscreenGradientAlpha),  // 深一点的蓝绿
+                        1.0f  to Color(0xFF66BB6A).copy(alpha = fullscreenGradientAlpha)   // 深一点的绿色
                     )
                 )
             )
@@ -201,7 +229,12 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
             }
 
             // 关闭悬浮窗
-            IconButton(onClick = { floatContext.onClose() }) {
+            IconButton(
+                onClick = {
+                    viewModel.cleanup()
+                    floatContext.onClose()
+                }
+            ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "关闭悬浮窗",
@@ -212,14 +245,14 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         }
         
         // 主内容区域
-        val isBottomBarVisible = viewModel.showBottomControls && !viewModel.isEditMode && !viewModel.isWaveActive
+        val isBottomBarVisible = viewModel.showBottomControls && !viewModel.isEditMode && !effectiveWaveActive
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = if (isBottomBarVisible) 120.dp else 32.dp)
         ) {
             // 波浪可视化和头像：仅在语音模式下显示
-            if (viewModel.isWaveActive) {
+            if (effectiveWaveActive) {
                 val waveOffsetY = (-64).dp
                 WaveVisualizerSection(
                     isWaveActive = viewModel.isWaveActive,
@@ -259,7 +292,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
             
             // 消息显示区域 - 根据模式切换位置
             AnimatedContent(
-                targetState = viewModel.isWaveActive,
+                targetState = effectiveWaveActive,
                 transitionSpec = {
                     fadeIn(animationSpec = tween(300, 150)) togetherWith
                     fadeOut(animationSpec = tween(300))

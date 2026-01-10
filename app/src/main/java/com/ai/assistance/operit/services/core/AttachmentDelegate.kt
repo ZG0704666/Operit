@@ -26,6 +26,7 @@ import java.io.File
 class AttachmentDelegate(private val context: Context, private val toolHandler: AIToolHandler) {
     companion object {
         private const val TAG = "AttachmentDelegate"
+        private const val OCR_INLINE_INSTRUCTION = "请你不要读取文件，直接根据该附件内容和用户提问回答用户问题"
     }
 
     // State for attachments
@@ -363,7 +364,7 @@ class AttachmentDelegate(private val context: Context, private val toolHandler: 
                     }
 
                     val captureId = "screen_ocr_${System.currentTimeMillis()}"
-                    val content = "【屏幕内容】\n$ocrText"
+                    val content = "【屏幕内容】\n$ocrText\n\n$OCR_INLINE_INSTRUCTION"
                     val attachmentInfo =
                         AttachmentInfo(
                             filePath = captureId,

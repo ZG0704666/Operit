@@ -9,7 +9,9 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
+import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -32,6 +34,13 @@ class SkillRepository private constructor(private val context: Context) {
 
     private val skillManager by lazy { SkillManager.getInstance(context) }
 
+    private data class GitHubSkillTarget(
+        val owner: String,
+        val repo: String,
+        val ref: String?,
+        val subDir: String?
+    )
+
     fun getSkillsDirectoryPath(): String = skillManager.getSkillsDirectoryPath()
 
     fun getAvailableSkillPackages(): Map<String, SkillPackage> = skillManager.getAvailableSkills()
@@ -48,15 +57,20 @@ class SkillRepository private constructor(private val context: Context) {
 
     suspend fun importSkillFromGitHubRepo(repoUrl: String): String {
         return withContext(Dispatchers.IO) {
-            val repoOwnerAndName = extractOwnerAndRepo(repoUrl)
+            val target = parseGitHubSkillTarget(repoUrl)
                 ?: return@withContext "无效的 GitHub 仓库 URL"
 
-            val (owner, repoName) = repoOwnerAndName
-            val defaultBranch = getGithubDefaultBranch(owner, repoName)
+            val owner = target.owner
+            val repoName = target.repo
+            val ref = target.ref ?: getGithubDefaultBranch(owner, repoName)
                 ?: return@withContext "无法确定 $owner/$repoName 的默认分支"
 
-            val zipUrl = "https://github.com/$owner/$repoName/archive/refs/heads/$defaultBranch.zip"
-            val tempFile = File(context.cacheDir, "skill_${owner}_${repoName}_repo.zip")
+            val encodedRef = encodePathSegment(ref)
+            val zipUrl = "https://codeload.github.com/$owner/$repoName/zip/$encodedRef"
+            val suffix = (target.subDir ?: "repo")
+                .replace('/', '_')
+                .take(60)
+            val tempFile = File(context.cacheDir, "skill_${owner}_${repoName}_$suffix.zip")
             if (tempFile.exists()) tempFile.delete()
 
             try {
@@ -69,7 +83,7 @@ class SkillRepository private constructor(private val context: Context) {
                     return@withContext "下载仓库 ZIP 文件失败"
                 }
 
-                val result = importSkillFromZip(tempFile)
+                val result = skillManager.importSkillFromZip(tempFile, target.subDir)
                 tempFile.delete()
 
                 // Write repoUrl marker for reliable installed-state detection.
@@ -97,13 +111,84 @@ class SkillRepository private constructor(private val context: Context) {
         }
     }
 
-    private fun extractOwnerAndRepo(repoUrl: String): Pair<String, String>? {
-        val regex = "(?:https?://)?(?:www\\.)?github\\.com/([\\w.-]+)/([\\w.-]+)(?:\\.git)?/?.*".toRegex()
-        val matchResult = regex.find(repoUrl.trim()) ?: return null
-        val owner = matchResult.groupValues.getOrNull(1).orEmpty()
-        val repo = matchResult.groupValues.getOrNull(2).orEmpty()
-        if (owner.isBlank() || repo.isBlank()) return null
-        return owner to repo
+    private fun parseGitHubSkillTarget(inputUrlRaw: String): GitHubSkillTarget? {
+        val inputUrl = inputUrlRaw.trim()
+        if (inputUrl.isBlank()) return null
+
+        val urlWithScheme = if (inputUrl.startsWith("http://", ignoreCase = true) || inputUrl.startsWith("https://", ignoreCase = true)) {
+            inputUrl
+        } else {
+            "https://$inputUrl"
+        }
+
+        val urlNoFragment = urlWithScheme.substringBefore('#')
+        val uri = try {
+            URI(urlNoFragment)
+        } catch (_: Exception) {
+            return null
+        }
+
+        val host = uri.host?.lowercase() ?: return null
+        val path = uri.path.orEmpty()
+        val segments = path.split('/').filter { it.isNotBlank() }
+        if (segments.size < 2) return null
+
+        fun cleanRepoName(repoRaw: String): String {
+            return repoRaw.removeSuffix(".git")
+        }
+
+        return when {
+            host == "github.com" || host.endsWith(".github.com") -> {
+                val owner = segments[0]
+                val repo = cleanRepoName(segments[1])
+                if (owner.isBlank() || repo.isBlank()) return null
+
+                var ref: String? = null
+                var subDir: String? = null
+
+                if (segments.size >= 4 && (segments[2] == "tree" || segments[2] == "blob")) {
+                    ref = segments[3]
+                    val remainder = if (segments.size > 4) segments.subList(4, segments.size).joinToString("/") else ""
+                    if (remainder.isNotBlank()) {
+                        subDir = if (segments[2] == "blob") {
+                            if (remainder.endsWith("SKILL.md", ignoreCase = true) || remainder.endsWith("skill.md", ignoreCase = true)) {
+                                remainder.substringBeforeLast('/')
+                            } else {
+                                remainder.substringBeforeLast('/').ifBlank { null }
+                            }
+                        } else {
+                            remainder
+                        }
+                    }
+                }
+
+                GitHubSkillTarget(owner = owner, repo = repo, ref = ref, subDir = subDir)
+            }
+
+            host == "raw.githubusercontent.com" -> {
+                if (segments.size < 4) return null
+                val owner = segments[0]
+                val repo = cleanRepoName(segments[1])
+                val ref = segments[2]
+                val remainder = segments.subList(3, segments.size).joinToString("/")
+                val subDir = if (remainder.endsWith("SKILL.md", ignoreCase = true) || remainder.endsWith("skill.md", ignoreCase = true)) {
+                    remainder.substringBeforeLast('/')
+                } else {
+                    remainder.substringBeforeLast('/').ifBlank { null }
+                }
+                GitHubSkillTarget(owner = owner, repo = repo, ref = ref, subDir = subDir)
+            }
+
+            else -> null
+        }
+    }
+
+    private fun encodePathSegment(value: String): String {
+        return try {
+            URLEncoder.encode(value, "UTF-8").replace("+", "%20")
+        } catch (_: Exception) {
+            value
+        }
     }
 
     private fun downloadFromUrl(zipUrl: String, outFile: File): Boolean {

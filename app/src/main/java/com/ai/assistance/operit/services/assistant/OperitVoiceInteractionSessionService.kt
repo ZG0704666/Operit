@@ -2,6 +2,7 @@ package com.ai.assistance.operit.services.assistant
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
 import android.service.voice.VoiceInteractionSessionService
@@ -9,6 +10,7 @@ import com.ai.assistance.operit.util.AppLogger
 import android.view.View
 import android.widget.FrameLayout
 import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.ui.floating.FloatingMode
 
 /**
  * Operit 语音交互会话服务
@@ -64,10 +66,14 @@ class OperitVoiceInteractionSessionService : VoiceInteractionSessionService() {
         private fun startFloatingChatService() {
             try {
                 val intent = Intent(context, FloatingChatService::class.java).apply {
-                    // 可以传递额外参数，比如是否自动开始语音识别
-                    putExtra("auto_start_voice", true)
+                    putExtra("INITIAL_MODE", FloatingMode.FULLSCREEN.name)
+                    putExtra(FloatingChatService.EXTRA_AUTO_ENTER_VOICE_CHAT, true)
                 }
-                context.startService(intent)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
                 AppLogger.d(TAG, "Floating chat service started")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Failed to start floating chat service", e)
@@ -75,4 +81,3 @@ class OperitVoiceInteractionSessionService : VoiceInteractionSessionService() {
         }
     }
 }
-

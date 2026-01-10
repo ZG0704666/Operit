@@ -237,6 +237,10 @@ class SkillManager private constructor(private val context: Context) {
     }
 
     fun importSkillFromZip(zipFile: File): String {
+        return importSkillFromZip(zipFile, null)
+    }
+
+    fun importSkillFromZip(zipFile: File, subDirPathInZip: String?): String {
         if (!zipFile.exists() || !zipFile.canRead()) {
             return "无法读取文件: ${zipFile.absolutePath}"
         }
@@ -266,14 +270,59 @@ class SkillManager private constructor(private val context: Context) {
         try {
             unzipToDirectory(zipFile, tmpDir)
 
-            val skillMdCandidates = tmpDir.walkTopDown()
-                .filter { it.isFile && (it.name.equals("SKILL.md", ignoreCase = true) || it.name.equals("skill.md", ignoreCase = true)) }
-                .take(10)
-                .toList()
+            val normalizedSubDir = subDirPathInZip
+                ?.trim()
+                ?.trimStart('/')
+                ?.trimEnd('/')
+                ?.takeIf { it.isNotBlank() }
+
+            val zipRootDir = tmpDir
+                .listFiles()
+                ?.filter { it.isDirectory }
+                ?.singleOrNull()
+                ?: tmpDir
+
+            val searchRoot: File = if (normalizedSubDir == null) {
+                tmpDir
+            } else {
+                val baseCanonical = zipRootDir.canonicalFile
+                val resolved = File(zipRootDir, normalizedSubDir)
+                val resolvedCanonical = resolved.canonicalFile
+                if (!resolvedCanonical.path.startsWith(baseCanonical.path + File.separator)) {
+                    cleanupTmp()
+                    return "导入失败：路径异常"
+                }
+                if (!resolvedCanonical.exists()) {
+                    cleanupTmp()
+                    return "导入失败：未找到路径：$normalizedSubDir"
+                }
+                resolvedCanonical
+            }
+
+            val directSkillFile = if (searchRoot.isDirectory) {
+                File(searchRoot, "SKILL.md").let { primary ->
+                    if (primary.exists()) primary else File(searchRoot, "skill.md")
+                }.takeIf { it.exists() && it.isFile }
+            } else {
+                null
+            }
+
+            val skillMdCandidates = if (directSkillFile != null) {
+                listOf(directSkillFile)
+            } else {
+                searchRoot.walkTopDown()
+                    .filter { it.isFile && (it.name.equals("SKILL.md", ignoreCase = true) || it.name.equals("skill.md", ignoreCase = true)) }
+                    .take(10)
+                    .toList()
+            }
 
             if (skillMdCandidates.isEmpty()) {
                 cleanupTmp()
-                return "导入失败：zip 内未找到 SKILL.md"
+                return if (normalizedSubDir == null) {
+                    "导入失败：zip 内未找到 SKILL.md"
+                } else {
+                    "导入失败：指定路径下未找到 SKILL.md"
+                }
             }
 
             val selectedSkillFile = skillMdCandidates.first()

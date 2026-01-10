@@ -30,6 +30,8 @@ class PromptTagManager private constructor(private val context: Context) {
         const val SYSTEM_VOICE_TAG_ID = "system_voice_tag"
         const val SYSTEM_DESKTOP_PET_TAG_ID = "system_desktop_pet_tag"
         
+        private const val SYSTEM_VOICE_TAG_LEGACY_PROMPT_V1 = "你的回答必须非常简短、口语化，像日常聊天一样。严禁使用任何形式的列表、分点（例如'第一'、'第二'或'首先'、'其次'）和Markdown标记（例如`*`、`#`、`**`）。你的回答就是纯文本的、可以直接朗读的对话。总是直接回答问题，不要有多余的客套话和引导语。"
+        
         @Volatile
         private var INSTANCE: PromptTagManager? = null
         
@@ -240,6 +242,77 @@ class PromptTagManager private constructor(private val context: Context) {
         }
     }
     
+    private fun updateSystemTagIfNeeded(
+        preferences: MutablePreferences,
+        currentList: MutableSet<String>,
+        id: String,
+        details: Triple<String, String, String>,
+        latestVersion: Int
+    ): Boolean {
+        val defaultVersionKey = intPreferencesKey("prompt_tag_${id}_default_version")
+
+        if (!currentList.contains(id)) {
+            currentList.add(id)
+            setupSystemTag(preferences, id, details.first, details.second, details.third)
+            preferences[defaultVersionKey] = latestVersion
+            return true
+        }
+
+        val promptContentKey = stringPreferencesKey("prompt_tag_${id}_prompt_content")
+        val currentPromptContent = preferences[promptContentKey] ?: ""
+        val storedDefaultVersion = preferences[defaultVersionKey]
+
+        val lastAppliedDefaultContent = when (id) {
+            SYSTEM_VOICE_TAG_ID ->
+                when (storedDefaultVersion) {
+                    1 -> SYSTEM_VOICE_TAG_LEGACY_PROMPT_V1
+                    2 -> details.third
+                    else -> null
+                }
+            else -> details.third
+        }
+
+        val isUsingKnownDefault = if (storedDefaultVersion != null) {
+            lastAppliedDefaultContent != null && currentPromptContent == lastAppliedDefaultContent
+        } else {
+            when (id) {
+                SYSTEM_VOICE_TAG_ID ->
+                    currentPromptContent == SYSTEM_VOICE_TAG_LEGACY_PROMPT_V1 ||
+                        currentPromptContent == details.third
+                else -> currentPromptContent == details.third
+            }
+        }
+
+        if (!isUsingKnownDefault) return false
+        if (storedDefaultVersion != null && storedDefaultVersion == latestVersion) return false
+
+        val nameKey = stringPreferencesKey("prompt_tag_${id}_name")
+        val descriptionKey = stringPreferencesKey("prompt_tag_${id}_description")
+        val tagTypeKey = stringPreferencesKey("prompt_tag_${id}_tag_type")
+        val isSystemTagKey = booleanPreferencesKey("prompt_tag_${id}_is_system_tag")
+        val createdAtKey = longPreferencesKey("prompt_tag_${id}_created_at")
+        val updatedAtKey = longPreferencesKey("prompt_tag_${id}_updated_at")
+
+        val tagType = when (id) {
+            SYSTEM_CHAT_TAG_ID -> TagType.SYSTEM_CHAT
+            SYSTEM_VOICE_TAG_ID -> TagType.SYSTEM_VOICE
+            SYSTEM_DESKTOP_PET_TAG_ID -> TagType.SYSTEM_DESKTOP_PET
+            else -> TagType.CUSTOM
+        }
+
+        preferences[nameKey] = details.first
+        preferences[descriptionKey] = details.second
+        preferences[promptContentKey] = details.third
+        preferences[tagTypeKey] = tagType.name
+        preferences[isSystemTagKey] = true
+        if (preferences[createdAtKey] == null) {
+            preferences[createdAtKey] = System.currentTimeMillis()
+        }
+        preferences[defaultVersionKey] = latestVersion
+        preferences[updatedAtKey] = System.currentTimeMillis()
+        return false
+    }
+    
     // 初始化系统标签
     suspend fun initializeSystemTags() {
         dataStore.edit { preferences ->
@@ -257,7 +330,7 @@ class PromptTagManager private constructor(private val context: Context) {
                 SYSTEM_VOICE_TAG_ID to Triple(
                     "通用语音",
                     "适用于语音功能的通用提示词",
-                    "你的回答必须非常简短、口语化，像日常聊天一样。严禁使用任何形式的列表、分点（例如'第一'、'第二'或'首先'、'其次'）和Markdown标记（例如`*`、`#`、`**`）。你的回答就是纯文本的、可以直接朗读的对话。总是直接回答问题，不要有多余的客套话和引导语。"
+                    "你的回答必须非常简短、口语化，像日常聊天一样。严禁使用任何形式的列表、分点（例如'第一'、'第二'或'首先'、'其次'）和Markdown标记（例如`*`、`#`、`**`）。你的回答就是纯文本的、可以直接朗读的对话。总是直接回答问题，不要有多余的客套话和引导语。用户输入可能来自语音识别，可能包含错别字、同音字、漏词、断句或口误；请优先理解意图，不要因为这些错误而反复纠正或拒绝回答。只有在确实无法理解时才用一句话追问澄清。"
                 ),
                 SYSTEM_DESKTOP_PET_TAG_ID to Triple(
                     "通用桌宠",
@@ -266,10 +339,15 @@ class PromptTagManager private constructor(private val context: Context) {
                 )
             )
             
+            val systemTagVersions = mapOf(
+                SYSTEM_CHAT_TAG_ID to 1,
+                SYSTEM_VOICE_TAG_ID to 2,
+                SYSTEM_DESKTOP_PET_TAG_ID to 1
+            )
+            
             systemTags.forEach { (id, details) ->
-                if (!currentList.contains(id)) {
-                    currentList.add(id)
-                    setupSystemTag(preferences, id, details.first, details.second, details.third)
+                val latestVersion = systemTagVersions[id] ?: 1
+                if (updateSystemTagIfNeeded(preferences, currentList, id, details, latestVersion)) {
                     listModified = true
                 }
             }

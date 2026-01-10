@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.assistant.components
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,33 +44,42 @@ fun HowToImportSection() {
     val newEditorUrl = "https://www.loongbones.com/"
     val oldEditorUrl = "https://www.egret.uk/download/"
 
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp, start = 4.dp, top = 12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        // Header
         Row(
-                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 8.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                    stringResource(R.string.how_to_import),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
+                text = stringResource(R.string.how_to_import),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
             Icon(
-                    imageVector =
-                    if (expanded) Icons.Default.ExpandLess
-                    else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand)
+                imageVector =
+                if (expanded) Icons.Default.ExpandLess
+                else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
 
-    if (expanded) {
-        Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        // Expanded Content
+        if (expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .padding(16.dp, vertical = 12.dp)
+            ) {
                 val primaryColor = MaterialTheme.colorScheme.primary
                 val annotatedString = buildAnnotatedString {
                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {

@@ -26,13 +26,14 @@ private const val TAG = "FloatingFullscreenViewModel"
 class FloatingFullscreenModeViewModel(
     private val context: Context,
     private val floatContext: FloatContext,
-    private val coroutineScope: CoroutineScope
+    private val coroutineScope: CoroutineScope,
+    initialWaveActive: Boolean
 ) {
     // ===== 状态定义 =====
     var aiMessage by mutableStateOf("长按下方麦克风开始说话")
     
     // UI状态
-    var isWaveActive by mutableStateOf(false)
+    var isWaveActive by mutableStateOf(initialWaveActive)
     var showBottomControls by mutableStateOf(true)
     var isEditMode by mutableStateOf(false)
     var editableText by mutableStateOf("")
@@ -65,8 +66,14 @@ class FloatingFullscreenModeViewModel(
             // 收到最终语音结果后直接发送，不再写入底部输入框
             val finalText = text.trim()
             if (finalText.isNotEmpty()) {
-                floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
                 aiMessage = "思考中..."
+                coroutineScope.launch {
+                    try {
+                        maybeAutoAttachByKeyword(finalText)
+                    } catch (_: Exception) {
+                    }
+                    floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
+                }
             }
         },
         onStateChange = { msg -> aiMessage = msg }
@@ -270,27 +277,31 @@ class FloatingFullscreenModeViewModel(
 
     // ===== 初始化与清理 =====
 
-    suspend fun initialize() {
-        speechManager.initialize()
-        prefsJob?.cancel()
-        prefsJob = coroutineScope.launch {
-            wakePrefs.voiceCallInactivityTimeoutSecondsFlow.collectLatest { seconds ->
-                inactivityTimeoutSeconds = seconds.coerceIn(1, 600)
-            }
-        }
-        isInitialLoad.value = true
-        isWaveActive = false
-        showBottomControls = true
-        exitEditMode()
+     suspend fun initialize(autoEnterVoiceChat: Boolean = false, wakeLaunched: Boolean = false) {
+         speechManager.initialize()
+         prefsJob?.cancel()
+         prefsJob = coroutineScope.launch {
+             wakePrefs.voiceCallInactivityTimeoutSecondsFlow.collectLatest { seconds ->
+                 inactivityTimeoutSeconds = seconds.coerceIn(1, 600)
+             }
+         }
+         isInitialLoad.value = true
+         isWaveActive = autoEnterVoiceChat
+         showBottomControls = true
+         exitEditMode()
 
         // 获取焦点
         val view = floatContext.chatService?.getComposeView()
-        if (!speechManager.requestFocus(view)) {
-            aiMessage = "无法获取输入法服务"
-        } else {
-            aiMessage = "长按下方麦克风开始说话"
-        }
-    }
+         if (!speechManager.requestFocus(view)) {
+             aiMessage = "无法获取输入法服务"
+         } else {
+             aiMessage = "长按下方麦克风开始说话"
+         }
+
+         if (autoEnterVoiceChat) {
+             enterWaveMode(wakeLaunched = wakeLaunched)
+         }
+     }
 
     fun cleanup() {
         val view = floatContext.chatService?.getComposeView()
@@ -407,6 +418,10 @@ class FloatingFullscreenModeViewModel(
 
         coroutineScope.launch {
             try {
+                maybeAutoAttachByKeyword(text)
+            } catch (_: Exception) {
+            }
+            try {
                 val attachmentDelegate = floatContext.chatService?.getChatCore()?.getAttachmentDelegate()
                 if (shouldCaptureScreen) {
                     attachmentDelegate?.captureScreenContent()
@@ -421,13 +436,45 @@ class FloatingFullscreenModeViewModel(
             floatContext.onSendMessage?.invoke(text, PromptFunctionType.VOICE)
         }
     }
+
+    private suspend fun maybeAutoAttachByKeyword(text: String) {
+        if (text.isBlank()) return
+
+        val enabled = wakePrefs.voiceAutoAttachEnabledFlow.first()
+        if (!enabled) return
+
+        val attachmentDelegate = floatContext.chatService?.getChatCore()?.getAttachmentDelegate() ?: return
+
+        val screenEnabled = wakePrefs.voiceAutoAttachScreenEnabledFlow.first()
+        val notificationsEnabled = wakePrefs.voiceAutoAttachNotificationsEnabledFlow.first()
+        val screenKeyword = wakePrefs.voiceAutoAttachScreenKeywordFlow.first().trim()
+        val notificationsKeyword = wakePrefs.voiceAutoAttachNotificationsKeywordFlow.first().trim()
+
+        if (screenEnabled && matchesAnyKeyword(text, screenKeyword)) {
+            attachmentDelegate.captureScreenContent()
+        }
+        if (notificationsEnabled && matchesAnyKeyword(text, notificationsKeyword)) {
+            attachmentDelegate.captureNotifications()
+        }
+    }
+
+    private fun matchesAnyKeyword(text: String, keywordConfig: String): Boolean {
+        val keywords =
+            keywordConfig
+                .split('|', ',', '，', ';', '；', '\n')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+        if (keywords.isEmpty()) return false
+        return keywords.any { k -> text.contains(k, ignoreCase = true) }
+    }
 }
 
 @Composable
-fun rememberFloatingFullscreenModeViewModel(
-    context: Context,
-    floatContext: FloatContext,
-    coroutineScope: CoroutineScope
-) = remember(context) {
-    FloatingFullscreenModeViewModel(context, floatContext, coroutineScope)
-}
+ fun rememberFloatingFullscreenModeViewModel(
+     context: Context,
+     floatContext: FloatContext,
+     coroutineScope: CoroutineScope,
+     initialWaveActive: Boolean
+ ) = remember(context, initialWaveActive) {
+     FloatingFullscreenModeViewModel(context, floatContext, coroutineScope, initialWaveActive)
+ }

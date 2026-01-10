@@ -33,6 +33,7 @@ import com.ai.assistance.operit.data.model.SerializableTypography
 import com.ai.assistance.operit.data.model.toComposeColorScheme
 import com.ai.assistance.operit.data.model.toComposeTypography
 import com.ai.assistance.operit.data.model.PromptFunctionType
+import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.services.floating.FloatingWindowCallback
 import com.ai.assistance.operit.services.floating.FloatingWindowManager
@@ -95,12 +96,16 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
         const val EXTRA_AUTO_ENTER_VOICE_CHAT = "AUTO_ENTER_VOICE_CHAT"
         const val EXTRA_WAKE_LAUNCHED = "WAKE_LAUNCHED"
+        const val EXTRA_AUTO_EXIT_AFTER_MS = "AUTO_EXIT_AFTER_MS"
 
         fun getInstance(): FloatingChatService? = instance
     }
 
     private val autoEnterVoiceChat = mutableStateOf(false)
     private val wakeLaunched = mutableStateOf(false)
+
+    private val autoExitHandler = Handler(Looper.getMainLooper())
+    private var autoExitRunnable: Runnable? = null
 
     fun consumeAutoEnterVoiceChat(): Boolean {
         val value = autoEnterVoiceChat.value
@@ -111,6 +116,24 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     }
 
     fun isWakeLaunched(): Boolean = wakeLaunched.value
+
+    private fun scheduleAutoExit(timeoutMs: Long?) {
+        val previous = autoExitRunnable
+        if (previous != null) {
+            autoExitHandler.removeCallbacks(previous)
+        }
+        autoExitRunnable = null
+
+        val effectiveTimeout = timeoutMs?.takeIf { it > 0 }
+        if (effectiveTimeout != null) {
+            val r = Runnable {
+                AppLogger.d(TAG, "Auto exit triggered after ${effectiveTimeout}ms")
+                onClose()
+            }
+            autoExitRunnable = r
+            autoExitHandler.postDelayed(r, effectiveTimeout)
+        }
+    }
 
     inner class LocalBinder : Binder() {
         private var closeCallback: (() -> Unit)? = null
@@ -395,6 +418,13 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 wakeLaunched.value = intent.getBooleanExtra(EXTRA_WAKE_LAUNCHED, false)
             }
 
+            if (intent?.hasExtra(EXTRA_AUTO_EXIT_AFTER_MS) == true) {
+                val timeoutMs = intent.getLongExtra(EXTRA_AUTO_EXIT_AFTER_MS, -1L)
+                scheduleAutoExit(timeoutMs)
+            } else {
+                scheduleAutoExit(null)
+            }
+
             if (intent?.hasExtra("CHAT_MESSAGES") == true) {
                 @Suppress("DEPRECATION")
                 val messagesArray = if (Build.VERSION.SDK_INT >= 33) { // Build.VERSION_CODES.TIRAMISU
@@ -554,10 +584,15 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
     override fun onDestroy() {
         try {
+            scheduleAutoExit(null)
             releaseWakeLock()
 
             try {
                 runBlocking(Dispatchers.IO) {
+                    try {
+                        SpeechServiceFactory.getInstance(applicationContext).cancelRecognition()
+                    } catch (_: Exception) {
+                    }
                     VoiceServiceFactory.getInstance(applicationContext).stop()
                 }
             } catch (_: Exception) {
@@ -584,6 +619,10 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         try {
             serviceScope.launch(Dispatchers.IO) {
                 try {
+                    try {
+                        SpeechServiceFactory.getInstance(applicationContext).cancelRecognition()
+                    } catch (_: Exception) {
+                    }
                     VoiceServiceFactory.getInstance(applicationContext).stop()
                 } catch (_: Exception) {
                 }

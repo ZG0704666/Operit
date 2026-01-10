@@ -69,6 +69,7 @@ fun VoiceAssistantWidgetContent(context: Context) {
                     val intent = Intent(context, FloatingChatService::class.java).apply {
                         // 设置初始模式为全屏语音模式
                         putExtra("INITIAL_MODE", FloatingMode.FULLSCREEN.name)
+                        putExtra(FloatingChatService.EXTRA_AUTO_ENTER_VOICE_CHAT, true)
                     }
                     
                     // 启动前台服务

@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.api.speech.SpeechPrerollStore
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -164,10 +165,21 @@ class OpenAISttProvider(
                 val stream = FileOutputStream(file)
                 stream.write(ByteArray(WAV_HEADER_SIZE))
 
+                pcmBytesWritten = 0
+
+                val pendingPcm = SpeechPrerollStore.consumePending()
+                if (pendingPcm != null && pendingPcm.isNotEmpty()) {
+                    try {
+                        writePcm16le(stream, pendingPcm, pendingPcm.size)
+                        AppLogger.d(TAG, "Applied preroll: samples=${pendingPcm.size}")
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "Failed to apply preroll", e)
+                    }
+                }
+
                 audioRecord = record
                 outputFile = file
                 outputStream = stream
-                pcmBytesWritten = 0
 
                 record.startRecording()
 
@@ -232,6 +244,7 @@ class OpenAISttProvider(
                             while (isActive && _recognitionState.value == SpeechService.RecognitionState.RECOGNIZING) {
                                 val read = record.read(audioBuffer, 0, audioBuffer.size)
                                 if (read > 0) {
+                                    SpeechPrerollStore.appendPcm(audioBuffer, read)
                                     updateVolumeLevel(audioBuffer, read)
 
                                     if (vadInstance == null) {

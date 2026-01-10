@@ -50,8 +50,7 @@ object StandardModelParameters {
                 defaultValue = DEFAULT_MAX_TOKENS,
                 valueType = ParameterValueType.INT,
                 category = ParameterCategory.GENERATION,
-                minValue = 1,
-                maxValue = 16000
+                minValue = 1
             ),
             ParameterDefinition(
                 id = "temperature",

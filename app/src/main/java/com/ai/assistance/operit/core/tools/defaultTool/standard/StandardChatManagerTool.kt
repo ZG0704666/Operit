@@ -21,6 +21,7 @@ import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.services.ChatServiceCore
 import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -90,9 +91,18 @@ class StandardChatManagerTool(private val context: Context) {
      * 确保服务已连接
      * @return 是否成功连接
      */
-    private suspend fun ensureServiceConnected(): Boolean {
+    private suspend fun ensureServiceConnected(startIntent: Intent? = null): Boolean {
         // 如果已经连接，直接返回
         if (isBound && chatCore != null) {
+            if (startIntent != null) {
+                withContext(Dispatchers.Main) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        appContext.startForegroundService(startIntent)
+                    } else {
+                        appContext.startService(startIntent)
+                    }
+                }
+            }
             return true
         }
 
@@ -125,7 +135,7 @@ class StandardChatManagerTool(private val context: Context) {
             // 重置 deferred
             connectionDeferred = CompletableDeferred()
             
-            val intent = Intent(appContext, FloatingChatService::class.java)
+            val intent = startIntent ?: Intent(appContext, FloatingChatService::class.java)
 
             val bound =
                 withContext(Dispatchers.Main) {
@@ -185,15 +195,80 @@ class StandardChatManagerTool(private val context: Context) {
      */
     suspend fun startChatService(tool: AITool): ToolResult {
         return try {
-            val intent = Intent(appContext, FloatingChatService::class.java)
-            withContext(Dispatchers.Main) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    appContext.startForegroundService(intent)
-                } else {
-                    appContext.startService(intent)
+            val initialModeParam = tool.parameters.find { it.name == "initial_mode" }?.value?.trim()
+            val autoEnterVoiceChatParam =
+                tool.parameters.find { it.name == "auto_enter_voice_chat" }?.value?.trim()
+            val wakeLaunchedParam = tool.parameters.find { it.name == "wake_launched" }?.value?.trim()
+            val timeoutMsParam = tool.parameters.find { it.name == "timeout_ms" }?.value?.trim()
+
+            val initialMode =
+                initialModeParam
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { raw ->
+                        runCatching { FloatingMode.valueOf(raw.uppercase()) }.getOrNull()
+                    }
+            if (initialModeParam != null && initialModeParam.isNotBlank() && initialMode == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatServiceStartResultData(isConnected = false),
+                    error = "参数错误：initial_mode 无效：$initialModeParam"
+                )
+            }
+
+            fun parseBooleanOrNull(value: String?): Boolean? {
+                return when (value?.lowercase()) {
+                    "true" -> true
+                    "false" -> false
+                    else -> null
                 }
             }
-            val connected = ensureServiceConnected()
+
+            val autoEnterVoiceChat = parseBooleanOrNull(autoEnterVoiceChatParam)
+            if (autoEnterVoiceChatParam != null && autoEnterVoiceChat == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatServiceStartResultData(isConnected = false),
+                    error = "参数错误：auto_enter_voice_chat 必须是 true/false"
+                )
+            }
+
+            val wakeLaunched = parseBooleanOrNull(wakeLaunchedParam)
+            if (wakeLaunchedParam != null && wakeLaunched == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatServiceStartResultData(isConnected = false),
+                    error = "参数错误：wake_launched 必须是 true/false"
+                )
+            }
+
+            val timeoutMs = timeoutMsParam?.takeIf { it.isNotBlank() }?.toLongOrNull()
+            if (timeoutMsParam != null && timeoutMsParam.isNotBlank() && timeoutMs == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatServiceStartResultData(isConnected = false),
+                    error = "参数错误：timeout_ms 必须是整数（毫秒）"
+                )
+            }
+
+            val intent = Intent(appContext, FloatingChatService::class.java)
+            if (initialMode != null) {
+                intent.putExtra("INITIAL_MODE", initialMode.name)
+            }
+            if (autoEnterVoiceChat == true) {
+                intent.putExtra(FloatingChatService.EXTRA_AUTO_ENTER_VOICE_CHAT, true)
+            }
+            if (wakeLaunched != null) {
+                intent.putExtra(FloatingChatService.EXTRA_WAKE_LAUNCHED, wakeLaunched)
+            }
+            if (timeoutMs != null) {
+                intent.putExtra(FloatingChatService.EXTRA_AUTO_EXIT_AFTER_MS, timeoutMs)
+            }
+
+            val connected = ensureServiceConnected(intent)
             
             if (connected) {
                 try {

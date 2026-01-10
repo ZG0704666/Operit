@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.assistant.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,28 +52,40 @@ fun AvatarConfigSection(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp, start = 4.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        // Header
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 8.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(stringResource(R.string.avatar_config), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                text = stringResource(R.string.avatar_config),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
             Icon(
-                imageVector =
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand)
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
 
-    if (expanded) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        // Expanded Content
+        if (expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .padding(16.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.weight(1f)) {
                         ModelSelector(
@@ -86,18 +99,20 @@ fun AvatarConfigSection(
                     IconButton(onClick = onImportClick) {
                         Icon(
                             imageVector = Icons.Default.AddPhotoAlternate,
-                            contentDescription = stringResource(R.string.import_model)
+                            contentDescription = stringResource(R.string.import_model),
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
 
                 if (uiState.currentAvatarConfig != null && uiState.config != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // Scale Slider
                     Text(
                         text = stringResource(R.string.scale, String.format("%.2f", uiState.config.scale)),
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Slider(
                         value = uiState.config.scale,
@@ -108,7 +123,8 @@ fun AvatarConfigSection(
                     // TranslationX Slider
                     Text(
                         text = stringResource(R.string.x_translation, String.format("%.1f", uiState.config.translateX)),
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Slider(
                         value = uiState.config.translateX,
@@ -119,7 +135,8 @@ fun AvatarConfigSection(
                     // TranslationY Slider
                     Text(
                         text = stringResource(R.string.y_translation, String.format("%.1f", uiState.config.translateY)),
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Slider(
                         value = uiState.config.translateY,
@@ -127,6 +144,9 @@ fun AvatarConfigSection(
                         valueRange = -500f..500f
                     )
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                HowToImportSection()
             }
         }
     }

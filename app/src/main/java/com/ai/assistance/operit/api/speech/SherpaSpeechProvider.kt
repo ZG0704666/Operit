@@ -7,6 +7,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import com.ai.assistance.operit.util.AppLogger
 import com.k2fsa.sherpa.ncnn.*
+import com.ai.assistance.operit.api.speech.SpeechPrerollStore
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -229,6 +230,22 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
         _recognitionResult.value = SpeechService.RecognitionResult(text = "", isFinal = false, confidence = 0f)
         recognizer?.reset(false) // 使用SherpaNcnn中的reset方法，参数为false不重新创建识别器
 
+        val pendingPcm = SpeechPrerollStore.consumePending()
+        if (pendingPcm != null && pendingPcm.isNotEmpty()) {
+            try {
+                recognizer?.let { recognizerInstance ->
+                    val samples = FloatArray(pendingPcm.size) { i -> pendingPcm[i] / 32768.0f }
+                    recognizerInstance.acceptSamples(samples)
+                    while (recognizerInstance.isReady()) {
+                        recognizerInstance.decode()
+                    }
+                }
+                AppLogger.d(TAG, "Applied preroll: samples=${pendingPcm.size}")
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Failed to apply preroll", e)
+            }
+        }
+
         val sampleRateInHz = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
@@ -274,6 +291,7 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                             _recognitionState.value == SpeechService.RecognitionState.RECOGNIZING) {
                         val ret = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                         if (ret > 0) {
+                            SpeechPrerollStore.appendPcm(audioBuffer, ret)
                             // 计算并更新音量级别
                             val volumeLevel = calculateVolumeLevel(audioBuffer, ret)
                             _volumeLevelFlow.value = volumeLevel
@@ -388,8 +406,16 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
             val text = recognizer?.text ?: ""
             _recognitionResult.value = SpeechService.RecognitionResult(text = text, isFinal = true)
 
-            audioRecord?.stop()
-            audioRecord?.release()
+            try {
+                audioRecord?.stop()
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Error stopping AudioRecord", e)
+            }
+            try {
+                audioRecord?.release()
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Error releasing AudioRecord", e)
+            }
             audioRecord = null
             _recognitionState.value = SpeechService.RecognitionState.IDLE
             _volumeLevelFlow.value = 0f // 重置音量
@@ -402,8 +428,16 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
         if (recordingJob?.isActive == true) {
             recordingJob?.cancel()
         }
-        audioRecord?.stop()
-        audioRecord?.release()
+        try {
+            audioRecord?.stop()
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Error stopping AudioRecord", e)
+        }
+        try {
+            audioRecord?.release()
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Error releasing AudioRecord", e)
+        }
         audioRecord = null
         _recognitionState.value = SpeechService.RecognitionState.IDLE
         _volumeLevelFlow.value = 0f // 重置音量

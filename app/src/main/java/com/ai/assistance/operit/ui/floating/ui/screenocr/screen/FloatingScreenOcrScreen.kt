@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.floating.ui.screenocr.screen
 
+import android.widget.Toast
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.Animatable
@@ -59,6 +60,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
@@ -81,9 +83,206 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.hypot
 
+private const val OCR_INLINE_INSTRUCTION = "请你不要读取文件，直接根据该附件内容和用户提问回答用户问题"
+
+private data class CropBounds(
+    val left: Int,
+    val top: Int,
+    val width: Int,
+    val height: Int
+)
+
+private fun computeCropBounds(srcBitmap: Bitmap, rectUi: Rect, overlay: IntSize): CropBounds? {
+    if (overlay.width <= 0 || overlay.height <= 0) return null
+
+    val scale = min(
+        overlay.width.toFloat() / srcBitmap.width.toFloat(),
+        overlay.height.toFloat() / srcBitmap.height.toFloat()
+    )
+    val drawW = srcBitmap.width * scale
+    val drawH = srcBitmap.height * scale
+    val offsetX = (overlay.width - drawW) / 2f
+    val offsetY = (overlay.height - drawH) / 2f
+
+    val clampedLeft = rectUi.left.coerceIn(offsetX, offsetX + drawW)
+    val clampedTop = rectUi.top.coerceIn(offsetY, offsetY + drawH)
+    val clampedRight = rectUi.right.coerceIn(offsetX, offsetX + drawW)
+    val clampedBottom = rectUi.bottom.coerceIn(offsetY, offsetY + drawH)
+
+    val leftPx = ((clampedLeft - offsetX) / scale).toInt().coerceIn(0, srcBitmap.width - 1)
+    val topPx = ((clampedTop - offsetY) / scale).toInt().coerceIn(0, srcBitmap.height - 1)
+    val rightPx = ((clampedRight - offsetX) / scale).toInt().coerceIn(leftPx + 1, srcBitmap.width)
+    val bottomPx = ((clampedBottom - offsetY) / scale).toInt().coerceIn(topPx + 1, srcBitmap.height)
+
+    val cropW = (rightPx - leftPx).coerceAtLeast(1)
+    val cropH = (bottomPx - topPx).coerceAtLeast(1)
+    if (cropW <= 1 || cropH <= 1) return null
+
+    return CropBounds(left = leftPx, top = topPx, width = cropW, height = cropH)
+}
+
+private fun hitTestHandle(pos: Offset, rect: Rect, handleRadiusPx: Float): SelectionDragHandle {
+    val tl = rect.topLeft
+    val tr = rect.topRight
+    val bl = rect.bottomLeft
+    val br = rect.bottomRight
+    val tm = Offset(rect.center.x, rect.top)
+    val bm = Offset(rect.center.x, rect.bottom)
+    val lm = Offset(rect.left, rect.center.y)
+    val rm = Offset(rect.right, rect.center.y)
+
+    fun near(a: Offset): Boolean = (pos - a).getDistance() <= handleRadiusPx
+
+    return when {
+        near(tl) -> SelectionDragHandle.TOP_LEFT
+        near(tr) -> SelectionDragHandle.TOP_RIGHT
+        near(bl) -> SelectionDragHandle.BOTTOM_LEFT
+        near(br) -> SelectionDragHandle.BOTTOM_RIGHT
+        near(tm) -> SelectionDragHandle.TOP
+        near(bm) -> SelectionDragHandle.BOTTOM
+        near(lm) -> SelectionDragHandle.LEFT
+        near(rm) -> SelectionDragHandle.RIGHT
+        rect.contains(pos) -> SelectionDragHandle.MOVE
+        else -> SelectionDragHandle.NONE
+    }
+}
+
+private fun clampSelectionRect(rect: Rect, overlay: IntSize, minSizePx: Float): Rect {
+    var left = rect.left
+    var top = rect.top
+    var right = rect.right
+    var bottom = rect.bottom
+
+    if (right < left) {
+        val t = left
+        left = right
+        right = t
+    }
+    if (bottom < top) {
+        val t = top
+        top = bottom
+        bottom = t
+    }
+
+    val w = (right - left).coerceAtLeast(minSizePx)
+    val h = (bottom - top).coerceAtLeast(minSizePx)
+    right = left + w
+    bottom = top + h
+
+    val maxW = overlay.width.toFloat().coerceAtLeast(1f)
+    val maxH = overlay.height.toFloat().coerceAtLeast(1f)
+
+    if (left < 0f) {
+        val dx = -left
+        left += dx
+        right += dx
+    }
+    if (top < 0f) {
+        val dy = -top
+        top += dy
+        bottom += dy
+    }
+    if (right > maxW) {
+        val dx = right - maxW
+        left -= dx
+        right -= dx
+    }
+    if (bottom > maxH) {
+        val dy = bottom - maxH
+        top -= dy
+        bottom -= dy
+    }
+
+    left = left.coerceIn(0f, maxW - minSizePx)
+    top = top.coerceIn(0f, maxH - minSizePx)
+    right = right.coerceIn(left + minSizePx, maxW)
+    bottom = bottom.coerceIn(top + minSizePx, maxH)
+
+    return Rect(left, top, right, bottom)
+}
+
+private fun applyHandleDelta(start: Rect, delta: Offset, handle: SelectionDragHandle): Rect {
+    return when (handle) {
+        SelectionDragHandle.MOVE -> Rect(
+            left = start.left + delta.x,
+            top = start.top + delta.y,
+            right = start.right + delta.x,
+            bottom = start.bottom + delta.y,
+        )
+        SelectionDragHandle.TOP_LEFT -> Rect(
+            left = start.left + delta.x,
+            top = start.top + delta.y,
+            right = start.right,
+            bottom = start.bottom,
+        )
+        SelectionDragHandle.TOP_RIGHT -> Rect(
+            left = start.left,
+            top = start.top + delta.y,
+            right = start.right + delta.x,
+            bottom = start.bottom,
+        )
+        SelectionDragHandle.BOTTOM_LEFT -> Rect(
+            left = start.left + delta.x,
+            top = start.top,
+            right = start.right,
+            bottom = start.bottom + delta.y,
+        )
+        SelectionDragHandle.BOTTOM_RIGHT -> Rect(
+            left = start.left,
+            top = start.top,
+            right = start.right + delta.x,
+            bottom = start.bottom + delta.y,
+        )
+        SelectionDragHandle.LEFT -> Rect(
+            left = start.left + delta.x,
+            top = start.top,
+            right = start.right,
+            bottom = start.bottom,
+        )
+        SelectionDragHandle.RIGHT -> Rect(
+            left = start.left,
+            top = start.top,
+            right = start.right + delta.x,
+            bottom = start.bottom,
+        )
+        SelectionDragHandle.TOP -> Rect(
+            left = start.left,
+            top = start.top + delta.y,
+            right = start.right,
+            bottom = start.bottom,
+        )
+        SelectionDragHandle.BOTTOM -> Rect(
+            left = start.left,
+            top = start.top,
+            right = start.right,
+            bottom = start.bottom + delta.y,
+        )
+        SelectionDragHandle.NONE -> start
+    }
+}
+
+private enum class SelectionDragHandle {
+    NONE,
+    MOVE,
+    TOP_LEFT,
+    TOP_RIGHT,
+    BOTTOM_LEFT,
+    BOTTOM_RIGHT,
+    LEFT,
+    RIGHT,
+    TOP,
+    BOTTOM,
+}
+
 @Composable
 fun FloatingScreenOcrScreen(floatContext: FloatContext) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val handleRadiusPx = with(density) { 18.dp.toPx() }
+    val minSizePx = with(density) { 32.dp.toPx() }
+    fun showToast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
 
     var overlaySize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -94,6 +293,10 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
     var selectionRect by remember { mutableStateOf<Rect?>(null) }
     var showConfirm by remember { mutableStateOf(false) }
     var isBusy by remember { mutableStateOf(false) }
+
+    var activeHandle by remember { mutableStateOf(SelectionDragHandle.NONE) }
+    var handleStartRect by remember { mutableStateOf<Rect?>(null) }
+    var handleStartPos by remember { mutableStateOf(Offset.Zero) }
 
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
@@ -170,44 +373,6 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
         showRipple = false
     }
 
-    val toast = floatContext.chatService?.getChatCore()?.getUiStateDelegate()
-
-    data class CropBounds(
-        val left: Int,
-        val top: Int,
-        val width: Int,
-        val height: Int
-    )
-
-    fun computeCropBounds(srcBitmap: Bitmap, rectUi: Rect, overlay: IntSize): CropBounds? {
-        if (overlay.width <= 0 || overlay.height <= 0) return null
-
-        val scale = min(
-            overlay.width.toFloat() / srcBitmap.width.toFloat(),
-            overlay.height.toFloat() / srcBitmap.height.toFloat()
-        )
-        val drawW = srcBitmap.width * scale
-        val drawH = srcBitmap.height * scale
-        val offsetX = (overlay.width - drawW) / 2f
-        val offsetY = (overlay.height - drawH) / 2f
-
-        val clampedLeft = rectUi.left.coerceIn(offsetX, offsetX + drawW)
-        val clampedTop = rectUi.top.coerceIn(offsetY, offsetY + drawH)
-        val clampedRight = rectUi.right.coerceIn(offsetX, offsetX + drawW)
-        val clampedBottom = rectUi.bottom.coerceIn(offsetY, offsetY + drawH)
-
-        val leftPx = ((clampedLeft - offsetX) / scale).toInt().coerceIn(0, srcBitmap.width - 1)
-        val topPx = ((clampedTop - offsetY) / scale).toInt().coerceIn(0, srcBitmap.height - 1)
-        val rightPx = ((clampedRight - offsetX) / scale).toInt().coerceIn(leftPx + 1, srcBitmap.width)
-        val bottomPx = ((clampedBottom - offsetY) / scale).toInt().coerceIn(topPx + 1, srcBitmap.height)
-
-        val cropW = (rightPx - leftPx).coerceAtLeast(1)
-        val cropH = (bottomPx - topPx).coerceAtLeast(1)
-        if (cropW <= 1 || cropH <= 1) return null
-
-        return CropBounds(left = leftPx, top = topPx, width = cropW, height = cropH)
-    }
-
     LaunchedEffect(showConfirm, selectionRect, screenshotBitmap, overlaySize) {
         if (!showConfirm) {
             previewBitmap = null
@@ -238,7 +403,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
             .onSizeChanged { overlaySize = it }
     ) {
         val bitmap = screenshotBitmap
-        
+
         // 1. 底层：截图
         if (bitmap != null) {
             Image(
@@ -255,53 +420,87 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = 0.99f }
-                .pointerInput(isBusy, showConfirm) {
-                    if (isBusy || showConfirm) return@pointerInput
+                .pointerInput(isBusy, showConfirm, overlaySize) {
+                    if (isBusy) return@pointerInput
+
+                    if (!showConfirm) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                points.clear()
+                                points.add(offset)
+                                selectionRect = null
+                                showConfirm = false
+                            },
+                            onDrag = { change, _ ->
+                                val pos = change.position
+                                val last = points.lastOrNull()
+                                if (last == null || (pos - last).getDistance() >= 2.5f) {
+                                    points.add(pos)
+                                }
+                            },
+                            onDragCancel = {
+                                points.clear()
+                                selectionRect = null
+                                showConfirm = false
+                            },
+                            onDragEnd = {
+                                if (points.size < 3) {
+                                    showToast("圈选区域太小")
+                                    points.clear()
+                                    selectionRect = null
+                                    showConfirm = false
+                                    return@detectDragGestures
+                                }
+
+                                val minX = points.minOf { it.x }
+                                val minY = points.minOf { it.y }
+                                val maxX = points.maxOf { it.x }
+                                val maxY = points.maxOf { it.y }
+
+                                val w = maxX - minX
+                                val h = maxY - minY
+                                if (w < 10f || h < 10f) {
+                                    showToast("圈选区域太小")
+                                    points.clear()
+                                    selectionRect = null
+                                    showConfirm = false
+                                    return@detectDragGestures
+                                }
+
+                                selectionRect = clampSelectionRect(Rect(minX, minY, maxX, maxY), overlaySize, minSizePx)
+                                showConfirm = true
+                            }
+                        )
+                        return@pointerInput
+                    }
+
                     detectDragGestures(
                         onDragStart = { offset ->
-                            points.clear()
-                            points.add(offset)
-                            selectionRect = null
-                            showConfirm = false
-                        },
-                        onDrag = { change, _ ->
-                            val pos = change.position
-                            val last = points.lastOrNull()
-                            if (last == null || (pos - last).getDistance() >= 2.5f) {
-                                points.add(pos)
+                            val rect = selectionRect ?: return@detectDragGestures
+                            val handle = hitTestHandle(offset, rect, handleRadiusPx)
+                            activeHandle = handle
+                            if (handle == SelectionDragHandle.NONE) {
+                                handleStartRect = null
+                                return@detectDragGestures
                             }
+                            handleStartRect = rect
+                            handleStartPos = offset
                         },
                         onDragCancel = {
-                            points.clear()
-                            selectionRect = null
-                            showConfirm = false
+                            activeHandle = SelectionDragHandle.NONE
+                            handleStartRect = null
                         },
                         onDragEnd = {
-                            if (points.size < 3) {
-                                toast?.showToast("圈选区域太小")
-                                points.clear()
-                                selectionRect = null
-                                showConfirm = false
-                                return@detectDragGestures
-                            }
-
-                            val minX = points.minOf { it.x }
-                            val minY = points.minOf { it.y }
-                            val maxX = points.maxOf { it.x }
-                            val maxY = points.maxOf { it.y }
-
-                            val w = maxX - minX
-                            val h = maxY - minY
-                            if (w < 10f || h < 10f) {
-                                toast?.showToast("圈选区域太小")
-                                points.clear()
-                                selectionRect = null
-                                showConfirm = false
-                                return@detectDragGestures
-                            }
-
-                            selectionRect = Rect(minX, minY, maxX, maxY)
-                            showConfirm = true
+                            activeHandle = SelectionDragHandle.NONE
+                            handleStartRect = null
+                        },
+                        onDrag = { change, _ ->
+                            val handle = activeHandle
+                            val start = handleStartRect ?: return@detectDragGestures
+                            if (handle == SelectionDragHandle.NONE) return@detectDragGestures
+                            val delta = change.position - handleStartPos
+                            selectionRect = clampSelectionRect(applyHandleDelta(start, delta, handle), overlaySize, minSizePx)
+                            change.consumeAllChanges()
                         }
                     )
                 }
@@ -324,48 +523,62 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
             } else {
                 Color(0xFF2196F3).copy(alpha = 0.35f)
             }
-            
+
             // 绘制全屏遮罩
             drawRect(color = overlayColor)
 
             // 如果有选区，挖空选区部分
             selectionRect?.let { rect ->
-                 drawRect(
-                     color = Color.Transparent,
-                     topLeft = rect.topLeft,
-                     size = rect.size,
-                     blendMode = BlendMode.Clear
-                 )
-                 
-                 // 绘制选区边框
-                 drawRect(
-                     color = Color.White.copy(alpha = 0.8f),
-                     topLeft = rect.topLeft,
-                     size = rect.size,
-                     style = Stroke(width = 2.dp.toPx())
-                 )
-                 
-                 // 简单的四个角装饰
-                 val cornerLen = 10.dp.toPx()
-                 val strokeW = 4.dp.toPx()
-                 val capColor = Color.White
-                 // TopLeft
-                 drawLine(capColor, rect.topLeft, rect.topLeft + Offset(cornerLen, 0f), strokeW)
-                 drawLine(capColor, rect.topLeft, rect.topLeft + Offset(0f, cornerLen), strokeW)
-                 // TopRight
-                 drawLine(capColor, rect.topRight, rect.topRight - Offset(cornerLen, 0f), strokeW)
-                 drawLine(capColor, rect.topRight, rect.topRight + Offset(0f, cornerLen), strokeW)
-                 // BottomLeft
-                 drawLine(capColor, rect.bottomLeft, rect.bottomLeft + Offset(cornerLen, 0f), strokeW)
-                 drawLine(capColor, rect.bottomLeft - Offset(0f, cornerLen), rect.bottomLeft, strokeW)
-                 // BottomRight
-                 drawLine(capColor, rect.bottomRight, rect.bottomRight - Offset(cornerLen, 0f), strokeW)
-                 drawLine(capColor, rect.bottomRight - Offset(0f, cornerLen), rect.bottomRight, strokeW)
+                drawRect(
+                    color = Color.Transparent,
+                    topLeft = rect.topLeft,
+                    size = rect.size,
+                    blendMode = BlendMode.Clear
+                )
+
+                // 绘制选区边框
+                drawRect(
+                    color = Color.White.copy(alpha = 0.8f),
+                    topLeft = rect.topLeft,
+                    size = rect.size,
+                    style = Stroke(width = 2.dp.toPx())
+                )
+
+                // 简单的四个角装饰
+                val cornerLen = 10.dp.toPx()
+                val strokeW = 4.dp.toPx()
+                val capColor = Color.White
+                // TopLeft
+                drawLine(capColor, rect.topLeft, rect.topLeft + Offset(cornerLen, 0f), strokeW)
+                drawLine(capColor, rect.topLeft, rect.topLeft + Offset(0f, cornerLen), strokeW)
+                // TopRight
+                drawLine(capColor, rect.topRight, rect.topRight - Offset(cornerLen, 0f), strokeW)
+                drawLine(capColor, rect.topRight, rect.topRight + Offset(0f, cornerLen), strokeW)
+                // BottomLeft
+                drawLine(capColor, rect.bottomLeft, rect.bottomLeft + Offset(cornerLen, 0f), strokeW)
+                drawLine(capColor, rect.bottomLeft - Offset(0f, cornerLen), rect.bottomLeft, strokeW)
+                // BottomRight
+                drawLine(capColor, rect.bottomRight, rect.bottomRight - Offset(cornerLen, 0f), strokeW)
+                drawLine(capColor, rect.bottomRight - Offset(0f, cornerLen), rect.bottomRight, strokeW)
+
+                if (showConfirm) {
+                    val r = 7.dp.toPx()
+                    val handleColor = Color.White
+                    val alpha = 0.95f
+                    drawCircle(handleColor.copy(alpha = alpha), r, rect.topLeft)
+                    drawCircle(handleColor.copy(alpha = alpha), r, rect.topRight)
+                    drawCircle(handleColor.copy(alpha = alpha), r, rect.bottomLeft)
+                    drawCircle(handleColor.copy(alpha = alpha), r, rect.bottomRight)
+                    drawCircle(handleColor.copy(alpha = alpha), r, Offset(rect.center.x, rect.top))
+                    drawCircle(handleColor.copy(alpha = alpha), r, Offset(rect.center.x, rect.bottom))
+                    drawCircle(handleColor.copy(alpha = alpha), r, Offset(rect.left, rect.center.y))
+                    drawCircle(handleColor.copy(alpha = alpha), r, Offset(rect.right, rect.center.y))
+                }
             }
-            
+
             // 绘制拖动轨迹（带发光效果）
             if (!showConfirm && points.size >= 2) {
-                 val path = Path().apply {
+                val path = Path().apply {
                     moveTo(points.first().x, points.first().y)
                     for (i in 1 until points.size) lineTo(points[i].x, points[i].y)
                  }
@@ -547,10 +760,13 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                                     }
                                     
                                     if (ocrText.isBlank()) {
-                                        toast?.showToast("未识别到文字")
+                                        showToast("未识别到文字")
                                     }
 
-                                    val content = if (ocrText.isBlank()) "【圈选识别】未识别到文字" else "【圈选识别】\n$ocrText"
+                                    val content =
+                                        (if (ocrText.isBlank()) "【圈选识别】未识别到文字" else "【圈选识别】\n$ocrText") +
+                                            "\n\n" +
+                                            OCR_INLINE_INSTRUCTION
                                     val textAttachment = AttachmentInfo(
                                         filePath = "screen_ocr_${System.currentTimeMillis()}",
                                         fileName = "screen_ocr.txt",
@@ -564,14 +780,14 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                                         ?.getAttachmentDelegate()
                                         ?.addAttachments(listOf(textAttachment))
                                     
-                                    toast?.showToast("已获取圈选内容")
+                                    showToast("已获取圈选内容")
                                     
                                     // Set pending flag for Auto-Check in Fullscreen
                                     floatContext.pendingScreenSelection = true
                                     
                                     floatContext.onModeChange(floatContext.previousMode)
                                 } catch (e: Exception) {
-                                    toast?.showToast("Error: ${e.message}")
+                                    showToast("Error: ${e.message}")
                                 } finally {
                                     isBusy = false
                                 }

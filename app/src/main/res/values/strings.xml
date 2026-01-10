@@ -107,7 +107,32 @@
     <string name="dragonbones_important_tip">重要提示：旧版编辑器下载页面中，Windows和Mac的下载链接放反了，请注意选择正确的链接下载。</string>
     <string name="download_old_editor">下载旧版编辑器</string>
     <string name="visit_online_editor">访问在线编辑器</string>
-    
+
+    <string name="voice_wakeup_section_title">语音唤醒</string>
+    <string name="voice_wakeup_always_listen_title">始终监听</string>
+    <string name="voice_wakeup_always_listen_desc">后台持续监听唤醒词（需麦克风权限）</string>
+    <string name="voice_wakeup_phrase_label">唤醒词</string>
+    <string name="voice_wakeup_phrase_supporting">例如：小欧</string>
+    <string name="voice_wakeup_regex_title">正则表达式</string>
+    <string name="voice_wakeup_regex_desc">将唤醒词按正则匹配识别结果</string>
+    <string name="voice_wakeup_inactivity_timeout_label">语音无响应超时（秒）</string>
+    <string name="voice_wakeup_inactivity_timeout_supporting">范围：1-600</string>
+    <string name="voice_wakeup_greeting_title">唤醒后说一句</string>
+    <string name="voice_wakeup_greeting_desc">进入语音模式前先朗读一句</string>
+    <string name="voice_wakeup_greeting_text_label">朗读内容</string>
+    <string name="voice_wakeup_greeting_text_supporting">例如：我在</string>
+
+    <string name="voice_keyword_attachments_title">语音关键词附件</string>
+    <string name="voice_keyword_attachments_enabled_title">自动附加</string>
+    <string name="voice_keyword_attachments_enabled_desc">命中关键词时自动抓取附件</string>
+    <string name="voice_keyword_attachments_screen_title">屏幕</string>
+    <string name="voice_keyword_attachments_screen_desc">截图 + OCR</string>
+    <string name="voice_keyword_attachments_screen_keyword_label">屏幕关键词</string>
+    <string name="voice_keyword_attachments_keyword_supporting">多个用 | 或 , 分隔</string>
+    <string name="voice_keyword_attachments_notifications_title">通知</string>
+    <string name="voice_keyword_attachments_notifications_desc">附加当前通知</string>
+    <string name="voice_keyword_attachments_notifications_keyword_label">通知关键词</string>
+
     <!-- 用于NavItem类的标识符 -->
     <string name="shizuku_commands">权限授予</string>
     <string name="tool_permissions">工具权限设置</string>

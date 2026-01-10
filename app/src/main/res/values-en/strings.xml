@@ -116,7 +116,32 @@
     <string name="dragonbones_important_tip">Important Note: In the old editor download page, the Windows and Mac download links are reversed. Please make sure to select the correct link.</string>
     <string name="download_old_editor">Download Old Editor</string>
     <string name="visit_online_editor">Visit Online Editor</string>
-    
+
+    <string name="voice_wakeup_section_title">Voice Wake-up</string>
+    <string name="voice_wakeup_always_listen_title">Always Listening</string>
+    <string name="voice_wakeup_always_listen_desc">Listen for the wake phrase in the background (microphone permission required)</string>
+    <string name="voice_wakeup_phrase_label">Wake phrase</string>
+    <string name="voice_wakeup_phrase_supporting">Example: Xiao Ou</string>
+    <string name="voice_wakeup_regex_title">Regex</string>
+    <string name="voice_wakeup_regex_desc">Match recognition results using a regular expression</string>
+    <string name="voice_wakeup_inactivity_timeout_label">Inactivity timeout (seconds)</string>
+    <string name="voice_wakeup_inactivity_timeout_supporting">Range: 1-600</string>
+    <string name="voice_wakeup_greeting_title">Speak after wake-up</string>
+    <string name="voice_wakeup_greeting_desc">Speak a short sentence before listening</string>
+    <string name="voice_wakeup_greeting_text_label">Greeting</string>
+    <string name="voice_wakeup_greeting_text_supporting">Example: I’m here</string>
+
+    <string name="voice_keyword_attachments_title">Voice Keyword Attachments</string>
+    <string name="voice_keyword_attachments_enabled_title">Auto attach</string>
+    <string name="voice_keyword_attachments_enabled_desc">Automatically capture attachments when keywords are detected</string>
+    <string name="voice_keyword_attachments_screen_title">Screen</string>
+    <string name="voice_keyword_attachments_screen_desc">Screenshot + OCR</string>
+    <string name="voice_keyword_attachments_screen_keyword_label">Screen keywords</string>
+    <string name="voice_keyword_attachments_keyword_supporting">Separate multiple keywords with | or ,</string>
+    <string name="voice_keyword_attachments_notifications_title">Notifications</string>
+    <string name="voice_keyword_attachments_notifications_desc">Attach current notifications</string>
+    <string name="voice_keyword_attachments_notifications_keyword_label">Notification keywords</string>
+
     <!-- NavItem class identifiers -->
     <string name="shizuku_commands">Permissions</string>
     <string name="tool_permissions">Tool Permission Settings</string>

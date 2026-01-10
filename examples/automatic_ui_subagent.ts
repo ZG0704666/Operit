@@ -139,8 +139,8 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
                         {
                             name: "target_app"
                             description: { 
-                                zh: "目标应用名/包名（建议传入，用于在虚拟屏未创建时先执行一次默认 Launch 预热虚拟屏，避免在主屏误操作）", 
-                                en: "Target app name/package (recommended). When the virtual display isn't created yet, it helps perform a default Launch to warm up the virtual display and avoid operating on the main screen by mistake." 
+                                zh: "目标应用名/包名（建议传入，用于在虚拟屏未创建时先执行一次默认 Launch 预热虚拟屏，避免在主屏误操作；约定：当用户要求分析当前屏幕/页面内容时不要传 target_app，也不要预热虚拟屏）", 
+                                en: "Target app name/package (recommended). When the virtual display isn't created yet, it helps perform a default Launch to warm up the virtual display and avoid operating on the main screen by mistake. Convention: when the user asks to analyze the current screen/page, do not pass target_app and do not prewarm the virtual display." 
                             }
                             type: "string"
                             required: false
@@ -394,8 +394,8 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
                         {
                             name: "target_app"
                             description: { 
-                                zh: "目标应用名/包名（建议传入，用于在虚拟屏未创建时先执行一次默认 Launch 预热虚拟屏，避免在主屏误操作）", 
-                                en: "Target app name/package (recommended). Helps with a default Launch/warm-up and avoids operating on the wrong screen." 
+                                zh: "目标应用名/包名（建议传入，用于在虚拟屏未创建时先执行一次默认 Launch 预热虚拟屏，避免在主屏误操作；约定：当用户要求分析当前屏幕/页面内容时不要传 target_app，也不要预热虚拟屏）", 
+                                en: "Target app name/package (recommended). Helps with a default Launch/warm-up and avoids operating on the wrong screen. Convention: when the user asks to analyze the current screen/page, do not pass target_app and do not prewarm the virtual display." 
                             }
                             type: "string"
                             required: false
