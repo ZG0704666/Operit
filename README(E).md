@@ -166,7 +166,40 @@ Rich MCP ecosystem
 <tr><th>Version</th><th>Release Date</th><th>Core Updates</th></tr>
 
 <tr>
-<td><b>v1.6.3</b><br><sub>Latest</sub></td>
+<td><b>v1.8.0</b><br><sub>Latest</sub></td>
+<td>2026-01-13</td>
+<td>
+• <b>Workflow System</b>: Supports computation/input/output/execution with voice wake-up triggers<br>
+• <b>Voice Wake-up</b>: Enter voice conversation mode directly, with keyword-based quick attachments<br>
+• <b>Parallel Conversations</b>: Parallel processing + toolkit state mechanism for dynamic tool decisions<br>
+• <b>Additions & Improvements</b>: Time-based memory query, auto backups, OpenAI drawing + new TTS/STT providers, MCP startup optimizations, terminal chroot, and multiple bug fixes
+</td>
+</tr>
+
+<tr>
+<td><b>v1.7.1</b></td>
+<td>2025-12-31</td>
+<td>
+• <b>Root Virtual Display Automation</b>: Virtual screen supported under root, AutoGLM concurrent multi-window tasks<br>
+• <b>Skill Ecosystem</b>: Added Skill protocol + Skill marketplace; optional BETA plan for nightly builds<br>
+• <b>UX Enhancements</b>: Summary editing, web access in floating window mode, selection OCR, chat lock<br>
+• <b>Fixes & Optimizations</b>: Large image crashes, ToolCall errors, code block line breaks, startup speed and virtual-screen stability
+</td>
+</tr>
+
+<tr>
+<td><b>v1.7.0</b></td>
+<td>2025-12-19</td>
+<td>
+• <b>GUI Automation Milestone</b>: Autoglm + virtual display (virtual screen can be toggled in settings)<br>
+• <b>Automation Enhancements</b>: One-click Autoglm setup + standalone executor, virtual screen toggle logic, custom screenshot quality<br>
+• <b>UX Tweaks</b>: API key masked when unfocused; Autoglm is no longer allowed as the main model<br>
+• <b>Tooling</b>: NanoBanana image generation pack, apply file no-overwrite support, MNN STT and more
+</td>
+</tr>
+
+<tr>
+<td><b>v1.6.3</b></td>
 <td>2025-12-08</td>
 <td>
 • <b>Native ToolCall Support</b>: Added support for native model tool calls and DeepSeek's thinking tools<br>
