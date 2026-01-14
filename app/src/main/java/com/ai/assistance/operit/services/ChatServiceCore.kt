@@ -151,8 +151,8 @@ class ChatServiceCore(
                 // TTS 功能需要在外部实现
                 AppLogger.d(TAG, "朗读消息: $text")
             },
-            onTokenLimitExceeded = {
-                messageCoordinationDelegate.handleTokenLimitExceeded()
+            onTokenLimitExceeded = { chatId ->
+                messageCoordinationDelegate.handleTokenLimitExceeded(chatId)
             }
         )
 
@@ -191,8 +191,6 @@ class ChatServiceCore(
         val chatId = chatHistoryDelegate.currentChatId.value
         if (chatId != null) {
             messageProcessingDelegate.cancelMessage(chatId)
-        } else {
-            messageProcessingDelegate.cancelCurrentMessage()
         }
     }
 
@@ -206,18 +204,8 @@ class ChatServiceCore(
         messageProcessingDelegate.updateUserMessage(message)
     }
 
-    /** 获取当前响应流 */
-    fun getCurrentResponseStream(): SharedStream<String>? {
-        return messageProcessingDelegate.getCurrentResponseStream()
-    }
-
-    fun getResponseStream(chatId: String?): SharedStream<String>? {
+    fun getResponseStream(chatId: String): SharedStream<String>? {
         return messageProcessingDelegate.getResponseStream(chatId)
-    }
-
-    /** 处理输入处理状态 */
-    fun handleInputProcessingState(state: InputProcessingState) {
-        messageProcessingDelegate.handleInputProcessingState(state)
     }
 
     // ========== 聊天历史相关 ==========
@@ -300,12 +288,6 @@ class ChatServiceCore(
 
     val isLoading: StateFlow<Boolean>
         get() = messageProcessingDelegate.isLoading
-
-    val inputProcessingState: StateFlow<InputProcessingState>
-        get() = messageProcessingDelegate.inputProcessingState
-
-    val activeStreamingChatId: StateFlow<String?>
-        get() = messageProcessingDelegate.activeStreamingChatId
 
     val activeStreamingChatIds: StateFlow<Set<String>>
         get() = messageProcessingDelegate.activeStreamingChatIds

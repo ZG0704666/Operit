@@ -275,12 +275,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 AppLogger.d(TAG, "EnhancedAIService 已就绪，开始监听输入处理状态")
                 serviceScope.launch {
                     try {
-                        aiService.inputProcessingState.collect { state ->
-                            if (!chatCore.isLoading.value) {
-                                chatCore.handleInputProcessingState(state)
-                                AppLogger.d(TAG, "输入处理状态已更新: $state")
-                            }
-                        }
+                        aiService.inputProcessingState.collect { _ -> }
                     } catch (e: Exception) {
                         AppLogger.e(TAG, "监听输入处理状态失败", e)
                     }

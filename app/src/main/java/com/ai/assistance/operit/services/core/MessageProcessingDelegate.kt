@@ -11,7 +11,6 @@ import com.ai.assistance.operit.core.tools.agent.PhoneAgentJobRegistry
 import com.ai.assistance.operit.data.model.*
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
 import com.ai.assistance.operit.data.model.PromptFunctionType
-import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.util.stream.SharedStream
 import com.ai.assistance.operit.util.stream.share
 import com.ai.assistance.operit.util.WaifuMessageProcessor
@@ -51,7 +50,7 @@ class MessageProcessingDelegate(
         private val showErrorMessage: (String) -> Unit,
         private val updateChatTitle: (chatId: String, title: String) -> Unit,
         private val onTurnComplete: (chatId: String?, service: EnhancedAIService) -> Unit,
-        private val onTokenLimitExceeded: suspend () -> Unit, // 新增：Token超限回调
+        private val onTokenLimitExceeded: suspend (chatId: String?) -> Unit, // 新增：Token超限回调
         // 添加自动朗读相关的回调
         private val getIsAutoReadEnabled: () -> Boolean,
         private val speakMessage: (String) -> Unit
@@ -75,13 +74,6 @@ class MessageProcessingDelegate(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _inputProcessingState = MutableStateFlow<EnhancedInputProcessingState>(EnhancedInputProcessingState.Idle)
-    val inputProcessingState: StateFlow<EnhancedInputProcessingState> = _inputProcessingState.asStateFlow()
-
-    // 记录当前进行中的会话ID，用于在UI层进行按会话隔离的“停止/发送”按钮显示
-    private val _activeStreamingChatId = MutableStateFlow<String?>(null)
-    val activeStreamingChatId: StateFlow<String?> = _activeStreamingChatId.asStateFlow()
 
     private val _activeStreamingChatIds = MutableStateFlow<Set<String>>(emptySet())
     val activeStreamingChatIds: StateFlow<Set<String>> = _activeStreamingChatIds.asStateFlow()
@@ -107,6 +99,8 @@ class MessageProcessingDelegate(
 
     private val chatRuntimes = ConcurrentHashMap<String, ChatRuntime>()
     private val lastScrollEmitMsByChatKey = ConcurrentHashMap<String, AtomicLong>()
+    private val suppressIdleCompletedStateByChatId = ConcurrentHashMap<String, Boolean>()
+    private val pendingAsyncSummaryUiByChatId = ConcurrentHashMap<String, Boolean>()
 
     private fun chatKey(chatId: String?): String = chatId ?: "__DEFAULT_CHAT__"
 
@@ -144,33 +138,51 @@ class MessageProcessingDelegate(
     }
 
     private fun setChatInputProcessingState(chatId: String?, state: EnhancedInputProcessingState) {
+        if (chatId != null && suppressIdleCompletedStateByChatId.containsKey(chatId)) {
+            if (state is EnhancedInputProcessingState.Idle || state is EnhancedInputProcessingState.Completed) {
+                return
+            }
+        }
+        if (state !is EnhancedInputProcessingState.ExecutingTool &&
+            state !is EnhancedInputProcessingState.Summarizing
+        ) {
+            ToolProgressBus.clear()
+        }
         val key = chatKey(chatId)
         val map = _inputProcessingStateByChatId.value.toMutableMap()
         map[key] = state
         _inputProcessingStateByChatId.value = map
-        if (_activeStreamingChatId.value == chatId) {
-            _inputProcessingState.value = state
+    }
+
+    fun setSuppressIdleCompletedStateForChat(chatId: String, suppress: Boolean) {
+        if (suppress) {
+            suppressIdleCompletedStateByChatId[chatId] = true
+        } else {
+            suppressIdleCompletedStateByChatId.remove(chatId)
         }
     }
 
-    // 获取当前活跃的AI响应流
-    fun getCurrentResponseStream(): SharedStream<String>? = getResponseStream(_activeStreamingChatId.value)
+    fun setPendingAsyncSummaryUiForChat(chatId: String, pending: Boolean) {
+        if (pending) {
+            pendingAsyncSummaryUiByChatId[chatId] = true
+        } else {
+            pendingAsyncSummaryUiByChatId.remove(chatId)
+        }
+    }
 
-    fun getResponseStream(chatId: String?): SharedStream<String>? {
+    fun setInputProcessingStateForChat(chatId: String, state: EnhancedInputProcessingState) {
+        setChatInputProcessingState(chatId, state)
+    }
+
+    fun getResponseStream(chatId: String): SharedStream<String>? {
         return chatRuntimes[chatKey(chatId)]?.responseStream
     }
 
     fun cancelMessage(chatId: String) {
         coroutineScope.launch {
-            val chatRuntime = runtimeFor(chatId)
-
             setChatInputProcessingState(chatId, EnhancedInputProcessingState.Idle)
 
-            val isActive = _activeStreamingChatId.value == chatId
-            if (isActive) {
-                _activeStreamingChatId.value = null
-            }
-
+            val chatRuntime = runtimeFor(chatId)
             chatRuntime.streamCollectionJob?.cancel()
             chatRuntime.streamCollectionJob = null
             chatRuntime.stateCollectionJob?.cancel()
@@ -204,7 +216,7 @@ class MessageProcessingDelegate(
 
     fun sendUserMessage(
             attachments: List<AttachmentInfo> = emptyList(),
-            chatId: String? = null,
+            chatId: String,
             workspacePath: String? = null,
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
             enableThinking: Boolean = false,
@@ -229,7 +241,6 @@ class MessageProcessingDelegate(
         _userMessage.value = TextFieldValue("")
         chatRuntime.isLoading.value = true
         updateGlobalLoadingState()
-        _activeStreamingChatId.value = chatId
         setChatInputProcessingState(chatId, EnhancedInputProcessingState.Processing("正在处理消息..."))
 
         coroutineScope.launch(Dispatchers.IO) {
@@ -305,18 +316,18 @@ class MessageProcessingDelegate(
                 // if (!NetworkUtils.isNetworkAvailable(context)) {
                 //     withContext(Dispatchers.Main) { showErrorMessage("网络连接不可用") }
                 //     _isLoading.value = false
-                //     _inputProcessingState.value = EnhancedInputProcessingState.Idle
+                //     setChatInputProcessingState(activeChatId, EnhancedInputProcessingState.Idle)
                 //     return@launch
                 // }
 
                 val service =
-                    (activeChatId?.let { EnhancedAIService.getChatInstance(context, it) }
+                    (EnhancedAIService.getChatInstance(context, activeChatId)
                         ?: getEnhancedAiService())
                         ?: run {
                             withContext(Dispatchers.Main) { showErrorMessage("AI服务未初始化") }
                             chatRuntime.isLoading.value = false
                             updateGlobalLoadingState()
-                            _inputProcessingState.value = EnhancedInputProcessingState.Idle
+                            setChatInputProcessingState(activeChatId, EnhancedInputProcessingState.Idle)
                             return@launch
                         }
 
@@ -348,7 +359,11 @@ class MessageProcessingDelegate(
                 // 根据enableSummary控制Token阈值检查和Token超限回调
                 val effectiveMaxTokens = if (enableSummary) maxTokens else 0
                 val effectiveTokenUsageThreshold = if (enableSummary) tokenUsageThreshold else Double.POSITIVE_INFINITY
-                val effectiveOnTokenLimitExceeded = if (enableSummary) onTokenLimitExceeded else null
+                val effectiveOnTokenLimitExceeded = if (enableSummary) {
+                    suspend { onTokenLimitExceeded(activeChatId) }
+                } else {
+                    null
+                }
 
                 // 2. 使用 AIMessageManager 发送消息
                 val responseStream = AIMessageManager.sendMessage(
@@ -462,6 +477,14 @@ class MessageProcessingDelegate(
                 deferred.await()
 
                 setChatInputProcessingState(chatId, EnhancedInputProcessingState.Completed)
+
+                if (pendingAsyncSummaryUiByChatId.containsKey(chatId)) {
+                    setSuppressIdleCompletedStateForChat(chatId, true)
+                    setChatInputProcessingState(
+                        chatId,
+                        EnhancedInputProcessingState.Summarizing("正在总结记忆...")
+                    )
+                }
 
                 onTurnComplete(activeChatId, service)
 
@@ -609,68 +632,11 @@ class MessageProcessingDelegate(
         }
     }
 
-    fun cancelCurrentMessage() {
-        val activeId = _activeStreamingChatId.value
-        if (activeId != null) {
-            cancelMessage(activeId)
-            return
-        }
-
-        coroutineScope.launch {
-            _inputProcessingState.value = EnhancedInputProcessingState.Idle
-            updateGlobalLoadingState()
-            withContext(Dispatchers.IO) {
-                PhoneAgentJobRegistry.cancelAll("User cancelled")
-                AIMessageManager.cancelCurrentOperation()
-                saveCurrentChat()
-            }
-        }
-    }
-
     /**
      * 强制重置加载状态，允许新的发送流程开始。
      * 主要用于在执行内部流程（如历史总结）后确保状态不会阻塞后续操作。
      */
     fun resetLoadingState() {
         updateGlobalLoadingState()
-    }
-
-    fun setActiveStreamingChatId(chatId: String?) {
-        _activeStreamingChatId.value = chatId
-    }
-
-    fun setInputProcessingState(isProcessing: Boolean, message: String) {
-        val activeId = _activeStreamingChatId.value
-        if(isProcessing) {
-            setChatInputProcessingState(activeId, EnhancedInputProcessingState.Processing(message))
-        } else {
-            setChatInputProcessingState(activeId, EnhancedInputProcessingState.Idle)
-        }
-    }
-
-    /**
-     * 处理来自 EnhancedAIService 的输入处理状态
-     * @param state 输入处理状态
-     */
-    fun handleInputProcessingState(state: EnhancedInputProcessingState) {
-        coroutineScope.launch(Dispatchers.Main) {
-            if (state !is EnhancedInputProcessingState.ExecutingTool && state !is EnhancedInputProcessingState.Summarizing) {
-                ToolProgressBus.clear()
-            }
-            setChatInputProcessingState(_activeStreamingChatId.value, state)
-            // 当服务状态进入空闲或完成，如果当前没有任何会话在运行，则清理活跃会话标记
-            if ((state is EnhancedInputProcessingState.Idle || state is EnhancedInputProcessingState.Completed) && !_isLoading.value) {
-                _activeStreamingChatId.value = null
-            }
-
-            when (state) {
-                is EnhancedInputProcessingState.Error -> {
-                    showErrorMessage(state.message)
-                }
-                else -> {
-                    // Do nothing for other states as they are handled by the state flow itself
-                }
-            }
-        }
     }
 }

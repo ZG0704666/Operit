@@ -45,9 +45,15 @@ class MessageCoordinationDelegate(
     private val _isSummarizing = MutableStateFlow(false)
     val isSummarizing: StateFlow<Boolean> = _isSummarizing.asStateFlow()
 
+    private val _summarizingChatId = MutableStateFlow<String?>(null)
+    val summarizingChatId: StateFlow<String?> = _summarizingChatId.asStateFlow()
+
     // 发送消息触发的异步总结状态（使用 launchAsyncSummaryForSend 时）
     private val _isSendTriggeredSummarizing = MutableStateFlow(false)
     val isSendTriggeredSummarizing: StateFlow<Boolean> = _isSendTriggeredSummarizing.asStateFlow()
+
+    private val _sendTriggeredSummarizingChatId = MutableStateFlow<String?>(null)
+    val sendTriggeredSummarizingChatId: StateFlow<String?> = _sendTriggeredSummarizingChatId.asStateFlow()
 
     // 保存总结任务的 Job 引用，用于取消
     private var summaryJob: Job? = null
@@ -111,11 +117,15 @@ class MessageCoordinationDelegate(
         }
         // 获取当前聊天ID和工作区路径
         val chatId = chatHistoryDelegate.currentChatId.value
+        if (chatId == null) {
+            uiStateDelegate.showErrorMessage("当前没有活跃对话")
+            return
+        }
         val currentChat = chatHistoryDelegate.chatHistories.value.find { it.id == chatId }
         val workspacePath = currentChat?.workspace
 
         // 更新本地Web服务器的聊天ID
-        chatId?.let { updateWebServerForCurrentChat(it) }
+        updateWebServerForCurrentChat(chatId)
 
         // 获取当前附件列表
         val currentAttachments = attachmentDelegate.attachments.value
@@ -246,10 +256,10 @@ class MessageCoordinationDelegate(
     /**
      * 处理Token超限的情况，触发一次历史总结并继续。
      */
-    fun handleTokenLimitExceeded() {
+    fun handleTokenLimitExceeded(chatId: String?) {
         AppLogger.d(TAG, "接收到Token超限信号，开始执行总结并继续...")
         summaryJob = coroutineScope.launch {
-            summarizeHistory(autoContinue = true)
+            summarizeHistory(autoContinue = true, chatIdOverride = chatId)
             summaryJob = null
         }
     }
@@ -260,12 +270,20 @@ class MessageCoordinationDelegate(
     fun cancelSummary() {
         if (_isSummarizing.value) {
             AppLogger.d(TAG, "取消正在进行的总结操作")
+            val targetChatId = _summarizingChatId.value
             summaryJob?.cancel()
             summaryJob = null
             _isSummarizing.value = false
+            _summarizingChatId.value = null
             // 重置状态
             messageProcessingDelegate.resetLoadingState()
-            messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+            if (targetChatId != null) {
+                messageProcessingDelegate.setSuppressIdleCompletedStateForChat(targetChatId, false)
+                messageProcessingDelegate.setInputProcessingStateForChat(
+                    targetChatId,
+                    InputProcessingState.Idle
+                )
+            }
         }
     }
 
@@ -280,6 +298,13 @@ class MessageCoordinationDelegate(
 
         // 标记：有一次发送触发的异步总结正在进行
         _isSendTriggeredSummarizing.value = true
+        _sendTriggeredSummarizingChatId.value = originalChatId
+        messageProcessingDelegate.setPendingAsyncSummaryUiForChat(originalChatId, true)
+        messageProcessingDelegate.setSuppressIdleCompletedStateForChat(originalChatId, true)
+        messageProcessingDelegate.setInputProcessingStateForChat(
+            originalChatId,
+            InputProcessingState.Summarizing("正在总结记忆...")
+        )
 
         coroutineScope.launch {
             try {
@@ -315,10 +340,16 @@ class MessageCoordinationDelegate(
                     AIMessageManager.getMemoryFromMessages(chatHistoryDelegate.chatHistory.value)
                 val chatService = service.getAIServiceForFunction(FunctionType.CHAT)
                 val newWindowSize = chatService.calculateInputTokens("", newHistoryForTokens)
+                val chatServiceForStats = service.getAIServiceForFunction(FunctionType.CHAT)
                 val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts(
                     originalChatId
                 )
-                chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, newWindowSize)
+                chatHistoryDelegate.saveCurrentChat(
+                    inputTokens = inputTokens,
+                    outputTokens = outputTokens,
+                    actualContextWindowSize = newWindowSize,
+                    chatIdOverride = originalChatId
+                )
                 withContext(Dispatchers.Main) {
                     tokenStatsDelegate.setTokenCounts(
                         originalChatId,
@@ -335,10 +366,22 @@ class MessageCoordinationDelegate(
             } finally {
                 _isSendTriggeredSummarizing.value = false
 
+                if (_sendTriggeredSummarizingChatId.value == originalChatId) {
+                    _sendTriggeredSummarizingChatId.value = null
+                }
+
+                messageProcessingDelegate.setPendingAsyncSummaryUiForChat(originalChatId, false)
+                messageProcessingDelegate.setSuppressIdleCompletedStateForChat(originalChatId, false)
+
                 // 如果当前处于 Summarizing 状态（例如主界面在回复完成后锁定了总结状态），
                 // 当异步总结结束时，主动恢复到 Idle
-                if (messageProcessingDelegate.inputProcessingState.value is InputProcessingState.Summarizing) {
-                    messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+                val currentState =
+                    messageProcessingDelegate.inputProcessingStateByChatId.value[originalChatId]
+                if (currentState is InputProcessingState.Summarizing) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(
+                        originalChatId,
+                        InputProcessingState.Idle
+                    )
                 }
             }
         }
@@ -349,17 +392,23 @@ class MessageCoordinationDelegate(
      */
     private suspend fun summarizeHistory(
         autoContinue: Boolean = true,
-        promptFunctionType: PromptFunctionType? = null
+        promptFunctionType: PromptFunctionType? = null,
+        chatIdOverride: String? = null
     ): Boolean {
         if (_isSummarizing.value) {
             AppLogger.d(TAG, "已在总结中，忽略本次请求")
             return false
         }
         _isSummarizing.value = true
-        // 先设置activeStreamingChatId，确保UI能显示总结状态
-        val currentChatId = chatHistoryDelegate.currentChatId.value
-        messageProcessingDelegate.setActiveStreamingChatId(currentChatId)
-        messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Summarizing("正在压缩历史记录..."))
+        val currentChatId = chatIdOverride ?: chatHistoryDelegate.currentChatId.value
+        _summarizingChatId.value = currentChatId
+        if (currentChatId != null) {
+            messageProcessingDelegate.setSuppressIdleCompletedStateForChat(currentChatId, true)
+            messageProcessingDelegate.setInputProcessingStateForChat(
+                currentChatId,
+                InputProcessingState.Summarizing("正在压缩历史记录...")
+            )
+        }
 
         var summarySuccess = false
         try {
@@ -387,11 +436,16 @@ class MessageCoordinationDelegate(
                     AIMessageManager.getMemoryFromMessages(chatHistoryDelegate.chatHistory.value)
                 val chatService = service.getAIServiceForFunction(FunctionType.CHAT)
                 val newWindowSize = chatService.calculateInputTokens("", newHistoryForTokens)
-                val currentChatIdForStats = chatHistoryDelegate.currentChatId.value
+                val currentChatIdForStats = currentChatId
                 val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts(
                     currentChatIdForStats
                 )
-                chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, newWindowSize)
+                chatHistoryDelegate.saveCurrentChat(
+                    inputTokens = inputTokens,
+                    outputTokens = outputTokens,
+                    actualContextWindowSize = newWindowSize,
+                    chatIdOverride = currentChatIdForStats
+                )
                 withContext(Dispatchers.Main) {
                     tokenStatsDelegate.setTokenCounts(
                         currentChatIdForStats,
@@ -415,11 +469,19 @@ class MessageCoordinationDelegate(
             uiStateDelegate.showErrorMessage("总结生成失败: ${e.message ?: "发生未知错误"}")
         } finally {
             _isSummarizing.value = false
+            if (_summarizingChatId.value == currentChatId) {
+                _summarizingChatId.value = null
+            }
             val wasSummarizing =
-                messageProcessingDelegate.inputProcessingState.value is InputProcessingState.Summarizing
+                currentChatId != null &&
+                    messageProcessingDelegate.inputProcessingStateByChatId.value[currentChatId] is InputProcessingState.Summarizing
 
             // 确保加载状态被重置，避免阻塞自动续写
             messageProcessingDelegate.resetLoadingState()
+
+            if (currentChatId != null) {
+                messageProcessingDelegate.setSuppressIdleCompletedStateForChat(currentChatId, false)
+            }
 
             if (summarySuccess) {
                 if (autoContinue) {
@@ -433,11 +495,15 @@ class MessageCoordinationDelegate(
                     )
                 } else if (wasSummarizing) {
                     // 总结成功且不自动续写时，主动恢复到Idle
-                    messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+                    if (currentChatId != null) {
+                        messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                    }
                 }
             } else if (wasSummarizing) {
                 // 总结未成功时也恢复到Idle，避免卡在Summarizing状态
-                messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+                if (currentChatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                }
             }
         }
         return summarySuccess

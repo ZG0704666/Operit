@@ -119,7 +119,15 @@ fun ChatInputSection(
 
     val toolProgressEvent by ToolProgressBus.progress.collectAsState()
 
-    val isProcessing = isLoading
+    val isProcessing =
+        isLoading ||
+            inputState is InputProcessingState.Connecting ||
+            inputState is InputProcessingState.ExecutingTool ||
+            inputState is InputProcessingState.ToolProgress ||
+            inputState is InputProcessingState.Processing ||
+            inputState is InputProcessingState.ProcessingToolResult ||
+            inputState is InputProcessingState.Summarizing ||
+            inputState is InputProcessingState.Receiving
 
     // Token limit calculation
     val currentWindowSize by actualViewModel.currentWindowSize.collectAsState()

@@ -667,16 +667,20 @@ class StandardChatManagerTool(private val context: Context) {
 
             val chatId = core.currentChatId.value
 
+            if (chatId == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = MessageSendResultData(chatId = currentChatId, message = message),
+                    error = "无法获取当前对话ID"
+                )
+            }
+
             val responseStream: SharedStream<String> = try {
                 var stream: SharedStream<String>? = core.getResponseStream(chatId)
                 withTimeout(RESPONSE_STREAM_ACQUIRE_TIMEOUT) {
                     while (stream == null) {
-                        val state =
-                            if (chatId != null) {
-                                core.inputProcessingStateByChatId.value[chatId] ?: InputProcessingState.Idle
-                            } else {
-                                core.inputProcessingState.value
-                            }
+                        val state = core.inputProcessingStateByChatId.value[chatId] ?: InputProcessingState.Idle
                         if (state is InputProcessingState.Error) {
                             throw IllegalStateException(state.message)
                         }
@@ -686,11 +690,7 @@ class StandardChatManagerTool(private val context: Context) {
                 }
                 requireNotNull(stream)
             } catch (e: TimeoutCancellationException) {
-                if (chatId != null) {
-                    runCatching { core.cancelMessage(chatId) }
-                } else {
-                    runCatching { core.cancelCurrentMessage() }
-                }
+                runCatching { core.cancelMessage(chatId) }
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -708,11 +708,7 @@ class StandardChatManagerTool(private val context: Context) {
                     sb.toString()
                 }
             } catch (e: TimeoutCancellationException) {
-                if (chatId != null) {
-                    runCatching { core.cancelMessage(chatId) }
-                } else {
-                    runCatching { core.cancelCurrentMessage() }
-                }
+                runCatching { core.cancelMessage(chatId) }
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -722,11 +718,7 @@ class StandardChatManagerTool(private val context: Context) {
             }
 
             val finalState =
-                if (chatId != null) {
-                    core.inputProcessingStateByChatId.value[chatId] ?: InputProcessingState.Idle
-                } else {
-                    core.inputProcessingState.value
-                }
+                core.inputProcessingStateByChatId.value[chatId] ?: InputProcessingState.Idle
             if (finalState is InputProcessingState.Error) {
                 return ToolResult(
                     toolName = tool.name,

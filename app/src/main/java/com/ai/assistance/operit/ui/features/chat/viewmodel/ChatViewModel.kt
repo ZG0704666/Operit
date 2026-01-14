@@ -201,12 +201,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 消息处理相关
     val userMessage: StateFlow<TextFieldValue> by lazy { messageProcessingDelegate.userMessage }
     val isLoading: StateFlow<Boolean> by lazy { messageProcessingDelegate.isLoading }
-    val inputProcessingState: StateFlow<InputProcessingState> by lazy {
-        messageProcessingDelegate.inputProcessingState
-    }
 
     // 会话隔离：仅当“当前聊天ID == 正在流式的聊天ID”时，才显示处理中/停止按钮
-    val activeStreamingChatId: StateFlow<String?> by lazy { messageProcessingDelegate.activeStreamingChatId }
     val activeStreamingChatIds: StateFlow<Set<String>> by lazy { messageProcessingDelegate.activeStreamingChatIds }
     val currentChatIsLoading: StateFlow<Boolean> by lazy {
         kotlinx.coroutines.flow.combine(
@@ -420,8 +416,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         // 传递自动朗读状态和方法
                         getIsAutoReadEnabled = { isAutoReadEnabled.value },
                         speakMessage = ::speakMessage,
-                        onTokenLimitExceeded = {
-                            messageCoordinationDelegate.handleTokenLimitExceeded()
+                        onTokenLimitExceeded = { chatId ->
+                            messageCoordinationDelegate.handleTokenLimitExceeded(chatId)
                         }
                 )
 
@@ -447,7 +443,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 FloatingWindowDelegate(
                         context = context,
                         coroutineScope = viewModelScope,
-                        inputProcessingState = this.inputProcessingState,
+                        inputProcessingState = this.currentChatInputProcessingState,
                         chatHistoryFlow = chatHistoryDelegate.chatHistory,
                         chatHistoryDelegate = chatHistoryDelegate
                 )
@@ -503,11 +499,24 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         (messageCoordinationDelegate.isSummarizing.value ||
                          messageCoordinationDelegate.isSendTriggeredSummarizing.value)
                     ) {
-                        messageProcessingDelegate.handleInputProcessingState(
-                            InputProcessingState.Summarizing("正在总结记忆...")
-                        )
+                        val targetChatId =
+                            if (messageCoordinationDelegate.isSummarizing.value) {
+                                messageCoordinationDelegate.summarizingChatId.value
+                            } else {
+                                messageCoordinationDelegate.sendTriggeredSummarizingChatId.value
+                            }
+
+                        if (targetChatId != null) {
+                            messageProcessingDelegate.setInputProcessingStateForChat(
+                                targetChatId,
+                                InputProcessingState.Summarizing("正在总结记忆...")
+                            )
+                        }
                     } else if (::messageProcessingDelegate.isInitialized) {
-                        messageProcessingDelegate.handleInputProcessingState(state)
+                        val currentChatId = chatHistoryDelegate.currentChatId.value
+                        if (currentChatId != null) {
+                            messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, state)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -669,10 +678,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     return@launch
                 }
                 
-                // 先设置activeStreamingChatId，确保UI能显示状态
-                messageProcessingDelegate.setActiveStreamingChatId(currentChatId)
-                // 设置输入处理状态
-                messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Summarizing("正在生成总结..."))
+                // 设置输入处理状态（按chatId隔离）
+                messageProcessingDelegate.setInputProcessingStateForChat(
+                    currentChatId,
+                    InputProcessingState.Summarizing("正在生成总结...")
+                )
                 
                 val currentHistory = chatHistoryDelegate.chatHistory.value
                 
@@ -694,7 +704,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
                 if (messagesToSummarize.isEmpty()) {
                     uiStateDelegate.showToast("没有可总结的消息")
-                    messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
                     return@launch
                 }
                 
@@ -704,7 +714,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 // 调用AI生成总结
                 if (enhancedAiService == null) {
                     uiStateDelegate.showToast("AI服务未初始化")
-                    messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
                     return@launch
                 }
                 
@@ -733,12 +743,15 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
                 
                 // 清除输入处理状态
-                messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+                messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "插入总结时发生错误", e)
                 uiStateDelegate.showToast("插入总结失败: ${e.message}")
                 // 发生错误时也需要清除状态
-                messageProcessingDelegate.handleInputProcessingState(InputProcessingState.Idle)
+                val currentChatId = chatHistoryDelegate.currentChatId.value
+                if (currentChatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                }
             }
         }
     }
@@ -1112,8 +1125,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         val chatId = chatHistoryDelegate.currentChatId.value
         if (chatId != null) {
             messageProcessingDelegate.cancelMessage(chatId)
-        } else {
-            messageProcessingDelegate.cancelCurrentMessage()
         }
         uiStateDelegate.showToast("已取消当前对话")
     }
@@ -1180,25 +1191,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             try {
                 // 获取当前会话ID并绑定
                 val currentChatId = chatHistoryDelegate.currentChatId.value
-                if (currentChatId != null) {
-                    messageProcessingDelegate.setActiveStreamingChatId(currentChatId)
-                }
+                if (currentChatId == null) return@launch
                 
                 // 显示附件处理进度
-                messageProcessingDelegate.setInputProcessingState(true, "正在处理附件...")
+                messageProcessingDelegate.setInputProcessingStateForChat(
+                    currentChatId,
+                    InputProcessingState.Processing("正在处理附件...")
+                )
 
                 attachmentDelegate.handleAttachment(filePath)
 
                 // 清除附件处理进度显示
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "处理附件失败", e)
                 // 修改: 使用错误弹窗而不是 Toast 显示附件处理错误
                 uiStateDelegate.showErrorMessage("处理附件失败: ${e.message}")
                 // 发生错误时也需要清除进度显示
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                val currentChatId = chatHistoryDelegate.currentChatId.value
+                if (currentChatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                }
             }
         }
     }
@@ -1235,25 +1248,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 
                 // 获取当前会话ID并绑定
                 val currentChatId = chatHistoryDelegate.currentChatId.value
-                if (currentChatId != null) {
-                    messageProcessingDelegate.setActiveStreamingChatId(currentChatId)
-                }
+                if (currentChatId == null) return@launch
                 
                 // 显示屏幕内容获取进度
-                messageProcessingDelegate.setInputProcessingState(true, "正在获取屏幕内容...")
+                messageProcessingDelegate.setInputProcessingStateForChat(
+                    currentChatId,
+                    InputProcessingState.Processing("正在获取屏幕内容...")
+                )
                 uiStateDelegate.showToast("正在获取屏幕内容...")
 
                 // 直接委托给attachmentDelegate执行
                 attachmentDelegate.captureScreenContent()
 
                 // 清除进度显示
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "截取屏幕内容失败", e)
                 uiStateDelegate.showErrorMessage("截取屏幕内容失败: ${e.message}")
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                val currentChatId = chatHistoryDelegate.currentChatId.value
+                if (currentChatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                }
             }
         }
     }
@@ -1266,25 +1281,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 
                 // 获取当前会话ID并绑定
                 val currentChatId = chatHistoryDelegate.currentChatId.value
-                if (currentChatId != null) {
-                    messageProcessingDelegate.setActiveStreamingChatId(currentChatId)
-                }
+                if (currentChatId == null) return@launch
                 
                 // 显示通知获取进度
-                messageProcessingDelegate.setInputProcessingState(true, "正在获取当前通知...")
+                messageProcessingDelegate.setInputProcessingStateForChat(
+                    currentChatId,
+                    InputProcessingState.Processing("正在获取当前通知...")
+                )
                 uiStateDelegate.showToast("正在获取当前通知...")
 
                 // 直接委托给attachmentDelegate执行
                 attachmentDelegate.captureNotifications()
 
                 // 清除进度显示
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "获取通知数据失败", e)
                 uiStateDelegate.showErrorMessage("获取通知数据失败: ${e.message}")
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                val currentChatId = chatHistoryDelegate.currentChatId.value
+                if (currentChatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                }
             }
         }
     }
@@ -1297,25 +1314,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 
                 // 获取当前会话ID并绑定
                 val currentChatId = chatHistoryDelegate.currentChatId.value
-                if (currentChatId != null) {
-                    messageProcessingDelegate.setActiveStreamingChatId(currentChatId)
-                }
+                if (currentChatId == null) return@launch
                 
                 // 显示位置获取进度
-                messageProcessingDelegate.setInputProcessingState(true, "正在获取位置信息...")
+                messageProcessingDelegate.setInputProcessingStateForChat(
+                    currentChatId,
+                    InputProcessingState.Processing("正在获取位置信息...")
+                )
                 uiStateDelegate.showToast("正在获取位置信息...")
 
                 // 直接委托给attachmentDelegate执行
                 attachmentDelegate.captureLocation()
                 
                 // 隐藏进度状态
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error capturing location", e)
                 uiStateDelegate.showToast("获取位置失败: ${e.message}")
-                messageProcessingDelegate.setInputProcessingState(false, "")
-                messageProcessingDelegate.setActiveStreamingChatId(null)
+                val currentChatId = chatHistoryDelegate.currentChatId.value
+                if (currentChatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                }
             }
         }
     }
@@ -1327,19 +1346,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             try {
                 messageProcessingDelegate.updateUserMessage(TextFieldValue(""))
+                val currentChatId = chatHistoryDelegate.currentChatId.value
+                if (currentChatId == null) return@launch
                 // 显示记忆文件夹附着进度
-                messageProcessingDelegate.setInputProcessingState(true, "正在附着记忆文件夹...")
+                messageProcessingDelegate.setInputProcessingStateForChat(
+                    currentChatId,
+                    InputProcessingState.Processing("正在附着记忆文件夹...")
+                )
                 uiStateDelegate.showToast("正在附着记忆文件夹...")
 
                 // 直接委托给attachmentDelegate执行
                 attachmentDelegate.captureMemoryFolders(folderPaths)
 
                 // 清除进度显示
-                messageProcessingDelegate.setInputProcessingState(false, "")
+                messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "附着记忆文件夹失败", e)
                 uiStateDelegate.showErrorMessage("附着记忆文件夹失败: ${e.message}")
-                messageProcessingDelegate.setInputProcessingState(false, "")
+                val currentChatId = chatHistoryDelegate.currentChatId.value
+                if (currentChatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
+                }
             }
         }
     }
@@ -1383,7 +1410,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 AppLogger.d(TAG, "Chat created successfully: ${currentChatId.value}")
                 
                 // Show processing state
-                messageProcessingDelegate.setInputProcessingState(true, "正在处理分享的文件...")
+                val chatId = currentChatId.value
+                if (chatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(
+                        chatId,
+                        InputProcessingState.Processing("正在处理分享的文件...")
+                    )
+                }
                 
                 // Attach each file
                 AppLogger.d(TAG, "Starting to attach ${uris.size} file(s)...")
@@ -1400,14 +1433,20 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.updateUserMessage(TextFieldValue("帮我看看这个文件"))
 
                 // Clear processing state
-                messageProcessingDelegate.setInputProcessingState(false, "")
+                val chatIdForClear = currentChatId.value
+                if (chatIdForClear != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(chatIdForClear, InputProcessingState.Idle)
+                }
                 
                 AppLogger.d(TAG, "Successfully processed shared files")
                 uiStateDelegate.showToast("已添加 ${uris.size} 个文件")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "处理分享文件失败", e)
                 uiStateDelegate.showErrorMessage("处理分享文件失败: ${e.message}")
-                messageProcessingDelegate.setInputProcessingState(false, "")
+                val chatId = currentChatId.value
+                if (chatId != null) {
+                    messageProcessingDelegate.setInputProcessingStateForChat(chatId, InputProcessingState.Idle)
+                }
             }
         }
     }
