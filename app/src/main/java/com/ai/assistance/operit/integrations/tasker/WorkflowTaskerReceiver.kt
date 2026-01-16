@@ -34,11 +34,12 @@ class WorkflowTaskerReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != ACTION_TRIGGER_WORKFLOW) {
+        val action = intent.action
+        if (action.isNullOrBlank()) {
             return
         }
 
-        AppLogger.d(TAG, "Received generic workflow trigger request, checking for matching workflows.")
+        AppLogger.d(TAG, "Received workflow trigger broadcast for action: $action. Checking for matching workflows.")
 
         // Use goAsync to allow async work
         val pendingResult = goAsync()

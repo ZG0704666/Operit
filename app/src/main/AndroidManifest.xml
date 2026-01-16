@@ -269,6 +269,14 @@
         </receiver>
 
         <receiver
+            android:name=".integrations.intent.ExternalChatReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.ai.assistance.operit.EXTERNAL_CHAT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".data.updates.PatchInstallReceiver"
             android:exported="false">
             <intent-filter>

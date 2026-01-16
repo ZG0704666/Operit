@@ -66,6 +66,10 @@ class WorkflowRepository(private val context: Context) {
     private fun getWorkflowFile(workflowId: String): File {
         return File(getWorkflowDirectory(), "$workflowId.json")
     }
+
+    private fun hasScheduleTrigger(workflow: Workflow): Boolean {
+        return workflow.nodes.filterIsInstance<TriggerNode>().any { it.triggerType == "schedule" }
+    }
     
     /**
      * 获取所有工作流
@@ -123,7 +127,7 @@ class WorkflowRepository(private val context: Context) {
             AppLogger.d(TAG, "Workflow created: ${workflow.id}")
             
             // Schedule if enabled and has schedule trigger
-            if (workflow.enabled) {
+            if (workflow.enabled && hasScheduleTrigger(workflow)) {
                 scheduleWorkflow(workflow.id)
             }
             
@@ -146,8 +150,10 @@ class WorkflowRepository(private val context: Context) {
             
             AppLogger.d(TAG, "Workflow updated: ${updatedWorkflow.id}")
             
-            // Reschedule workflow
-            rescheduleWorkflow(updatedWorkflow.id)
+            // Reschedule workflow only when it has a schedule trigger
+            if (updatedWorkflow.enabled && hasScheduleTrigger(updatedWorkflow)) {
+                rescheduleWorkflow(updatedWorkflow.id)
+            }
             
             Result.success(updatedWorkflow)
         } catch (e: Exception) {
@@ -361,6 +367,10 @@ class WorkflowRepository(private val context: Context) {
             
             if (!workflow.enabled) {
                 AppLogger.d(TAG, "Workflow is disabled, not scheduling: $id")
+                return false
+            }
+
+            if (!hasScheduleTrigger(workflow)) {
                 return false
             }
             

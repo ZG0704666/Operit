@@ -56,7 +56,7 @@ class WorkflowScheduler(private val context: Context) {
             .firstOrNull { it.triggerType == "schedule" }
 
         if (triggerNode == null) {
-            AppLogger.w(TAG, "No schedule trigger found for workflow: ${workflow.id}")
+            AppLogger.d(TAG, "No schedule trigger found for workflow: ${workflow.id}")
             return false
         }
 
