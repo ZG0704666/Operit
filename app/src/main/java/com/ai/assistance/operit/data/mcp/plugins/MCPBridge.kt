@@ -710,7 +710,8 @@ class MCPBridge private constructor(private val context: Context) {
             command: String? = null,
             args: List<String>? = null,
             env: Map<String, String>? = null,
-            cwd: String? = null
+            cwd: String? = null,
+            timeoutMs: Long? = null
     ): JSONObject? {
         val params = JSONObject()
 
@@ -736,6 +737,10 @@ class MCPBridge private constructor(private val context: Context) {
         }
         if (cwd != null) {
             params.put("cwd", cwd)
+        }
+
+        if (timeoutMs != null) {
+            params.put("timeoutMs", timeoutMs)
         }
 
         val commandObj =

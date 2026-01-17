@@ -227,44 +227,53 @@ private data class TableData(
  * 解析Markdown表格内容
  */
 private fun parseTable(content: String): TableData {
-    // 解析表格行
+    fun isHeaderSeparatorLine(line: String): Boolean {
+        return line.trim().matches(
+            Regex("^\\s*\\|?\\s*[-:]+\\s*(\\|\\s*[-:]+\\s*)+\\|?\\s*$")
+        )
+    }
+
+    fun parseCells(line: String): MutableList<String> {
+        val trimmed = line.trim()
+        var parts = trimmed.split('|').toMutableList()
+        if (trimmed.startsWith("|")) {
+            parts = parts.drop(1).toMutableList()
+        }
+        if (trimmed.endsWith("|") && parts.isNotEmpty()) {
+            parts.removeAt(parts.lastIndex)
+        }
+        return parts
+            .map { it.trim().replace(Regex("(?i)<br\\s*/?>"), "\n") }
+            .toMutableList()
+    }
+
     val lines = content.lines().filter { it.trim().isNotEmpty() && it.contains('|') }
-    
+
     if (lines.isEmpty()) {
         return TableData(emptyList(), false)
     }
-    
-    // 解析行
-    val rows = mutableListOf<List<String>>()
+
+    val hasHeader = lines.size > 1 && isHeaderSeparatorLine(lines[1])
+
+    val rawRows = mutableListOf<MutableList<String>>()
     var maxColumns = 0
-    
+
     lines.forEachIndexed { index, line ->
-        // 跳过分隔行 (形如 |---|---|---|)
-        if (index == 1 && line.trim().matches(Regex("\\|[-:\\s|]+\\|"))) {
+        if (index == 1 && hasHeader) {
             return@forEachIndexed
         }
-        
-        // 处理单元格
-        val cells = line.split('|')
-            .drop(1) // 删除第一个空元素
-            .dropLast(1) // 删除最后一个空元素
-            .map { it.trim().replace(Regex("(?i)<br\\s*/?>"), "\n") }
-            .toMutableList()
-        
-        // 更新最大列数
+
+        val cells = parseCells(line)
         maxColumns = maxOf(maxColumns, cells.size)
-        
-        // 确保每行有相同数量的列
-        while (cells.size < maxColumns) {
-            cells.add("")
-        }
-        
-        rows.add(cells)
+        rawRows.add(cells)
     }
-    
-    // 检查是否有表头分隔行
-    val hasHeader = lines.size > 1 && 
-            lines[1].trim().matches(Regex("\\|[-:\\s|]+\\|"))
-    
+
+    val rows = rawRows.map { row ->
+        while (row.size < maxColumns) {
+            row.add("")
+        }
+        row.toList()
+    }
+
     return TableData(rows, hasHeader)
-} 
+}

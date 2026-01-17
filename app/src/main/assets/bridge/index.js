@@ -55,12 +55,92 @@ const os = __importStar(__nccwpck_require__(857));
  * MCP Bridge class
  */
 class McpBridge {
+    buildSpawnLogData(serviceName) {
+        return {
+            name: serviceName,
+            active: this.isServiceActive(serviceName),
+            ready: this.serviceReadyMap.get(serviceName) || false,
+            lastError: this.mcpErrors.get(serviceName) || "",
+            logs: this.getServiceLogText(serviceName)
+        };
+    }
+    rejectPendingSpawn(serviceName, message, code = -32603) {
+        const pending = this.pendingSpawnRequests.get(serviceName);
+        if (!pending)
+            return;
+        const response = {
+            id: pending.id,
+            success: false,
+            error: {
+                code,
+                message,
+                data: this.buildSpawnLogData(serviceName)
+            }
+        };
+        pending.socket.write(JSON.stringify(response) + '\n');
+        this.pendingSpawnRequests.delete(serviceName);
+    }
+    resolvePendingSpawnSuccess(serviceName, toolCount) {
+        const pending = this.pendingSpawnRequests.get(serviceName);
+        if (!pending)
+            return;
+        const response = {
+            id: pending.id,
+            success: true,
+            result: {
+                status: "started",
+                name: serviceName,
+                toolCount,
+                ready: true,
+                ...this.buildSpawnLogData(serviceName)
+            }
+        };
+        pending.socket.write(JSON.stringify(response) + '\n');
+        this.pendingSpawnRequests.delete(serviceName);
+        console.log(`[${serviceName}] Spawn request completed successfully`);
+    }
     isFatalErrorText(text) {
         if (!text)
             return false;
         return /environment variable .* is required/i.test(text)
             || /api[_-]?key.*required/i.test(text)
             || /missing required.*(api[_-]?key|token)/i.test(text);
+    }
+    /**
+     * 检查 spawn 请求超时
+     */
+    checkSpawnTimeouts() {
+        const now = Date.now();
+        for (const [serviceName, request] of this.pendingSpawnRequests.entries()) {
+            const timeoutMs = request.timeoutMs ?? this.SPAWN_TIMEOUT;
+            if (now - request.timestamp > timeoutMs) {
+                console.log(`Spawn request timeout for service: ${serviceName}`);
+                this.rejectPendingSpawn(serviceName, `Service '${serviceName}' failed to start within ${timeoutMs / 1000}s`);
+            }
+        }
+    }
+    /**
+     * 检查并关闭闲置的服务
+     */
+    checkIdleServices() {
+        const now = Date.now();
+        for (const serviceName of this.serviceHelpers.keys()) {
+            const serviceInfo = this.serviceRegistry.get(serviceName);
+            if (serviceInfo && serviceInfo.lastUsed) {
+                if (now - serviceInfo.lastUsed > this.IDLE_TIMEOUT_MS) {
+                    console.log(`[${serviceName}] Service has been idle for over ${this.IDLE_TIMEOUT_MS / 1000}s. Unspawning...`);
+                    // Manually unspawn the service
+                    const helper = this.serviceHelpers.get(serviceName);
+                    if (helper) {
+                        // Temporarily remove from registry to prevent auto-restart logic from firing
+                        this.serviceRegistry.delete(serviceName);
+                        helper.kill();
+                        // Re-add to registry after a short delay
+                        setTimeout(() => this.serviceRegistry.set(serviceName, serviceInfo), 100);
+                    }
+                }
+            }
+        }
     }
     appendServiceLog(serviceName, line) {
         if (!serviceName)
@@ -122,52 +202,6 @@ class McpBridge {
         setInterval(() => this.checkRequestTimeouts(), 5000);
         setInterval(() => this.checkSpawnTimeouts(), 5000); // 检查 spawn 请求超时
         setInterval(() => this.checkIdleServices(), 60 * 1000); // 每分钟检查一次
-    }
-    /**
-     * 检查 spawn 请求超时
-     */
-    checkSpawnTimeouts() {
-        const now = Date.now();
-        for (const [serviceName, request] of this.pendingSpawnRequests.entries()) {
-            if (now - request.timestamp > this.SPAWN_TIMEOUT) {
-                console.log(`Spawn request timeout for service: ${serviceName}`);
-                // 发送超时响应
-                const response = {
-                    id: request.id,
-                    success: false,
-                    error: {
-                        code: -32603,
-                        message: `Service '${serviceName}' failed to start within ${this.SPAWN_TIMEOUT / 1000}s`
-                    }
-                };
-                request.socket.write(JSON.stringify(response) + '\n');
-                // 清理
-                this.pendingSpawnRequests.delete(serviceName);
-            }
-        }
-    }
-    /**
-     * 检查并关闭闲置的服务
-     */
-    checkIdleServices() {
-        const now = Date.now();
-        for (const serviceName of this.serviceHelpers.keys()) {
-            const serviceInfo = this.serviceRegistry.get(serviceName);
-            if (serviceInfo && serviceInfo.lastUsed) {
-                if (now - serviceInfo.lastUsed > this.IDLE_TIMEOUT_MS) {
-                    console.log(`[${serviceName}] Service has been idle for over ${this.IDLE_TIMEOUT_MS / 1000}s. Unspawning...`);
-                    // Manually unspawn the service
-                    const helper = this.serviceHelpers.get(serviceName);
-                    if (helper) {
-                        // Temporarily remove from registry to prevent auto-restart logic from firing
-                        this.serviceRegistry.delete(serviceName);
-                        helper.kill();
-                        // Re-add to registry after a short delay
-                        setTimeout(() => this.serviceRegistry.set(serviceName, serviceInfo), 100);
-                    }
-                }
-            }
-        }
     }
     /**
      * 注册新的MCP服务
@@ -255,22 +289,8 @@ class McpBridge {
         this.restartAttempts.set(serviceName, attempts);
         if (attempts > this.MAX_RESTART_ATTEMPTS) {
             console.error(`Service ${serviceName} has failed too many times. Will not reconnect again.`);
-            // 通知挂起的 spawn 请求
-            const pendingSpawnRequest = this.pendingSpawnRequests.get(serviceName);
-            if (pendingSpawnRequest) {
-                const errorMessage = this.mcpErrors.get(serviceName) || 'Service failed to start after multiple attempts';
-                const response = {
-                    id: pendingSpawnRequest.id,
-                    success: false,
-                    error: {
-                        code: -32603,
-                        message: `Service '${serviceName}' failed to start: ${errorMessage}`
-                    }
-                };
-                pendingSpawnRequest.socket.write(JSON.stringify(response) + '\n');
-                this.pendingSpawnRequests.delete(serviceName);
-                console.log(`[${serviceName}] Spawn request failed after ${this.MAX_RESTART_ATTEMPTS} attempts`);
-            }
+            const errorMessage = this.mcpErrors.get(serviceName) || 'Service failed to start after multiple attempts';
+            this.rejectPendingSpawn(serviceName, `Service '${serviceName}' failed to start: ${errorMessage}`);
             return;
         }
         let reconnectDelay;
@@ -348,6 +368,8 @@ class McpBridge {
             if (this.isFatalErrorText(stderrStr)) {
                 this.fatalServices.add(serviceName);
                 this.mcpErrors.set(serviceName, stderrStr.trim());
+                const message = `Service '${serviceName}' failed to start: ${this.mcpErrors.get(serviceName) || "Fatal error"}`;
+                this.rejectPendingSpawn(serviceName, message);
             }
             if (/SIGABRT/i.test(stderrStr)) {
                 console.log(`[${serviceName}] SIGABRT detected in stderr stream. Flagging for immediate restart.`);
@@ -399,23 +421,7 @@ class McpBridge {
                 this.serviceReadyMap.set(serviceName, true);
                 this.restartAttempts.set(serviceName, 0); // Reset restart attempts on successful connection
                 this.fatalServices.delete(serviceName);
-                // 检查是否有等待此服务启动的 spawn 请求
-                const pendingSpawnRequest = this.pendingSpawnRequests.get(serviceName);
-                if (pendingSpawnRequest) {
-                    const response = {
-                        id: pendingSpawnRequest.id,
-                        success: true,
-                        result: {
-                            status: "started",
-                            name: serviceName,
-                            toolCount: params.tools.length,
-                            ready: true
-                        }
-                    };
-                    pendingSpawnRequest.socket.write(JSON.stringify(response) + '\n');
-                    this.pendingSpawnRequests.delete(serviceName);
-                    console.log(`[${serviceName}] Spawn request completed successfully`);
-                }
+                this.resolvePendingSpawnSuccess(serviceName, params.tools.length);
                 break;
             case 'tool_result':
                 const pendingRequest = this.pendingRequests.get(id);
@@ -443,6 +449,10 @@ class McpBridge {
                 }
                 if (params.signal) { // The synthetic signal from the helper
                     this.serviceExitSignals.set(params.serviceName, params.signal);
+                }
+                if (this.fatalServices.has(params.serviceName)) {
+                    const errorMessage = this.mcpErrors.get(params.serviceName) || params.error || 'Fatal startup error';
+                    this.rejectPendingSpawn(params.serviceName, `Service '${params.serviceName}' failed to start: ${errorMessage}`);
                 }
                 // The 'exit' event on the helper process will trigger handleServiceClosure
                 break;
@@ -627,17 +637,56 @@ class McpBridge {
                     let serviceArgs = params.args || [];
                     let serviceEnv = params.env;
                     let serviceCwd = params.cwd;
+                    const timeoutMs = typeof params.timeoutMs === 'number' ? params.timeoutMs : undefined;
                     if (this.fatalServices.has(spawnServiceName)) {
                         response = {
                             id,
                             success: false,
                             error: {
                                 code: -32603,
-                                message: this.mcpErrors.get(spawnServiceName) || `Service '${spawnServiceName}' failed with fatal error`
+                                message: this.mcpErrors.get(spawnServiceName) || `Service '${spawnServiceName}' failed with fatal error`,
+                                data: {
+                                    name: spawnServiceName,
+                                    active: this.isServiceActive(spawnServiceName),
+                                    ready: this.serviceReadyMap.get(spawnServiceName) || false,
+                                    lastError: this.mcpErrors.get(spawnServiceName) || "",
+                                    logs: this.getServiceLogText(spawnServiceName)
+                                }
                             }
                         };
                         socket.write(JSON.stringify(response) + '\n');
                         break;
+                    }
+                    if ((this.serviceReadyMap.get(spawnServiceName) || false) && this.isServiceActive(spawnServiceName)) {
+                        response = {
+                            id,
+                            success: true,
+                            result: {
+                                status: "ready",
+                                name: spawnServiceName,
+                                active: true,
+                                ready: true,
+                                toolCount: (this.mcpToolsMap.get(spawnServiceName) || []).length,
+                                lastError: this.mcpErrors.get(spawnServiceName) || "",
+                                logs: this.getServiceLogText(spawnServiceName)
+                            }
+                        };
+                        socket.write(JSON.stringify(response) + '\n');
+                        break;
+                    }
+                    const existingPending = this.pendingSpawnRequests.get(spawnServiceName);
+                    if (existingPending) {
+                        const cancelResponse = {
+                            id: existingPending.id,
+                            success: false,
+                            error: {
+                                code: -32603,
+                                message: `Service '${spawnServiceName}' spawn request replaced`,
+                                data: this.buildSpawnLogData(spawnServiceName)
+                            }
+                        };
+                        existingPending.socket.write(JSON.stringify(cancelResponse) + '\n');
+                        this.pendingSpawnRequests.delete(spawnServiceName);
                     }
                     // 优先从注册表查找服务信息
                     const serviceInfo = this.serviceRegistry.get(spawnServiceName);
@@ -676,17 +725,12 @@ class McpBridge {
                         socket.write(JSON.stringify(response) + '\n');
                         break;
                     }
-                    response = {
+                    this.pendingSpawnRequests.set(spawnServiceName, {
                         id,
-                        success: true,
-                        result: {
-                            status: this.isServiceActive(spawnServiceName) ? "spawning" : "started",
-                            name: spawnServiceName,
-                            active: this.isServiceActive(spawnServiceName),
-                            ready: this.serviceReadyMap.get(spawnServiceName) || false
-                        }
-                    };
-                    socket.write(JSON.stringify(response) + '\n');
+                        socket,
+                        timestamp: Date.now(),
+                        timeoutMs
+                    });
                     break;
                 case 'shutdown':
                     // 关闭特定的MCP服务

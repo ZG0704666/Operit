@@ -3,11 +3,14 @@ package com.ai.assistance.operit.ui.common.markdown
 import com.ai.assistance.operit.util.AppLogger
 import android.webkit.WebView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,6 +56,7 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var showCopiedToast by remember { mutableStateOf(false) }
+    var autoWrapEnabled by remember { mutableStateOf(true) }
 
     // 检测是否为Mermaid代码
     val isMermaid = language.equals("mermaid", ignoreCase = true)
@@ -81,7 +85,7 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
     // 这种方法比使用 LaunchedEffect 和 mutableStateListOf 更稳定，
     // 可以防止因状态更新时序问题而导致的双重渲染。
     val codeLines = remember(code) { code.lines() }
-    
+
     // 缓存已计算过的行，避免重复创建
     val lineCache = remember { mutableMapOf<String, AnnotatedString>() }
 
@@ -97,59 +101,77 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
     }
 
     Surface(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp)
-                .semantics { contentDescription = accessibilityDesc },
-            color = codeBlockBackground,
-            shape = RoundedCornerShape(4.dp)
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .semantics { contentDescription = accessibilityDesc },
+        color = codeBlockBackground,
+        shape = RoundedCornerShape(4.dp)
     ) {
         Column {
             // 顶部工具栏
             Row(
-                    modifier = Modifier.fillMaxWidth().background(toolbarBackground).padding(4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(toolbarBackground)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // 语言标记（如果有）
                 if (language.isNotEmpty()) {
                     Text(
-                            text = language,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFAAAAAA),
-                            modifier = Modifier.padding(start = 8.dp)
+                        text = language,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFAAAAAA),
+                        modifier = Modifier.padding(start = 8.dp)
                     )
                 }
 
                 // 工具栏按钮
                 Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // Mermaid渲染按钮（如果是Mermaid图表则显示）
                     if (isMermaid) {
                         IconButton(onClick = handleToggleMermaid, modifier = Modifier.size(28.dp)) {
                             Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription =
-                                            if (showRenderedMermaid) "显示代码" else "渲染Mermaid",
-                                    tint =
-                                            if (showRenderedMermaid)
-                                                    MaterialTheme.colorScheme.primary
-                                            else Color(0xFFAAAAAA),
-                                    modifier = Modifier.size(16.dp)
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription =
+                                    if (showRenderedMermaid) "显示代码" else "渲染Mermaid",
+                                tint =
+                                    if (showRenderedMermaid)
+                                        MaterialTheme.colorScheme.primary
+                                    else Color(0xFFAAAAAA),
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-                }
+                    }
 
-                // 复制按钮
-                IconButton(onClick = handleCopy, modifier = Modifier.size(28.dp)) {
-                    Icon(
+                    IconButton(
+                        onClick = { autoWrapEnabled = !autoWrapEnabled },
+                        modifier = Modifier.size(28.dp),
+                        enabled = !(isMermaid && showRenderedMermaid)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = if (autoWrapEnabled) "关闭自动换行" else "开启自动换行",
+                            tint = if (!autoWrapEnabled) MaterialTheme.colorScheme.primary else Color(
+                                0xFFAAAAAA
+                            ),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    // 复制按钮
+                    IconButton(onClick = handleCopy, modifier = Modifier.size(28.dp)) {
+                        Icon(
                             imageVector = Icons.Default.ContentCopy,
                             contentDescription = "复制代码",
                             tint = Color(0xFFAAAAAA),
                             modifier = Modifier.size(16.dp)
-                    )
+                        )
                     }
                 }
             }
@@ -157,103 +179,137 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
             // 代码内容
             if (isMermaid && showRenderedMermaid) {
                 // 渲染Mermaid图表
-                MermaidRenderer(code = code, modifier = Modifier.fillMaxWidth().height(300.dp))
+                MermaidRenderer(code = code, modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp))
             } else {
                 // 显示代码
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                // 行号列
-                val digits = codeLines.size.toString().length.coerceAtLeast(2) // 至少2位数的宽度
+                Row(modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)) {
+                    // 行号列
+                    val digits = codeLines.size.toString().length.coerceAtLeast(2) // 至少2位数的宽度
 
-                // 行号栏
-                Column(
-                            modifier =
-                                    Modifier.background(Color(0xFF252526))
+                    // 行号栏
+                    Column(
+                        modifier =
+                            Modifier
+                                .background(Color(0xFF252526))
                                 .padding(horizontal = 8.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.End
-                ) {
-                    codeLines.forEachIndexed { index, _ ->
-                        val codeLineHeightDp =
-                            codeLineHeightsPx[index]?.let { with(density) { it.toDp() } }
-                                ?: defaultCodeLineHeightDp
+                    ) {
+                        codeLines.forEachIndexed { index, _ ->
+                            val codeLineHeightDp =
+                                codeLineHeightsPx[index]?.let { with(density) { it.toDp() } }
+                                    ?: defaultCodeLineHeightDp
 
-                        Box(modifier = Modifier.height(codeLineHeightDp), contentAlignment = Alignment.TopEnd) {
-                        Text(
-                                text = (index + 1).toString().padStart(digits),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp,
-                                color = Color(0xFF6A737D),
-                                modifier = Modifier.padding(end = 4.dp)
-                        )
-                        }
-                        
-                        // 添加与代码内容相同的间距
-                        if (index < codeLines.size - 1) {
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier.height(codeLineHeightDp),
+                                contentAlignment = Alignment.TopEnd
+                            ) {
+                                Text(
+                                    text = (index + 1).toString().padStart(digits),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    color = Color(0xFF6A737D),
+                                    modifier = Modifier.padding(end = 4.dp)
+                                )
+                            }
+
+                            // 添加与代码内容相同的间距
+                            if (index < codeLines.size - 1) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
                         }
                     }
-                }
 
-                // 代码内容 - 添加水平滚动
-                Box(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(end = 8.dp, top = 8.dp)
+                    val horizontalScrollState = rememberScrollState()
+                    Box(
+                        modifier = Modifier.weight(1f)
                     ) {
-                        // 使用key为每行建立记忆
-                        // Compose会高效地只更新变化的行
-                        codeLines.forEachIndexed { index, line ->
-                            val lineHash = line.hashCode()
-                            val lineKey = "$index:$lineHash"
-                            
-                            key(lineKey) {
-                                // 删除渲染代码行的日志，减少噪音
-                                if (index > 0) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                }
-                                
-                                // 渲染单行代码，利用行缓存机制
-                                CachedCodeLine(
-                                    line = line,
-                                    language = language,
-                                    index = index,
-                                    lineCache = lineCache,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .onSizeChanged { size ->
-                                            val old = codeLineHeightsPx[index]
-                                            if (old == null || old != size.height) {
-                                                codeLineHeightsPx[index] = size.height
-                                            }
+                        val content: @Composable () -> Unit = {
+                            Column(
+                                modifier = Modifier
+                                    .padding(end = 8.dp, top = 8.dp)
+                                    .then(
+                                        if (autoWrapEnabled) {
+                                            Modifier
+                                        } else {
+                                            Modifier.wrapContentWidth(unbounded = true)
                                         }
-                                )
+                                    )
+                            ) {
+                                codeLines.forEachIndexed { index, line ->
+                                    val lineHash = line.hashCode()
+                                    val lineKey = "$index:$lineHash"
+
+                                    key(lineKey) {
+                                        if (index > 0) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                        }
+
+                                        val lineModifier =
+                                            (if (autoWrapEnabled) {
+                                                Modifier.fillMaxWidth()
+                                            } else {
+                                                Modifier.wrapContentWidth(unbounded = true)
+                                            })
+                                                .onSizeChanged { size ->
+                                                    val old = codeLineHeightsPx[index]
+                                                    if (old == null || old != size.height) {
+                                                        codeLineHeightsPx[index] = size.height
+                                                    }
+                                                }
+
+                                        CachedCodeLine(
+                                            line = line,
+                                            language = language,
+                                            index = index,
+                                            lineCache = lineCache,
+                                            autoWrapEnabled = autoWrapEnabled,
+                                            modifier = lineModifier
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (autoWrapEnabled) {
+                            content()
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(horizontalScrollState)
+                            ) {
+                                content()
                             }
                         }
                     }
                 }
-            }
-                    
-                    // 显示复制成功提示
-                    if (showCopiedToast) {
-                        Surface(
-                                modifier = Modifier.align(Alignment.End).padding(4.dp),
-                                color = Color(0xFF0366D6), // GitHub 蓝色
-                                shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                    text = "已复制",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+
+                // 显示复制成功提示
+                if (showCopiedToast) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(4.dp),
+                        color = Color(0xFF0366D6), // GitHub 蓝色
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "已复制",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
         }
     }
+}
 
 /** Mermaid图表渲染组件 */
 @Composable
@@ -262,13 +318,13 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
 
     // 创建HTML模板
     val htmlContent =
-            remember(code) {
-                """
+        remember(code) {
+            """
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <title>Mermaid Diagram</title>
             <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
             <style>
@@ -276,16 +332,17 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
                     background-color: #1E1E1E; 
                     margin: 0; 
                     padding: 16px;
-                    touch-action: pan-x pan-y pinch-zoom;
+                    touch-action: pan-x pan-y;
                     overflow: auto;
                     -webkit-overflow-scrolling: touch;
                     height: 100vh;
                 }
+                #diagram-wrapper {
+                    display: block;
+                    margin: 0 auto;
+                }
                 #diagram { 
-                    width: 100%; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center; 
+                    display: inline-block;
                     touch-action: manipulation;
                 }
                 .mermaid { 
@@ -325,10 +382,12 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
             </style>
         </head>
         <body>
-            <div id="diagram">
-                <pre class="mermaid">
-                    ${code.trim()}
-                </pre>
+            <div id="diagram-wrapper">
+                <div id="diagram">
+                    <pre class="mermaid">
+                        ${code.trim()}
+                    </pre>
+                </div>
             </div>
             <div class="zoom-controls">
                 <button class="zoom-btn" onclick="zoomIn()">+</button>
@@ -345,7 +404,11 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
                 
                 // 自定义缩放功能
                 let scale = 1.0;
+                const wrapper = document.getElementById('diagram-wrapper');
                 const diagram = document.getElementById('diagram');
+                const scroller = document.scrollingElement || document.documentElement;
+                let baseWidth = 0;
+                let baseHeight = 0;
                 
                 function zoomIn() {
                     scale = Math.min(scale + 0.2, 3.0);
@@ -363,9 +426,49 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
                 }
                 
                 function applyZoom() {
+                    if (!baseWidth || !baseHeight) {
+                        baseWidth = diagram.scrollWidth || diagram.getBoundingClientRect().width;
+                        baseHeight = diagram.scrollHeight || diagram.getBoundingClientRect().height;
+                    }
+                    wrapper.style.width = (baseWidth * scale) + 'px';
+                    wrapper.style.height = (baseHeight * scale) + 'px';
                     diagram.style.transform = 'scale(' + scale + ')';
-                    diagram.style.transformOrigin = 'center top';
+                    diagram.style.transformOrigin = '0 0';
                 }
+
+                function captureBaseSize() {
+                    baseWidth = 0;
+                    baseHeight = 0;
+                    wrapper.style.width = '';
+                    wrapper.style.height = '';
+                    diagram.style.transform = '';
+                    diagram.style.transformOrigin = '';
+
+                    let tries = 0;
+                    function tick() {
+                        const w = diagram.scrollWidth;
+                        const h = diagram.scrollHeight;
+                        if (w > 0 && h > 0) {
+                            baseWidth = w;
+                            baseHeight = h;
+                            applyZoom();
+                            return;
+                        }
+                        tries++;
+                        if (tries < 60) {
+                            requestAnimationFrame(tick);
+                        } else {
+                            baseWidth = diagram.getBoundingClientRect().width;
+                            baseHeight = diagram.getBoundingClientRect().height;
+                            applyZoom();
+                        }
+                    }
+                    requestAnimationFrame(tick);
+                }
+
+                window.addEventListener('load', function() {
+                    setTimeout(captureBaseSize, 0);
+                });
                 
                 // 添加触摸拖动支持
                 let isDragging = false;
@@ -375,22 +478,22 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
                     if (e.target.closest('.zoom-controls')) return;
                     
                     isDragging = true;
-                    startX = e.pageX - window.scrollX;
-                    startY = e.pageY - window.scrollY;
-                    scrollLeft = window.scrollX;
-                    scrollTop = window.scrollY;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    scrollLeft = scroller.scrollLeft;
+                    scrollTop = scroller.scrollTop;
                 });
                 
                 document.addEventListener('mousemove', function(e) {
                     if (!isDragging) return;
                     e.preventDefault();
                     
-                    const x = e.pageX - window.scrollX;
-                    const y = e.pageY - window.scrollY;
+                    const x = e.clientX;
+                    const y = e.clientY;
                     const moveX = (x - startX);
                     const moveY = (y - startY);
                     
-                    window.scrollTo(scrollLeft - moveX, scrollTop - moveY);
+                    scroller.scrollTo(scrollLeft - moveX, scrollTop - moveY);
                 });
                 
                 document.addEventListener('mouseup', function() {
@@ -402,10 +505,10 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
                     if (e.target.closest('.zoom-controls')) return;
                     if (e.touches.length === 1) {
                         isDragging = true;
-                        startX = e.touches[0].pageX - window.scrollX;
-                        startY = e.touches[0].pageY - window.scrollY;
-                        scrollLeft = window.scrollX;
-                        scrollTop = window.scrollY;
+                        startX = e.touches[0].clientX;
+                        startY = e.touches[0].clientY;
+                        scrollLeft = scroller.scrollLeft;
+                        scrollTop = scroller.scrollTop;
                     }
                 }, {passive: false});
                 
@@ -413,12 +516,12 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
                     if (!isDragging) return;
                     
                     if (e.touches.length === 1) {
-                        const x = e.touches[0].pageX - window.scrollX;
-                        const y = e.touches[0].pageY - window.scrollY;
+                        const x = e.touches[0].clientX;
+                        const y = e.touches[0].clientY;
                         const moveX = (x - startX);
                         const moveY = (y - startY);
                         
-                        window.scrollTo(scrollLeft - moveX, scrollTop - moveY);
+                        scroller.scrollTo(scrollLeft - moveX, scrollTop - moveY);
                     }
                 }, {passive: false});
                 
@@ -458,7 +561,7 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
         </body>
         </html>
         """.trimIndent()
-            }
+        }
 
     // 记住WebView实例以便重用
     val webView = remember {
@@ -469,8 +572,9 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
             settings.loadWithOverviewMode = true
             settings.useWideViewPort = true
 
-            // 启用内置缩放但隐藏缩放控件
-            settings.builtInZoomControls = true
+            // 禁用WebView内置缩放：Mermaid 使用页面内自定义缩放/拖拽，避免出现二级缩放
+            settings.setSupportZoom(false)
+            settings.builtInZoomControls = false
             settings.displayZoomControls = false
 
             // 设置混合内容模式
@@ -478,28 +582,28 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
 
             // 设置WebViewClient来拦截事件
             webViewClient =
-                    object : android.webkit.WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                                view: android.webkit.WebView,
-                                url: String
-                        ): Boolean {
-                            // 拦截所有URL导航，保持在当前WebView内
-                            return true
-                        }
+                object : android.webkit.WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: android.webkit.WebView,
+                        url: String
+                    ): Boolean {
+                        // 拦截所有URL导航，保持在当前WebView内
+                        return true
+                    }
 
-                        override fun onPageFinished(view: android.webkit.WebView, url: String) {
-                            super.onPageFinished(view, url)
-                            // 页面加载完成后，可以在这里执行JavaScript
-                            view.evaluateJavascript(
-                                    """
+                    override fun onPageFinished(view: android.webkit.WebView, url: String) {
+                        super.onPageFinished(view, url)
+                        // 页面加载完成后，可以在这里执行JavaScript
+                        view.evaluateJavascript(
+                            """
                         // 防止长按文本选择
                         document.body.style.webkitUserSelect = 'none';
                         document.body.style.userSelect = 'none';
                     """.trimIndent(),
-                                    null
-                            )
-                        }
+                            null
+                        )
                     }
+                }
 
             // 处理触摸事件
             setOnTouchListener { v, event ->
@@ -516,11 +620,11 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
     // 每次代码变化时更新内容
     LaunchedEffect(htmlContent) {
         webView.loadDataWithBaseURL(
-                "https://mermaid.js.org/",
-                htmlContent,
-                "text/html",
-                "UTF-8",
-                null
+            "https://mermaid.js.org/",
+            htmlContent,
+            "text/html",
+            "UTF-8",
+            null
         )
     }
 
@@ -531,35 +635,36 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
 /** 带缓存的单行代码组件，进一步减少重组和计算 */
 @Composable
 private fun CachedCodeLine(
-    line: String, 
-    language: String, 
+    line: String,
+    language: String,
     index: Int,
     lineCache: MutableMap<String, AnnotatedString>,
+    autoWrapEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     // 计算缓存key
     val cacheKey = "$language:$line"
-    
+
     // 使用缓存或重新计算高亮
     val highlightedLine =
-            if (lineCache.containsKey(cacheKey)) {
-                // 删除缓存命中的日志，减少噪音
-        lineCache[cacheKey]!!
-    } else {
-        val lineStart = if (line.length > 15) line.substring(0, 15) + "..." else line
-        val result = highlightSyntaxLine(line, language)
-        lineCache[cacheKey] = result
-        result
-    }
-    
+        if (lineCache.containsKey(cacheKey)) {
+            // 删除缓存命中的日志，减少噪音
+            lineCache[cacheKey]!!
+        } else {
+            val lineStart = if (line.length > 15) line.substring(0, 15) + "..." else line
+            val result = highlightSyntaxLine(line, language)
+            lineCache[cacheKey] = result
+            result
+        }
+
     Text(
         text = highlightedLine,
         fontFamily = FontFamily.Monospace,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         color = Color.White,
-        maxLines = Int.MAX_VALUE,
-        softWrap = true,
+        maxLines = if (autoWrapEnabled) Int.MAX_VALUE else 1,
+        softWrap = autoWrapEnabled,
         overflow = TextOverflow.Clip,
         modifier = modifier
     )
@@ -575,73 +680,73 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
     val typeColor = Color(0xFF4EC9B0) // 青色 - 类型
     val functionColor = Color(0xFFDCDCAA) // 黄色 - 函数
     val textColor = Color(0xFFD4D4D4) // 浅灰色 - 普通文本
-    
+
     return buildAnnotatedString {
         when (language.lowercase()) {
             "kotlin", "java", "swift", "typescript", "javascript", "dart" -> {
                 // 关键字列表
                 val keywords =
-                        setOf(
-                                "fun",
-                                "val",
-                                "var",
-                                "class",
-                                "interface",
-                                "object",
-                                "return",
-                                "if",
-                                "else",
-                                "when",
-                                "for",
-                                "while",
-                                "do",
-                                "break",
-                                "continue",
-                                "package",
-                                "import",
-                                "public",
-                                "private",
-                                "protected",
-                                "internal",
-                                "const",
-                                "final",
-                                "static",
-                                "abstract",
-                                "override",
-                                "suspend",
-                                "true",
-                                "false",
-                                "null",
-                                "function",
-                                "let",
-                                "const",
-                                "export",
-                                "import",
-                                "async",
-                                "await",
-                                "void",
-                                "int",
-                                "double"
-                        )
+                    setOf(
+                        "fun",
+                        "val",
+                        "var",
+                        "class",
+                        "interface",
+                        "object",
+                        "return",
+                        "if",
+                        "else",
+                        "when",
+                        "for",
+                        "while",
+                        "do",
+                        "break",
+                        "continue",
+                        "package",
+                        "import",
+                        "public",
+                        "private",
+                        "protected",
+                        "internal",
+                        "const",
+                        "final",
+                        "static",
+                        "abstract",
+                        "override",
+                        "suspend",
+                        "true",
+                        "false",
+                        "null",
+                        "function",
+                        "let",
+                        "const",
+                        "export",
+                        "import",
+                        "async",
+                        "await",
+                        "void",
+                        "int",
+                        "double"
+                    )
 
                 val types =
-                        setOf(
-                                "String",
-                                "Int",
-                                "Double",
-                                "Float",
-                                "Boolean",
-                                "List",
-                                "Map",
-                                "Set",
-                                "Array",
-                                "Number",
-                                "Object",
-                                "Promise",
-                                "void",
-                                "any",
-                                "never"
-                        )
+                    setOf(
+                        "String",
+                        "Int",
+                        "Double",
+                        "Float",
+                        "Boolean",
+                        "List",
+                        "Map",
+                        "Set",
+                        "Array",
+                        "Number",
+                        "Object",
+                        "Promise",
+                        "void",
+                        "any",
+                        "never"
+                    )
 
                 // 处理注释行
                 if (line.trim().startsWith("//")) {
@@ -654,15 +759,15 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
                 if (commentIndex > 0) {
                     // 处理注释前的代码
                     processCodePart(
-                            line.substring(0, commentIndex),
-                            keywords,
-                            types,
-                            keywordColor,
-                            typeColor,
-                            functionColor,
-                            stringColor,
-                            numberColor,
-                            textColor
+                        line.substring(0, commentIndex),
+                        keywords,
+                        types,
+                        keywordColor,
+                        typeColor,
+                        functionColor,
+                        stringColor,
+                        numberColor,
+                        textColor
                     )
 
                     // 处理注释部分
@@ -672,54 +777,55 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
                 } else {
                     // 处理完整行的代码
                     processCodePart(
-                            line,
-                            keywords,
-                            types,
-                            keywordColor,
-                            typeColor,
-                            functionColor,
-                            stringColor,
-                            numberColor,
-                            textColor
+                        line,
+                        keywords,
+                        types,
+                        keywordColor,
+                        typeColor,
+                        functionColor,
+                        stringColor,
+                        numberColor,
+                        textColor
                     )
                 }
             }
+
             "mermaid" -> {
                 // Mermaid语法高亮
                 // 关键字列表
                 val mermaidKeywords =
-                        setOf(
-                                "graph",
-                                "flowchart",
-                                "sequenceDiagram",
-                                "classDiagram",
-                                "stateDiagram",
-                                "pie",
-                                "gantt",
-                                "journey",
-                                "gitGraph",
-                                "LR",
-                                "RL",
-                                "TB",
-                                "BT",
-                                "TD",
-                                "class",
-                                "subgraph",
-                                "end",
-                                "title",
-                                "participant",
-                                "actor",
-                                "note",
-                                "activate",
-                                "deactivate",
-                                "loop",
-                                "alt",
-                                "else",
-                                "opt",
-                                "par",
-                                "state",
-                                "section"
-                        )
+                    setOf(
+                        "graph",
+                        "flowchart",
+                        "sequenceDiagram",
+                        "classDiagram",
+                        "stateDiagram",
+                        "pie",
+                        "gantt",
+                        "journey",
+                        "gitGraph",
+                        "LR",
+                        "RL",
+                        "TB",
+                        "BT",
+                        "TD",
+                        "class",
+                        "subgraph",
+                        "end",
+                        "title",
+                        "participant",
+                        "actor",
+                        "note",
+                        "activate",
+                        "deactivate",
+                        "loop",
+                        "alt",
+                        "else",
+                        "opt",
+                        "par",
+                        "state",
+                        "section"
+                    )
 
                 // 特殊语法
                 val arrows = setOf("-->", "---", "===", "---|", "--o", "--x", "===>", "->", "=>")
@@ -742,7 +848,7 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
                     withStyle(SpanStyle(color = textColor)) { append(afterArrow) }
                 } else if (line.trim().startsWith("%")) {
                     // 注释行
-                        withStyle(SpanStyle(color = commentColor)) { append(line) }
+                    withStyle(SpanStyle(color = commentColor)) { append(line) }
                 } else {
                     // 检查是否有关键字
                     var hasKeyword = false
@@ -768,6 +874,7 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
                     }
                 }
             }
+
             else -> {
                 // 对于未知语言，使用默认颜色
                 withStyle(SpanStyle(color = textColor)) { append(line) }
@@ -778,15 +885,15 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
 
 /** 处理代码段，保留空格和标点符号 */
 private fun AnnotatedString.Builder.processCodePart(
-        code: String,
-        keywords: Set<String>,
-        types: Set<String>,
-        keywordColor: Color,
-        typeColor: Color,
-        functionColor: Color,
-        stringColor: Color,
-        numberColor: Color,
-        textColor: Color
+    code: String,
+    keywords: Set<String>,
+    types: Set<String>,
+    keywordColor: Color,
+    typeColor: Color,
+    functionColor: Color,
+    stringColor: Color,
+    numberColor: Color,
+    textColor: Color
 ) {
     var inString = false
     var currentWord = ""
@@ -797,7 +904,8 @@ private fun AnnotatedString.Builder.processCodePart(
 
         when {
             currentWord in keywords ->
-                    withStyle(SpanStyle(color = keywordColor)) { append(currentWord) }
+                withStyle(SpanStyle(color = keywordColor)) { append(currentWord) }
+
             currentWord in types -> withStyle(SpanStyle(color = typeColor)) { append(currentWord) }
             currentWord.matches(Regex("[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(")) -> {
                 val functionName = currentWord.substring(0, currentWord.indexOfFirst { it == '(' })
@@ -805,8 +913,10 @@ private fun AnnotatedString.Builder.processCodePart(
                 withStyle(SpanStyle(color = functionColor)) { append(functionName) }
                 withStyle(SpanStyle(color = textColor)) { append(params) }
             }
+
             currentWord.matches(Regex("\\d+(\\.\\d+)?")) ->
-                    withStyle(SpanStyle(color = numberColor)) { append(currentWord) }
+                withStyle(SpanStyle(color = numberColor)) { append(currentWord) }
+
             else -> withStyle(SpanStyle(color = textColor)) { append(currentWord) }
         }
         currentWord = ""
@@ -844,6 +954,7 @@ private fun AnnotatedString.Builder.processCodePart(
                 appendWord()
                 append(c.toString())
             }
+
             else -> {
                 appendWord()
                 withStyle(SpanStyle(color = textColor)) { append(c.toString()) }

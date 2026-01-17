@@ -5,7 +5,6 @@ import com.ai.assistance.operit.util.AppLogger
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -48,31 +47,27 @@ class MCPBridgeClient(context: Context, private val serviceName: String) {
                         return@withContext false
                     }
 
-                    // 3. If it's registered but not active, try to spawn it.
-                    if (!serviceInfo.active) {
-                        AppLogger.i(
-                                TAG,
-                                "Service $serviceName is registered but not active. Attempting to spawn..."
-                        )
-                        val spawnSuccess = spawn()
-                        if (!spawnSuccess) {
-                            AppLogger.e(
-                                    TAG,
-                                    "Failed to spawn service $serviceName during connect sequence."
-                            )
-                            isConnected.set(false)
-                            return@withContext false
-                        }
-                    }
-
-                    val readySuccess = waitForReady()
-                    if (readySuccess) {
-                        AppLogger.i(TAG, "Successfully connected to service $serviceName.")
+                    if (serviceInfo.active && serviceInfo.ready) {
                         isConnected.set(true)
                         return@withContext true
                     }
 
-                    AppLogger.e(TAG, "Failed to connect to service $serviceName: service not ready")
+                    AppLogger.i(TAG, "Service $serviceName is not ready. Attempting blocking spawn...")
+                    val spawnResp = spawnBlocking(timeoutMs = 12000)
+                    if (spawnResp?.optBoolean("success", false) == true) {
+                        val result = spawnResp.optJSONObject("result")
+                        val ready = result?.optBoolean("ready", false) ?: false
+                        if (ready) {
+                            AppLogger.i(TAG, "Successfully connected to service $serviceName.")
+                            isConnected.set(true)
+                            return@withContext true
+                        }
+                    }
+
+                    val errorMsg =
+                        spawnResp?.optJSONObject("error")?.optString("message")
+                            ?: "service not ready"
+                    AppLogger.e(TAG, "Failed to connect to service $serviceName: $errorMsg")
                     isConnected.set(false)
                     return@withContext false
                 } catch (e: Exception) {
@@ -116,54 +111,6 @@ class MCPBridgeClient(context: Context, private val serviceName: String) {
                 }
             }
 
-    private fun isFatalErrorText(text: String): Boolean {
-        if (text.isBlank()) return false
-        return Regex("environment variable .* is required", RegexOption.IGNORE_CASE).containsMatchIn(text) ||
-            Regex("api[_-]?key.*required", RegexOption.IGNORE_CASE).containsMatchIn(text) ||
-            Regex("missing required.*(api[_-]?key|token)", RegexOption.IGNORE_CASE).containsMatchIn(text)
-    }
-
-    suspend fun waitForReady(timeoutMs: Long = 12000, intervalMs: Long = 250): Boolean =
-        withContext(Dispatchers.IO) {
-            val deadline = System.currentTimeMillis() + timeoutMs
-            var lastLogCheckAt = 0L
-
-            while (System.currentTimeMillis() < deadline) {
-                val status = bridge.getServiceStatus(serviceName)
-                if (status?.optBoolean("success", false) == true) {
-                    val resultObj = status.optJSONObject("result")
-                    val active = resultObj?.optBoolean("active", false) ?: false
-                    val ready = resultObj?.optBoolean("ready", false) ?: false
-                    if (active && ready) {
-                        isConnected.set(true)
-                        return@withContext true
-                    }
-                }
-
-                val now = System.currentTimeMillis()
-                if (now - lastLogCheckAt >= 800) {
-                    lastLogCheckAt = now
-                    val logsResp = bridge.getServiceLogs(serviceName)
-                    val logsObj = logsResp?.optJSONObject("result")
-                    val lastError = logsObj?.optString("lastError").orEmpty()
-                    val logs = logsObj?.optString("logs").orEmpty()
-                    if (isFatalErrorText(lastError)) {
-                        isConnected.set(false)
-                        return@withContext false
-                    }
-                    if (isFatalErrorText(logs)) {
-                        isConnected.set(false)
-                        return@withContext false
-                    }
-                }
-
-                delay(intervalMs)
-            }
-
-            isConnected.set(false)
-            return@withContext false
-        }
-
     /** Synchronous ping method */
     fun pingSync(): Boolean = kotlinx.coroutines.runBlocking { ping() }
 
@@ -171,6 +118,16 @@ class MCPBridgeClient(context: Context, private val serviceName: String) {
     fun getLastPingTime(): Long = lastPingTime
 
     /** Spawn the MCP service if it's not already active */
+    suspend fun spawnBlocking(timeoutMs: Long = 12000): JSONObject? =
+            withContext(Dispatchers.IO) {
+                try {
+                    return@withContext bridge.spawnMcpService(name = serviceName, timeoutMs = timeoutMs)
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "Exception during spawn for service $serviceName: ${e.message}", e)
+                    return@withContext null
+                }
+            }
+
     suspend fun spawn(): Boolean =
             withContext(Dispatchers.IO) {
                 try {
@@ -182,18 +139,22 @@ class MCPBridgeClient(context: Context, private val serviceName: String) {
                         return@withContext true
                     }
 
-                    val spawnResult = bridge.spawnMcpService(name = serviceName)
+                    val spawnResult = spawnBlocking(timeoutMs = 12000)
                     if (spawnResult?.optBoolean("success", false) == true) {
-                        AppLogger.i(TAG, "Service $serviceName spawned successfully.")
-                        return@withContext true
-                    } else {
-                        val error =
-                                spawnResult?.optJSONObject("error")?.optString("message")
-                                        ?: "Unknown error"
-                        AppLogger.e(TAG, "Failed to spawn service $serviceName: $error")
-                        isConnected.set(false)
-                        return@withContext false
+                        val ready = spawnResult.optJSONObject("result")?.optBoolean("ready", false) ?: false
+                        if (ready) {
+                            AppLogger.i(TAG, "Service $serviceName spawned successfully.")
+                            isConnected.set(true)
+                            return@withContext true
+                        }
                     }
+
+                    val error =
+                            spawnResult?.optJSONObject("error")?.optString("message")
+                                    ?: "Unknown error"
+                    AppLogger.e(TAG, "Failed to spawn service $serviceName: $error")
+                    isConnected.set(false)
+                    return@withContext false
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Exception during spawn for service $serviceName: ${e.message}", e)
                     isConnected.set(false)

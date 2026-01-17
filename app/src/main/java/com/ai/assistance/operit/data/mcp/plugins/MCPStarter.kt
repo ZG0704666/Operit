@@ -577,62 +577,58 @@ class MCPStarter(private val context: Context) {
 
         if (needsSpawning) {
             AppLogger.d(TAG, "Spawning plugin for processing: $pluginId")
-
-            val bridge = MCPBridge.getInstance(context)
             val client = MCPBridgeClient(context, serviceName)
 
-            if (client.spawn()) {
-                val startTime = System.currentTimeMillis()
-                val readySuccess = client.waitForReady(timeoutMs = 12000)
-                val responseTime = System.currentTimeMillis() - startTime
+            val startTime = System.currentTimeMillis()
+            val spawnResp = client.spawnBlocking(timeoutMs = 12000)
+            val responseTime = System.currentTimeMillis() - startTime
 
-                val result: VerificationResult
-                if (readySuccess) {
-                    cacheToolsFromService(pluginId, serviceName)
-                    result = VerificationResult(
-                        pluginId,
-                        serviceName,
-                        true,
-                        responseTime,
-                        "Service is responding"
-                    )
+            val success = spawnResp?.optBoolean("success", false) == true
+            val ready = spawnResp?.optJSONObject("result")?.optBoolean("ready", false) == true
+
+            val logsObj =
+                if (success) {
+                    spawnResp?.optJSONObject("result")
                 } else {
-                    val logsResp = bridge.getServiceLogs(serviceName)
-                    val logsObj = logsResp?.optJSONObject("result")
-                    val lastError = logsObj?.optString("lastError").orEmpty()
-                    val logs = logsObj?.optString("logs").orEmpty()
-                    if (lastError.isNotBlank()) {
-                        progressListener.onPluginLog(pluginId, "运行时错误: $lastError")
-                    }
-                    if (logs.isNotBlank()) {
-                        progressListener.onPluginLog(pluginId, "运行时输出(直到ready失败):\n$logs")
-                    }
-
-                    result = VerificationResult(
-                        pluginId,
-                        serviceName,
-                        false,
-                        0,
-                        "Service not responding"
-                    )
+                    spawnResp?.optJSONObject("error")?.optJSONObject("data")
                 }
 
-                client.unspawn()
-                return result
+            val lastError = logsObj?.optString("lastError").orEmpty()
+            val logs = logsObj?.optString("logs").orEmpty()
+
+            val result: VerificationResult
+            if (success && ready) {
+                cacheToolsFromService(pluginId, serviceName)
+                result = VerificationResult(
+                    pluginId,
+                    serviceName,
+                    true,
+                    responseTime,
+                    "Service is responding"
+                )
             } else {
-                val logsResp = bridge.getServiceLogs(serviceName)
-                val logsObj = logsResp?.optJSONObject("result")
-                val lastError = logsObj?.optString("lastError").orEmpty()
-                val logs = logsObj?.optString("logs").orEmpty()
+                val errorMessage =
+                    spawnResp?.optJSONObject("error")?.optString("message")
+                        ?: "Service not responding"
+
                 if (lastError.isNotBlank()) {
                     progressListener.onPluginLog(pluginId, "运行时错误: $lastError")
                 }
                 if (logs.isNotBlank()) {
-                    progressListener.onPluginLog(pluginId, "运行时输出(直到spawn失败):\n$logs")
+                    progressListener.onPluginLog(pluginId, "运行时输出:\n$logs")
                 }
 
-                return VerificationResult(pluginId, serviceName, false, 0, "Failed to spawn service")
+                result = VerificationResult(
+                    pluginId,
+                    serviceName,
+                    false,
+                    0,
+                    errorMessage
+                )
             }
+
+            client.unspawn()
+            return result
         } else {
             AppLogger.d(TAG, "Processing cached plugin: $pluginId")
             sendCachedToolsToBridge(pluginId, serviceName)
