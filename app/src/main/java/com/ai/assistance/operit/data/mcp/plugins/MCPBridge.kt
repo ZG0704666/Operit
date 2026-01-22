@@ -1,8 +1,8 @@
 package com.ai.assistance.operit.data.mcp.plugins
 
 import android.content.Context
-import android.os.Environment
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.util.OperitPaths
 import com.ai.assistance.operit.core.tools.system.Terminal
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
@@ -205,16 +205,7 @@ class MCPBridge private constructor(private val context: Context) {
             return withContext(Dispatchers.IO) {
                 try {
                     // 1. 首先将桥接器从assets复制到sdcard/Download/Operit/bridge目录
-                    val sdcardPath = "/sdcard"
-                    val operitDir = File("$sdcardPath/Download/Operit")
-                    if (!operitDir.exists()) {
-                        operitDir.mkdirs()
-                    }
-
-                    val publicBridgeDir = File(operitDir, "bridge")
-                    if (!publicBridgeDir.exists()) {
-                        publicBridgeDir.mkdirs()
-                    }
+                    val publicBridgeDir = OperitPaths.bridgeDir()
 
                     // 复制打包后的 index.js 到公共目录（已包含所有依赖）
                     val inputStream = context.assets.open("bridge/index.js")
@@ -256,7 +247,7 @@ class MCPBridge private constructor(private val context: Context) {
                     }
 
                     // 使用sdcard路径而不是Android storage路径
-                    val sdcardBridgePath = "/sdcard/Download/Operit/bridge"
+                    val sdcardBridgePath = OperitPaths.bridgePathSdcard()
                     
                     // 获取 AIToolHandler 实例
                     val toolHandler = AIToolHandler.getInstance(context)

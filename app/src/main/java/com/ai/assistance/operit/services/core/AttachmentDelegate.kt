@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.util.OperitPaths
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.AttachmentInfo
@@ -282,7 +283,7 @@ class AttachmentDelegate(private val context: Context, private val toolHandler: 
                     val fileExtension = fileName.substringAfterLast('.', "jpg")
 
                     // 使用外部存储Download/Operit/cleanOnExit目录，而不是缓存目录
-                    val externalDir = java.io.File("/sdcard/Download/Operit/cleanOnExit")
+                    val externalDir = OperitPaths.cleanOnExitDir()
 
                     // 确保目录存在
                     if (!externalDir.exists()) {

@@ -11,8 +11,11 @@ import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardUITools
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
-import com.ai.assistance.operit.util.ImagePoolManager
+import com.ai.assistance.operit.util.OperitPaths
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.ai.assistance.operit.util.ImagePoolManager
 import java.io.StringReader
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
@@ -719,10 +722,7 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     override suspend fun captureScreenshotToFile(tool: AITool): Pair<String?, Pair<Int, Int>?> {
         return try {
-            val screenshotDir = File("/sdcard/Download/Operit/cleanOnExit")
-            if (!screenshotDir.exists()) {
-                screenshotDir.mkdirs()
-            }
+            val screenshotDir = OperitPaths.cleanOnExitDir()
 
             val shortName = System.currentTimeMillis().toString().takeLast(4)
             val file = File(screenshotDir, "$shortName.png")

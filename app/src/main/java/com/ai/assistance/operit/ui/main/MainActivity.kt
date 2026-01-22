@@ -51,6 +51,7 @@ import com.ai.assistance.operit.ui.theme.OperitTheme
 import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
 import com.ai.assistance.operit.util.AnrMonitor
 import com.ai.assistance.operit.util.LocaleUtils
+import com.ai.assistance.operit.util.OperitPaths
 import java.util.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -796,7 +797,7 @@ class MainActivity : ComponentActivity() {
     private fun cleanTemporaryFiles() {
         lifecycleScope.launch {
             try {
-                val tempDir = java.io.File("/sdcard/Download/Operit/cleanOnExit")
+                val tempDir = java.io.File(OperitPaths.cleanOnExitPathSdcard())
                 if (tempDir.exists() && tempDir.isDirectory) {
                     // 确保.nomedia文件存在
                     val noMediaFile = java.io.File(tempDir, ".nomedia")

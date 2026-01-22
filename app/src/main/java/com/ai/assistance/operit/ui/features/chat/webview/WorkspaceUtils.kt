@@ -1,7 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.webview
 
 import android.content.Context
-import android.os.Environment
+import com.ai.assistance.operit.util.OperitPaths
 import java.io.File
 import java.io.IOException
 
@@ -67,8 +67,7 @@ fun getWorkspacePath(context: Context, chatId: String): String {
  * 路径: /sdcard/Download/Operit/workspace/{chatId}
  */
 fun getLegacyWorkspacePath(chatId: String): String {
-    val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    return "$downloadDir/Operit/workspace/$chatId"
+    return OperitPaths.workspacePathSdcard(chatId)
 }
 
 fun ensureWorkspaceDirExists(path: String): File {

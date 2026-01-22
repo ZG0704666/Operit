@@ -2,7 +2,6 @@ package com.ai.assistance.operit.data.mcp
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Environment
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.DirectoryListingData
@@ -10,6 +9,7 @@ import com.ai.assistance.operit.core.tools.FileExistsData
 import com.ai.assistance.operit.data.mcp.plugins.MCPStarter
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
+import com.ai.assistance.operit.util.OperitPaths
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
@@ -51,10 +51,6 @@ class MCPLocalServer private constructor(private val context: Context) {
         // 配置文件名称
         private const val MCP_CONFIG_FILE = "mcp_config.json"
         private const val SERVER_STATUS_FILE = "server_status.json"
-        
-        // 默认目录名称
-        private const val OPERIT_DIR_NAME = "Operit"
-        private const val MCP_PLUGINS_DIR_NAME = "mcp_plugins"
 
         @Volatile private var INSTANCE: MCPLocalServer? = null
 
@@ -75,19 +71,7 @@ class MCPLocalServer private constructor(private val context: Context) {
 
     // 配置目录路径
     private val configBaseDir by lazy {
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val operitDir = File(downloadsDir, OPERIT_DIR_NAME)
-        val mcpPluginsDir = File(operitDir, MCP_PLUGINS_DIR_NAME)
-        
-        // 确保目录存在
-        if (!operitDir.exists()) {
-            operitDir.mkdirs()
-        }
-        if (!mcpPluginsDir.exists()) {
-            mcpPluginsDir.mkdirs()
-        }
-        
-        mcpPluginsDir
+        OperitPaths.mcpPluginsDir()
     }
 
     // 配置文件路径

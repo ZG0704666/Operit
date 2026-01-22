@@ -29,6 +29,7 @@ import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.ImagePoolManager
 import com.ai.assistance.operit.util.LocaleUtils
+import com.ai.assistance.operit.util.OperitPaths
 import com.ai.assistance.operit.core.tools.agent.ActionHandler
 import com.ai.assistance.operit.core.tools.agent.AgentConfig
 import com.ai.assistance.operit.core.tools.agent.PhoneAgent
@@ -563,10 +564,7 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
 
     protected open suspend fun captureScreenshotToFile(tool: AITool): Pair<String?, Pair<Int, Int>?> {
         return try {
-            val screenshotDir = File("/sdcard/Download/Operit/cleanOnExit")
-            if (!screenshotDir.exists()) {
-                screenshotDir.mkdirs()
-            }
+            val screenshotDir = OperitPaths.cleanOnExitDir()
 
             val shortName = System.currentTimeMillis().toString().takeLast(4)
             val file = File(screenshotDir, "$shortName.png")

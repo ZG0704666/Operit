@@ -27,6 +27,7 @@ import com.ai.assistance.operit.ui.common.displays.UIAutomationProgressOverlay
 import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.ImagePoolManager
+import com.ai.assistance.operit.util.OperitPaths
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -825,8 +826,7 @@ class ActionHandler(
             val quality = prefs.getScreenshotQuality().coerceIn(50, 100)
             val scalePercent = prefs.getScreenshotScalePercent().coerceIn(50, 100)
 
-            val screenshotDir = File("/sdcard/Download/Operit/cleanOnExit")
-            if (!screenshotDir.exists()) screenshotDir.mkdirs()
+            val screenshotDir = OperitPaths.cleanOnExitDir()
 
             val shortName = System.currentTimeMillis().toString().takeLast(4)
             val (compressFormat, fileExt, effectiveQuality) = when (format) {

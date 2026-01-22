@@ -33,6 +33,7 @@ import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.util.OperitPaths
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -281,7 +282,7 @@ fun ToolDetailsSheet(
 
 
 private fun getFinalToolTestGroups(context: android.content.Context): List<ToolGroup> {
-    val testBaseDir = "/sdcard/Download/Operit/test"
+    val testBaseDir = OperitPaths.testPathSdcard()
     val testFile = "$testBaseDir/test_file.txt"
     val testFileCopy = "$testBaseDir/test_file_copy.txt"
     val testZip = "$testBaseDir/test.zip"

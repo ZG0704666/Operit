@@ -33,6 +33,7 @@ import android.util.Base64
 import com.ai.assistance.operit.core.tools.BinaryResultData
 import com.ai.assistance.operit.core.tools.javascript.JsTimeoutConfig
 import com.ai.assistance.operit.util.ImagePoolManager
+import com.ai.assistance.operit.util.OperitPaths
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -137,8 +138,8 @@ class JsEngine(private val context: Context) {
             return // 如果已经初始化，直接返回
         }
 
-        val operitDownloadDir = "/sdcard/Download/Operit"
-        val operitCleanOnExitDir = "$operitDownloadDir/cleanOnExit"
+        val operitDownloadDir = OperitPaths.operitRootPathSdcard()
+        val operitCleanOnExitDir = OperitPaths.cleanOnExitPathSdcard()
 
         val initScript =
                 """

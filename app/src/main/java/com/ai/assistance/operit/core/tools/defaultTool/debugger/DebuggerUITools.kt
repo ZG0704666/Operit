@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import com.ai.assistance.operit.util.OperitPaths
 
 /** 调试级别的UI工具，通过Shell命令实现UI操作，继承无障碍版本 */
 open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
@@ -484,10 +485,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     override suspend fun captureScreenshotToFile(tool: AITool): Pair<String?, Pair<Int, Int>?> {
         return try {
-            val screenshotDir = File("/sdcard/Download/Operit/cleanOnExit")
-            if (!screenshotDir.exists()) {
-                screenshotDir.mkdirs()
-            }
+            val screenshotDir = OperitPaths.cleanOnExitDir()
 
             val shortName = System.currentTimeMillis().toString().takeLast(4)
             val file = File(screenshotDir, "$shortName.png")
