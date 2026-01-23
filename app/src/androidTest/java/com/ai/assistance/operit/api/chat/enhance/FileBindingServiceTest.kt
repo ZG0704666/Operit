@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.chat.enhance
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -160,6 +161,59 @@ Line 6
 
         val (success, resultContent) = invokeApplyLineBasedPatch(originalContent, patch)
         assertEquals(true, success)
+        assertEquals(expectedContent, resultContent.trim())
+    }
+
+    @Test
+    fun testFuzzyReplace_ShouldNotEarlyStopOnWrongWindowSize() = runBlocking {
+        val originalContent = """
+<div id=\"catDetail\" class=\"cat-detail\">
+    <p>点击上面的小猫图片查看详细信息</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src=\"js/app.js\"></script>
+        """.trimIndent()
+
+        val oldContent = """
+<div id=\"catDetail\" class=\"cat-detail\">
+    <p>点击上面的小猫图片查看详细信息</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+        """.trimIndent()
+
+        val newContent = """
+<div id=\"catDetail\" class=\"cat-detail\">
+    <p>点击上面的小猫图片查看详细信息</p>
+</div>
+</div>
+        """.trimIndent()
+
+        val (resultContent, _) = fileBindingService.processFileBindingOperations(
+            originalContent = originalContent,
+            operations =
+                listOf(
+                    FileBindingService.StructuredEditOperation(
+                        action = FileBindingService.StructuredEditAction.REPLACE,
+                        oldContent = oldContent,
+                        newContent = newContent
+                    )
+                )
+        )
+
+        val expectedContent = """
+<div id=\"catDetail\" class=\"cat-detail\">
+    <p>点击上面的小猫图片查看详细信息</p>
+</div>
+</div>
+<script src=\"js/app.js\"></script>
+        """.trimIndent()
+
         assertEquals(expectedContent, resultContent.trim())
     }
 

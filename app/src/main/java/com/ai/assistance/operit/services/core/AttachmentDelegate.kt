@@ -20,6 +20,9 @@ import kotlinx.coroutines.withContext
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Manages attachment operations for the chat feature Handles adding, removing, and referencing
@@ -501,6 +504,34 @@ class AttachmentDelegate(private val context: Context, private val toolHandler: 
                 } catch (e: Exception) {
                     _toastEvent.emit("获取位置失败: ${e.message}")
                     AppLogger.e(TAG, "Error capturing location", e)
+                }
+            }
+
+    /** 获取当前时间并作为附件添加到消息 */
+    suspend fun captureCurrentTime() =
+            withContext(Dispatchers.IO) {
+                try {
+                    val captureId = "time_${System.currentTimeMillis()}"
+                    val timeText =
+                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+
+                    val content = "【当前时间】\n$timeText"
+                    val attachmentInfo =
+                        AttachmentInfo(
+                            filePath = captureId,
+                            fileName = "time.txt",
+                            mimeType = "text/plain",
+                            fileSize = content.length.toLong(),
+                            content = content
+                        )
+
+                    val currentList = _attachments.value
+                    _attachments.value = currentList + attachmentInfo
+
+                    _toastEvent.emit("已添加当前时间")
+                } catch (e: Exception) {
+                    _toastEvent.emit("获取时间失败: ${e.message}")
+                    AppLogger.e(TAG, "Error capturing current time", e)
                 }
             }
 

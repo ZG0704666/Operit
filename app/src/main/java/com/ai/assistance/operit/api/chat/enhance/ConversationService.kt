@@ -21,16 +21,13 @@ import com.ai.assistance.operit.data.preferences.PromptTagManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.core.tools.ToolProgressBus
-import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
-import com.ai.assistance.operit.util.stream.splitBy
-import com.ai.assistance.operit.util.stream.stream
+import com.ai.assistance.operit.util.streamnative.NativeXmlSplitter
 import com.github.difflib.DiffUtils
 import com.github.difflib.UnifiedDiffUtils
 import java.util.Calendar
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -382,66 +379,7 @@ class ConversationService(
      * @return 提取的XML标签列表，每项包含[标签名称, 标签内容]
      */
     fun splitXmlTag(content: String): List<List<String>> {
-        val results = mutableListOf<List<String>>()
-
-        // 使用StreamXmlPlugin处理XML标签
-        val plugins = listOf(StreamXmlPlugin(includeTagsInOutput = true))
-
-        try {
-            // 将内容转换为Stream<Char>然后用插件拆分
-            val contentStream = content.stream()
-            val tagContents = mutableListOf<String>() // 标签内容
-            val tagNames = mutableListOf<String>() // 标签名称
-
-            // 使用协程作用域收集拆分结果
-            kotlinx.coroutines.runBlocking {
-                contentStream.splitBy(plugins).collect { group ->
-                    if (group.tag is StreamXmlPlugin) {
-                        val sb = StringBuilder()
-                        var isFirstChar = true
-
-                        // 收集完整的XML元素内容
-                        group.stream.collect { charString ->
-                            if (isFirstChar) {
-                                isFirstChar = false
-                            }
-                            sb.append(charString)
-                        }
-
-                        val fullContent = sb.toString()
-
-                        // 提取标签名称
-                        val tagNameMatch = Regex("<([a-zA-Z0-9_]+)[\\s>]").find(fullContent)
-                        val tagName = tagNameMatch?.groupValues?.getOrNull(1) ?: "unknown"
-
-                        tagNames.add(tagName)
-                        tagContents.add(fullContent)
-                    } else {
-                        // 处理纯文本内容
-                        val sb = StringBuilder()
-
-                        // 收集纯文本内容
-                        group.stream.collect { charString -> sb.append(charString) }
-
-                        val textContent = sb.toString()
-                        if (textContent.isNotBlank()) {
-                            // 对于纯文本，将其作为text标签处理
-                            tagNames.add("text")
-                            tagContents.add(textContent)
-                        }
-                    }
-                }
-            }
-
-            // 将收集到的XML标签转换为二维列表
-            for (i in tagNames.indices) {
-                results.add(listOf(tagNames[i], tagContents[i]))
-            }
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "使用Stream解析XML标签时出错", e)
-        }
-
-        return results
+        return NativeXmlSplitter.splitXmlTag(content)
     }
 
     /** 处理包含工具结果的聊天消息，并按顺序重新组织消息 任务完成和等待用户响应的status标签算作AI消息，其他status和warning算作用户消息 工具结果为用户消息 */

@@ -109,7 +109,6 @@ class DeepseekProvider(
                 jsonObject.put("tools", tools)
                 jsonObject.put("tool_choice", "auto")
                 toolsJson = tools.toString()
-                AppLogger.d("DeepseekProvider", "Tool Call已启用，添加了 ${tools.length()} 个工具定义")
             }
         }
 
@@ -120,7 +119,6 @@ class DeepseekProvider(
         // ⚠️ 重要：调用 TokenCacheManager 计算输入 token 数量
         // 虽然 buildMessagesWithReasoning 不返回 token 计数，但我们需要更新缓存管理器的状态
         tokenCacheManager.calculateInputTokens(message, chatHistory, toolsJson)
-        AppLogger.d("DeepseekProvider", "Token计算完成 - 总输入: ${tokenCacheManager.totalInputTokenCount}, 缓存: ${tokenCacheManager.cachedInputTokenCount}")
 
         // 记录最终的请求体（省略过长的tools字段）
         val logJson = JSONObject(jsonObject.toString())
@@ -171,7 +169,6 @@ class DeepseekProvider(
                     val lastMessage = mergedHistory.last()
                     mergedHistory[mergedHistory.size - 1] =
                         Pair(lastMessage.first, lastMessage.second + "\n" + content)
-                    AppLogger.d("DeepseekProvider", "合并连续的 $role 消息")
                 } else {
                     mergedHistory.add(Pair(role, content))
                 }
@@ -191,14 +188,8 @@ class DeepseekProvider(
 
                         // DeepSeek推理模式要求所有assistant消息都必须有reasoning_content字段
                         historyMessage.put("reasoning_content", reasoningContent)
-                        if (reasoningContent.isNotEmpty()) {
-                            AppLogger.d("DeepseekProvider", "添加reasoning_content，长度: ${reasoningContent.length}")
-                        } else {
-                            AppLogger.d("DeepseekProvider", "添加空reasoning_content")
-                        }
 
                         val effectiveContent = if (content.isBlank()) {
-                            AppLogger.d("DeepseekProvider", "发现空的assistant消息，填充为[Empty]")
                             "[Empty]"
                         } else if (textContent.isNotEmpty()) {
                             textContent
@@ -229,11 +220,6 @@ class DeepseekProvider(
 
                         // DeepSeek推理模式要求所有assistant消息都必须有reasoning_content字段
                         historyMessage.put("reasoning_content", reasoningContent)
-                        if (reasoningContent.isNotEmpty()) {
-                            AppLogger.d("DeepseekProvider", "添加reasoning_content，长度: ${reasoningContent.length}")
-                        } else {
-                            AppLogger.d("DeepseekProvider", "添加空reasoning_content")
-                        }
 
                         historyMessage.put("content", buildContentField(content.ifBlank { "[Empty]" }))
                         messagesArray.put(historyMessage)
@@ -262,11 +248,9 @@ class DeepseekProvider(
                                     // 有对应的结果
                                     val (_, resultContent) = resultsList[i]
                                     toolMessage.put("content", resultContent)
-                                    AppLogger.d("DeepseekProvider", "历史XML→ToolResult: ID=$toolCallId, content length=${resultContent.length}")
                                 } else {
                                     // 没有结果，补充取消状态
                                     toolMessage.put("content", "User cancelled")
-                                    AppLogger.d("DeepseekProvider", "补充取消状态: ID=$toolCallId")
                                 }
                                 messagesArray.put(toolMessage)
                             }
@@ -287,7 +271,6 @@ class DeepseekProvider(
                             userMessage.put("role", "user")
                             userMessage.put("content", buildContentField(textContent))
                             messagesArray.put(userMessage)
-                            AppLogger.d("DeepseekProvider", "历史user消息有剩余文本: length=${textContent.length}, preview=${textContent.take(10)}")
                         } else if (!hasHandledToolCalls) {
                             // 如果没有处理任何tool_call，保留原始内容
                             val historyMessage = JSONObject()
@@ -295,7 +278,6 @@ class DeepseekProvider(
                             historyMessage.put("content", buildContentField(originalContent))
                             messagesArray.put(historyMessage)
                         } else {
-                            AppLogger.d("DeepseekProvider", "历史user消息全是tool_result，无剩余文本")
                         }
                     } else {
                         val historyMessage = JSONObject()

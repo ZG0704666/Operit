@@ -44,7 +44,7 @@
 
 const ExtendedHttpTools = (function () {
 
-    const MAX_INLINE_HTTP_RESPONSE_CHARS = 24_000;
+    const MAX_INLINE_HTTP_RESPONSE_CHARS = 12_000;
 
     interface ToolResponse {
         success: boolean;

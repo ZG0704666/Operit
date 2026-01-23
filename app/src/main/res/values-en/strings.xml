@@ -313,6 +313,18 @@
     <string name="voice_keyword_attachments_notifications_desc">Attach current notifications</string>
     <string name="voice_keyword_attachments_notifications_keyword_label">Notification keywords</string>
 
+    <string name="voice_keyword_attachments_location_title">Location</string>
+    <string name="voice_keyword_attachments_location_desc">Attach current location</string>
+    <string name="voice_keyword_attachments_location_keyword_label">Location keywords</string>
+
+    <string name="voice_keyword_attachments_time_title">Time</string>
+    <string name="voice_keyword_attachments_time_desc">Attach current time</string>
+    <string name="voice_keyword_attachments_time_keyword_label">Time keywords</string>
+
+    <string name="voice_keyword_attachments_add_title">Add</string>
+    <string name="voice_keyword_attachments_add_item_title">Add attachment item</string>
+    <string name="voice_keyword_attachments_type_label">Type</string>
+
     <!-- NavItem class identifiers -->
     <string name="shizuku_commands">Permissions</string>
     <string name="tool_permissions">Tool Permission Settings</string>
@@ -456,15 +468,15 @@
     <string name="plugin_starting_plugins">Preparing to start plugins...</string>
     <string name="plugin_starting_number">Starting plugin (%1$d/%2$d)%3$s...</string>
     <string name="plugin_disabled_suffix"> (Plugin disabled)</string>
-    <string name="plugin_termux_not_running">Termux is not running, cannot start plugins</string>
-    <string name="plugin_termux_not_authorized">Termux not authorized, please authorize Termux before using plugins</string>
-    <string name="plugin_nodejs_missing">Node.js is not installed in Termux, please install Node.js before using plugins</string>
+    <string name="plugin_termux_not_running">Terminal service is not running, cannot start plugins</string>
+    <string name="plugin_termux_not_authorized">Terminal service is not ready, please start it before using plugins</string>
+    <string name="plugin_nodejs_missing">pnpm is not installed in the terminal environment (Node.js required). Please install it before using plugins</string>
     <string name="plugin_bridge_failed">Bridge initialization failed, unable to start plugins</string>
     <string name="plugin_other_error">Error occurred while starting plugins, you can click \"Skip\" in the top right corner to continue</string>
     <string name="plugin_complete_with_failures">Startup completed, success rate: %1$d%%. Some plugins failed to load</string>
     <string name="plugin_complete_success">Startup completed, success rate: %1$d%%</string>
     <string name="plugin_no_plugins_to_start">No plugins to start</string>
-    <string name="plugin_copyright">© 2023 AI Assistance</string>
+    <string name="plugin_copyright"> 2023 AI Assistance</string>
     <string name="plugin_registered">Registered</string>
     <string name="plugin_registration_failed">Registration Failed</string>
     <string name="plugin_verification_failed">Verification Failed</string>

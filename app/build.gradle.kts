@@ -43,6 +43,12 @@ android {
         }
     }
 
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.ai.assistance.operit"
         minSdk = 26
@@ -60,6 +66,12 @@ android {
             // for both 32-bit and 64-bit ARM devices are included in the APK,
             // resolving conflicts between dependencies with different native library sets.
             abiFilters.addAll(listOf("arm64-v8a"))
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags("-std=c++17")
+            }
         }
 
         buildConfigField("String", "GITHUB_CLIENT_ID", "\"${localProperties.getProperty("GITHUB_CLIENT_ID")}\"")

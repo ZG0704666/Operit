@@ -56,6 +56,8 @@ class WakeWordPreferences(private val context: Context) {
 
         private val KEY_VOICE_AUTO_ATTACH_ENABLED = booleanPreferencesKey("voice_auto_attach_enabled")
         private val KEY_VOICE_AUTO_ATTACH_ITEMS_JSON = stringPreferencesKey("voice_auto_attach_items_json")
+        private val KEY_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION =
+            intPreferencesKey("voice_auto_attach_items_migration_version")
 
         const val DEFAULT_WAKE_PHRASE = "小欧"
         const val DEFAULT_WAKE_PHRASE_REGEX_ENABLED = false
@@ -69,6 +71,8 @@ class WakeWordPreferences(private val context: Context) {
         const val DEFAULT_AUTO_NEW_CHAT_GROUP = "全局助手"
 
         const val DEFAULT_VOICE_AUTO_ATTACH_ENABLED = true
+
+        private const val LATEST_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION = 1
 
         val DEFAULT_VOICE_AUTO_ATTACH_ITEMS: List<VoiceAutoAttachItem> =
             listOf(
@@ -89,6 +93,12 @@ class WakeWordPreferences(private val context: Context) {
                     type = VoiceAutoAttachType.LOCATION,
                     enabled = true,
                     keywords = "哪个地方"
+                ),
+                VoiceAutoAttachItem(
+                    id = "time",
+                    type = VoiceAutoAttachType.TIME,
+                    enabled = true,
+                    keywords = "时间|几点"
                 )
             )
     }
@@ -97,7 +107,8 @@ class WakeWordPreferences(private val context: Context) {
     enum class VoiceAutoAttachType {
         SCREEN_OCR,
         NOTIFICATIONS,
-        LOCATION
+        LOCATION,
+        TIME
     }
 
     @Serializable
@@ -187,6 +198,40 @@ class WakeWordPreferences(private val context: Context) {
                     .getOrDefault(DEFAULT_VOICE_AUTO_ATTACH_ITEMS)
             }
         }
+
+    suspend fun migrateVoiceAutoAttachItemsIfNeeded() {
+        dataStore.edit { prefs ->
+            val currentVersion = prefs[KEY_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION] ?: 0
+            if (currentVersion >= LATEST_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION) return@edit
+
+            val raw = prefs[KEY_VOICE_AUTO_ATTACH_ITEMS_JSON]
+            if (raw.isNullOrBlank()) {
+                prefs[KEY_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION] =
+                    LATEST_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION
+                return@edit
+            }
+
+            val existingItems =
+                runCatching { json.decodeFromString<List<VoiceAutoAttachItem>>(raw) }
+                    .getOrNull()
+            if (existingItems == null) {
+                prefs[KEY_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION] =
+                    LATEST_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION
+                return@edit
+            }
+
+            val usedTypes = existingItems.map { it.type }.toSet()
+            val missingDefaults = DEFAULT_VOICE_AUTO_ATTACH_ITEMS.filterNot { usedTypes.contains(it.type) }
+
+            if (missingDefaults.isNotEmpty()) {
+                prefs[KEY_VOICE_AUTO_ATTACH_ITEMS_JSON] =
+                    json.encodeToString(existingItems + missingDefaults)
+            }
+
+            prefs[KEY_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION] =
+                LATEST_VOICE_AUTO_ATTACH_ITEMS_MIGRATION_VERSION
+        }
+    }
 
     suspend fun saveAlwaysListeningEnabled(enabled: Boolean) {
         dataStore.edit { prefs ->

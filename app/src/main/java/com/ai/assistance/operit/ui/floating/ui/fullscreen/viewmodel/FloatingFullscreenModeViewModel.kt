@@ -446,6 +446,8 @@ class FloatingFullscreenModeViewModel(
     private suspend fun maybeAutoAttachByKeyword(text: String) {
         if (text.isBlank()) return
 
+        wakePrefs.migrateVoiceAutoAttachItemsIfNeeded()
+
         val enabled = wakePrefs.voiceAutoAttachEnabledFlow.first()
         if (!enabled) return
 
@@ -469,6 +471,9 @@ class FloatingFullscreenModeViewModel(
                     }
                     WakeWordPreferences.VoiceAutoAttachType.LOCATION -> {
                         attachmentDelegate.captureLocation()
+                    }
+                    WakeWordPreferences.VoiceAutoAttachType.TIME -> {
+                        attachmentDelegate.captureCurrentTime()
                     }
                 }
             }

@@ -72,7 +72,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.math.roundToInt
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -881,6 +881,9 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
         val pageContent = remember { mutableStateOf("") } // 提取的页面内容
         val hasExtractedContent = remember { mutableStateOf(false) } // 是否已提取内容
 
+        val extractionRequested = remember { mutableStateOf(false) }
+        val loadToken = remember { mutableStateOf(0) }
+
         // 自动模式状态
         val autoModeEnabled = remember { mutableStateOf(true) } // 是否启用自动模式
         val autoCountdownActive = remember { mutableStateOf(false) } // 倒计时是否激活
@@ -910,6 +913,35 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                     autoCountdownActive.value = false
                     if (pageContent.value.isNotEmpty() && !isCaptchaVerification.value) {
                         onContentExtracted(pageContent.value)
+                    }
+                }
+            }
+        }
+
+        LaunchedEffect(loadToken.value) {
+            if (loadToken.value <= 0) return@LaunchedEffect
+            delay(10_000)
+            if (!pageLoaded.value &&
+                            !hasExtractedContent.value &&
+                            !extractionRequested.value &&
+                            autoModeEnabled.value &&
+                            !isCaptchaVerification.value
+            ) {
+                val webView = webViewReference
+                if (webView != null && webView.isAttachedToWindow) {
+                    AppLogger.w(TAG, "Page load timeout (10s), force content extraction: ${currentUrl.value}")
+                    pageLoaded.value = true
+                    extractionRequested.value = true
+                    isLoading.value = true
+                    extractPageContent(webView, includeImageLinks) { content ->
+                        isLoading.value = false
+                        hasExtractedContent.value = true
+                        pageContent.value = content
+
+                        autoCountdownActive.value = true
+                        autoScrollToBottom(webView) {
+                            AppLogger.d(TAG, "页面滚动完成")
+                        }
                     }
                 }
             }
@@ -1011,6 +1043,18 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                                     // 追踪上一个URL，用于检测重定向
                                                     private var lastLoadedUrl: String = ""
 
+                                                    override fun onPageStarted(
+                                                            view: WebView,
+                                                            startedUrl: String,
+                                                            favicon: android.graphics.Bitmap?
+                                                    ) {
+                                                        super.onPageStarted(view, startedUrl, favicon)
+                                                        currentUrl.value = startedUrl
+                                                        isLoading.value = true
+                                                        pageLoaded.value = false
+                                                        loadToken.value = loadToken.value + 1
+                                                    }
+
                                                     override fun onPageFinished(
                                                             view: WebView,
                                                             loadedUrl: String
@@ -1031,6 +1075,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                                             AppLogger.d(TAG, "页面发生重定向或加载了新页面，重置提取状态")
                                                             isLoading.value = true
                                                             hasExtractedContent.value = false
+                                                            extractionRequested.value = false
                                                             pageContent.value = ""
                                                             autoCountdownActive.value = false
                                                             autoModeEnabled.value = true
@@ -1073,7 +1118,8 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                                                 return@postDelayed
                                                             }
 
-                                                            if (!hasExtractedContent.value && autoModeEnabled.value) {
+                                                            if (!hasExtractedContent.value && !extractionRequested.value && autoModeEnabled.value) {
+                                                                extractionRequested.value = true
                                                                 isLoading.value = true
                                                                 extractPageContent(view, includeImageLinks) { content ->
                                                                     isLoading.value = false
@@ -1221,6 +1267,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
 
                                                 AppLogger.d(TAG, "触发内容提取，当前页面: ${currentUrl.value}")
 
+                                                extractionRequested.value = true
                                                 extractPageContent(webView, includeImageLinks) { content ->
                                                     isLoading.value = false
                                                     hasExtractedContent.value = true
@@ -1348,15 +1395,14 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
             // 改善内存管理
             setWillNotDraw(false)
 
-            // 加载URL
-            if (headers.isNotEmpty()) {
-                loadUrl(url, headers)
-            } else {
-                loadUrl(url)
-            }
-
             // 应用额外配置
-            configure(this)
+            val configured = configure(this)
+
+            if (headers.isNotEmpty()) {
+                configured.loadUrl(url, headers)
+            } else {
+                configured.loadUrl(url)
+            }
         }
     }
 

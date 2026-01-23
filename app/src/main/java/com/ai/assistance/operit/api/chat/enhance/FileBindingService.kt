@@ -6,6 +6,7 @@ import com.ai.assistance.operit.data.model.FunctionType
 import com.github.difflib.DiffUtils
 import com.github.difflib.UnifiedDiffUtils
 import java.util.concurrent.*
+import kotlin.math.abs
 
 class FileBindingService(context: Context) {
 
@@ -23,6 +24,17 @@ class FileBindingService(context: Context) {
         DELETE
     }
 
+    enum class StructuredEditAction {
+        REPLACE,
+        DELETE
+    }
+
+    data class StructuredEditOperation(
+        val action: StructuredEditAction,
+        val oldContent: String,
+        val newContent: String = ""
+    )
+
     private data class EditOperation(
             val action: EditAction,
             val oldContent: String,
@@ -33,6 +45,8 @@ class FileBindingService(context: Context) {
             val bestScore: Double,
             val startLine: Int,
             val endLine: Int,
+            val sizeDiff: Int,
+            val lengthDiff: Int,
             val windows: Int,
             val lcsCalculations: Int
     )
@@ -91,6 +105,44 @@ class FileBindingService(context: Context) {
         val normalizedAiGeneratedCode = aiGeneratedCode.replace("\r\n", "\n").trim()
         val diffString = generateDiff(normalizedOriginalContent, normalizedAiGeneratedCode)
         return Pair(normalizedAiGeneratedCode, diffString)
+    }
+
+    suspend fun processFileBindingOperations(
+        originalContent: String,
+        operations: List<StructuredEditOperation>,
+        onProgress: ((Float, String) -> Unit)? = null
+    ): Pair<String, String> {
+        if (operations.isEmpty()) {
+            return Pair(originalContent, "Error: No valid edit operations provided")
+        }
+
+        val internalOps = operations.mapNotNull { op ->
+            val old = op.oldContent
+            if (old.isBlank()) return@mapNotNull null
+            when (op.action) {
+                StructuredEditAction.REPLACE -> {
+                    val newContent = op.newContent
+                    if (newContent.isBlank()) return@mapNotNull null
+                    EditOperation(EditAction.REPLACE, old, newContent)
+                }
+                StructuredEditAction.DELETE -> {
+                    EditOperation(EditAction.DELETE, old, "")
+                }
+            }
+        }
+
+        if (internalOps.isEmpty()) {
+            return Pair(originalContent, "Error: No valid edit operations provided")
+        }
+
+        onProgress?.invoke(0f, "Searching match...")
+        val (success, resultString) = applyFuzzyOperations(originalContent, internalOps, onProgress)
+        if (success) {
+            onProgress?.invoke(1f, "Patch applied")
+            val diffString = generateDiff(originalContent.replace("\r\n", "\n"), resultString)
+            return Pair(resultString, diffString)
+        }
+        return Pair(originalContent, "Error: Could not apply patch. Reason: $resultString")
     }
 
     private fun generateDiff(original: String, modified: String): String {
@@ -194,87 +246,95 @@ class FileBindingService(context: Context) {
                 return Pair(false, "No valid edit operations found in the patch code.")
             }
 
-            onProgress?.invoke(0f, "Searching match...")
-
-            val originalLines = originalContent.lines().toMutableList()
-            val enrichedOps = mutableListOf<Triple<EditOperation, Int, Int>>()
-
-            val totalOps = operations.size.coerceAtLeast(1)
-            val matchPhaseWeight = 0.8f
-            val applyPhaseWeight = 0.2f
-
-            for ((index, op) in operations.withIndex()) {
-                val (start, end) = findBestMatchRange(originalLines, op.oldContent) { p, msg ->
-                    val overall = (matchPhaseWeight * ((index.toFloat() + p) / totalOps.toFloat()))
-                        .coerceIn(0f, 0.99f)
-                    onProgress?.invoke(overall, "Matching ${index + 1}/$totalOps: $msg")
-                }
-                if (start == -1) {
-                    AppLogger.w(TAG, "Could not find a suitable match for OLD block: ${op.oldContent.take(100)}...")
-                    return Pair(false, "Could not find a match for an OLD block. The file may have changed too much.")
-                }
-                if (hasMultiplePerfectMatches(originalContent, op.oldContent)) {
-                    AppLogger.w(TAG, "Multiple perfect matches found for OLD block; aborting to avoid ambiguous replacement.")
-                    return Pair(false, "Found multiple perfect matches for an OLD block in the target file. Please refine the patch so it only matches a single location.")
-                }
-                enrichedOps.add(Triple(op, start, end))
-            }
-
-            // Sort operations by start line in descending order to apply from the bottom up
-            enrichedOps.sortByDescending { it.second }
-
-            var applied = 0
-            for ((op, start, end) in enrichedOps) {
-                AppLogger.d(TAG, "Applying ${op.action} at lines ${start + 1}-${end + 1}")
-
-                // Capture original segment before removal so we can preserve indentation if needed
-                val originalSegment = originalLines.subList(start, end + 1).toList()
-
-                // Remove the old lines
-                for (i in end downTo start) {
-                    originalLines.removeAt(i)
-                }
-
-                // If it's a REPLACE, add the new lines
-                if (op.action == EditAction.REPLACE) {
-
-                    val newLinesRaw = op.newContent.lines()
-
-                    // For simple single-line replacements, inherit the indentation of the original line
-                    val newLines = if (originalSegment.isNotEmpty() &&
-                        start == end &&
-                        newLinesRaw.size == 1
-                    ) {
-                        val originalFirstLine = originalSegment.first()
-                        val indentPrefix = originalFirstLine.takeWhile { it == ' ' || it == '\t' }
-                        val newLine = newLinesRaw.first()
-
-                        if (indentPrefix.isNotEmpty() &&
-                            !newLine.startsWith(" ") &&
-                            !newLine.startsWith("\t")
-                        ) {
-                            listOf(indentPrefix + newLine)
-                        } else {
-                            newLinesRaw
-                        }
-                    } else {
-                        newLinesRaw
-                    }
-
-                    originalLines.addAll(start, newLines)
-                }
-
-                applied++
-                val overall = (matchPhaseWeight + (applyPhaseWeight * (applied.toFloat() / totalOps.toFloat())))
-                    .coerceIn(0f, 0.99f)
-                onProgress?.invoke(overall, "Applying ${applied}/$totalOps")
-            }
-
-            return Pair(true, originalLines.joinToString("\n"))
+            return applyFuzzyOperations(originalContent, operations, onProgress)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to apply fuzzy patch", e)
             return Pair(false, "Failed to apply fuzzy patch due to an exception: ${e.message}")
         }
+    }
+
+    private fun applyFuzzyOperations(
+        originalContent: String,
+        operations: List<EditOperation>,
+        onProgress: ((Float, String) -> Unit)? = null
+    ): Pair<Boolean, String> {
+        onProgress?.invoke(0f, "Searching match...")
+
+        val originalLines = originalContent.lines().toMutableList()
+        val enrichedOps = mutableListOf<Triple<EditOperation, Int, Int>>()
+
+        val totalOps = operations.size.coerceAtLeast(1)
+        val matchPhaseWeight = 0.8f
+        val applyPhaseWeight = 0.2f
+
+        for ((index, op) in operations.withIndex()) {
+            val (start, end) = findBestMatchRange(originalLines, op.oldContent) { p, msg ->
+                val overall = (matchPhaseWeight * ((index.toFloat() + p) / totalOps.toFloat()))
+                    .coerceIn(0f, 0.99f)
+                onProgress?.invoke(overall, "Matching ${index + 1}/$totalOps: $msg")
+            }
+            if (start == -1) {
+                AppLogger.w(TAG, "Could not find a suitable match for OLD block: ${op.oldContent.take(100)}...")
+                return Pair(false, "Could not find a match for an OLD block. The file may have changed too much.")
+            }
+            if (hasMultiplePerfectMatches(originalContent, op.oldContent)) {
+                AppLogger.w(TAG, "Multiple perfect matches found for OLD block; aborting to avoid ambiguous replacement.")
+                return Pair(false, "Found multiple perfect matches for an OLD block in the target file. Please refine the patch so it only matches a single location.")
+            }
+            enrichedOps.add(Triple(op, start, end))
+        }
+
+        // Sort operations by start line in descending order to apply from the bottom up
+        enrichedOps.sortByDescending { it.second }
+
+        var applied = 0
+        for ((op, start, end) in enrichedOps) {
+            AppLogger.d(TAG, "Applying ${op.action} at lines ${start + 1}-${end + 1}")
+
+            // Capture original segment before removal so we can preserve indentation if needed
+            val originalSegment = originalLines.subList(start, end + 1).toList()
+
+            // Remove the old lines
+            for (i in end downTo start) {
+                originalLines.removeAt(i)
+            }
+
+            // If it's a REPLACE, add the new lines
+            if (op.action == EditAction.REPLACE) {
+
+                val newLinesRaw = op.newContent.lines()
+
+                // For simple single-line replacements, inherit the indentation of the original line
+                val newLines = if (originalSegment.isNotEmpty() &&
+                    start == end &&
+                    newLinesRaw.size == 1
+                ) {
+                    val originalFirstLine = originalSegment.first()
+                    val indentPrefix = originalFirstLine.takeWhile { it == ' ' || it == '\t' }
+                    val newLine = newLinesRaw.first()
+
+                    if (indentPrefix.isNotEmpty() &&
+                        !newLine.startsWith(" ") &&
+                        !newLine.startsWith("\t")
+                    ) {
+                        listOf(indentPrefix + newLine)
+                    } else {
+                        newLinesRaw
+                    }
+                } else {
+                    newLinesRaw
+                }
+
+                originalLines.addAll(start, newLines)
+            }
+
+            applied++
+            val overall = (matchPhaseWeight + (applyPhaseWeight * (applied.toFloat() / totalOps.toFloat())))
+                .coerceIn(0f, 0.99f)
+            onProgress?.invoke(overall, "Applying ${applied}/$totalOps")
+        }
+
+        return Pair(true, originalLines.joinToString("\n"))
     }
 
     private fun parseEditOperations(patchCode: String): List<EditOperation> {
@@ -365,6 +425,7 @@ class FileBindingService(context: Context) {
         // --- 优化1：预计算与规范化 ---
         AppLogger.d(TAG, "开始预计算与规范化...")
         val normalizedOldContent = oldContent.replace(Regex("\\s+"), "")
+        val normalizedOldLength = normalizedOldContent.length
         val baseNgrams = buildNgrams(normalizedOldContent)
         if (baseNgrams.isEmpty()) {
             AppLogger.w(TAG, "OLD 块在去空白后过短，无法构建 n-gram，放弃匹配。")
@@ -390,6 +451,8 @@ class FileBindingService(context: Context) {
 
         var bestMatchScore = 0.0
         var bestMatchRange = -1 to -1
+        var bestMatchSizeDiff = Int.MAX_VALUE
+        var bestMatchLengthDiff = Int.MAX_VALUE
 
         // --- 阶段二：并行滑动窗口搜索 ---
         val totalIterations = originalLines.size.toLong() * targetSizes.count().toLong()
@@ -427,6 +490,8 @@ class FileBindingService(context: Context) {
                     var localBestScore = 0.0
                     var localBestStart = -1
                     var localBestEnd = -1
+                    var localBestSizeDiff = Int.MAX_VALUE
+                    var localBestLengthDiff = Int.MAX_VALUE
                     var localWindows = 0
                     var localLcs = 0
                     var localChunk = 0L
@@ -459,26 +524,42 @@ class FileBindingService(context: Context) {
                             val normalizedWindow =
                                 normalizedOriginalContent.substring(startCharIndex, endCharIndex)
 
+                            val sizeDiff = abs(size - numOldLines)
+                            val lengthDiff = abs(normalizedWindow.length - normalizedOldLength)
+
                             localLcs++
                             val score = ngramSimilarity(baseNgrams, normalizedWindow)
 
-                            if (score > localBestScore) {
+                            val isBetter =
+                                (score > localBestScore) ||
+                                    (score == localBestScore &&
+                                        (sizeDiff < localBestSizeDiff ||
+                                            (sizeDiff == localBestSizeDiff &&
+                                                (lengthDiff < localBestLengthDiff ||
+                                                    (lengthDiff == localBestLengthDiff &&
+                                                        (localBestStart == -1 || i < localBestStart))))))
+
+                            if (isBetter) {
                                 localBestScore = score
                                 localBestStart = i
                                 localBestEnd = endLine - 1
+                                localBestSizeDiff = sizeDiff
+                                localBestLengthDiff = lengthDiff
                                 val matchPercentage = (localBestScore * 100).toInt()
                                 AppLogger.d(
                                     TAG,
                                     "并行块[$threadIndex] 发现更佳匹配: 行 ${i + 1}-$endLine, 相似度: $matchPercentage%"
                                 )
 
-                                if (localBestScore == 1.0) {
+                                if (localBestScore == 1.0 && localBestSizeDiff == 0 && localBestLengthDiff == 0) {
                                     foundPerfectMatch.set(true)
                                     AppLogger.d(TAG, "并行块[$threadIndex] 已找到100%匹配，提前结束该块搜索。")
                                     return@Callable MatchSearchResult(
                                         localBestScore,
                                         localBestStart,
                                         localBestEnd,
+                                        localBestSizeDiff,
+                                        localBestLengthDiff,
                                         localWindows,
                                         localLcs
                                     )
@@ -492,7 +573,15 @@ class FileBindingService(context: Context) {
                         maybeEmitProgress(processed)
                     }
 
-                    MatchSearchResult(localBestScore, localBestStart, localBestEnd, localWindows, localLcs)
+                    MatchSearchResult(
+                        localBestScore,
+                        localBestStart,
+                        localBestEnd,
+                        localBestSizeDiff,
+                        localBestLengthDiff,
+                        localWindows,
+                        localLcs
+                    )
                 }
 
                 tasks.add(executor.submit(task))
@@ -504,9 +593,20 @@ class FileBindingService(context: Context) {
                     totalWindows += result.windows
                     lcsCalculations += result.lcsCalculations
 
-                    if (result.bestScore > bestMatchScore) {
+                    val isBetter =
+                        (result.bestScore > bestMatchScore) ||
+                            (result.bestScore == bestMatchScore &&
+                                (result.sizeDiff < bestMatchSizeDiff ||
+                                    (result.sizeDiff == bestMatchSizeDiff &&
+                                        (result.lengthDiff < bestMatchLengthDiff ||
+                                            (result.lengthDiff == bestMatchLengthDiff &&
+                                                (bestMatchRange.first == -1 || result.startLine < bestMatchRange.first))))))
+
+                    if (isBetter) {
                         bestMatchScore = result.bestScore
                         bestMatchRange = result.startLine to result.endLine
+                        bestMatchSizeDiff = result.sizeDiff
+                        bestMatchLengthDiff = result.lengthDiff
                     }
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Error getting file binding search result", e)

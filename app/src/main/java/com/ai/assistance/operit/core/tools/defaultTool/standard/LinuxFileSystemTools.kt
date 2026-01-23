@@ -1001,6 +1001,21 @@ class LinuxFileSystemTools(context: Context) : StandardFileSystemTools(context) 
                 )
             }
 
+            if (!fs.isDirectory(basePath)) {
+                val fileName = basePath.substringAfterLast('/')
+                val regex = globToRegex(pattern, caseInsensitive = false)
+                val files = if (regex.matches(fileName)) listOf(basePath) else emptyList()
+
+                ToolProgressBus.update(tool.name, 1f, "Search completed, found ${files.size}")
+
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FindFilesResultData(path = basePath, pattern = pattern, files = files, env = "linux"),
+                    error = ""
+                )
+            }
+
             val files = fs.findFiles(
                 basePath = basePath,
                 pattern = pattern,

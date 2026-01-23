@@ -2878,21 +2878,6 @@ open class StandardFileSystemTools(protected val context: Context) {
             ToolProgressBus.update(tool.name, 0f, "Searching...")
             val rootDir = File(path)
 
-            if (!rootDir.exists() || !rootDir.isDirectory) {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result =
-                    FindFilesResultData(
-                        path = path,
-                        pattern = pattern,
-                        files = emptyList(),
-                        env = "android"
-                    ),
-                    error = "Path does not exist or is not a directory: $path"
-                )
-            }
-
             // Get search options
             val usePathPattern =
                 tool.parameters
@@ -2915,6 +2900,45 @@ open class StandardFileSystemTools(protected val context: Context) {
 
             // Convert glob pattern to regex
             val regex = globToRegex(pattern, caseInsensitive)
+
+            if (rootDir.exists() && rootDir.isFile) {
+                val testString = if (usePathPattern) rootDir.name else rootDir.name
+                val matchingFiles = if (regex.matches(testString)) {
+                    listOf(rootDir.absolutePath)
+                } else {
+                    emptyList()
+                }
+
+                ToolProgressBus.update(tool.name, 1f, "Search completed, found ${matchingFiles.size}")
+
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                    FindFilesResultData(
+                        path = path,
+                        pattern = pattern,
+                        files = matchingFiles,
+                        env = "android"
+                    ),
+                    error = ""
+                )
+            }
+
+            if (!rootDir.exists() || !rootDir.isDirectory) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                    FindFilesResultData(
+                        path = path,
+                        pattern = pattern,
+                        files = emptyList(),
+                        env = "android"
+                    ),
+                    error = "Path does not exist or is not a directory: $path"
+                )
+            }
 
             // Recursively find matching files
             val matchingFiles = mutableListOf<String>()
@@ -2963,7 +2987,7 @@ open class StandardFileSystemTools(protected val context: Context) {
     }
 
     /** Helper method to convert glob pattern to regex */
-    private fun globToRegex(glob: String, caseInsensitive: Boolean): Regex {
+    protected fun globToRegex(glob: String, caseInsensitive: Boolean): Regex {
         val regex = StringBuilder("^")
 
         for (i in glob.indices) {
@@ -3542,25 +3566,6 @@ open class StandardFileSystemTools(protected val context: Context) {
                 return@flow
             }
 
-            val legacyContentParam = tool.parameters.find { it.name == "content" }?.value
-            if (!legacyContentParam.isNullOrBlank()) {
-                emit(
-                    ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result =
-                            FileOperationData(
-                                operation = "apply",
-                                path = path,
-                                successful = false,
-                                details = "apply_file does not accept 'content'. Please use: type + old + new."
-                            ),
-                        error = "apply_file does not accept 'content'. Please use: type + old + new."
-                    )
-                )
-                return@flow
-            }
-
             val operationType = typeParam?.trim()?.lowercase()
             if (operationType.isNullOrBlank()) {
                 emit(
@@ -3578,29 +3583,6 @@ open class StandardFileSystemTools(protected val context: Context) {
                     )
                 )
                 return@flow
-            }
-
-            fun buildReplacePatch(oldContent: String, newContent: String): String {
-                return listOf(
-                    "[START-REPLACE]",
-                    "[OLD]",
-                    oldContent,
-                    "[/OLD]",
-                    "[NEW]",
-                    newContent,
-                    "[/NEW]",
-                    "[END-REPLACE]"
-                ).joinToString("\n")
-            }
-
-            fun buildDeletePatch(oldContent: String): String {
-                return listOf(
-                    "[START-DELETE]",
-                    "[OLD]",
-                    oldContent,
-                    "[/OLD]",
-                    "[END-DELETE]"
-                ).joinToString("\n")
             }
 
             ToolProgressBus.update(tool.name, 0.05f, "Checking file...")
@@ -3764,7 +3746,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
             val originalContent = (readResult.result as? FileContentData)?.content ?: ""
 
-            val patchCode =
+            val editOperations =
                 when (operationType) {
                     "replace" -> {
                         val oldContent = oldParam ?: ""
@@ -3786,7 +3768,13 @@ open class StandardFileSystemTools(protected val context: Context) {
                             )
                             return@flow
                         }
-                        buildReplacePatch(oldContent, newContent)
+                        listOf(
+                            FileBindingService.StructuredEditOperation(
+                                action = FileBindingService.StructuredEditAction.REPLACE,
+                                oldContent = oldContent,
+                                newContent = newContent
+                            )
+                        )
                     }
                     "delete" -> {
                         val oldContent = oldParam ?: ""
@@ -3807,7 +3795,12 @@ open class StandardFileSystemTools(protected val context: Context) {
                             )
                             return@flow
                         }
-                        buildDeletePatch(oldContent)
+                        listOf(
+                            FileBindingService.StructuredEditOperation(
+                                action = FileBindingService.StructuredEditAction.DELETE,
+                                oldContent = oldContent
+                            )
+                        )
                     }
                     else -> {
                         emit(
@@ -3831,11 +3824,11 @@ open class StandardFileSystemTools(protected val context: Context) {
             ToolProgressBus.update(tool.name, 0.2f, "Applying patch...")
             val lastEmitMs = java.util.concurrent.atomic.AtomicLong(0L)
             val bindingResult =
-                EnhancedAIService.applyFileBinding(context, originalContent, patchCode) { p, msg ->
+                EnhancedAIService.applyFileBindingOperations(context, originalContent, editOperations) { p, msg ->
                     val now = System.currentTimeMillis()
                     val last = lastEmitMs.get()
-                    if (now - last < 200L) return@applyFileBinding
-                    if (!lastEmitMs.compareAndSet(last, now)) return@applyFileBinding
+                    if (now - last < 200L) return@applyFileBindingOperations
+                    if (!lastEmitMs.compareAndSet(last, now)) return@applyFileBindingOperations
 
                     val mapped = (0.2f + 0.6f * p).coerceIn(0f, 0.99f)
                     ToolProgressBus.update(tool.name, mapped, msg)

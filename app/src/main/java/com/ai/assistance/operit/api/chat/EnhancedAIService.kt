@@ -243,6 +243,20 @@ class EnhancedAIService private constructor(private val context: Context) {
             )
         }
 
+        suspend fun applyFileBindingOperations(
+            context: Context,
+            originalContent: String,
+            operations: List<FileBindingService.StructuredEditOperation>,
+            onProgress: ((Float, String) -> Unit)? = null
+        ): Pair<String, String> {
+            val instance = getInstance(context)
+            return instance.fileBindingService.processFileBindingOperations(
+                originalContent = originalContent,
+                operations = operations,
+                onProgress = onProgress
+            )
+        }
+
         /**
          * 自动生成工具包描述（非实例化方式）
          * @param context 应用上下文
@@ -449,6 +463,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // Process the input message for any conversation markup (e.g., for AI planning)
                     val startTime = System.currentTimeMillis()
                     val processedInput = InputProcessor.processUserInput(message)
+                    val tAfterProcessInput = System.currentTimeMillis()
+                    AppLogger.d(TAG, "sendMessage本地耗时: processUserInput=${tAfterProcessInput - startTime}ms")
                 
 
                     // Update state to show we're processing
@@ -471,6 +487,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                                     isSubTask,
                                     functionType
                             )
+                    val tAfterPrepareHistory = System.currentTimeMillis()
+                    AppLogger.d(TAG, "sendMessage本地耗时: prepareConversationHistory=${tAfterPrepareHistory - tAfterProcessInput}ms")
                     
                     // 关键修复：用准备好的历史记录（包含了系统提示）去同步更新内部的 conversationHistory 状态
                     context.conversationHistory.clear()
@@ -485,18 +503,24 @@ class EnhancedAIService private constructor(private val context: Context) {
 
                     // Get all model parameters from preferences (with enabled state)
                     val modelParameters = multiServiceManager.getModelParametersForFunction(functionType)
+                    val tAfterModelParams = System.currentTimeMillis()
+                    AppLogger.d(TAG, "sendMessage本地耗时: getModelParametersForFunction=${tAfterModelParams - tAfterPrepareHistory}ms")
 
                     // 获取对应功能类型的AIService实例
                     val serviceForFunction = getAIServiceForFunction(functionType)
+                    val tAfterGetService = System.currentTimeMillis()
+                    AppLogger.d(TAG, "sendMessage本地耗时: getAIServiceForFunction=${tAfterGetService - tAfterModelParams}ms")
 
                     // 清空之前的单次请求token计数
                     _perRequestTokenCounts.value = null
 
                     // 获取工具列表（如果启用Tool Call）
                     val availableTools = getAvailableToolsForFunction(functionType)
+                    val tAfterGetTools = System.currentTimeMillis()
+                    AppLogger.d(TAG, "sendMessage本地耗时: getAvailableToolsForFunction=${tAfterGetTools - tAfterGetService}ms")
                     
                     // 使用新的Stream API
-                    AppLogger.d(TAG, "调用AI服务，处理时间: ${System.currentTimeMillis() - startTime}ms, 流式输出: $stream")
+                    AppLogger.d(TAG, "调用AI服务，处理时间: ${tAfterGetTools - startTime}ms, 流式输出: $stream")
                     val responseStream =
                             serviceForFunction.sendMessage(
                                     message = processedInput,

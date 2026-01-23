@@ -1567,6 +1567,26 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                     tool.parameters.find { it.name == "case_insensitive" }?.value?.toBoolean()
                             ?: false
 
+            val isFileResult =
+                AndroidShellExecutor.executeShellCommand(
+                    "test -f ${shQuote(path)} && echo file || echo not_file"
+                )
+            if (isFileResult.success && isFileResult.stdout.trim() == "file") {
+                val fileName = path.substringAfterLast('/')
+                val testString = if (usePathPattern) path else fileName
+                val regex = globToRegex(pattern, caseInsensitive)
+                val files = if (regex.matches(testString)) listOf(path) else emptyList()
+
+                ToolProgressBus.update(tool.name, 1f, "Search completed, found ${files.size}")
+
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FindFilesResultData(path = path, pattern = pattern, files = files),
+                    error = ""
+                )
+            }
+
             // Add depth control parameter (default to -1 for unlimited depth/fully
             // recursive)
             val maxDepth =

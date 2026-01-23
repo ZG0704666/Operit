@@ -464,9 +464,9 @@
     <string name="usage_instructions">Instrucciones de uso</string>
     
     <!-- Plugin Status Messages -->
-    <string name="plugin_termux_not_running">Termux no está ejecutándose, no se pueden iniciar los plugins</string>
-    <string name="plugin_termux_not_authorized">Termux no está autorizado, por favor autorice Termux primero antes de usar plugins</string>
-    <string name="plugin_nodejs_missing">Node.js no está instalado en Termux, por favor instale Node.js primero antes de usar plugins</string>
+    <string name="plugin_termux_not_running">El servicio de terminal no está en ejecución, no se pueden iniciar los plugins</string>
+    <string name="plugin_termux_not_authorized">El servicio de terminal no está listo, por favor inícielo antes de usar plugins</string>
+    <string name="plugin_nodejs_missing">pnpm no está instalado en el entorno de terminal (se requiere Node.js). Por favor instálelo antes de usar plugins</string>
     <string name="plugin_bridge_failed">Error en la inicialización del puente, no se pueden iniciar los plugins</string>
     <string name="plugin_other_error">Ocurrió un error al iniciar plugins, puede hacer clic en \"Omitir\" en la esquina superior derecha para continuar</string>
     

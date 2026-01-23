@@ -131,6 +131,7 @@ class MultiServiceManager(private val context: Context) {
             // 释放旧实例的资源（对于本地模型如MNN，这很重要）
             serviceInstances[functionType]?.let { oldService ->
                 try {
+                    oldService.cancelStreaming()
                     oldService.release()
                     AppLogger.d(TAG, "已释放功能${functionType}的服务资源")
                 } catch (e: Exception) {
@@ -158,6 +159,7 @@ class MultiServiceManager(private val context: Context) {
             // 释放所有服务实例的资源
             serviceInstances.values.forEach { service ->
                 try {
+                    service.cancelStreaming()
                     service.release()
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "释放服务资源时出错", e)

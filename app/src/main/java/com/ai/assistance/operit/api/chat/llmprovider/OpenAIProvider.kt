@@ -763,11 +763,9 @@ open class OpenAIProvider(
                                     // 有对应的结果
                                     val (_, resultContent) = resultsList[i]
                                     toolMessage.put("content", resultContent)
-                                    AppLogger.d("AIService", "历史XML→ToolResult: ID=$toolCallId")
                                 } else {
                                     // 没有结果，补充取消状态
                                     toolMessage.put("content", "User cancelled")
-                                    AppLogger.d("AIService", "补充取消状态: ID=$toolCallId")
                                 }
                                 messagesArray.put(toolMessage)
                             }
@@ -792,12 +790,6 @@ open class OpenAIProvider(
                             historyMessage.put("role", role)
                             historyMessage.put("content", buildContentField(textContent))
                             messagesArray.put(historyMessage)
-                            AppLogger.d(
-                                "AIService",
-                                "历史user消息有剩余文本: length=${textContent.length}, preview=${
-                                    textContent.take(100)
-                                }"
-                            )
                         } else if (!hasHandledToolCalls) {
                             // 如果没有处理任何tool_call（且无剩余文本），说明这是一个普通用户消息或者无法匹配的工具结果
                             // 保留原始content
@@ -805,9 +797,7 @@ open class OpenAIProvider(
                             historyMessage.put("role", role)
                             historyMessage.put("content", buildContentField(content))
                             messagesArray.put(historyMessage)
-                            AppLogger.d("AIService", "历史user消息无tool_call处理，保留原始内容")
                         } else {
-                            AppLogger.d("AIService", "历史user消息已转换为tool消息，无剩余文本")
                         }
                     } else {
                         // system等其他角色正常处理
@@ -1190,7 +1180,6 @@ open class OpenAIProvider(
             })
 
             callIndex++
-            AppLogger.d("AIService", "XML→ToolCall: $toolName -> ID: $callId")
 
             // 从文本内容中移除tool标签
             textContent = textContent.replace(match.value, "")
@@ -1230,11 +1219,6 @@ open class OpenAIProvider(
 
             // 从文本内容中移除tool_result标签（包括前后的空白符）
             textContent = textContent.replace(match.value, "").trim()
-
-            AppLogger.d(
-                "AIService",
-                "解析tool_result #$resultIndex, content length=${resultContent.length}"
-            )
             resultIndex++
         }
 

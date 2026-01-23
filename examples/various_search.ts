@@ -1,7 +1,7 @@
 /* METADATA
 {
   name: various_search
-  description: { zh: "提供多平台搜索功能，支持从必应、百度、搜狗、夸克等平台获取搜索结果。", en: "Multi-platform search tools that fetch results from Bing, Baidu, Sogou, Quark, and more." }
+  description: { zh: "提供多平台搜索功能（含图片搜索），支持从必应、百度、搜狗、夸克等平台获取搜索结果。", en: "Multi-platform search tools (including image search) that fetch results from Bing, Baidu, Sogou, Quark, and more." }
   enabledByDefault: true
   
   tools: [

@@ -42,7 +42,7 @@
 }
 */
 const ExtendedHttpTools = (function () {
-    const MAX_INLINE_HTTP_RESPONSE_CHARS = 24000;
+    const MAX_INLINE_HTTP_RESPONSE_CHARS = 12000;
     async function http_request(params) {
         const toolParams = {
             url: params.url,

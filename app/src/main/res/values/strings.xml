@@ -310,6 +310,18 @@
     <string name="voice_keyword_attachments_notifications_desc">附加当前通知</string>
     <string name="voice_keyword_attachments_notifications_keyword_label">通知关键词</string>
 
+    <string name="voice_keyword_attachments_location_title">位置</string>
+    <string name="voice_keyword_attachments_location_desc">附加当前定位</string>
+    <string name="voice_keyword_attachments_location_keyword_label">位置关键词</string>
+
+    <string name="voice_keyword_attachments_time_title">时间</string>
+    <string name="voice_keyword_attachments_time_desc">附加当前时间</string>
+    <string name="voice_keyword_attachments_time_keyword_label">时间关键词</string>
+
+    <string name="voice_keyword_attachments_add_title">添加</string>
+    <string name="voice_keyword_attachments_add_item_title">添加附件项</string>
+    <string name="voice_keyword_attachments_type_label">类型</string>
+
     <!-- 用于NavItem类的标识符 -->
     <string name="shizuku_commands">权限授予</string>
     <string name="tool_permissions">工具权限设置</string>
@@ -453,25 +465,25 @@
     <string name="plugin_configuring_server">配置MCP服务器...</string>
     <string name="plugin_server_failed">MCP服务器启动失败，您可以点击右上角的\"跳过\"继续</string>
     <string name="plugin_server_success">MCP服务器启动成功</string>
-    <string name="plugin_server_initializing">MCP服务器初始化中...</string>
-    <string name="plugin_loading_list">正在加载插件列表...</string>
-    <string name="plugin_no_plugins">没有检测到已安装的插件</string>
-    <string name="plugin_preparing">正在准备 %1$d 个插件...</string>
-    <string name="plugin_checking_env">正在检查环境...</string>
-    <string name="plugin_starting_plugins">正在准备启动插件...</string>
-    <string name="plugin_starting_number">正在启动插件 (%1$d/%2$d)%3$s...</string>
-    <string name="plugin_disabled_suffix"> (插件已禁用)</string>
-    <string name="plugin_termux_not_running">Termux未运行，无法启动插件</string>
-    <string name="plugin_termux_not_authorized">Termux未授权，请先授权Termux再使用插件</string>
-    <string name="plugin_nodejs_missing">Termux中未安装Node.js，请先安装Node.js再使用插件</string>
-    <string name="plugin_bridge_failed">桥接器初始化失败，无法启动插件</string>
-    <string name="plugin_other_error">启动插件时发生错误，您可以点击右上角的\"跳过\"继续</string>
-    <string name="plugin_complete_with_failures">已完成启动，成功率: %1$d%%。部分插件加载失败</string>
-    <string name="plugin_complete_success">已完成启动，成功率: %1$d%%</string>
-    <string name="plugin_no_plugins_to_start">没有需要启动的插件</string>
-    <string name="plugin_copyright">© 2023 AI Assistance</string>
-    <string name="plugin_registered">已注册</string>
-    <string name="plugin_registration_failed">注册失败</string>
+<string name="plugin_server_initializing">MCP服务器初始化中...</string>
+<string name="plugin_loading_list">正在加载插件列表...</string>
+<string name="plugin_no_plugins">没有检测到已安装的插件</string>
+<string name="plugin_preparing">正在准备 %1$d 个插件...</string>
+<string name="plugin_checking_env">正在检查环境...</string>
+<string name="plugin_starting_plugins">正在准备启动插件...</string>
+<string name="plugin_starting_number">正在启动插件 (%1$d/%2$d)%3$s...</string>
+<string name="plugin_disabled_suffix"> (插件已禁用)</string>
+<string name="plugin_termux_not_running">内置终端服务未运行，无法启动插件</string>
+<string name="plugin_termux_not_authorized">内置终端服务未就绪，请先启动终端再使用插件</string>
+<string name="plugin_nodejs_missing">内置终端环境未安装 pnpm（需要 Node.js），请先安装后再使用插件</string>
+<string name="plugin_bridge_failed">桥接器初始化失败，无法启动插件</string>
+<string name="plugin_other_error">启动插件时发生错误，您可以点击右上角的\"跳过\"继续</string>
+<string name="plugin_complete_with_failures">已完成启动，成功率: %1$d%%。部分插件加载失败</string>
+<string name="plugin_complete_success">已完成启动，成功率: %1$d%%</string>
+<string name="plugin_no_plugins_to_start">没有需要启动的插件</string>
+<string name="plugin_copyright"> 2023 AI Assistance</string>
+<string name="plugin_registered">已注册</string>
+<string name="plugin_registration_failed">注册失败</string>
     <string name="plugin_verification_failed">验证失败</string>
     
     <!-- Theme Settings Screen -->
