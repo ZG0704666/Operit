@@ -14,9 +14,99 @@ import kotlinx.serialization.json.JsonNames
 object MCPPluginParser {
     private const val TAG = "MCPPluginParser"
 
+    private val DESCRIPTION_LABEL_WORDS = setOf(
+        "description",
+        "desc",
+        "summary",
+        "introduction",
+        "简介",
+        "描述",
+        "介绍",
+        "说明"
+    )
+
+    private fun isLabelOnlyLine(raw: String): Boolean {
+        val normalized = raw
+            .replace("*", "")
+            .replace("_", "")
+            .trim()
+            .trimEnd(':', '：')
+        if (normalized.isBlank()) return false
+
+        val parts = normalized
+            .split('/', '|')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (parts.isEmpty()) return false
+
+        return parts.all { part ->
+            DESCRIPTION_LABEL_WORDS.contains(part.lowercase())
+        }
+    }
+
+    private fun extractHumanDescriptionFromBody(body: String): String {
+        if (body.isBlank()) return ""
+
+        val withoutComments = body.replace(Regex("<!--[\\s\\S]*?-->"), "\n")
+        val withoutCodeBlocks = withoutComments.replace(Regex("```[\\s\\S]*?```"), "\n")
+
+        val sb = StringBuilder()
+        val paragraphs = mutableListOf<String>()
+
+        fun flush() {
+            val p = sb.toString().trim()
+            if (p.isNotBlank()) paragraphs.add(p)
+            sb.clear()
+        }
+
+        for (rawLine in withoutCodeBlocks.lines()) {
+            val t0 = rawLine.trim()
+            if (t0.isBlank()) {
+                flush()
+                continue
+            }
+
+            if (isLabelOnlyLine(t0)) continue
+
+            if (t0.startsWith("#")) continue
+            if (t0.startsWith("|")) continue
+            if (t0 == "---") continue
+
+            val t = t0
+                .replace(Regex("^\\*\\*[^*]+\\*\\*\\s*[:：]\\s*"), "")
+                .replace(
+                    Regex(
+                        "^(描述|简介|介绍|说明|description|desc|summary|introduction)\\s*[:：]\\s*",
+                        RegexOption.IGNORE_CASE
+                    ),
+                    ""
+                )
+                .trim()
+            if (t.isBlank()) continue
+
+            if (sb.isNotEmpty()) sb.append(' ')
+            sb.append(t)
+
+            if (sb.length >= 400) {
+                flush()
+                break
+            }
+        }
+        flush()
+
+        val candidate = paragraphs.firstOrNull { p ->
+            p.length >= 6 &&
+                !p.startsWith("{") &&
+                !p.contains("operit-", ignoreCase = true)
+        }
+
+        return candidate?.take(300)?.trim().orEmpty()
+    }
+
     @Serializable
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     data class MCPMetadata(
+        val description: String = "",
         val repositoryUrl: String,
         @JsonNames("installCommand") // 兼容旧的 installCommand
         val installConfig: String, // 改为安装配置
@@ -48,14 +138,12 @@ object MCPPluginParser {
 
         // 尝试解析 JSON 元数据
         val metadata = parseMCPMetadata(body)
-        
-        // 提取描述信息
-        val description = extractDescription(body)
+        val extractedDescription = extractHumanDescriptionFromBody(body)
 
         return if (metadata != null) {
             ParsedPluginInfo(
                 title = issue.title,
-                description = description,
+                description = metadata.description.ifBlank { extractedDescription.ifBlank { "无描述信息" } },
                 repositoryUrl = metadata.repositoryUrl,
                 installConfig = metadata.installConfig,
                 category = metadata.category,
@@ -64,29 +152,12 @@ object MCPPluginParser {
                 repositoryOwner = extractRepositoryOwner(metadata.repositoryUrl)
             )
         } else {
-            // 尝试从描述中提取GitHub链接
-            val repoUrl = extractRepositoryUrlFromDescription(body)
             ParsedPluginInfo(
                 title = issue.title,
-                description = description,
-                repositoryUrl = repoUrl,
-                repositoryOwner = extractRepositoryOwner(repoUrl)
+                description = extractedDescription.ifBlank { "无描述信息" },
+                repositoryUrl = "",
+                repositoryOwner = ""
             )
-        }
-    }
-
-    /**
-     * 从 Issue body 中提取描述信息
-     */
-    private fun extractDescription(body: String): String {
-        // 优先尝试提取格式化的描述
-        val descriptionPattern = Regex("""\*\*描述:\*\*\s*(.+?)(?=\n\*\*|\n##|\Z)""", RegexOption.DOT_MATCHES_ALL)
-        val description = descriptionPattern.find(body)?.groupValues?.get(1)?.trim()
-        
-        return when {
-            !description.isNullOrBlank() -> description
-            body.isNotBlank() -> body.take(150).trim()
-            else -> "无描述信息"
         }
     }
 
@@ -94,18 +165,21 @@ object MCPPluginParser {
      * 解析隐藏在注释中的 JSON 元数据
      */
     private fun parseMCPMetadata(body: String): MCPMetadata? {
-        val metadataPattern = Regex("""<!-- operit-mcp-json: (\{.*?\}) -->""", RegexOption.DOT_MATCHES_ALL)
-        val match = metadataPattern.find(body)
-        
-        return match?.let {
-            val jsonString = it.groupValues[1]
-            try {
-                val json = Json { ignoreUnknownKeys = true }
-                json.decodeFromString<MCPMetadata>(jsonString)
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Failed to parse MCP metadata JSON from issue body.", e)
-                null
-            }
+        val prefix = "<!-- operit-mcp-json: "
+        val start = body.indexOf(prefix)
+        if (start < 0) return null
+
+        val jsonStart = start + prefix.length
+        val end = body.indexOf(" -->", startIndex = jsonStart)
+        if (end <= jsonStart) return null
+
+        val jsonString = body.substring(jsonStart, end)
+        return try {
+            val json = Json { ignoreUnknownKeys = true }
+            json.decodeFromString<MCPMetadata>(jsonString)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to parse MCP metadata JSON from issue body.", e)
+            null
         }
     }
 
@@ -119,39 +193,5 @@ object MCPPluginParser {
         val match = githubPattern.find(repositoryUrl)
         
         return match?.groupValues?.get(1) ?: ""
-    }
-
-    /**
-     * 从描述文本中提取GitHub仓库链接
-     */
-    private fun extractRepositoryUrlFromDescription(body: String): String {
-        // 匹配各种GitHub链接格式
-        val patterns = listOf(
-            Regex("""https://github\.com/[^/\s]+/[^/\s]+"""),
-            Regex("""github\.com/[^/\s]+/[^/\s]+"""),
-            Regex("""\[.*?\]\((https://github\.com/[^/\s)]+/[^/\s)]+)\)"""), // Markdown链接
-            Regex("""仓库[：:]\s*(https://github\.com/[^/\s]+/[^/\s]+)"""), // 中文标签
-            Regex("""Repository[：:]\s*(https://github\.com/[^/\s]+/[^/\s]+)""") // 英文标签
-        )
-        
-        for (pattern in patterns) {
-            val match = pattern.find(body)
-            if (match != null) {
-                val url = if (match.groupValues.size > 1) {
-                    match.groupValues[1] // 从捕获组获取
-                } else {
-                    match.value // 直接使用匹配值
-                }
-                
-                // 确保URL以https://开头
-                return if (url.startsWith("http")) {
-                    url
-                } else {
-                    "https://$url"
-                }
-            }
-        }
-        
-        return ""
     }
 } 

@@ -175,7 +175,11 @@ fun SkillDetailScreen(
                     isInstalled = isInstalled,
                     onInstall = {
                         if (repoUrl.isBlank()) {
-                            Toast.makeText(context, "未找到仓库地址", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.skill_repo_url_not_found),
+                                Toast.LENGTH_SHORT
+                            ).show()
                         } else {
                             viewModel.installSkillFromRepoUrl(repoUrl)
                         }

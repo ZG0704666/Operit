@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.settings.sections
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -22,8 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.api.chat.llmprovider.ApiKeyPoolAvailabilityTester
+import com.ai.assistance.operit.data.model.ApiKeyAvailabilityStatus
 import com.ai.assistance.operit.data.model.ApiKeyInfo
 import com.ai.assistance.operit.data.model.ModelConfigData
+import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import kotlinx.coroutines.launch
 import java.util.*
@@ -42,7 +46,11 @@ fun AdvancedSettingsSection(
 
     var showAddKeyDialog by remember { mutableStateOf(false) }
     var editingKey by remember { mutableStateOf<ApiKeyInfo?>(null) }
-    
+    var showClearPoolConfirmDialog by remember { mutableStateOf(false) }
+
+    val keyAvailabilityTester = remember(config.id) { ApiKeyPoolAvailabilityTester(config.id, configManager) }
+    val keyTestState by keyAvailabilityTester.state.collectAsState()
+
     // Save changes to the config
     fun saveChanges() {
         scope.launch {
@@ -54,7 +62,22 @@ fun AdvancedSettingsSection(
             showNotification(context.getString(R.string.advanced_settings_saved))
         }
     }
-    
+
+    fun exportKeyPoolToUri(uri: Uri) {
+        scope.launch {
+            try {
+                val content = apiKeyPool.joinToString("\n") { it.key }
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    outputStream.write(content.toByteArray())
+                } ?: throw IllegalStateException("openOutputStream returned null")
+
+                showNotification(context.getString(R.string.exported_keys_count, apiKeyPool.size))
+            } catch (e: Exception) {
+                showNotification(context.getString(R.string.export_keys_failed) + ": ${e.message}")
+            }
+        }
+    }
+
     // 文件选择器
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -64,16 +87,16 @@ fun AdvancedSettingsSection(
                 try {
                     val inputStream = context.contentResolver.openInputStream(uri)
                     val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
-                    
+
                     val keys = content.lines()
                         .map { it.trim() }
-                        .filter { it.isNotBlank() && it.startsWith("sk-") }
-                    
+                        .filter { it.isNotBlank() }
+
                     if (keys.isEmpty()) {
                         showNotification(context.getString(R.string.no_valid_keys_found))
                         return@launch
                     }
-                    
+
                     val newKeys = keys.mapIndexed { _, key ->
                         ApiKeyInfo(
                             id = UUID.randomUUID().toString(),
@@ -82,7 +105,7 @@ fun AdvancedSettingsSection(
                             isEnabled = true
                         )
                     }
-                    
+
                     apiKeyPool = apiKeyPool + newKeys
                     saveChanges()
                     showNotification(context.getString(R.string.imported_keys_count, keys.size))
@@ -90,6 +113,14 @@ fun AdvancedSettingsSection(
                     showNotification(context.getString(R.string.batch_import_failed) + ": ${e.message}")
                 }
             }
+        }
+    }
+
+    val exportFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            exportKeyPoolToUri(uri)
         }
     }
 
@@ -160,11 +191,26 @@ fun AdvancedSettingsSection(
                 Column {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
+                    val maxEditableKeys = 20
+                    val isLargeKeyPool = apiKeyPool.size > maxEditableKeys
+
                     if (apiKeyPool.isEmpty()) {
                         Text(
                             stringResource(R.string.api_key_pool_empty),
                             modifier = Modifier.padding(vertical = 8.dp),
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (isLargeKeyPool) {
+                        Text(
+                            text = stringResource(R.string.api_key_pool_keys_count, apiKeyPool.size),
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = stringResource(R.string.api_key_pool_large_hint, maxEditableKeys),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
@@ -182,18 +228,113 @@ fun AdvancedSettingsSection(
                         }
                     }
 
+                    if (apiKeyPool.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = stringResource(
+                                R.string.api_key_pool_test_progress,
+                                apiKeyPool.count { it.availabilityStatus == ApiKeyAvailabilityStatus.AVAILABLE },
+                                apiKeyPool.count { it.availabilityStatus == ApiKeyAvailabilityStatus.UNAVAILABLE },
+                                apiKeyPool.count { it.availabilityStatus == ApiKeyAvailabilityStatus.UNTESTED }
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (keyTestState.totalToTest > 0) {
+                            Text(
+                                text = stringResource(
+                                    R.string.api_key_pool_test_run_progress,
+                                    keyTestState.tested,
+                                    keyTestState.totalToTest
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (!keyTestState.lastError.isNullOrBlank()) {
+                            Text(
+                                text = stringResource(R.string.api_key_pool_test_failed, keyTestState.lastError ?: ""),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        val customHeadersJson = ApiPreferences.getInstance(context).getCustomHeaders()
+                                        val concurrency = 5
+                                        keyAvailabilityTester.startOrResume(
+                                            context = context,
+                                            customHeadersJson = customHeadersJson,
+                                            baseConfig = config,
+                                            useMultipleApiKeys = useApiKeyPool,
+                                            apiKeyPool = apiKeyPool,
+                                            concurrency = concurrency,
+                                            onPoolUpdated = {
+                                                apiKeyPool = it
+                                            }
+                                        )
+                                    }
+                                },
+                                enabled = !keyAvailabilityTester.isRunning(),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    if (keyTestState.paused) {
+                                        stringResource(R.string.api_key_pool_test_continue)
+                                    } else {
+                                        stringResource(R.string.api_key_pool_test_start)
+                                    }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            OutlinedButton(
+                                onClick = { keyAvailabilityTester.pause() },
+                                enabled = keyAvailabilityTester.isRunning(),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(stringResource(R.string.api_key_pool_test_pause))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                apiKeyPool = apiKeyPool.map {
+                                    it.copy(availabilityStatus = ApiKeyAvailabilityStatus.UNTESTED)
+                                }
+                                saveChanges()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.api_key_pool_clear_marks))
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Button(
-                        onClick = { editingKey = null; showAddKeyDialog = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.add_api_key))
+                    if (!isLargeKeyPool) {
+                        Button(
+                            onClick = { editingKey = null; showAddKeyDialog = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.add_api_key))
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
                     
                     OutlinedButton(
                         onClick = {
@@ -209,6 +350,31 @@ fun AdvancedSettingsSection(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.batch_import_keys))
                     }
+
+                    OutlinedButton(
+                        onClick = {
+                            exportFileLauncher.launch("api_keys.txt")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.export_keys))
+                    }
+
+                    if (apiKeyPool.isNotEmpty() && isLargeKeyPool) {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = { showClearPoolConfirmDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.clear_api_key_pool))
+                        }
+                    }
                     
                     Text(
                         text = stringResource(R.string.import_format_desc),
@@ -219,6 +385,31 @@ fun AdvancedSettingsSection(
                 }
             }
         }
+    }
+
+    if (showClearPoolConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearPoolConfirmDialog = false },
+            title = { Text(stringResource(R.string.clear_api_key_pool)) },
+            text = { Text(stringResource(R.string.clear_api_key_pool_confirm_message, apiKeyPool.size)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        apiKeyPool = emptyList()
+                        saveChanges()
+                        showClearPoolConfirmDialog = false
+                        showNotification(context.getString(R.string.api_key_pool_cleared))
+                    }
+                ) {
+                    Text(stringResource(R.string.confirm_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearPoolConfirmDialog = false }) {
+                    Text(stringResource(R.string.cancel_action))
+                }
+            }
+        )
     }
 
     if (showAddKeyDialog || editingKey != null) {
@@ -259,9 +450,25 @@ private fun ApiKeyItem(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "${keyInfo.name} (sk-...${keyInfo.key.takeLast(4)})",
+            text = "${keyInfo.name} (...${keyInfo.key.takeLast(4)})",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector =
+                when (keyInfo.availabilityStatus) {
+                    ApiKeyAvailabilityStatus.AVAILABLE -> Icons.Default.CheckCircle
+                    ApiKeyAvailabilityStatus.UNAVAILABLE -> Icons.Default.Cancel
+                    ApiKeyAvailabilityStatus.UNTESTED -> Icons.Default.HelpOutline
+                },
+            contentDescription = null,
+            tint =
+                when (keyInfo.availabilityStatus) {
+                    ApiKeyAvailabilityStatus.AVAILABLE -> MaterialTheme.colorScheme.primary
+                    ApiKeyAvailabilityStatus.UNAVAILABLE -> MaterialTheme.colorScheme.error
+                    ApiKeyAvailabilityStatus.UNTESTED -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            modifier = Modifier.size(16.dp)
         )
         IconButton(
             onClick = { onEdit(keyInfo) },

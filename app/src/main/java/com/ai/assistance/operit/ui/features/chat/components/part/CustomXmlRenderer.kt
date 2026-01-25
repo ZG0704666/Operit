@@ -336,7 +336,7 @@ class CustomXmlRenderer(
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 0.dp, vertical = 4.dp)
+                .padding(start = 0.dp, top = 0.dp, end = 0.dp, bottom = 2.dp)
                 .semantics(mergeDescendants = true) {
                     contentDescription = if (expanded && thinkText.isNotBlank()) {
                         "$accessibilityDesc\n$thinkText"
@@ -388,7 +388,7 @@ class CustomXmlRenderer(
                     Box(
                             modifier =
                                     Modifier.fillMaxWidth()
-                                            .padding(top = 4.dp, bottom = 8.dp, start = 24.dp)
+                                            .padding(top = 2.dp, bottom = 4.dp, start = 24.dp)
                                             .heightIn(max = 300.dp)
                                             .verticalScroll(scrollState)
                     ) {

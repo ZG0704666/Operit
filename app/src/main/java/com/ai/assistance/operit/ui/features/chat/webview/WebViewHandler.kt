@@ -243,24 +243,31 @@ class WebViewHandler(private val context: Context) {
             ) {
                 // 创建警告对话框
                 val builder = android.app.AlertDialog.Builder(context)
-                var message = "SSL安全证书错误"
-                message +=
+                var message = context.getString(R.string.webview_ssl_cert_error)
+                val errorDetail =
                         when (error?.primaryError) {
-                            android.net.http.SslError.SSL_UNTRUSTED -> "\n\n证书颁发机构不受信任"
-                            android.net.http.SslError.SSL_EXPIRED -> "\n\n证书已过期"
-                            android.net.http.SslError.SSL_IDMISMATCH -> "\n\n证书主机名不匹配"
-                            android.net.http.SslError.SSL_NOTYETVALID -> "\n\n证书尚未生效"
-                            android.net.http.SslError.SSL_DATE_INVALID -> "\n\n证书日期无效"
-                            else -> "\n\n未知SSL错误"
+                            android.net.http.SslError.SSL_UNTRUSTED ->
+                                    context.getString(R.string.webview_ssl_error_untrusted)
+                            android.net.http.SslError.SSL_EXPIRED ->
+                                    context.getString(R.string.webview_ssl_error_expired)
+                            android.net.http.SslError.SSL_IDMISMATCH ->
+                                    context.getString(R.string.webview_ssl_error_idmismatch)
+                            android.net.http.SslError.SSL_NOTYETVALID ->
+                                    context.getString(R.string.webview_ssl_error_notyetvalid)
+                            android.net.http.SslError.SSL_DATE_INVALID ->
+                                    context.getString(R.string.webview_ssl_error_date_invalid)
+                            else -> context.getString(R.string.webview_ssl_error_unknown)
                         }
+                message += "\n\n" + errorDetail
+                message += "\n\n" + (error?.url ?: "")
 
-                message += "\n\n" + error?.url
-
-                builder.setTitle("安全警告")
+                builder.setTitle(context.getString(R.string.webview_security_warning_title))
                 builder.setMessage(message)
 
-                builder.setPositiveButton("继续") { _, _ -> handler?.proceed() }
-                builder.setNegativeButton("取消") { _, _ -> handler?.cancel() }
+                builder.setPositiveButton(context.getString(R.string.continue_action)) { _, _ ->
+                    handler?.proceed()
+                }
+                builder.setNegativeButton(context.getString(R.string.cancel)) { _, _ -> handler?.cancel() }
 
                 // 在UI线程上显示对话框
                 Handler(Looper.getMainLooper()).post { builder.create().show() }
@@ -322,7 +329,8 @@ class WebViewHandler(private val context: Context) {
                     }
 
                     // 启动文件选择器
-                    val chooserIntent = Intent.createChooser(intent, "选择文件")
+                    val chooserIntent =
+                            Intent.createChooser(intent, context.getString(R.string.webview_choose_file))
 
                     // 这里需要一种方式来启动Activity并获取结果
                     // 由于我们没有Activity的直接引用，需要外部传入处理方法

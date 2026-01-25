@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
+import com.ai.assistance.operit.ui.features.chat.components.part.ThinkToolsXmlNodeGrouper
 import com.ai.assistance.operit.ui.features.chat.components.LinkPreviewDialog
 import com.ai.assistance.operit.util.markdown.toCharStream
 import com.ai.assistance.operit.util.stream.Stream
@@ -70,6 +71,10 @@ fun AiMessageComposable(
             showStatusTags = showStatusTags,
             enableDialogs = enableDialogs  // 传递弹窗启用状态
         )
+    }
+
+    val nodeGrouper = remember(showThinkingProcess) {
+        ThinkToolsXmlNodeGrouper(showThinkingProcess = showThinkingProcess)
     }
 
     // val recompositionCounter = remember(message.timestamp) { AtomicInteger(0) }
@@ -170,6 +175,7 @@ fun AiMessageComposable(
                     backgroundColor = backgroundColor,
                     onLinkClick = rememberedOnLinkClick,
                     xmlRenderer = xmlRenderer,
+                    nodeGrouper = nodeGrouper,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     state = rendererState
                 )
@@ -182,6 +188,7 @@ fun AiMessageComposable(
                     backgroundColor = backgroundColor,
                     onLinkClick = rememberedOnLinkClick,
                     xmlRenderer = xmlRenderer,
+                    nodeGrouper = nodeGrouper,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     state = rendererState
                 )

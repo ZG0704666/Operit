@@ -225,7 +225,7 @@ fun AndroidExportDialog(
                         isError = isPackageNameError,
                         supportingText = { 
                             if (isPackageNameError) {
-                                Text("格式不正确，应为 com.example.app")
+                                Text(context.getString(R.string.export_invalid_package_name_format))
                             }
                         }
                 )
@@ -335,7 +335,7 @@ fun AndroidExportDialog(
                         isError = isVersionNameError,
                         supportingText = {
                             if (isVersionNameError) {
-                                Text("格式不正确，应为 1.0.0")
+                                Text(context.getString(R.string.export_invalid_version_format))
                             }
                         }
                 )
@@ -525,7 +525,7 @@ fun ExportProgressDialog(progress: Float, status: String, onCancel: () -> Unit) 
                     horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                        "导出中",
+                        context.getString(R.string.export_in_progress_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                 )
@@ -657,17 +657,17 @@ suspend fun exportAndroidApp(
 ) {
     try {
         withContext(Dispatchers.IO) {
-            onProgress(0.1f, "准备基础APK文件...")
+            onProgress(0.1f, context.getString(R.string.export_prepare_base_apk))
 
             // 1. 初始化APK编辑器
             val apkEditor = ApkEditor.fromAsset(context, "subpack/android.apk")
 
             // 2. 解压APK
-            onProgress(0.2f, "解压APK...")
+            onProgress(0.2f, context.getString(R.string.export_extract_apk))
             apkEditor.extract()
 
             // 3. 修改包名和应用名
-            onProgress(0.3f, "修改应用信息...")
+            onProgress(0.3f, context.getString(R.string.export_modify_app_info))
             apkEditor.changePackageName(packageName)
             apkEditor.changeAppName(appName)
             apkEditor.changeVersionName(versionName)
@@ -675,19 +675,19 @@ suspend fun exportAndroidApp(
 
             // 4. 更改图标（如果提供）
             if (iconUri != null) {
-                onProgress(0.4f, "更换应用图标...")
+                onProgress(0.4f, context.getString(R.string.export_change_app_icon))
                 context.contentResolver.openInputStream(iconUri)?.use { inputStream ->
                     apkEditor.changeIcon(inputStream)
                 }
             }
 
             // 5. 复制网页文件到APK
-            onProgress(0.5f, "打包网页内容...")
+            onProgress(0.5f, context.getString(R.string.export_pack_web_content))
 
             // 创建临时目录用于存储网页文件
             val extractedDir = apkEditor.getExtractedDir()
             if (extractedDir == null) {
-                throw RuntimeException("APK解压目录不存在")
+                throw RuntimeException(context.getString(R.string.export_apk_extract_dir_missing))
             }
             val webAssetsDir = File(extractedDir, "assets/flutter_assets/assets/web_content")
             if (!webAssetsDir.exists()) {
@@ -702,7 +702,7 @@ suspend fun exportAndroidApp(
             copyDirectory(webContentDir, webAssetsDir)
 
             // 6. 准备签名文件
-            onProgress(0.7f, "准备签名...")
+            onProgress(0.7f, context.getString(R.string.export_prepare_signing))
             // 使用KeyStoreHelper获取密钥库
             val keyStoreFile = KeyStoreHelper.getOrCreateKeystore(context)
             AppLogger.d(
@@ -711,7 +711,7 @@ suspend fun exportAndroidApp(
             )
 
             // 7. 设置签名信息并执行签名
-            onProgress(0.8f, "签名APK...")
+            onProgress(0.8f, context.getString(R.string.export_signing_apk))
             // 使用下载目录下的Operit/exports子目录
             val outputDir =
                     File(
@@ -738,24 +738,24 @@ suspend fun exportAndroidApp(
                     .setOutput(outputFile)
 
             // 8. 打包并签名
-            onProgress(0.9f, "完成打包...")
+            onProgress(0.9f, context.getString(R.string.export_finish_packaging))
             try {
                 val signedApk = apkEditor.repackAndSign()
 
                 // 9. 清理
                 apkEditor.cleanup()
 
-                onProgress(1.0f, "导出完成!")
+                onProgress(1.0f, context.getString(R.string.export_completed))
                 onComplete(true, signedApk.absolutePath, null)
             } catch (e: Exception) {
                 AppLogger.e("ExportDialogs", "签名APK失败", e)
-                onComplete(false, null, "签名APK失败: ${e.message}")
+                onComplete(false, null, context.getString(R.string.export_sign_apk_failed, e.message ?: ""))
                 apkEditor.cleanup() // 确保失败时也清理资源
             }
         }
     } catch (e: Exception) {
         AppLogger.e("ExportDialogs", "导出失败", e)
-        onComplete(false, null, "导出失败: ${e.message}")
+        onComplete(false, null, context.getString(R.string.export_failed_with_reason, e.message ?: ""))
     }
 }
 
@@ -770,7 +770,7 @@ suspend fun exportWindowsApp(
 ) {
     try {
         withContext(Dispatchers.IO) {
-            onProgress(0.1f, "准备Windows应用模板...")
+            onProgress(0.1f, context.getString(R.string.export_prepare_windows_template))
 
             // 创建输出目录 - 使用下载目录下的Operit/exports子目录
             val outputDir =
@@ -793,14 +793,14 @@ suspend fun exportWindowsApp(
 
             try {
                 // 1. 从assets复制windows.zip模板到临时目录
-                onProgress(0.2f, "复制应用模板...")
+                onProgress(0.2f, context.getString(R.string.export_copy_template))
                 val templateZip = File(tempDir, "windows.zip")
                 context.assets.open("subpack/windows.zip").use { input ->
                     FileOutputStream(templateZip).use { output -> input.copyTo(output) }
                 }
 
                 // 2. 解压windows.zip
-                onProgress(0.3f, "解压应用模板...")
+                onProgress(0.3f, context.getString(R.string.export_extract_template))
                 val extractedDir = File(tempDir, "extracted")
                 extractedDir.mkdirs()
 
@@ -824,7 +824,7 @@ suspend fun exportWindowsApp(
 
                 // 3. 如果提供了图标，修改assistance_subpack.exe的图标
                 if (iconUri != null) {
-                    onProgress(0.4f, "更换应用图标...")
+                    onProgress(0.4f, context.getString(R.string.export_change_app_icon))
                     val mainExe = File(extractedDir, "assistance_subpack.exe")
                     if (mainExe.exists()) {
                         try {
@@ -843,7 +843,7 @@ suspend fun exportWindowsApp(
                 }
 
                 // 4. 复制网页内容到data\flutter_assets\assets\web_content
-                onProgress(0.5f, "复制网页内容...")
+                onProgress(0.5f, context.getString(R.string.export_copy_web_content))
                 val webContentTarget = File(extractedDir, "data/flutter_assets/assets/web_content")
                 if (!webContentTarget.exists()) {
                     webContentTarget.mkdirs()
@@ -863,7 +863,7 @@ suspend fun exportWindowsApp(
                 val outputZip = File(outputDir, "${safeName}_${timestamp}.zip")
 
                 // 6. 重新打包为ZIP
-                onProgress(0.8f, "打包应用...")
+                onProgress(0.8f, context.getString(R.string.export_pack_app))
 
                 // 确保输出文件不存在
                 if (outputZip.exists()) {
@@ -877,15 +877,15 @@ suspend fun exportWindowsApp(
                     addDirToZip(extractedDir, extractedDir, zipOut, buffer)
                 }
 
-                onProgress(1.0f, "导出完成!")
+                onProgress(1.0f, context.getString(R.string.export_completed))
                 onComplete(true, outputZip.absolutePath, null)
             } catch (e: Exception) {
                 AppLogger.e("ExportDialogs", "Windows应用导出过程失败", e)
-                onComplete(false, null, "导出过程失败: ${e.message}")
+                onComplete(false, null, context.getString(R.string.export_process_failed, e.message ?: ""))
             } finally {
                 // 7. 清理临时文件
                 try {
-                    onProgress(0.9f, "清理临时文件...")
+                    onProgress(0.9f, context.getString(R.string.export_cleanup_temp_files))
                     tempDir.deleteRecursively()
                 } catch (e: Exception) {
                     AppLogger.e("ExportDialogs", "清理临时文件失败", e)
@@ -894,7 +894,7 @@ suspend fun exportWindowsApp(
         }
     } catch (e: Exception) {
         AppLogger.e("ExportDialogs", "Windows应用导出失败", e)
-        onComplete(false, null, "导出失败: ${e.message}")
+        onComplete(false, null, context.getString(R.string.export_failed_with_reason, e.message ?: ""))
     }
 }
 

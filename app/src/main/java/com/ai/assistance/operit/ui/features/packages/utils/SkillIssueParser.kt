@@ -10,9 +10,99 @@ import kotlinx.serialization.json.JsonNames
 object SkillIssueParser {
     private const val TAG = "SkillIssueParser"
 
+    private val DESCRIPTION_LABEL_WORDS = setOf(
+        "description",
+        "desc",
+        "summary",
+        "introduction",
+        "简介",
+        "描述",
+        "介绍",
+        "说明"
+    )
+
+    private fun isLabelOnlyLine(raw: String): Boolean {
+        val normalized = raw
+            .replace("*", "")
+            .replace("_", "")
+            .trim()
+            .trimEnd(':', '：')
+        if (normalized.isBlank()) return false
+
+        val parts = normalized
+            .split('/', '|')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (parts.isEmpty()) return false
+
+        return parts.all { part ->
+            DESCRIPTION_LABEL_WORDS.contains(part.lowercase())
+        }
+    }
+
+    private fun extractHumanDescriptionFromBody(body: String): String {
+        if (body.isBlank()) return ""
+
+        val withoutComments = body.replace(Regex("<!--[\\s\\S]*?-->"), "\n")
+        val withoutCodeBlocks = withoutComments.replace(Regex("```[\\s\\S]*?```"), "\n")
+
+        val sb = StringBuilder()
+        val paragraphs = mutableListOf<String>()
+
+        fun flush() {
+            val p = sb.toString().trim()
+            if (p.isNotBlank()) paragraphs.add(p)
+            sb.clear()
+        }
+
+        for (rawLine in withoutCodeBlocks.lines()) {
+            val t0 = rawLine.trim()
+            if (t0.isBlank()) {
+                flush()
+                continue
+            }
+
+            if (isLabelOnlyLine(t0)) continue
+
+            if (t0.startsWith("#")) continue
+            if (t0.startsWith("|")) continue
+            if (t0 == "---") continue
+
+            val t = t0
+                .replace(Regex("^\\*\\*[^*]+\\*\\*\\s*[:：]\\s*"), "")
+                .replace(
+                    Regex(
+                        "^(描述|简介|介绍|说明|description|desc|summary|introduction)\\s*[:：]\\s*",
+                        RegexOption.IGNORE_CASE
+                    ),
+                    ""
+                )
+                .trim()
+            if (t.isBlank()) continue
+
+            if (sb.isNotEmpty()) sb.append(' ')
+            sb.append(t)
+
+            if (sb.length >= 400) {
+                flush()
+                break
+            }
+        }
+        flush()
+
+        val candidate = paragraphs.firstOrNull { p ->
+            p.length >= 6 &&
+                !p.startsWith("{") &&
+                !p.contains("operit-", ignoreCase = true)
+        }
+
+        return candidate?.take(300)?.trim().orEmpty()
+    }
+
     @Serializable
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     data class SkillMetadata(
+        val description: String = "",
         @JsonNames("repoUrl")
         val repositoryUrl: String,
         val category: String = "",
@@ -41,12 +131,12 @@ object SkillIssueParser {
         }
 
         val metadata = parseSkillMetadata(body)
-        val description = extractDescription(body)
+        val extractedDescription = extractHumanDescriptionFromBody(body)
 
         return if (metadata != null) {
             ParsedSkillInfo(
                 title = issue.title,
-                description = description,
+                description = metadata.description.ifBlank { extractedDescription.ifBlank { "无描述信息" } },
                 repositoryUrl = metadata.repositoryUrl,
                 category = metadata.category,
                 tags = metadata.tags,
@@ -54,40 +144,31 @@ object SkillIssueParser {
                 repositoryOwner = extractRepositoryOwner(metadata.repositoryUrl)
             )
         } else {
-            val repoUrl = extractRepositoryUrlFromDescription(body)
             ParsedSkillInfo(
                 title = issue.title,
-                description = description,
-                repositoryUrl = repoUrl,
-                repositoryOwner = extractRepositoryOwner(repoUrl)
+                description = extractedDescription.ifBlank { "无描述信息" },
+                repositoryUrl = "",
+                repositoryOwner = ""
             )
         }
     }
 
-    private fun extractDescription(body: String): String {
-        val descriptionPattern = Regex("""\*\*描述:\*\*\s*(.+?)(?=\n\*\*|\n##|\Z)""", RegexOption.DOT_MATCHES_ALL)
-        val description = descriptionPattern.find(body)?.groupValues?.get(1)?.trim()
-
-        return when {
-            !description.isNullOrBlank() -> description
-            body.isNotBlank() -> body.take(150).trim()
-            else -> "无描述信息"
-        }
-    }
-
     private fun parseSkillMetadata(body: String): SkillMetadata? {
-        val metadataPattern = Regex("""<!-- operit-skill-json: (\{.*?\}) -->""", RegexOption.DOT_MATCHES_ALL)
-        val match = metadataPattern.find(body)
+        val prefix = "<!-- operit-skill-json: "
+        val start = body.indexOf(prefix)
+        if (start < 0) return null
 
-        return match?.let {
-            val jsonString = it.groupValues[1]
-            try {
-                val json = Json { ignoreUnknownKeys = true }
-                json.decodeFromString<SkillMetadata>(jsonString)
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Failed to parse skill metadata JSON from issue body.", e)
-                null
-            }
+        val jsonStart = start + prefix.length
+        val end = body.indexOf(" -->", startIndex = jsonStart)
+        if (end <= jsonStart) return null
+
+        val jsonString = body.substring(jsonStart, end)
+        return try {
+            val json = Json { ignoreUnknownKeys = true }
+            json.decodeFromString<SkillMetadata>(jsonString)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to parse skill metadata JSON from issue body.", e)
+            null
         }
     }
 
@@ -98,25 +179,5 @@ object SkillIssueParser {
         val match = githubPattern.find(repositoryUrl)
 
         return match?.groupValues?.get(1) ?: ""
-    }
-
-    private fun extractRepositoryUrlFromDescription(body: String): String {
-        val patterns = listOf(
-            Regex("""https://github\.com/[^/\s]+/[^/\s]+"""),
-            Regex("""github\.com/[^/\s]+/[^/\s]+"""),
-            Regex("""\[.*?\]\((https://github\.com/[^/\s)]+/[^/\s)]+)\)"""),
-            Regex("""仓库[：:]\s*(https://github\.com/[^/\s]+/[^/\s]+)"""),
-            Regex("""Repository[：:]\s*(https://github\.com/[^/\s]+/[^/\s]+)""")
-        )
-
-        for (pattern in patterns) {
-            val match = pattern.find(body)
-            if (match != null) {
-                val url = if (match.groupValues.size > 1) match.groupValues[1] else match.value
-                return if (url.startsWith("http")) url else "https://$url"
-            }
-        }
-
-        return ""
     }
 }

@@ -183,10 +183,11 @@ fun DetailedToolDisplay(
                         text = toolName,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                 )
-
-                Spacer(modifier = Modifier.weight(1f))
 
                 // 参数行数指示
                 if (hasParams) {
@@ -194,7 +195,10 @@ fun DetailedToolDisplay(
                     Text(
                             text = "$lineCount ${context.getString(R.string.lines_count)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                     )
                 }
             }

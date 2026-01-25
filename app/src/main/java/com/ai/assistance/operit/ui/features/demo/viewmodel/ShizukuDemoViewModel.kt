@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.system.RootAuthorizer
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.features.demo.state.DemoStateManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
@@ -106,16 +107,16 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
             }
 
             // 如果没有Root权限，则先请求权限
-            Toast.makeText(context, "正在请求Root权限...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.requesting_root_permission), Toast.LENGTH_SHORT).show()
 
             RootAuthorizer.requestRootPermission { granted ->
                 viewModelScope.launch {
                     if (granted) {
-                        Toast.makeText(context, "Root权限已授予", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.root_permission_granted), Toast.LENGTH_SHORT).show()
                         // 权限授予后执行一个简单的测试命令
                         executeRootCommand("id", context)
                     } else {
-                        Toast.makeText(context, "Root权限请求被拒绝", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.root_permission_denied), Toast.LENGTH_SHORT).show()
                     }
                     // 刷新状态
                     checkRootStatus(context)
@@ -129,11 +130,11 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             val result = RootAuthorizer.executeRootCommand(command)
             if (result.first) {
-                Toast.makeText(context, "命令执行成功", Toast.LENGTH_SHORT).show()
-                stateManager.updateResultText("命令执行成功:\n${result.second}")
+                Toast.makeText(context, context.getString(R.string.command_execution_success), Toast.LENGTH_SHORT).show()
+                stateManager.updateResultText("${context.getString(R.string.command_execution_success)}:\n${result.second}")
             } else {
-                Toast.makeText(context, "命令执行失败", Toast.LENGTH_SHORT).show()
-                stateManager.updateResultText("命令执行失败:\n${result.second}")
+                Toast.makeText(context, context.getString(R.string.command_execution_failed), Toast.LENGTH_SHORT).show()
+                stateManager.updateResultText("${context.getString(R.string.command_execution_failed)}:\n${result.second}")
             }
         }
     }
@@ -188,7 +189,7 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
 
         // Show a toast notification for feedback
         viewModelScope.launch(Dispatchers.Main) {
-            Toast.makeText(context, "已重新注册所有工具", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.all_tools_reregistered), Toast.LENGTH_SHORT).show()
         }
     }
 

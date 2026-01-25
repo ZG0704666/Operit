@@ -4,6 +4,7 @@ import com.ai.assistance.operit.util.AppLogger
 import android.webkit.WebView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -61,8 +64,56 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
     // 检测是否为Mermaid代码
     val isMermaid = language.equals("mermaid", ignoreCase = true)
 
+    // 检测是否为HTML代码
+    val isHtml = language.equals("html", ignoreCase = true) || language.equals("htm", ignoreCase = true)
+
     // Mermaid渲染状态
     var showRenderedMermaid by remember { mutableStateOf(false) }
+
+    // HTML预览状态
+    var showRenderedHtml by remember { mutableStateOf(false) }
+
+    val configuration = LocalConfiguration.current
+    val maxScrollableHeight = remember(configuration.screenHeightDp) {
+        (configuration.screenHeightDp.dp * 0.65f).coerceIn(320.dp, 720.dp)
+    }
+
+    val verticalScrollState = rememberScrollState()
+    var autoScrollEnabled by remember { mutableStateOf(true) }
+    var userHasInteractedWithScroll by remember { mutableStateOf(false) }
+    var isProgrammaticScroll by remember { mutableStateOf(false) }
+
+    val isPreviewMode = (isMermaid && showRenderedMermaid) || (isHtml && showRenderedHtml)
+    val isShowingCode = !isPreviewMode
+
+    LaunchedEffect(verticalScrollState.isScrollInProgress) {
+        if (!isShowingCode) return@LaunchedEffect
+        if (verticalScrollState.isScrollInProgress) {
+            if (!isProgrammaticScroll) {
+                userHasInteractedWithScroll = true
+            }
+            return@LaunchedEffect
+        }
+
+        if (userHasInteractedWithScroll && !isProgrammaticScroll) {
+            val threshold = 80
+            val atBottom = verticalScrollState.value >= (verticalScrollState.maxValue - threshold)
+            autoScrollEnabled = atBottom
+        }
+    }
+
+    LaunchedEffect(code) {
+        if (!isShowingCode) return@LaunchedEffect
+        if (autoScrollEnabled) {
+            isProgrammaticScroll = true
+            try {
+                withFrameNanos { }
+                verticalScrollState.scrollTo(verticalScrollState.maxValue)
+            } finally {
+                isProgrammaticScroll = false
+            }
+        }
+    }
 
     // 处理复制事件
     val handleCopy: () -> Unit = {
@@ -76,6 +127,9 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
 
     // 处理Mermaid渲染切换
     val handleToggleMermaid: () -> Unit = { showRenderedMermaid = !showRenderedMermaid }
+
+    // 处理HTML预览切换
+    val handleToggleHtml: () -> Unit = { showRenderedHtml = !showRenderedHtml }
 
     // 暗色代码块背景颜色
     val codeBlockBackground = Color(0xFF1E1E1E) // VS Code 暗色主题背景色
@@ -149,10 +203,25 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
                         }
                     }
 
+                    // HTML预览按钮（如果是HTML则显示）
+                    if (isHtml) {
+                        IconButton(onClick = handleToggleHtml, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = if (showRenderedHtml) "显示代码" else "预览HTML",
+                                tint =
+                                    if (showRenderedHtml)
+                                        MaterialTheme.colorScheme.primary
+                                    else Color(0xFFAAAAAA),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = { autoWrapEnabled = !autoWrapEnabled },
                         modifier = Modifier.size(28.dp),
-                        enabled = !(isMermaid && showRenderedMermaid)
+                        enabled = !isPreviewMode
                     ) {
                         Icon(
                             imageVector = Icons.Default.SwapHoriz,
@@ -182,11 +251,22 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
                 MermaidRenderer(code = code, modifier = Modifier
                     .fillMaxWidth()
                     .height(300.dp))
+            } else if (isHtml && showRenderedHtml) {
+                HtmlPreviewRenderer(
+                    code = code,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(360.dp)
+                )
             } else {
                 // 显示代码
-                Row(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .heightIn(max = maxScrollableHeight)
+                        .verticalScroll(verticalScrollState)
+                ) {
                     // 行号列
                     val digits = codeLines.size.toString().length.coerceAtLeast(2) // 至少2位数的宽度
 
@@ -617,6 +697,19 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
         }
     }
 
+    DisposableEffect(webView) {
+        onDispose {
+            try {
+                webView.stopLoading()
+                webView.loadUrl("about:blank")
+                webView.clearHistory()
+                webView.removeAllViews()
+                webView.destroy()
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
     // 每次代码变化时更新内容
     LaunchedEffect(htmlContent) {
         webView.loadDataWithBaseURL(
@@ -629,6 +722,61 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
     }
 
     // 渲染WebView
+    AndroidView(factory = { webView }, modifier = modifier)
+}
+
+@Composable
+fun HtmlPreviewRenderer(code: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+
+    val htmlContent = remember(code) { code.trim() }
+
+    val webView = remember {
+        WebView(context).apply {
+            settings.javaScriptEnabled = false
+            settings.domStorageEnabled = false
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.loadWithOverviewMode = true
+            settings.useWideViewPort = true
+
+            webViewClient =
+                object : android.webkit.WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: android.webkit.WebView,
+                        url: String
+                    ): Boolean {
+                        return true
+                    }
+                }
+
+            setBackgroundColor(android.graphics.Color.WHITE)
+        }
+    }
+
+    DisposableEffect(webView) {
+        onDispose {
+            try {
+                webView.stopLoading()
+                webView.loadUrl("about:blank")
+                webView.clearHistory()
+                webView.removeAllViews()
+                webView.destroy()
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    LaunchedEffect(htmlContent) {
+        webView.loadDataWithBaseURL(
+            null,
+            htmlContent,
+            "text/html",
+            "UTF-8",
+            null
+        )
+    }
+
     AndroidView(factory = { webView }, modifier = modifier)
 }
 

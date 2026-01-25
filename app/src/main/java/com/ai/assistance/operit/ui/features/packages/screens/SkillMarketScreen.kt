@@ -316,7 +316,7 @@ private fun SkillBrowseTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            placeholder = { Text("搜索Skill名称、描述、作者...") },
+            placeholder = { Text(stringResource(R.string.skill_market_search_placeholder)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -374,7 +374,11 @@ private fun SkillBrowseTab(
                             isInstalled = isInstalled,
                             onInstall = {
                                 if (repoUrl.isBlank()) {
-                                    Toast.makeText(context, "未找到仓库地址，无法安装", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.skill_repo_url_not_found_cannot_install),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 } else {
                                     onInstall(repoUrl)
                                 }

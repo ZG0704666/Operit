@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.api.chat.llmprovider
 
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.data.model.ApiKeyAvailabilityStatus
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,8 +44,25 @@ class MultiApiKeyProvider(
             // 筛选出启用的key
             val enabledKeys = config.apiKeyPool.filter { it.isEnabled }
             AppLogger.d("ApiKeyProvider", "Config ${config.name}: Found ${enabledKeys.size} enabled keys out of ${config.apiKeyPool.size} total keys")
+
+            val hasAnyAvailabilityMark = enabledKeys.any { it.availabilityStatus != ApiKeyAvailabilityStatus.UNTESTED }
+            val candidateKeys =
+                if (hasAnyAvailabilityMark) {
+                    enabledKeys.filter { it.availabilityStatus == ApiKeyAvailabilityStatus.AVAILABLE }
+                } else {
+                    enabledKeys
+                }
             
-            if (enabledKeys.isEmpty()) {
+            if (candidateKeys.isEmpty()) {
+                if (hasAnyAvailabilityMark) {
+                    AppLogger.e(
+                        "ApiKeyProvider",
+                        "Config ${config.name}: No AVAILABLE keys found in pool. Please test keys or clear availability marks."
+                    )
+                    throw IllegalStateException(
+                        "No AVAILABLE API keys in pool for ${config.name}. Please test keys or clear availability marks."
+                    )
+                }
                 // 如果池为空，尝试回退到单key
                 if (config.apiKey.isNotBlank()) {
                     AppLogger.d("ApiKeyProvider", "Config ${config.name}: No enabled keys in pool, falling back to single API key: sk-...${config.apiKey.takeLast(4)}")
@@ -55,16 +73,16 @@ class MultiApiKeyProvider(
             }
 
             // 从当前索引开始寻找下一个有效的key
-            val startIndex = config.currentKeyIndex % enabledKeys.size
-            val selectedKey = enabledKeys[startIndex]
+            val startIndex = config.currentKeyIndex % candidateKeys.size
+            val selectedKey = candidateKeys[startIndex]
             
-            AppLogger.d("ApiKeyProvider", "Config ${config.name}: Using key ${startIndex + 1}/${enabledKeys.size} - '${selectedKey.name}' (sk-...${selectedKey.key.takeLast(4)})")
+            AppLogger.d("ApiKeyProvider", "Config ${config.name}: Using key ${startIndex + 1}/${candidateKeys.size} - '${selectedKey.name}' (sk-...${selectedKey.key.takeLast(4)})")
 
             // 更新并保存下一个索引
-            val nextIndex = (startIndex + 1) % enabledKeys.size
+            val nextIndex = (startIndex + 1) % candidateKeys.size
             modelConfigManager.updateConfigKeyIndex(configId, nextIndex)
 
             selectedKey.key
         }
     }
-} 
+}

@@ -105,6 +105,8 @@ class MainActivity : ComponentActivity() {
     // 存储待处理的分享文件URIs
     private var pendingSharedFileUris: List<Uri>? = null
 
+    private var pendingSharedLinks: List<String>? = null
+
     // 通知权限请求启动器
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -114,6 +116,35 @@ class MainActivity : ComponentActivity() {
         } else {
             AppLogger.d(TAG, "通知权限被拒绝")
             Toast.makeText(this, getString(R.string.notification_permission_denied), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun processPendingSharedLinks() {
+        val urls = pendingSharedLinks
+        if (urls == null) {
+            AppLogger.d(TAG, "No pending shared links to process")
+            return
+        }
+
+        AppLogger.d(TAG, "Processing ${urls.size} pending shared link(s)")
+        urls.forEachIndexed { index, url ->
+            AppLogger.d(TAG, "  [$index] URL: $url")
+        }
+
+        lifecycleScope.launch {
+            try {
+                SharedFileHandler.setSharedLinks(urls)
+                AppLogger.d(TAG, "Successfully passed shared links to SharedFileHandler")
+                pendingSharedLinks = null
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to process shared links", e)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.chat_process_shared_files_failed, e.message ?: ""),
+                    Toast.LENGTH_LONG
+                ).show()
+                pendingSharedLinks = null
+            }
         }
     }
 
@@ -138,7 +169,7 @@ class MainActivity : ComponentActivity() {
                                 )
                                 Toast.makeText(
                                     this@MainActivity,
-                                    "登录成功，欢迎 ${user.login}！",
+                                    getString(R.string.main_github_login_success, user.login),
                                     Toast.LENGTH_LONG
                                 ).show()
                             },
@@ -146,7 +177,7 @@ class MainActivity : ComponentActivity() {
                                 AppLogger.e(TAG, "Failed to get user info", error)
                                 Toast.makeText(
                                     this@MainActivity,
-                                    "获取用户信息失败: ${error.message}",
+                                    getString(R.string.main_github_get_user_failed, error.message ?: ""),
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -156,7 +187,7 @@ class MainActivity : ComponentActivity() {
                         AppLogger.e(TAG, "Failed to get access token", error)
                         Toast.makeText(
                             this@MainActivity,
-                            "登录失败: ${error.message}",
+                            getString(R.string.main_github_login_failed, error.message ?: ""),
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -165,7 +196,7 @@ class MainActivity : ComponentActivity() {
                 AppLogger.e(TAG, "Exception during GitHub callback handling", e)
                 Toast.makeText(
                     this@MainActivity,
-                    "登录过程中发生错误: ${e.message}",
+                    getString(R.string.main_github_login_error, e.message ?: ""),
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -256,8 +287,12 @@ class MainActivity : ComponentActivity() {
         }
         
         // 如果是文件分享，立即处理
-        if (intent?.action == Intent.ACTION_VIEW || intent?.action == Intent.ACTION_SEND) {
+        if (intent?.action == Intent.ACTION_VIEW ||
+            intent?.action == Intent.ACTION_SEND ||
+            intent?.action == Intent.ACTION_SEND_MULTIPLE
+        ) {
             processPendingSharedFiles()
+            processPendingSharedLinks()
         }
     }
 
@@ -280,8 +315,13 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_VIEW -> {
                 // Handle "Open with" action
                 intent.data?.let { uri ->
-                    pendingSharedFileUris = listOf(uri)
-                    AppLogger.d(TAG, "Received file to open: $uri")
+                    if (uri.scheme == "http" || uri.scheme == "https") {
+                        pendingSharedLinks = listOf(uri.toString())
+                        AppLogger.d(TAG, "Received link to open: $uri")
+                    } else {
+                        pendingSharedFileUris = listOf(uri)
+                        AppLogger.d(TAG, "Received file to open: $uri")
+                    }
                 }
             }
             Intent.ACTION_SEND -> {
@@ -295,9 +335,49 @@ class MainActivity : ComponentActivity() {
                 uri?.let {
                     pendingSharedFileUris = listOf(it)
                     AppLogger.d(TAG, "Received shared file: $it")
+                    return
+                }
+
+                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (!sharedText.isNullOrBlank()) {
+                    val urls = extractHttpUrls(sharedText)
+                    if (urls.isNotEmpty()) {
+                        pendingSharedLinks = urls
+                        AppLogger.d(TAG, "Received shared link(s): ${urls.size}")
+                    }
+                }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                @Suppress("DEPRECATION")
+                val uris = if (Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+                if (!uris.isNullOrEmpty()) {
+                    pendingSharedFileUris = uris
+                    AppLogger.d(TAG, "Received shared files: ${uris.size}")
+                }
+
+                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (!sharedText.isNullOrBlank()) {
+                    val urls = extractHttpUrls(sharedText)
+                    if (urls.isNotEmpty()) {
+                        pendingSharedLinks = urls
+                        AppLogger.d(TAG, "Received shared link(s): ${urls.size}")
+                    }
                 }
             }
         }
+    }
+
+    private fun extractHttpUrls(text: String): List<String> {
+        val regex = Regex("https?://[^\\s<>\\\"]+", setOf(RegexOption.IGNORE_CASE))
+        return regex.findAll(text)
+            .map { it.value.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .toList()
     }
 
     // ======== 设置初始占位内容 ========
@@ -400,7 +480,7 @@ class MainActivity : ComponentActivity() {
                 AppLogger.e(TAG, "Failed to process shared files", e)
                 Toast.makeText(
                     this@MainActivity,
-                    "处理分享文件失败: ${e.message}",
+                    getString(R.string.chat_process_shared_files_failed, e.message ?: ""),
                     Toast.LENGTH_LONG
                 ).show()
                 pendingSharedFileUris = null
@@ -649,6 +729,7 @@ class MainActivity : ComponentActivity() {
                         else {
                             // 处理待处理的分享文件
                             processPendingSharedFiles()
+                            processPendingSharedLinks()
                             
                             CompositionLocalProvider(LocalPluginLoadingState provides pluginLoadingState) {
                                 // 主应用界面 (始终存在于底层)
@@ -718,7 +799,7 @@ class MainActivity : ComponentActivity() {
                 try {
                     packageManager.getPackageInfo(packageName, 0).versionName
                 } catch (e: PackageManager.NameNotFoundException) {
-                    "未知"
+                    getString(R.string.unknown_value)
                 }
 
         // 使用UpdateManager检查更新
@@ -737,14 +818,17 @@ class MainActivity : ComponentActivity() {
                 try {
                     packageManager.getPackageInfo(packageName, 0).versionName
                 } catch (e: Exception) {
-                    "未知"
+                    getString(R.string.unknown_value)
                 }
 
         AppLogger.d(TAG, "发现新版本: ${updateInfo.newVersion}，当前版本: $currentVersion")
 
         // 显示更新提示
-        val updateMessage = "发现新版本 ${updateInfo.newVersion}，请前往「关于」页面查看详情"
-        Toast.makeText(this, updateMessage, Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            this,
+            getString(R.string.main_update_available_toast, updateInfo.newVersion),
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     private fun getHighestRefreshRate(): Int {

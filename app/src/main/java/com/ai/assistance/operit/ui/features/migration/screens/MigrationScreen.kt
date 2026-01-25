@@ -42,9 +42,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.migration.ChatHistoryMigrationManager
 import java.io.File
 import kotlinx.coroutines.launch
@@ -99,10 +101,13 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                                         if (importCount >= 0) {
                                             MigrationState.Imported(importCount)
                                         } else {
-                                            MigrationState.Failed("导入失败")
+                                            MigrationState.Failed(context.getString(R.string.migration_import_failed))
                                         }
                             } catch (e: Exception) {
-                                migrationState = MigrationState.Failed("导入过程中出错: ${e.message}")
+                                migrationState =
+                                        MigrationState.Failed(
+                                                context.getString(R.string.migration_import_error, e.message ?: "")
+                                        )
                             }
                         }
                     }
@@ -131,7 +136,11 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                     }
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "无法打开文件: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                    context,
+                    context.getString(R.string.migration_open_file_failed, e.message ?: ""),
+                    Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -146,7 +155,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                     MigrationState.Initial -> {
                         Icon(
                                 imageVector = Icons.Filled.Info,
-                                contentDescription = "迁移信息",
+                                contentDescription = stringResource(R.string.migration_info_cd),
                                 modifier = Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.primary
                         )
@@ -154,7 +163,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "发现旧版聊天记录",
+                                text = stringResource(R.string.migration_found_old_chat_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -162,7 +171,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                                text = "检测到之前版本的聊天记录数据，您可以将这些聊天记录导入到新版本中。",
+                                text = stringResource(R.string.migration_found_old_chat_desc),
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center
                         )
@@ -178,17 +187,19 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                                                 if (result >= 0) {
                                                     MigrationState.Completed(result)
                                                 } else {
-                                                    MigrationState.Failed("迁移过程中出现错误")
+                                                    MigrationState.Failed(
+                                                            context.getString(R.string.migration_error_during_migration)
+                                                    )
                                                 }
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth()
-                        ) { Text("开始迁移") }
+                        ) { Text(stringResource(R.string.migration_start)) }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(onClick = { onComplete() }, modifier = Modifier.fillMaxWidth()) {
-                            Text("跳过")
+                            Text(stringResource(R.string.migration_skip))
                         }
 
                         Spacer(modifier = Modifier.height(32.dp))
@@ -199,7 +210,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                        text = "高级选项",
+                                        text = stringResource(R.string.migration_advanced_options),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold
                                 )
@@ -207,7 +218,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                                 Text(
-                                        text = "您也可以手动备份或导入聊天记录：",
+                                        text = stringResource(R.string.migration_manual_backup_desc),
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.padding(vertical = 8.dp)
                                 )
@@ -226,28 +237,30 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                                                             if (exportPath != null) {
                                                                 MigrationState.Exported(exportPath)
                                                             } else {
-                                                                MigrationState.Failed("导出失败")
+                                                                MigrationState.Failed(
+                                                                        context.getString(R.string.migration_export_failed)
+                                                                )
                                                             }
                                                 }
                                             }
                                     ) {
                                         Icon(
                                                 imageVector = Icons.Filled.CloudDownload,
-                                                contentDescription = "导出",
+                                                contentDescription = stringResource(R.string.migration_export_cd),
                                                 modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("导出备份")
+                                        Text(stringResource(R.string.migration_export_backup))
                                     }
 
                                     OutlinedButton(onClick = { openFilePicker() }) {
                                         Icon(
                                                 imageVector = Icons.Filled.CloudUpload,
-                                                contentDescription = "导入",
+                                                contentDescription = stringResource(R.string.migration_import_cd),
                                                 modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("导入备份")
+                                        Text(stringResource(R.string.migration_import_backup))
                                     }
                                 }
                             }
@@ -259,7 +272,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "正在迁移数据...",
+                                text = stringResource(R.string.migration_in_progress_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -267,7 +280,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                                text = "请耐心等待，迁移过程中请勿关闭应用",
+                                text = stringResource(R.string.migration_in_progress_desc),
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center
                         )
@@ -275,7 +288,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                     is MigrationState.Completed -> {
                         Icon(
                                 imageVector = Icons.Filled.Info,
-                                contentDescription = "迁移完成",
+                                contentDescription = stringResource(R.string.migration_completed_cd),
                                 modifier = Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.primary
                         )
@@ -283,7 +296,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "迁移完成",
+                                text = stringResource(R.string.migration_completed_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -291,7 +304,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                                text = "成功迁移 ${state.count} 条聊天记录",
+                                text = stringResource(R.string.migration_completed_desc, state.count),
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center
                         )
@@ -299,7 +312,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(32.dp))
 
                         Button(onClick = { onComplete() }, modifier = Modifier.fillMaxWidth()) {
-                            Text("继续")
+                            Text(stringResource(R.string.migration_continue))
                         }
 
                         LaunchedEffect(true) {
@@ -312,7 +325,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                     is MigrationState.Failed -> {
                         Icon(
                                 imageVector = Icons.Filled.Info,
-                                contentDescription = "迁移失败",
+                                contentDescription = stringResource(R.string.migration_failed_cd),
                                 modifier = Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.error
                         )
@@ -320,7 +333,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "迁移失败",
+                                text = stringResource(R.string.migration_failed_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -338,12 +351,12 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Button(
                                 onClick = { migrationState = MigrationState.Initial },
                                 modifier = Modifier.fillMaxWidth()
-                        ) { Text("重试") }
+                        ) { Text(stringResource(R.string.migration_retry)) }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(onClick = { onComplete() }, modifier = Modifier.fillMaxWidth()) {
-                            Text("跳过")
+                            Text(stringResource(R.string.migration_skip))
                         }
                     }
                     MigrationState.Exporting -> {
@@ -352,7 +365,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "正在导出备份...",
+                                text = stringResource(R.string.migration_exporting_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -360,7 +373,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                     is MigrationState.Exported -> {
                         Icon(
                                 imageVector = Icons.Filled.CloudDownload,
-                                contentDescription = "导出完成",
+                                contentDescription = stringResource(R.string.migration_exported_cd),
                                 modifier = Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.primary
                         )
@@ -368,7 +381,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "导出完成",
+                                text = stringResource(R.string.migration_exported_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -376,7 +389,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                                text = "备份文件已保存到:\n${state.path}",
+                                text = stringResource(R.string.migration_exported_desc, state.path),
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center
                         )
@@ -386,7 +399,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Button(
                                 onClick = { migrationState = MigrationState.Initial },
                                 modifier = Modifier.fillMaxWidth()
-                        ) { Text("返回") }
+                        ) { Text(stringResource(R.string.migration_back)) }
                     }
                     MigrationState.Importing -> {
                         CircularProgressIndicator(modifier = Modifier.size(64.dp))
@@ -394,7 +407,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "正在导入备份...",
+                                text = stringResource(R.string.migration_importing_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -402,7 +415,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                     is MigrationState.Imported -> {
                         Icon(
                                 imageVector = Icons.Filled.CloudUpload,
-                                contentDescription = "导入完成",
+                                contentDescription = stringResource(R.string.migration_imported_cd),
                                 modifier = Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.primary
                         )
@@ -410,7 +423,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                                text = "导入完成",
+                                text = stringResource(R.string.migration_imported_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                         )
@@ -418,7 +431,7 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                                text = "成功导入 ${state.count} 条聊天记录",
+                                text = stringResource(R.string.migration_imported_desc, state.count),
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center
                         )
@@ -426,13 +439,13 @@ fun MigrationScreen(migrationManager: ChatHistoryMigrationManager, onComplete: (
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Button(onClick = { onComplete() }, modifier = Modifier.fillMaxWidth()) {
-                            Text("继续")
+                            Text(stringResource(R.string.migration_continue))
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         TextButton(onClick = { migrationState = MigrationState.Initial }) {
-                            Text("返回迁移界面")
+                            Text(stringResource(R.string.migration_back_to_screen))
                         }
                     }
                 }

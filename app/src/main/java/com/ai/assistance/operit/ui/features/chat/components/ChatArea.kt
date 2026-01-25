@@ -387,7 +387,11 @@ private fun MessageItem(
                     val clipboardManager =
                         context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val cleanContent = cleanXmlTags(message.content)
-                    val clipData = ClipData.newPlainText("聊天消息", cleanContent)
+                    val clipData =
+                        ClipData.newPlainText(
+                            context.getString(R.string.chat_clipboard_label_message),
+                            cleanContent
+                        )
                     clipboardManager.setPrimaryClip(clipData)
                     Toast.makeText(context, context.getString(R.string.message_copied), Toast.LENGTH_SHORT).show()
                     onCopyMessage?.invoke(message)

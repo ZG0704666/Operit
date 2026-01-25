@@ -194,6 +194,7 @@ fun StreamMarkdownRenderer(
         backgroundColor: Color = MaterialTheme.colorScheme.surface,
         onLinkClick: ((String) -> Unit)? = null,
         xmlRenderer: XmlContentRenderer = remember { DefaultXmlRenderer() },
+        nodeGrouper: MarkdownNodeGrouper = NoopMarkdownNodeGrouper,
         state: StreamMarkdownRendererState? = null,
         fillMaxWidth: Boolean = true
 ) {
@@ -376,6 +377,7 @@ fun StreamMarkdownRenderer(
                 textColor = textColor,
                 onLinkClick = onLinkClick,
                 xmlRenderer = xmlRenderer,
+                nodeGrouper = nodeGrouper,
                 modifier = if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier,
                 fillMaxWidth = fillMaxWidth
             )
@@ -406,6 +408,7 @@ fun StreamMarkdownRenderer(
         backgroundColor: Color = MaterialTheme.colorScheme.surface,
         onLinkClick: ((String) -> Unit)? = null,
         xmlRenderer: XmlContentRenderer = remember { DefaultXmlRenderer() },
+        nodeGrouper: MarkdownNodeGrouper = NoopMarkdownNodeGrouper,
         state: StreamMarkdownRendererState? = null,
         fillMaxWidth: Boolean = true
 ) {
@@ -607,6 +610,7 @@ fun StreamMarkdownRenderer(
                 textColor = textColor,
                 onLinkClick = onLinkClick,
                 xmlRenderer = xmlRenderer,
+                nodeGrouper = nodeGrouper,
                 modifier = if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier,
                 fillMaxWidth = fillMaxWidth
             )
@@ -679,6 +683,7 @@ private fun UnifiedMarkdownCanvas(
     textColor: Color,
     onLinkClick: ((String) -> Unit)?,
     xmlRenderer: XmlContentRenderer,
+    nodeGrouper: MarkdownNodeGrouper,
     modifier: Modifier = Modifier,
     fillMaxWidth: Boolean = true
 ) {
@@ -704,28 +709,63 @@ private fun UnifiedMarkdownCanvas(
         }
     }
     
+    fun nodeKeyForIndex(index: Int): String {
+        return if (rendererId.startsWith("static-")) {
+            "static-node-$rendererId-$index"
+        } else {
+            "node-$rendererId-$index"
+        }
+    }
+
+    val tailNode = nodes.lastOrNull()
+    val groupingKey = remember(nodes.size, tailNode?.content?.length, tailNode?.type, rendererId, nodeGrouper) {
+        Triple(nodes.size, tailNode?.content?.length ?: -1, tailNode?.type)
+    }
+
+    val groupedItems = remember(groupingKey, rendererId, nodeGrouper) {
+        nodeGrouper.group(nodes, rendererId)
+    }
+
     Column(modifier = modifier) {
-        
-        nodes.forEachIndexed { index, node ->
-            val nodeKey = if (rendererId.startsWith("static-")) {
-                "static-node-$rendererId-$index"
-            } else {
-                "node-$rendererId-$index"
-            }
-            
-            key(nodeKey) {
-                // 使用独立的 Composable 来隔离 alpha 动画状态
-                AnimatedNode(
-                    nodeKey = nodeKey,
-                    node = node,
-                    index = index,
-                    isVisible = nodeAnimationStates[nodeKey] ?: true,
-                    textColor = textColor,
-                    onLinkClick = onLinkClick,
-                    xmlRenderer = xmlRenderer,
-                    fillMaxWidth = fillMaxWidth,
-                    isLastNode = index == lastRenderableIndex  // 判断是否是最后一个可渲染节点
-                )
+        groupedItems.forEach { item ->
+            when (item) {
+                is MarkdownGroupedItem.Single -> {
+                    val index = item.index
+                    val node = nodes.getOrNull(index) ?: return@forEach
+                    val nodeKey = nodeKeyForIndex(index)
+                    key(nodeKey) {
+                        AnimatedNode(
+                            nodeKey = nodeKey,
+                            node = node,
+                            index = index,
+                            isVisible = nodeAnimationStates[nodeKey] ?: true,
+                            textColor = textColor,
+                            onLinkClick = onLinkClick,
+                            xmlRenderer = xmlRenderer,
+                            fillMaxWidth = fillMaxWidth,
+                            isLastNode = index == lastRenderableIndex
+                        )
+                    }
+                }
+
+                is MarkdownGroupedItem.Group -> {
+                    val groupKey = "group-$rendererId-${item.stableKey}"
+                    val firstNodeKey = nodeKeyForIndex(item.startIndex)
+                    key(groupKey) {
+                        nodeGrouper.RenderGroup(
+                            group = item,
+                            nodes = nodes,
+                            rendererId = rendererId,
+                            isVisible = nodeAnimationStates[firstNodeKey] ?: true,
+                            isLastNode = item.endIndexInclusive == lastRenderableIndex,
+                            modifier = if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier,
+                            textColor = textColor,
+                            onLinkClick = onLinkClick,
+                            xmlRenderer = xmlRenderer,
+                            fillMaxWidth = fillMaxWidth
+                        )
+                    }
+                }
             }
         }
     }

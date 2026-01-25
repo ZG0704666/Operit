@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 object SharedFileHandler {
     private val _sharedFiles = MutableStateFlow<List<Uri>?>(null)
     val sharedFiles: StateFlow<List<Uri>?> = _sharedFiles
+    private val _sharedLinks = MutableStateFlow<List<String>?>(null)
+    val sharedLinks: StateFlow<List<String>?> = _sharedLinks
     
     /**
      * Set the shared files to be processed
@@ -18,12 +20,20 @@ object SharedFileHandler {
     fun setSharedFiles(uris: List<Uri>) {
         _sharedFiles.value = uris
     }
+
+    fun setSharedLinks(urls: List<String>) {
+        _sharedLinks.value = urls
+    }
     
     /**
      * Clear the shared files after processing
      */
     fun clearSharedFiles() {
         _sharedFiles.value = null
+    }
+
+    fun clearSharedLinks() {
+        _sharedLinks.value = null
     }
 }
 

@@ -109,6 +109,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
 
     // Monitor shared files from external apps
     val sharedFiles by SharedFileHandler.sharedFiles.collectAsState()
+    val sharedLinks by SharedFileHandler.sharedLinks.collectAsState()
     LaunchedEffect(sharedFiles) {
         sharedFiles?.let { uris ->
             if (uris.isNotEmpty()) {
@@ -116,6 +117,15 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                 actualViewModel.handleSharedFiles(uris)
                 // Clear the shared files
                 SharedFileHandler.clearSharedFiles()
+            }
+        }
+    }
+
+    LaunchedEffect(sharedLinks) {
+        sharedLinks?.let { urls ->
+            if (urls.isNotEmpty()) {
+                actualViewModel.handleSharedLinks(urls)
+                SharedFileHandler.clearSharedLinks()
             }
         }
     }

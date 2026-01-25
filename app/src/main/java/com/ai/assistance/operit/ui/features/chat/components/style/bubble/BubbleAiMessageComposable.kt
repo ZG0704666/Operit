@@ -29,6 +29,7 @@ import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRendererState
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
+import com.ai.assistance.operit.ui.features.chat.components.part.ThinkToolsXmlNodeGrouper
 import com.ai.assistance.operit.ui.features.chat.components.LinkPreviewDialog
 import com.ai.assistance.operit.util.markdown.toCharStream
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -107,6 +108,10 @@ fun BubbleAiMessageComposable(
             showStatusTags = showStatusTags,
             enableDialogs = enableDialogs
         )
+    }
+
+    val nodeGrouper = remember(showThinkingProcess) {
+        ThinkToolsXmlNodeGrouper(showThinkingProcess = showThinkingProcess)
     }
     val rememberedOnLinkClick = remember(context, onLinkClick, enableDialogs) {
         if (!enableDialogs) {
@@ -239,6 +244,7 @@ fun BubbleAiMessageComposable(
                             backgroundColor = backgroundColor,
                             onLinkClick = rememberedOnLinkClick,
                             xmlRenderer = xmlRenderer,
+                            nodeGrouper = nodeGrouper,
                             modifier = Modifier.padding(12.dp),
                             state = rendererState,
                             fillMaxWidth = false  // bubble模式：横向缩紧
@@ -252,6 +258,7 @@ fun BubbleAiMessageComposable(
                             backgroundColor = backgroundColor,
                             onLinkClick = rememberedOnLinkClick,
                             xmlRenderer = xmlRenderer,
+                            nodeGrouper = nodeGrouper,
                             modifier = Modifier.padding(12.dp),
                             state = rendererState,
                             fillMaxWidth = false  // bubble模式：横向缩紧

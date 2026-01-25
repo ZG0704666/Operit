@@ -133,11 +133,13 @@ class SkillMarketViewModel(
         )
 
     @Serializable
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     private data class SkillMetadata(
+        val description: String = "",
         val repositoryUrl: String,
         val category: String = "",
         val tags: String = "",
-        val version: String = "v1"
+        val version: String = ""
     )
 
     class Factory(
@@ -185,18 +187,16 @@ class SkillMarketViewModel(
     fun parseSkillInfoFromIssue(issue: GitHubIssue): PublishDraft {
         val body = issue.body ?: return PublishDraft(title = issue.title)
         val metadata = parseSkillMetadata(body)
-        val description = extractDescription(body)
-
         return if (metadata != null) {
             PublishDraft(
                 title = issue.title,
-                description = description,
+                description = metadata.description,
                 repositoryUrl = metadata.repositoryUrl
             )
         } else {
             PublishDraft(
                 title = issue.title,
-                description = description.ifBlank { "无法解析Skill描述，请手动填写。" },
+                description = "无法解析Skill描述，请手动填写。",
                 repositoryUrl = ""
             )
         }
@@ -612,6 +612,7 @@ class SkillMarketViewModel(
         return buildString {
             try {
                 val metadata = SkillMetadata(
+                    description = description,
                     repositoryUrl = repositoryUrl,
                     version = version
                 )
@@ -627,7 +628,7 @@ class SkillMarketViewModel(
 
             appendLine("## 📋 Skill 信息")
             appendLine()
-            appendLine("**描述:** $description")
+            appendLine(description)
             appendLine()
 
             if (repositoryUrl.isNotBlank()) {
@@ -660,27 +661,21 @@ class SkillMarketViewModel(
     }
 
     private fun parseSkillMetadata(body: String): SkillMetadata? {
-        val metadataPattern = Regex("""<!-- operit-skill-json: (\{.*?\}) -->""", RegexOption.DOT_MATCHES_ALL)
-        val match = metadataPattern.find(body)
-        return match?.let {
-            val jsonString = it.groupValues[1]
-            try {
-                val json = Json { ignoreUnknownKeys = true }
-                json.decodeFromString<SkillMetadata>(jsonString)
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Failed to parse skill metadata JSON from issue body.", e)
-                null
-            }
-        }
-    }
+        val prefix = "<!-- operit-skill-json: "
+        val start = body.indexOf(prefix)
+        if (start < 0) return null
 
-    private fun extractDescription(body: String): String {
-        val descriptionPattern = Regex("""\*\*描述:\*\*\s*(.+?)(?=\n\*\*|\n##|\Z)""", RegexOption.DOT_MATCHES_ALL)
-        val description = descriptionPattern.find(body)?.groupValues?.get(1)?.trim()
-        return when {
-            !description.isNullOrBlank() -> description
-            body.isNotBlank() -> body.take(200).trim()
-            else -> ""
+        val jsonStart = start + prefix.length
+        val end = body.indexOf(" -->", startIndex = jsonStart)
+        if (end <= jsonStart) return null
+
+        val jsonString = body.substring(jsonStart, end)
+        return try {
+            val json = Json { ignoreUnknownKeys = true }
+            json.decodeFromString<SkillMetadata>(jsonString)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to parse skill metadata JSON from issue body.", e)
+            null
         }
     }
 
