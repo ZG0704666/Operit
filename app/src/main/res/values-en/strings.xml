@@ -21,6 +21,9 @@
     <string name="nav_item_agreement">User Agreement</string>
     <string name="nav_help">User Manual</string>
     <string name="nav_workflow">Workflow</string>
+    <string name="nav_group_ai_features">AI Features</string>
+    <string name="nav_group_tools">Tools</string>
+    <string name="nav_group_system">System</string>
     <string name="menu">Menu</string>
     <string name="token_config">Get API Key</string>
     <string name="desktop_pet_start">Start Desktop Pet</string>
@@ -397,7 +400,8 @@
     <string name="ai_response_placeholder">This is a simulated AI response. In the actual application, real AI API calls will be integrated here.</string>
     <string name="network_unavailable">Network connection unavailable, please check your network settings</string>
     <string name="network_status">Network Status: %1$s</string>
-    
+    <string name="network_status_label">Network Status</string>
+
     <!-- Configuration Screen -->
     <string name="config_title">Operit AI Assistant</string>
     <string name="config_description">We use DeepSeek API by default. For alternatives, click the custom option below</string>
@@ -480,6 +484,19 @@
     <string name="plugin_registered">Registered</string>
     <string name="plugin_registration_failed">Registration Failed</string>
     <string name="plugin_verification_failed">Verification Failed</string>
+    <string name="plugin_deploying">Plugin not deployed, starting auto-deployment: %1$s</string>
+    <string name="plugin_cannot_get_path">Cannot get plugin path: %1$s</string>
+    <string name="plugin_cannot_determine_deploy">Cannot determine how to deploy plugin: %1$s</string>
+    <string name="plugin_deploy_success">Plugin deployed successfully: %1$s</string>
+    <string name="plugin_deploy_failed">Deployment failed: %1$s</string>
+    <string name="plugin_deploy_error">Plugin deployment failed: %1$s</string>
+    <string name="plugin_deploy_complete">Plugin deployment complete, continuing startup: %1$s</string>
+    <string name="plugin_runtime_error">Runtime error: %1$s</string>
+    <string name="plugin_runtime_output">Runtime output:\n%1$s</string>
+    <string name="plugin_auto_deploy">Plugin not deployed, starting auto-deployment</string>
+    <string name="plugin_auto_deploy_complete">Auto-deployment complete</string>
+    <string name="plugin_terminal_service_unavailable">Terminal service unavailable, please start it first</string>
+    <string name="plugin_pnpm_missing">pnpm not installed in terminal, please install it first</string>
 
     <!-- Permission Guide Screen -->
     <string name="permission_guide_intro_1_title">Voice-Driven UI Automation</string>
@@ -807,6 +824,8 @@
     <string name="script_execution">Script Execution</string>
     <string name="script_code">Script Code</string>
     <string name="script_parameters">Script Parameters</string>
+    <string name="script_params_config">Parameters Configuration</string>
+    <string name="script_code_placeholder">Write JavaScript code...</string>
     <string name="execution_result">Execution Result</string>
     <string name="script_executing">Executing script...</string>
     <string name="script_execution_success">Script execution successful</string>
@@ -1241,6 +1260,11 @@
     <string name="already_latest_version">Already on the latest version: %1$s</string>
     <string name="download">Download</string>
     <string name="ok">OK</string>
+    <string name="dialog_title_prompt">Prompt</string>
+    <string name="ai_computer">AI Computer</string>
+    <string name="code_editor">Code Editor</string>
+    <string name="export_starting">Starting export...</string>
+    <string name="floating_window_permission_denied">Floating window permission not granted, floating window mode closed</string>
     <string name="select_download_source">Select Download Source</string>
     <string name="select_download_source_desc">Please select a download source suitable for your network:</string>
     <string name="mirror_download">%1$s Mirror Download</string>
@@ -1529,6 +1553,13 @@
 
     <!-- Update History -->
     <string name="update_history">Update History</string>
+    <string name="update_load_failed">Load Failed</string>
+    <string name="update_latest">Latest</string>
+    <string name="update_view_release">View Release</string>
+    <string name="update_download">Download</string>
+    <string name="action_retry">Retry</string>
+    <string name="common_collapse">Collapse</string>
+    <string name="common_expand_more">Expand More</string>
     <string name="nav_memory_base">Memory Base</string>
     
     <!-- Manual Memory Update -->
@@ -1568,6 +1599,39 @@
     <string name="tool_file_manager_desc">Browse and manage device files with various operations support</string>
     <string name="tool_tts">Text-to-Speech</string>
     <string name="tool_tts_desc">Convert text to speech with adjustable speed and pitch</string>
+    <string name="tts_title">Text-to-Speech Demo</string>
+    <string name="tts_input_text">Input Text</string>
+    <string name="tts_input_hint">Please enter text to convert to speech</string>
+    <string name="tts_speech_settings">Speech Settings</string>
+    <string name="tts_speech_rate">Speech rate: %sx</string>
+    <string name="tts_speech_pitch">Pitch: %sx</string>
+    <string name="tts_play">Play</string>
+    <string name="tts_play_speech">Play Speech</string>
+    <string name="tts_stop">Stop</string>
+    <string name="tts_stop_speech">Stop Playback</string>
+    <string name="tts_engine_initialized">Speech engine initialized</string>
+    <string name="tts_engine_not_initialized">Speech engine not initialized</string>
+    <string name="tts_playing">Playing...</string>
+    <string name="tts_not_playing">Not playing</string>
+    <string name="tts_error">Error</string>
+    <string name="tts_error_details">Error Details:</string>
+    <string name="tts_debug_info">Debug Info:</string>
+    <string name="tts_clear_error">Clear Error</string>
+    <string name="tts_clear_error_message">Clear Error Message</string>
+    <string name="tts_usage_instructions">Usage Instructions</string>
+    <string name="tts_accessibility_note">Note: Accessibility service must be enabled in system settings on first use</string>
+    <string name="tts_init_failed">Failed to initialize speech engine</string>
+    <string name="tts_init_error">Speech engine initialization error</string>
+    <string name="tts_speak_failed">Failed to play text</string>
+    <string name="tts_speak_error">Text playback error: %s</string>
+    <string name="tts_stop_error">Stop playback error: %s</string>
+    <string name="tts_input_empty">Please enter text to convert to speech</string>
+    <string name="tts_debug_service_type">Service type: %s</string>
+    <string name="tts_debug_params">Request params: Text=\'%1$s\', Rate=%2$sx, Pitch=%3$sx</string>
+    <string name="tts_debug_params_with_service">Request params: Text=\'%1$s\', Rate=%2$sx, Pitch=%3$sx\nService type: %4$s</string>
+    <string name="tts_init_error_details">Service initialization method returned false, but no exception was thrown</string>
+    <string name="tts_speak_error_details">TTS service returned failure status, please check configuration and network connection</string>
+    <string name="tts_usage_instructions_content">1. Enter text to convert to speech in the input box\n2. Adjust speech rate and pitch settings\n3. Click \"Play Speech\" button to start playback\n4. Click \"Stop Playback\" button to stop playback\n5. If an error occurs, view detailed error information and debug info\n6. Use \"Clear Error Message\" button to clear error display</string>
     <string name="tool_speech_recognition">Speech Recognition</string>
     <string name="tool_speech_recognition_desc">Convert speech to text with multiple engines and languages support</string>
     <string name="tool_permission_manager">App Permission Manager</string>
@@ -1580,14 +1644,46 @@
     <string name="tool_terminal_desc">Powerful command-line terminal for executing system commands</string>
     <string name="tool_terminal_auto_config">Terminal Auto Configuration</string>
     <string name="tool_terminal_auto_config_desc">Automatically install and configure Python, PIP and other development tools</string>
+    <string name="tool_terminal_auto_config_under_construction">Terminal auto configuration feature is being refactored...</string>
     <string name="tool_ui_debugger">UI Debug Tool</string>
     <string name="tool_ui_debugger_desc">Debug and analyze interface elements with element search and interaction support</string>
+    <string name="ui_debugger_title">UI Debugging Tool</string>
+    <string name="ui_debugger_description">Tap the button in the bottom right corner to launch the floating window for UI debugging</string>
+    <string name="ui_debugger_launch_floating">Launch Floating Window</string>
+    <string name="ui_debugger_start_float">Start Float</string>
     <string name="tool_ffmpeg_toolbox">FFmpeg Toolbox</string>
     <string name="tool_ffmpeg_toolbox_desc">Powerful audio/video processing tool supporting conversion, cropping, merging and more</string>
     <string name="tool_stream_markdown_demo">Streaming Markdown Demo</string>
     <string name="tool_stream_markdown_demo_desc">High-performance streaming Markdown rendering demo with real-time character flow effects</string>
     <string name="tool_shell_executor">Command Executor</string>
     <string name="tool_shell_executor_desc">Execute Shell commands and view output results with common command presets</string>
+    <string name="shell_executor_input_hint">Enter shell command</string>
+    <string name="shell_executor_command">Command</string>
+    <string name="shell_executor_clear">Clear</string>
+    <string name="shell_executor_execute">Execute</string>
+    <string name="shell_executor_clear_history">Clear History</string>
+    <string name="shell_executor_show_presets">Show Preset Commands</string>
+    <string name="shell_executor_hide_presets">Hide Preset Commands</string>
+    <string name="shell_executor_executing">Executing command...</string>
+    <string name="shell_executor_common_commands">Common Commands</string>
+    <string name="shell_executor_category_system">System Info</string>
+    <string name="shell_executor_category_file">File Operations</string>
+    <string name="shell_executor_category_network">Network Tools</string>
+    <string name="shell_executor_category_hardware">Hardware Info</string>
+    <string name="shell_executor_category_package">App Management</string>
+    <string name="shell_executor_input_command_hint">Enter command and tap execute</string>
+    <string name="shell_executor_view_results">View command execution results</string>
+    <string name="shell_executor_view_presets">View preset commands</string>
+    <string name="shell_executor_error_title">Execution Error</string>
+    <string name="shell_executor_confirm">Confirm</string>
+    <string name="shell_executor_stdout">Stdout:</string>
+    <string name="shell_executor_stderr">Stderr:</string>
+    <string name="shell_executor_output">Output</string>
+    <string name="shell_executor_exit_code">Exit code: %s</string>
+    <string name="shell_executor_re_execute">Re-execute</string>
+    <string name="shell_executor_expand">Expand</string>
+    <string name="shell_executor_collapse">Collapse</string>
+    <string name="shell_executor_execute_failed">Command execution failed: %s</string>
     <string name="tool_log_viewer">Log Viewer</string>
     <string name="tool_log_viewer_desc">Real-time capture and view system and application logs with filtering and search support</string>
     <string name="tool_process_limit_remover">Phantom Process Limit Remover</string>
@@ -1884,7 +1980,19 @@
     <string name="file_manager_show_hidden">Show hidden files</string>
     <string name="file_manager_items_selected">%d items selected</string>
     <string name="file_manager_clipboard_empty">Clipboard is empty</string>
-    
+    <string name="file_manager_create_new_file">Create New File</string>
+    <string name="file_manager_file_name">File Name</string>
+    <string name="file_manager_create_file">Create File</string>
+    <string name="file_manager_create_folder">Create Folder</string>
+    <string name="file_manager_cancel">Cancel</string>
+    <string name="file_manager_hide_dot_files">Hide .files</string>
+    <string name="file_manager_show_dot_files">Show .files</string>
+    <string name="file_manager_sort">Sort</string>
+    <string name="file_manager_sort_by_modified">By Modified Time</string>
+    <string name="file_manager_new">New</string>
+    <string name="file_manager_return">Return</string>
+    <string name="file_manager_bind_current_folder">Bind Current Folder</string>
+
     <!-- File Operations -->
     <string name="file_op_copy_success">Copy successful</string>
     <string name="file_op_cut_success">Cut successful</string>
@@ -1892,6 +2000,37 @@
     <string name="file_op_delete_success">Delete successful</string>
     <string name="file_op_create_folder_success">Folder created successfully</string>
     <string name="file_op_rename_success">Rename successful</string>
+    <string name="file_menu_open">Open</string>
+    <string name="file_menu_share">Share</string>
+    <string name="file_menu_rename">Rename</string>
+    <string name="file_menu_batch_rename">Batch Rename</string>
+    <string name="file_compress">Compress</string>
+    <string name="file_menu_compress">Compress</string>
+    <string name="file_menu_extract">Extract</string>
+    <string name="file_dialog_new_name">New Name</string>
+    <string name="file_dialog_rename_prefix">Prefix</string>
+    <string name="file_dialog_rename_keep_original">Keep original filename</string>
+    <string name="file_dialog_rename_start_number">Start Number</string>
+    <string name="file_dialog_rename_suffix">Suffix</string>
+    <string name="file_dialog_rename_preview">Example: %1$s%2$s.%3$s%4$s</string>
+    <string name="file_dialog_rename_original">Original filename</string>
+    <string name="file_dialog_compress_title">Compress Files</string>
+    <string name="file_dialog_compress_filename">Archive name</string>
+    <string name="file_dialog_compress_button">Compress</string>
+    <string name="file_dialog_extract_title">Extract Files</string>
+    <string name="file_dialog_extract_message">Are you sure you want to extract %s?</string>
+    <string name="file_dialog_extract_button">Extract</string>
+    <string name="file_dialog_delete_single">Are you sure you want to delete %s?</string>
+    <string name="file_dialog_delete_multiple">Are you sure you want to delete %d selected items?</string>
+    <string name="file_error_open_failed">Failed to open file</string>
+    <string name="file_error_open">File open error: %s</string>
+    <string name="file_error_share_failed">Failed to share file</string>
+    <string name="file_error_share">File share error: %s</string>
+    <string name="file_error_compress_failed">Compression failed</string>
+    <string name="file_error_compress">Compression error: %s</string>
+    <string name="file_error_extract_failed">Extraction failed</string>
+    <string name="file_error_extract">Extraction error: %s</string>
+    <string name="file_error_rename_failed">Batch rename error: %s</string>
     <string name="file_op_failed">Operation failed: %s</string>
     <string name="file_op_confirm_delete">Confirm delete</string>
     <string name="file_op_confirm_delete_message">Are you sure you want to delete the selected files? This action cannot be undone.</string>
@@ -1995,54 +2134,12 @@
     <string name="logcat_permission_required">Log read permission required</string>
     <string name="logcat_logs_saved">Logs saved to %s</string>
     <string name="logcat_save_failed">Failed to save logs</string>
-    
-    <!-- Shell Executor -->
-    <string name="shell_executor_title">Shell Executor</string>
-    <string name="shell_executor_command">Command</string>
-    <string name="shell_executor_execute">Execute</string>
-    <string name="shell_executor_clear">Clear</string>
-    <string name="shell_executor_output">Output</string>
-    <string name="shell_executor_error">Error</string>
-    <string name="shell_executor_working_dir">Working directory</string>
-    <string name="shell_executor_change_dir">Change directory</string>
-    <string name="shell_executor_command_history">Command history</string>
-    <string name="shell_executor_save_output">Save output</string>
-    <string name="shell_executor_copy_output">Copy output</string>
-    <string name="shell_executor_running">Executing...</string>
-    <string name="shell_executor_completed">Execution completed</string>
-    <string name="shell_executor_failed">Execution failed</string>
-    <string name="shell_executor_timeout">Execution timeout</string>
-    <string name="shell_executor_interrupted">Execution interrupted</string>
-    <string name="shell_executor_no_permission">Insufficient permissions</string>
-    <string name="shell_executor_command_empty">Command cannot be empty</string>
-    <string name="shell_executor_exit_code">Exit code: %d</string>
-    
-    <!-- Text-to-Speech -->
-    <string name="tts_title">Text-to-Speech</string>
-    <string name="tts_text_input">Text input</string>
-    <string name="tts_text_hint">Enter text to convert to speech</string>
-    <string name="tts_speak">Speak</string>
-    <string name="tts_stop">Stop</string>
-    <string name="tts_pause">Pause</string>
-    <string name="tts_resume">Resume</string>
-    <string name="tts_language">Language</string>
-    <string name="tts_voice">Voice</string>
-    <string name="tts_speed">Speed</string>
-    <string name="tts_pitch">Pitch</string>
-    <string name="tts_volume">Volume</string>
-    <string name="tts_save_audio">Save audio</string>
-    <string name="tts_preview">Preview</string>
-    <string name="tts_settings">Voice settings</string>
-    <string name="tts_engine">Speech engine</string>
-    <string name="tts_no_engine">No speech engine found</string>
-    <string name="tts_engine_error">Speech engine error</string>
-    <string name="tts_initializing">Initializing speech engine...</string>
-    <string name="tts_speaking">Speaking...</string>
-    <string name="tts_completed">Speech completed</string>
-    <string name="tts_text_empty">Please enter text</string>
-    <string name="tts_audio_saved">Audio saved to %s</string>
-    <string name="tts_save_failed">Failed to save audio</string>
-    
+    <string name="logcat_export_title">App Log Export</string>
+    <string name="logcat_management">App Log Management</string>
+    <string name="logcat_description">You can export all internal logs during app runtime to a file for debugging and issue analysis.</string>
+    <string name="logcat_save_to_file">Save logs to file</string>
+    <string name="logcat_clear_all">Clear all logs</string>
+
     <!-- Speech-to-Text -->
     <string name="stt_title">Speech Recognition</string>
     <string name="stt_start_recording">Start recording</string>
@@ -2192,30 +2289,6 @@
     <string name="speech_services_info_stt_title">Speech-to-Text (STT)</string>
     <string name="speech_services_info_stt_desc">STT service converts speech to text. Supports built-in Sherpa NCNN and Sherpa MNN engines, both run on local device without network connection. Sherpa MNN integrates VAD (Voice Activity Detection) capability for improved recognition accuracy and resource efficiency.</string>
     
-    <!-- UI Debugger -->
-    <string name="ui_debugger_title">UI Debugger</string>
-    <string name="ui_debugger_start">Start debugging</string>
-    <string name="ui_debugger_stop">Stop debugging</string>
-    <string name="ui_debugger_inspect">Inspect element</string>
-    <string name="ui_debugger_hierarchy">View hierarchy</string>
-    <string name="ui_debugger_properties">Properties</string>
-    <string name="ui_debugger_layout">Layout</string>
-    <string name="ui_debugger_events">Events</string>
-    <string name="ui_debugger_capture">Capture</string>
-    <string name="ui_debugger_export">Export</string>
-    <string name="ui_debugger_settings">Debug settings</string>
-    <string name="ui_debugger_overlay">Debug overlay</string>
-    <string name="ui_debugger_highlight">Highlight</string>
-    <string name="ui_debugger_bounds">Bounds</string>
-    <string name="ui_debugger_margins">Margins</string>
-    <string name="ui_debugger_padding">Padding</string>
-    <string name="ui_debugger_no_activity">No activity detected</string>
-    <string name="ui_debugger_permission_required">Overlay permission required</string>
-    <string name="ui_debugger_accessibility_required">Accessibility permission required</string>
-    <string name="ui_debugger_capture_saved">Capture saved to %s</string>
-    <string name="ui_debugger_export_completed">Export completed</string>
-    <string name="ui_debugger_export_failed">Export failed</string>
-  
     <!-- Permission Names -->
     <string name="perm_name_camera">Camera</string>
     <string name="perm_name_read_contacts">Read Contacts</string>
@@ -2488,6 +2561,7 @@
     <string name="memory_attachment_desc">When enabled, relevant content will be automatically retrieved from the memory base and attached when sending messages, but this may affect AI response focus.</string>
     <string name="chat_summarizing_memory">Summarizing memory...</string>
     <string name="chat_input_processing_collect_failed">Failed to collect input processing state: %1$s</string>
+    <string name="chat_input_hint">Type a message...</string>
     <string name="chat_use_default_config_continue">Continue with default configuration</string>
     <string name="chat_default_config_incomplete">Default configuration is incomplete. Please fill in required information.</string>
     <string name="chat_locked_cannot_delete">This chat is locked and cannot be deleted</string>
@@ -2518,7 +2592,98 @@
     <string name="chat_fetch_location_failed">Failed to fetch location: %1$s</string>
     <string name="chat_attaching_memory_folders">Attaching memory folders...</string>
     <string name="chat_attach_memory_folders_failed">Failed to attach memory folders: %1$s</string>
+    <string name="chat_voice_service_init_failed">Voice service initialization failed, please check settings</string>
+    <string name="chat_speak_failed">Speaking failed</string>
+    <string name="chat_speak_message_failed">Failed to speak message: %1$s</string>
     <string name="chat_prefill_check_file">Please take a look at this file</string>
+
+    <!-- Workspace Attachment Processor (AI tool responses) -->
+    <string name="workspace_unknown_error">Unknown error</string>
+    <string name="workspace_suggestion_search_first">For user intent, it is recommended to first use grep_context (search for relevant files based on intent) and grep_code (search for specific code patterns) tools to understand the current project situation before making changes.</string>
+    <string name="workspace_suggestion_separate_files">Please store HTML, CSS, and JavaScript code in separate files.</string>
+    <string name="workspace_suggestion_create_folders">If the project is complex, consider creating js and css folders and creating multiple files.</string>
+    <string name="workspace_no_suggestions">No suggestions</string>
+    <string name="workspace_error_get_suggestions">Exception occurred while getting suggestions: %1$s</string>
+    <string name="workspace_first_load">First workspace load:\n%1$s</string>
+    <string name="workspace_no_changes">Workspace structure unchanged.\n\n%1$s</string>
+    <string name="workspace_structure_changes">Workspace structure changes:\n</string>
+    <string name="workspace_added_files">  Added:\n</string>
+    <string name="workspace_modified_files">  Modified:\n</string>
+    <string name="workspace_deleted_files">  Deleted:\n</string>
+    <string name="workspace_current_structure">\nCurrent complete structure:\n</string>
+    <string name="workspace_not_exists_or_not_dir">Workspace does not exist or is not a directory</string>
+    <string name="workspace_is_empty">Workspace is empty</string>
+    <string name="workspace_no_errors_found">No errors found</string>
+    <string name="workspace_error_get_errors">Exception occurred while getting error info: %1$s</string>
+    <string name="workspace_no_recent_changes">No recent changes</string>
+    <string name="workspace_recently_modified_files">Recently modified files:\n%1$s</string>
+    <string name="workspace_error_get_changes">Exception occurred while getting change records: %1$s</string>
+    <string name="workspace_error_get_recent_files">Failed to get recently modified files</string>
+    <string name="workspace_error_get_user_changes">Failed to get user change records</string>
+    <string name="workspace_hours_ago">%1$d hours ago</string>
+    <string name="workspace_minutes_ago">%1$d minutes ago</string>
+    <string name="workspace_just_now">Just now</string>
+    <string name="workspace_file_time_ago">%1$s (%2$s)</string>
+    <string name="workspace_error_check_errors">Failed to get workspace errors</string>
+    <string name="workspace_error_check_suggestions">Failed to get workspace suggestions</string>
+    <string name="workspace_error_generate_attachment">Failed to generate workspace attachment</string>
+    <string name="workspace_error_invalid_path">Workspace path does not exist or is not a directory: %1$s</string>
+
+    <!-- Workspace Empty/Error Templates -->
+    <string name="workspace_empty_description">Workspace not configured or does not exist</string>
+    <string name="workspace_empty_errors">Cannot check errors</string>
+    <string name="workspace_empty_changes">No change records</string>
+    <string name="workspace_empty_suggestions">Please configure workspace path first</string>
+    <string name="workspace_error_fetch_description">Fetch failed: %1$s</string>
+    <string name="workspace_error_fetch_errors">Cannot check errors: %1$s</string>
+    <string name="workspace_error_fetch_changes">Cannot get changes: %1$s</string>
+    <string name="workspace_error_fetch_suggestions">System error, please check workspace configuration</string>
+
+    <!-- Workspace Project Types (Project templates) -->
+    <string name="workspace_project_blank_title">Blank Workspace</string>
+    <string name="workspace_project_blank_description">This is a blank workspace with only basic directory structure. You can edit .operit/config.json to configure project type, server, and commands, such as: server.enabled, preview.type, commands, etc.</string>
+    <string name="workspace_project_web_title">Web Project</string>
+    <string name="workspace_project_web_description">HTML/CSS/JavaScript web development with local server enabled</string>
+    <string name="workspace_project_node_title">Node.js Project</string>
+    <string name="workspace_project_node_description">Uses npm for dependency management, suitable for backend development and build tools</string>
+    <string name="workspace_project_typescript_title">TypeScript Project</string>
+    <string name="workspace_project_typescript_description">Uses pnpm and TypeScript, provides type safety and real-time compilation</string>
+    <string name="workspace_project_python_title">Python Project</string>
+    <string name="workspace_project_python_description">Supports virtual environments and pip package management, suitable for data analysis and development</string>
+    <string name="workspace_project_java_title">Java Project</string>
+    <string name="workspace_project_java_description">Standard Gradle project structure, supports building, testing, and packaging</string>
+    <string name="workspace_project_go_title">Go Project</string>
+    <string name="workspace_project_go_description">High-performance concurrent programming using Go Modules for dependency management</string>
+    <string name="workspace_project_office_title">Office Documents</string>
+    <string name="workspace_project_office_description">For document editing, file processing, and general office tasks</string>
+
+    <!-- Workspace UI -->
+    <string name="workspace_preview">Preview</string>
+    <string name="workspace_close_menu">Close Menu</string>
+    <string name="workspace_open_menu">Open Menu</string>
+    <string name="workspace_unsaved">Unsaved</string>
+    <string name="workspace_close">Close</string>
+    <string name="workspace_close_preview">Close Preview</string>
+    <string name="workspace_project_suffix">Project</string>
+    <string name="workspace_click_buttons_below">Click buttons below to execute commands</string>
+    <string name="workspace_no_commands_configured">No commands configured\n\nYou can add command button configurations in .operit/config.json</string>
+    <string name="workspace_path_label">Workspace Path</string>
+
+    <!-- Workspace Commands (Command labels) -->
+    <string name="workspace_preview_button_label_browser">Browser Preview</string>
+    <string name="workspace_cmd_python_venv_create">Create Virtual Environment</string>
+    <string name="workspace_cmd_python_venv_activate">Activate Virtual Environment</string>
+    <string name="workspace_cmd_python_pip_install">Install Dependencies</string>
+    <string name="workspace_cmd_python_pip_list">View Installed Packages</string>
+    <string name="workspace_cmd_python_run">Run main.py</string>
+    <string name="workspace_cmd_java_gradle_init">Initialize Gradle Wrapper</string>
+    <string name="workspace_cmd_java_gradle_build">Build Project</string>
+    <string name="workspace_cmd_java_gradle_run">Run Program</string>
+    <string name="workspace_cmd_java_gradle_test">Run Tests</string>
+    <string name="workspace_cmd_java_gradle_jar">Package JAR</string>
+    <string name="workspace_cmd_java_gradle_clean">Clean Build</string>
+    <string name="workspace_cmd_java_gradle_tasks">View All Tasks</string>
+
     <string name="chat_added_files_count">Added %1$d file(s)</string>
     <string name="chat_process_shared_files_failed">Failed to process shared files: %1$s</string>
     <string name="chat_ai_service_init_network_hint">Failed to initialize AI service. Please check network and API settings.</string>
@@ -2569,6 +2734,9 @@
     <string name="model_selection">Model Selection</string>
     <string name="prompt_selection">Prompt Selection</string>
     <string name="memory_selection">Memory Selection</string>
+    <string name="memory_details_title">Memory Details</string>
+    <string name="memory_delete_confirmation">Are you sure you want to delete the selected %1$d memory nodes?</string>
+    <string name="memory_delete_warning">This action cannot be undone. These memories and their related connections cannot be recovered after deletion.</string>
     <string name="not_selected">Not selected</string>
     <string name="manage_config">Manage Configuration</string>
     <string name="collapse_verb">Collapse</string>
@@ -2655,7 +2823,7 @@
     <string name="current_value">Current Value</string>
     <string name="closer_to_edge">Closer to Edge</string>
     <string name="farther_from_edge">Farther from Edge</string>
-    <string name="invalid_value_range" formatted="false">Invalid value. Please enter a number between %.1f and %.1f</string>
+    <string name="invalid_value_range">Invalid value. Please enter a number between %1$.1f and %2$.1f</string>
     <string name="reset_to_default">Reset to Default</string>
     <string name="layout_reset_settings">Reset Layout Settings</string>
     <string name="layout_reset_settings_desc">Reset all layout adjustment settings to default values</string>
@@ -2881,6 +3049,8 @@
     <string name="user_avatar_label">User Avatar</string>
     <string name="global_user_avatar_label">Global User Avatar</string>
     <string name="ai_avatar_label">AI Avatar</string>
+    <string name="character_avatar">Character Avatar</string>
+    <string name="bind">Bind</string>
     <string name="avatar_shape_title">Avatar Shape</string>
     <string name="avatar_shape_circle">Circle</string>
     <string name="avatar_shape_square">Square</string>
@@ -2956,6 +3126,9 @@
     <string name="no_models_found">No models found</string>
     <string name="models_displayed">Showing %d models</string>
     <string name="models_displayed_filtered"> (filtered)</string>
+    <string name="models_selected_suffix"> selected</string>
+    <string name="model_name_multiple_hint"> (can use comma to separate multiple models)</string>
+    <string name="auto_save_failed">Auto save failed</string>
     <!-- API Provider names -->
     <string name="provider_openai">OpenAI (GPT Series)</string>
     <string name="provider_anthropic">Anthropic (Claude Series)</string>
@@ -3161,6 +3334,7 @@
     <string name="notes_placeholder">Record character card source, author info, etc.</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
+    <string name="add">Add</string>
     <string name="create_tag">Create Tag</string>
     <string name="edit_tag">Edit Tag</string>
     <string name="tag_name">Tag Name</string>
@@ -3248,6 +3422,21 @@
     <string name="character_card_default_avatar">Default Avatar</string>
     <string name="character_card_reset">Reset</string>
     <string name="character_card_add">Add</string>
+    <string name="card_copy_suffix"> (Copy)</string>
+    <string name="color_qr_code">Color QR Code</string>
+    <string name="export_color_qr_desc">Enter color QR preview, select color count and save</string>
+    <string name="saved_to">Saved to:</string>
+    <string name="color_count_suffix">%d colors</string>
+    <string name="import_color_qr">Import Color QR</string>
+    <string name="scan_color_qr">Scan Color QR</string>
+    <string name="tavern_json">Tavern JSON</string>
+    <string name="export_tavern_json_desc">Export as .json and save to Download/Operit/exports</string>
+    <string name="tavern_png">Tavern PNG</string>
+    <string name="export_tavern_png_desc">Export as image importable to Tavern and save to Download/Operit/exports</string>
+    <string name="image_read_error">Cannot read image</string>
+    <string name="image_parse_error">Cannot parse image</string>
+    <string name="color_qr_not_recognized">Cannot recognize color QR code</string>
+    <string name="file_read_error_message">Cannot read file</string>
 
     <!-- Crash Report Screen -->
     <string name="delete_character_card_confirm">Are you sure you want to delete character card "%1$s"? This action cannot be undone.</string>
@@ -3379,6 +3568,9 @@
     <string name="author_colon">Author:</string>
     <string name="share_colon">Share:</string>
     <string name="downloading_progress">Downloading %1$s</string>
+    <string name="download_file_description">Downloading file...</string>
+    <string name="download_complete">Download complete: %1$s</string>
+    <string name="download_incomplete">Download incomplete: %1$s</string>
     <string name="extracting_progress">Extracting...</string>
     <string name="installing_progress">Installing...</string>
     <string name="after_logging_in_you_can">After logging in to GitHub, you can:</string>
@@ -3567,15 +3759,33 @@
     <string name="confirm_delete_emoji">Are you sure you want to delete this emoji?</string>
     <string name="custom_emoji_desc">Add your favorite emoji images, AI will use them in Waifu mode</string>
     <string name="emoji_added_success">Successfully added %1$d emojis</string>
+    <string name="emoji_added_partial">Successfully added %1$d emojis, failed %2$d</string>
+    <string name="emoji_add_failed">Failed to add, please check logs</string>
     <string name="emoji_deleted_success">Emoji deleted</string>
+    <string name="emoji_delete_failed">Deletion failed, see logs for details</string>
     <string name="category_created">Category created</string>
+    <string name="category_deleted">Category deleted</string>
+    <string name="category_delete_failed">Deletion failed, see logs for details</string>
+    <string name="category_already_exists">Category already exists</string>
     <string name="invalid_category_name">Category name can only contain lowercase letters, numbers, and underscores</string>
-    
+    <string name="emoji_reset_success">Reset to default emojis</string>
+    <string name="emoji_reset_failed">Reset failed: %1$s</string>
+    <string name="reset_to_default_emoji">Reset to Default Emojis</string>
+    <string name="reset_emoji_warning">This action will delete all custom emojis and restore to default emojis. This action cannot be undone, are you sure you want to continue?</string>
+    <string name="confirm_reset_emoji">Confirm Reset</string>
+    <string name="tap_button_add_emoji">Tap the button in the bottom right corner to add emojis</string>
+    <string name="emoji_preview">Emoji Preview</string>
+    <string name="create_group">Create Group</string>
+    <string name="custom">Custom</string>
+
     <!-- Voice Assistant Widget -->
     <string name="voice_assistant_widget_description">Quick launch Operit voice assistant</string>
+    <string name="voice_assistant_widget_title">Voice Assistant</string>
 
     <!-- Persona Card Generation Screen -->
     <string name="persona_card_generation_title">Character Card to Edit</string>
+    <string name="error_character_card_not_exist">Character card does not exist</string>
+    <string name="error_unsupported_field">Unsupported field: %1$s</string>
     <string name="no_character_card">No Character Card</string>
     <string name="character_card_config">Character Card Configuration</string>
     <string name="current_character_card">Current Character Card</string>
@@ -3832,6 +4042,7 @@
     <string name="content_fragment">Content Fragment</string>
     <string name="add_text">Add Text</string>
     <string name="add_tag">Add Tag</string>
+    <string name="add_to_tag_library">Add \'%1$s\' to your tag library.</string>
     <string name="save_and_resend">Save and Resend</string>
     <string name="update_memory">Update Memory</string>
     <string name="chat_message">Chat Message</string>
@@ -3879,9 +4090,9 @@
     <!-- Chat History Batch -->
     <string name="no_available_character_cards_toast">No available character cards, please create one first</string>
     <string name="please_select_chats_first">Please select chat records first</string>
-    <string name="chats_unbound_from_card">Removed character card binding from %1$d conversations</string>
-    <string name="chats_assigned_to_character">Assigned %1$d conversations to \'%2$s\'</string>
-    <string name="chats_group_updated">Set group to \'%2$s\' for %1$d conversations</string>
+    <string name="chats_unbound_from_card">Removed character card binding from %1$d chat(s)</string>
+    <string name="chats_assigned_to_character">Assigned %1$d chat(s) to \'%2$s\'</string>
+    <string name="chats_group_updated">Set group to \'%2$s\' for %1$d chat(s)</string>
     <string name="batch_update_failed">Batch update failed: %1$s</string>
     <string name="loading_data_please_wait">Loading data, please wait…</string>
     <string name="no_chat_stats_to_assign">No chat statistics found to assign</string>
@@ -4393,5 +4604,43 @@
     <string name="workflow_node_pending">Pending</string>
     <string name="workflow_node_running">Running</string>
     <string name="workflow_node_success">Success</string>
+    <string name="workflow_create_blank">Create Blank</string>
+    <string name="workflow_create_from_template">Create from Template</string>
+    <string name="workflow_start_creation">Start Creating Workflow</string>
+    <string name="workflow_automation_desc">Automate your task processes</string>
+    <string name="workflow_new">New Workflow</string>
+    <string name="workflow_disabled">Disabled</string>
+    <string name="workflow_select_template_type">Select Template Type</string>
+    <string name="workflow_template_intent_chat_broadcast_title">Intent Chat Broadcast Template</string>
+    <string name="workflow_template_intent_chat_broadcast_desc">Intent trigger -> Floating chat -> Close -> Broadcast AI result</string>
+    <string name="workflow_template_chat_title">Chat Template</string>
+    <string name="workflow_template_chat_desc">Launch floating window -> Create chat -> Send message</string>
+    <string name="workflow_template_condition_title">Condition (Compare)</string>
+    <string name="workflow_template_condition_desc">Visit webpage -> Keyword check -> Branch follow-up</string>
+    <string name="workflow_template_logic_and_title">Logic (AND)</string>
+    <string name="workflow_template_logic_and_desc">Webpage content -> Condition A/B -> AND -> Branch</string>
+    <string name="workflow_template_logic_or_title">Logic (OR)</string>
+    <string name="workflow_template_logic_or_desc">Webpage content -> Condition A/B -> OR -> Branch</string>
+    <string name="workflow_template_extract_title">Operator</string>
+    <string name="workflow_template_extract_desc">Operate visit_key -> Follow search link</string>
+    <string name="workflow_template_error_branch_title">Error Branch (On Error)</string>
+    <string name="workflow_template_error_branch_desc">Main node failed -> Error handling branch; Success -> Normal branch</string>
+    <string name="workflow_template_speech_trigger_title">Speech Trigger</string>
+    <string name="workflow_template_speech_trigger_desc">Speech recognition matches regex -> Execute action</string>
+    <string name="workflow_action_create">Create</string>
+    <string name="time_just_now">Just now</string>
+    <string name="time_minutes_ago">%1$d minutes ago</string>
+    <string name="time_hours_ago">%1$d hours ago</string>
+    <string name="time_days_ago">%1$d days ago</string>
+
+    <string name="screen_ocr_capture_failed">Screenshot capture failed</string>
+    <string name="screen_ocr_load_failed">Unable to load screenshot</string>
+    <string name="screen_ocr_selection_too_small">Selection area is too small</string>
+    <string name="screen_ocr_position">[Position] %1$s</string>
+    <string name="screen_ocr_no_text_recognized">No text recognized</string>
+    <string name="screen_ocr_selection_ocr_header">[Selection OCR]\n</string>
+    <string name="screen_ocr_inline_instruction" formatted="false">Please do not read the file. Answer directly based on the attachment content and the user question.</string>
+    <string name="screen_ocr_selection_content_captured">Selection content captured</string>
+    <string name="screen_ocr_error_prefix">Error: %1$s</string>
 
 </resources>

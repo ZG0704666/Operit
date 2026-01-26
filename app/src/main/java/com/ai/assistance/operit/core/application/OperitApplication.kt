@@ -148,6 +148,10 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
         }
         AppLogger.d(TAG, "【启动计时】JSON序列化器初始化完成 - ${System.currentTimeMillis() - startTime}ms")
 
+        // 在最早时机初始化并应用语言设置（必须在获取字符串资源之前）
+        initializeAppLanguage()
+        AppLogger.d(TAG, "【启动计时】语言设置初始化完成 - ${System.currentTimeMillis() - startTime}ms")
+
         // 初始化用户偏好管理器
         val defaultProfileName = applicationContext.getString(R.string.default_profile)
         initUserPreferencesManager(applicationContext, defaultProfileName)
@@ -170,10 +174,6 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
             CustomEmojiRepository.getInstance(applicationContext).initializeBuiltinEmojis()
             AppLogger.d(TAG, "【启动计时】自定义表情初始化完成（异步） - ${System.currentTimeMillis() - emojiStartTime}ms")
         }
-
-        // 在最早时机初始化并应用语言设置
-        initializeAppLanguage()
-        AppLogger.d(TAG, "【启动计时】语言设置初始化完成 - ${System.currentTimeMillis() - startTime}ms")
 
         // 初始化AndroidShellExecutor上下文
         AndroidShellExecutor.setContext(applicationContext)

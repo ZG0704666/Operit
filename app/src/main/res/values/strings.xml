@@ -15,6 +15,13 @@
     <string name="nav_tool_permissions">工具权限</string>
     <string name="nav_about">关于</string>
     <string name="update_history">更新历史</string>
+    <string name="update_load_failed">加载失败</string>
+    <string name="update_latest">最新</string>
+    <string name="update_view_release">查看发布</string>
+    <string name="update_download">下载</string>
+    <string name="action_retry">重试</string>
+    <string name="common_collapse">收起</string>
+    <string name="common_expand_more">展开更多</string>
     <string name="nav_packages">包管理</string>
     <string name="nav_memory_base">记忆库</string>
     <string name="nav_assistant_config">助手配置</string>
@@ -23,6 +30,9 @@
     <string name="nav_item_agreement">用户协议</string>
     <string name="nav_help">使用手册</string>
     <string name="nav_workflow">工作流</string>
+    <string name="nav_group_ai_features">AI 功能</string>
+    <string name="nav_group_tools">工具</string>
+    <string name="nav_group_system">系统</string>
     <string name="menu">菜单</string>
     <string name="token_config">获取密钥</string>
     <string name="desktop_pet_start">启动桌宠</string>
@@ -402,7 +412,8 @@
     <string name="ai_response_placeholder">这是一个模拟的AI回复。在实际应用中，这里将集成真实的AI API调用。</string>
     <string name="network_unavailable">网络连接不可用，请检查您的网络设置</string>
     <string name="network_status">网络状态: %1$s</string>
-    
+    <string name="network_status_label">网络状态</string>
+
     <!-- Configuration Screen -->
     <string name="config_title">Operit AI 助手</string>
     <string name="config_description">我们默认使用DeepSeek API，如需更换请点击下方自定义选项</string>
@@ -485,7 +496,20 @@
 <string name="plugin_registered">已注册</string>
 <string name="plugin_registration_failed">注册失败</string>
     <string name="plugin_verification_failed">验证失败</string>
-    
+    <string name="plugin_deploying">插件未部署，开始自动部署: %1$s</string>
+    <string name="plugin_cannot_get_path">无法获取插件路径: %1$s</string>
+    <string name="plugin_cannot_determine_deploy">无法确定如何部署插件: %1$s</string>
+    <string name="plugin_deploy_success">插件部署成功: %1$s</string>
+    <string name="plugin_deploy_failed">部署失败: %1$s</string>
+    <string name="plugin_deploy_error">插件部署失败: %1$s</string>
+    <string name="plugin_deploy_complete">插件部署完成，继续启动: %1$s</string>
+    <string name="plugin_runtime_error">运行时错误: %1$s</string>
+    <string name="plugin_runtime_output">运行时输出:\n%1$s</string>
+    <string name="plugin_auto_deploy">插件未部署，开始自动部署</string>
+    <string name="plugin_auto_deploy_complete">自动部署完成</string>
+    <string name="plugin_terminal_service_unavailable">终端服务不可用，请先启动它</string>
+    <string name="plugin_pnpm_missing">终端中未安装pnpm，请先安装</string>
+
     <!-- Theme Settings Screen -->
     <string name="theme_title_mode">主题模式</string>
     <string name="theme_system_title">系统主题</string>
@@ -781,6 +805,8 @@
     <string name="script_execution">脚本执行</string>
     <string name="script_code">脚本代码</string>
     <string name="script_parameters">脚本参数</string>
+    <string name="script_params_config">参数配置</string>
+    <string name="script_code_placeholder">编写JavaScript代码...</string>
     <string name="execution_result">执行结果</string>
     <string name="script_executing">正在执行脚本...</string>
     <string name="script_execution_success">脚本执行成功</string>
@@ -1218,6 +1244,11 @@
     <string name="already_latest_version">当前已是最新版本: %1$s</string>
     <string name="download">去下载</string>
     <string name="ok">确定</string>
+    <string name="dialog_title_prompt">提示</string>
+    <string name="ai_computer">AI电脑</string>
+    <string name="code_editor">代码编辑器</string>
+    <string name="export_starting">开始导出...</string>
+    <string name="floating_window_permission_denied">未获得悬浮窗权限，已关闭悬浮窗模式</string>
     <string name="select_download_source">选择下载源</string>
     <string name="select_download_source_desc">请选择适合您网络环境的下载源：</string>
     <string name="mirror_download">%1$s 镜像下载</string>
@@ -1645,6 +1676,39 @@
     <string name="tool_file_manager_desc">浏览和管理设备文件，支持多种操作</string>
     <string name="tool_tts">文本转语音</string>
     <string name="tool_tts_desc">将文本转换为语音，支持调整语速和音调</string>
+    <string name="tts_title">文本转语音演示</string>
+    <string name="tts_input_text">输入文本</string>
+    <string name="tts_input_hint">请输入要转换为语音的文本</string>
+    <string name="tts_speech_settings">语音设置</string>
+    <string name="tts_speech_rate">语速: %sx</string>
+    <string name="tts_speech_pitch">音调: %sx</string>
+    <string name="tts_play">播放</string>
+    <string name="tts_play_speech">播放语音</string>
+    <string name="tts_stop">停止</string>
+    <string name="tts_stop_speech">停止播放</string>
+    <string name="tts_engine_initialized">语音引擎已初始化</string>
+    <string name="tts_engine_not_initialized">语音引擎未初始化</string>
+    <string name="tts_playing">正在播放中...</string>
+    <string name="tts_not_playing">未播放</string>
+    <string name="tts_error">错误</string>
+    <string name="tts_error_details">错误详情:</string>
+    <string name="tts_debug_info">调试信息:</string>
+    <string name="tts_clear_error">清除错误</string>
+    <string name="tts_clear_error_message">清除错误信息</string>
+    <string name="tts_usage_instructions">使用说明</string>
+    <string name="tts_accessibility_note">注意：首次使用时需要在系统设置中启用无障碍服务</string>
+    <string name="tts_init_failed">初始化语音引擎失败</string>
+    <string name="tts_init_error">初始化语音引擎错误</string>
+    <string name="tts_init_error_details">服务初始化方法返回 false，但未抛出异常</string>
+    <string name="tts_speak_failed">播放文本失败</string>
+    <string name="tts_speak_error">播放文本错误: %s</string>
+    <string name="tts_speak_error_details">TTS 服务返回失败状态，请检查配置和网络连接</string>
+    <string name="tts_stop_error">停止播放错误: %s</string>
+    <string name="tts_input_empty">请输入要转换为语音的文本</string>
+    <string name="tts_debug_service_type">服务类型: %s</string>
+    <string name="tts_debug_params">请求参数: 文本=\'%1$s\', 语速=%2$sx, 音调=%3$sx</string>
+    <string name="tts_debug_params_with_service">请求参数: 文本=\'%1$s\', 语速=%2$sx, 音调=%3$sx\n服务类型: %4$s</string>
+    <string name="tts_usage_instructions_content">1. 在输入框中输入要转换为语音的文本\n2. 调整语速和音调设置\n3. 点击「播放语音」按钮开始播放\n4. 点击「停止播放」按钮停止播放\n5. 如果出现错误，查看详细的错误信息和调试信息\n6. 使用「清除错误信息」按钮清除错误显示</string>
     <string name="tool_speech_recognition">语音识别</string>
     <string name="tool_speech_recognition_desc">将语音转换为文本，支持多种引擎和语言</string>
     <string name="tool_permission_manager">应用权限管理</string>
@@ -1657,14 +1721,46 @@
     <string name="tool_terminal_desc">功能强大的命令行终端，执行系统指令</string>
     <string name="tool_terminal_auto_config">终端自动配置</string>
     <string name="tool_terminal_auto_config_desc">自动安装配置Python、PIP等开发工具</string>
+    <string name="tool_terminal_auto_config_under_construction">终端自动配置功能正在重构中...</string>
     <string name="tool_ui_debugger">UI调试工具</string>
     <string name="tool_ui_debugger_desc">调试和分析界面元素，支持元素查找和交互</string>
+    <string name="ui_debugger_title">UI调试工具</string>
+    <string name="ui_debugger_description">点击右下角的按钮启动悬浮窗进行UI调试</string>
+    <string name="ui_debugger_launch_floating">启动悬浮窗</string>
+    <string name="ui_debugger_start_float">启动悬浮窗</string>
     <string name="tool_ffmpeg_toolbox">FFmpeg工具箱</string>
     <string name="tool_ffmpeg_toolbox_desc">强大的音视频处理工具，支持转换、裁剪、合并等功能</string>
     <string name="tool_stream_markdown_demo">流式Markdown演示</string>
     <string name="tool_stream_markdown_demo_desc">高性能流式Markdown渲染演示，支持实时字符流动效果</string>
     <string name="tool_shell_executor">命令执行器</string>
     <string name="tool_shell_executor_desc">执行Shell命令并查看输出结果，支持常用命令预设</string>
+    <string name="shell_executor_input_hint">输入Shell命令</string>
+    <string name="shell_executor_command">命令</string>
+    <string name="shell_executor_clear">清除</string>
+    <string name="shell_executor_execute">执行</string>
+    <string name="shell_executor_clear_history">清除历史</string>
+    <string name="shell_executor_show_presets">显示预设命令</string>
+    <string name="shell_executor_hide_presets">隐藏预设命令</string>
+    <string name="shell_executor_executing">正在执行命令...</string>
+    <string name="shell_executor_common_commands">常用命令</string>
+    <string name="shell_executor_category_system">系统信息</string>
+    <string name="shell_executor_category_file">文件操作</string>
+    <string name="shell_executor_category_network">网络工具</string>
+    <string name="shell_executor_category_hardware">硬件信息</string>
+    <string name="shell_executor_category_package">应用管理</string>
+    <string name="shell_executor_input_command_hint">输入命令并点击执行</string>
+    <string name="shell_executor_view_results">查看命令执行结果</string>
+    <string name="shell_executor_view_presets">查看预设命令</string>
+    <string name="shell_executor_error_title">执行错误</string>
+    <string name="shell_executor_confirm">确定</string>
+    <string name="shell_executor_stdout">标准输出:</string>
+    <string name="shell_executor_stderr">标准错误:</string>
+    <string name="shell_executor_output">输出</string>
+    <string name="shell_executor_exit_code">退出代码: %s</string>
+    <string name="shell_executor_re_execute">重新执行</string>
+    <string name="shell_executor_expand">展开</string>
+    <string name="shell_executor_collapse">收起</string>
+    <string name="shell_executor_execute_failed">执行命令失败: %s</string>
     <string name="tool_log_viewer">日志查看器</string>
     <string name="tool_log_viewer_desc">实时捕获并查看系统和应用日志，支持过滤和搜索</string>
     <string name="tool_process_limit_remover">解除幻象进程限制</string>
@@ -1930,7 +2026,19 @@
     <string name="file_manager_show_hidden">显示隐藏文件</string>
     <string name="file_manager_items_selected">已选择 %d 项</string>
     <string name="file_manager_clipboard_empty">剪贴板为空</string>
-    
+    <string name="file_manager_create_new_file">创建新文件</string>
+    <string name="file_manager_file_name">文件名</string>
+    <string name="file_manager_create_file">创建文件</string>
+    <string name="file_manager_create_folder">创建文件夹</string>
+    <string name="file_manager_cancel">取消</string>
+    <string name="file_manager_hide_dot_files">隐藏.文件</string>
+    <string name="file_manager_show_dot_files">显示.文件</string>
+    <string name="file_manager_sort">排序</string>
+    <string name="file_manager_sort_by_modified">按修改时间</string>
+    <string name="file_manager_new">新建</string>
+    <string name="file_manager_return">返回</string>
+    <string name="file_manager_bind_current_folder">绑定当前文件夹</string>
+
     <!-- File Operations -->
     <string name="file_op_copy_success">复制成功</string>
     <string name="file_op_cut_success">剪切成功</string>
@@ -1938,7 +2046,38 @@
     <string name="file_op_delete_success">删除成功</string>
     <string name="file_op_create_folder_success">文件夹创建成功</string>
     <string name="file_op_rename_success">重命名成功</string>
-    <string name="file_op_failed">操作失败: %s</string>
+    <string name="file_menu_open">打开</string>
+    <string name="file_menu_share">分享</string>
+    <string name="file_menu_rename">重命名</string>
+    <string name="file_menu_batch_rename">批量重命名</string>
+    <string name="file_compress">压缩</string>
+    <string name="file_menu_compress">压缩文件</string>
+    <string name="file_menu_extract">解压文件</string>
+    <string name="file_dialog_new_name">新名称</string>
+    <string name="file_dialog_rename_prefix">前缀</string>
+    <string name="file_dialog_rename_keep_original">保留原文件名</string>
+    <string name="file_dialog_rename_start_number">起始序号</string>
+    <string name="file_dialog_rename_suffix">后缀</string>
+    <string name="file_dialog_rename_preview">示例: %1$s%2$s.%3$s%4$s</string>
+    <string name="file_dialog_rename_original">原文件名</string>
+    <string name="file_dialog_compress_title">压缩文件</string>
+    <string name="file_dialog_compress_filename">压缩文件名</string>
+    <string name="file_dialog_compress_button">压缩</string>
+    <string name="file_dialog_extract_title">解压文件</string>
+    <string name="file_dialog_extract_message">确定要解压 %s 吗？</string>
+    <string name="file_dialog_extract_button">解压</string>
+    <string name="file_dialog_delete_single">确定要删除 %s 吗？</string>
+    <string name="file_dialog_delete_multiple">确定要删除选中的 %d 个项目吗？</string>
+    <string name="file_error_open_failed">打开文件失败</string>
+    <string name="file_error_open">打开文件错误: %s</string>
+    <string name="file_error_share_failed">分享文件失败</string>
+    <string name="file_error_share">分享文件错误: %s</string>
+    <string name="file_error_compress_failed">压缩失败</string>
+    <string name="file_error_compress">压缩错误: %s</string>
+    <string name="file_error_extract_failed">解压失败</string>
+    <string name="file_error_extract">解压错误: %s</string>
+    <string name="file_error_rename_failed">批量重命名错误: %s</string>
+<string name="file_op_failed">操作失败: %s</string>
     <string name="file_op_confirm_delete">确认删除</string>
     <string name="file_op_confirm_delete_message">确定要删除选中的文件吗？此操作无法撤销。</string>
     <string name="file_op_confirm_overwrite">文件已存在</string>
@@ -2041,54 +2180,12 @@
     <string name="logcat_permission_required">需要读取日志权限</string>
     <string name="logcat_logs_saved">日志已保存到 %s</string>
     <string name="logcat_save_failed">保存日志失败</string>
-    
-    <!-- Shell Executor -->
-    <string name="shell_executor_title">Shell执行器</string>
-    <string name="shell_executor_command">命令</string>
-    <string name="shell_executor_execute">执行</string>
-    <string name="shell_executor_clear">清除</string>
-    <string name="shell_executor_output">输出</string>
-    <string name="shell_executor_error">错误</string>
-    <string name="shell_executor_working_dir">工作目录</string>
-    <string name="shell_executor_change_dir">更改目录</string>
-    <string name="shell_executor_command_history">命令历史</string>
-    <string name="shell_executor_save_output">保存输出</string>
-    <string name="shell_executor_copy_output">复制输出</string>
-    <string name="shell_executor_running">正在执行...</string>
-    <string name="shell_executor_completed">执行完成</string>
-    <string name="shell_executor_failed">执行失败</string>
-    <string name="shell_executor_timeout">执行超时</string>
-    <string name="shell_executor_interrupted">执行被中断</string>
-    <string name="shell_executor_no_permission">权限不足</string>
-    <string name="shell_executor_command_empty">命令不能为空</string>
-    <string name="shell_executor_exit_code">退出代码: %d</string>
-    
-    <!-- Text-to-Speech -->
-    <string name="tts_title">文本转语音</string>
-    <string name="tts_text_input">输入文本</string>
-    <string name="tts_text_hint">请输入要转换为语音的文本</string>
-    <string name="tts_speak">播放</string>
-    <string name="tts_stop">停止</string>
-    <string name="tts_pause">暂停</string>
-    <string name="tts_resume">继续</string>
-    <string name="tts_language">语言</string>
-    <string name="tts_voice">语音</string>
-    <string name="tts_speed">语速</string>
-    <string name="tts_pitch">音调</string>
-    <string name="tts_volume">音量</string>
-    <string name="tts_save_audio">保存音频</string>
-    <string name="tts_preview">预览</string>
-    <string name="tts_settings">语音设置</string>
-    <string name="tts_engine">语音引擎</string>
-    <string name="tts_no_engine">未找到语音引擎</string>
-    <string name="tts_engine_error">语音引擎错误</string>
-    <string name="tts_initializing">正在初始化语音引擎...</string>
-    <string name="tts_speaking">正在播放...</string>
-    <string name="tts_completed">播放完成</string>
-    <string name="tts_text_empty">请输入文本</string>
-    <string name="tts_audio_saved">音频已保存到 %s</string>
-    <string name="tts_save_failed">保存音频失败</string>
-    
+    <string name="logcat_export_title">应用日志导出</string>
+    <string name="logcat_management">应用日志管理</string>
+    <string name="logcat_description">您可以将应用运行期间的所有内部日志导出到一个文件，用于调试和问题分析。</string>
+    <string name="logcat_save_to_file">保存日志到文件</string>
+    <string name="logcat_clear_all">清除所有日志</string>
+
     <!-- Speech-to-Text -->
     <string name="stt_title">语音识别</string>
     <string name="stt_start_recording">开始录音</string>
@@ -2237,30 +2334,6 @@
     <string name="speech_services_info_tts_desc">TTS 服务将文本转换为语音。您可以使用内置的系统 TTS 引擎或连接到远程 HTTP API。</string>
     <string name="speech_services_info_stt_title">语音转文本 (STT)</string>
     <string name="speech_services_info_stt_desc">STT 服务将语音转换为文本。支持内置的 Sherpa NCNN 和 Sherpa MNN 引擎，均可在本地设备上运行，不需要网络连接。Sherpa MNN 集成了 VAD（语音活动检测）功能，可提升识别准确性和资源利用效率。</string>
-    
-    <!-- UI Debugger -->
-    <string name="ui_debugger_title">UI调试器</string>
-    <string name="ui_debugger_start">开始调试</string>
-    <string name="ui_debugger_stop">停止调试</string>
-    <string name="ui_debugger_inspect">检查元素</string>
-    <string name="ui_debugger_hierarchy">视图层次</string>
-    <string name="ui_debugger_properties">属性</string>
-    <string name="ui_debugger_layout">布局</string>
-    <string name="ui_debugger_events">事件</string>
-    <string name="ui_debugger_capture">截图</string>
-    <string name="ui_debugger_export">导出</string>
-    <string name="ui_debugger_settings">调试设置</string>
-    <string name="ui_debugger_overlay">调试覆盖层</string>
-    <string name="ui_debugger_highlight">高亮显示</string>
-    <string name="ui_debugger_bounds">边界</string>
-    <string name="ui_debugger_margins">边距</string>
-    <string name="ui_debugger_padding">内边距</string>
-    <string name="ui_debugger_no_activity">未检测到活动</string>
-    <string name="ui_debugger_permission_required">需要悬浮窗权限</string>
-    <string name="ui_debugger_accessibility_required">需要无障碍权限</string>
-    <string name="ui_debugger_capture_saved">截图已保存到 %s</string>
-    <string name="ui_debugger_export_completed">导出完成</string>
-    <string name="ui_debugger_export_failed">导出失败</string>
     
     <!-- Permission Names -->
     <string name="perm_name_camera">相机</string>
@@ -2533,6 +2606,7 @@
     <string name="memory_attachment_desc">开启后，发送消息时会自动从记忆库中检索并附加相关内容，但这可能会影响AI回答的焦点。</string>
     <string name="chat_summarizing_memory">正在总结记忆...</string>
     <string name="chat_input_processing_collect_failed">输入处理状态收集失败: %1$s</string>
+    <string name="chat_input_hint">输入消息...</string>
     <string name="chat_use_default_config_continue">使用默认配置继续</string>
     <string name="chat_default_config_incomplete">默认配置不完整，请填写必要信息</string>
     <string name="chat_locked_cannot_delete">该聊天已锁定，无法删除</string>
@@ -2563,7 +2637,98 @@
     <string name="chat_fetch_location_failed">获取位置失败: %1$s</string>
     <string name="chat_attaching_memory_folders">正在附着记忆文件夹...</string>
     <string name="chat_attach_memory_folders_failed">附着记忆文件夹失败: %1$s</string>
+    <string name="chat_voice_service_init_failed">语音服务初始化失败，请检查设置</string>
+    <string name="chat_speak_failed">朗读失败</string>
+    <string name="chat_speak_message_failed">朗读消息失败: %1$s</string>
     <string name="chat_prefill_check_file">帮我看看这个文件</string>
+
+    <!-- Workspace Attachment Processor (AI工具响应) -->
+    <string name="workspace_unknown_error">未知错误</string>
+    <string name="workspace_suggestion_search_first">对于用户意图，建议先使用 grep_context（基于意图搜索相关文件）和 grep_code（搜索特定代码模式）工具去了解项目当前情况，再进行修改。</string>
+    <string name="workspace_suggestion_separate_files">请将HTML, CSS, 和 JavaScript 代码分别存放到独立的文件中。</string>
+    <string name="workspace_suggestion_create_folders">如果项目较为复杂，可以考虑新建js文件夹和css文件夹并创建多个文件。</string>
+    <string name="workspace_no_suggestions">暂无建议</string>
+    <string name="workspace_error_get_suggestions">获取建议时发生异常: %1$s</string>
+    <string name="workspace_first_load">首次加载工作区:\n%1$s</string>
+    <string name="workspace_no_changes">工作区结构无变化。\n\n%1$s</string>
+    <string name="workspace_structure_changes">工作区结构变化:\n</string>
+    <string name="workspace_added_files">  新增:\n</string>
+    <string name="workspace_modified_files">  修改:\n</string>
+    <string name="workspace_deleted_files">  删除:\n</string>
+    <string name="workspace_current_structure">\n当前完整结构:\n</string>
+    <string name="workspace_not_exists_or_not_dir">工作区不存在或不是目录</string>
+    <string name="workspace_is_empty">工作区为空</string>
+    <string name="workspace_no_errors_found">暂无发现错误</string>
+    <string name="workspace_error_get_errors">获取错误信息时发生异常: %1$s</string>
+    <string name="workspace_no_recent_changes">暂无最近改动</string>
+    <string name="workspace_recently_modified_files">最近修改的文件:\n%1$s</string>
+    <string name="workspace_error_get_changes">获取改动记录时发生异常: %1$s</string>
+    <string name="workspace_error_get_recent_files">获取最近修改文件失败</string>
+    <string name="workspace_error_get_user_changes">获取用户改动记录失败</string>
+    <string name="workspace_hours_ago">%1$d小时前</string>
+    <string name="workspace_minutes_ago">%1$d分钟前</string>
+    <string name="workspace_just_now">刚刚</string>
+    <string name="workspace_file_time_ago">%1$s (%2$s)</string>
+    <string name="workspace_error_check_errors">获取工作区错误失败</string>
+    <string name="workspace_error_check_suggestions">获取工作区建议失败</string>
+    <string name="workspace_error_generate_attachment">生成工作区附着失败</string>
+    <string name="workspace_error_invalid_path">工作区路径不存在或不是目录: %1$s</string>
+
+    <!-- Workspace Empty/Error Templates -->
+    <string name="workspace_empty_description">工作区未配置或不存在</string>
+    <string name="workspace_empty_errors">无法检查错误</string>
+    <string name="workspace_empty_changes">无改动记录</string>
+    <string name="workspace_empty_suggestions">请先配置工作区路径</string>
+    <string name="workspace_error_fetch_description">获取失败: %1$s</string>
+    <string name="workspace_error_fetch_errors">无法检查错误: %1$s</string>
+    <string name="workspace_error_fetch_changes">无法获取改动: %1$s</string>
+    <string name="workspace_error_fetch_suggestions">系统错误，请检查工作区配置</string>
+
+    <!-- Workspace Project Types (项目模板) -->
+    <string name="workspace_project_blank_title">空白工作区</string>
+    <string name="workspace_project_blank_description">这是一个空白工作区，只包含基础目录结构。你可以编辑 .operit/config.json 来配置项目类型、服务器和命令，例如：server.enabled、preview.type、commands 等。</string>
+    <string name="workspace_project_web_title">Web 项目</string>
+    <string name="workspace_project_web_description">HTML/CSS/JavaScript 网页开发，本地服务器已启用</string>
+    <string name="workspace_project_node_title">Node.js 项目</string>
+    <string name="workspace_project_node_description">使用 npm 管理依赖，适用于后端开发和构建工具</string>
+    <string name="workspace_project_typescript_title">TypeScript 项目</string>
+    <string name="workspace_project_typescript_description">使用 pnpm 和 TypeScript，提供类型安全和实时编译</string>
+    <string name="workspace_project_python_title">Python 项目</string>
+    <string name="workspace_project_python_description">支持虚拟环境和 pip 包管理，适用于数据分析和开发</string>
+    <string name="workspace_project_java_title">Java 项目</string>
+    <string name="workspace_project_java_description">标准 Gradle 项目结构，支持构建、测试和打包</string>
+    <string name="workspace_project_go_title">Go 项目</string>
+    <string name="workspace_project_go_description">高性能并发编程，使用 Go Modules 管理依赖</string>
+    <string name="workspace_project_office_title">办公文档</string>
+    <string name="workspace_project_office_description">用于文档编辑、文件处理和通用办公任务</string>
+
+    <!-- Workspace UI -->
+    <string name="workspace_preview">预览</string>
+    <string name="workspace_close_menu">关闭菜单</string>
+    <string name="workspace_open_menu">打开菜单</string>
+    <string name="workspace_unsaved">未保存</string>
+    <string name="workspace_close">关闭</string>
+    <string name="workspace_close_preview">关闭预览</string>
+    <string name="workspace_project_suffix">项目</string>
+    <string name="workspace_click_buttons_below">点击下方按钮执行命令</string>
+    <string name="workspace_no_commands_configured">暂无配置命令\n\n可以在 .operit/config.json 中添加命令按钮配置</string>
+    <string name="workspace_path_label">工作区路径</string>
+
+    <!-- Workspace Commands (命令标签) -->
+    <string name="workspace_preview_button_label_browser">浏览器预览</string>
+    <string name="workspace_cmd_python_venv_create">创建虚拟环境</string>
+    <string name="workspace_cmd_python_venv_activate">激活虚拟环境</string>
+    <string name="workspace_cmd_python_pip_install">安装依赖</string>
+    <string name="workspace_cmd_python_pip_list">查看已安装包</string>
+    <string name="workspace_cmd_python_run">运行 main.py</string>
+    <string name="workspace_cmd_java_gradle_init">初始化 Gradle Wrapper</string>
+    <string name="workspace_cmd_java_gradle_build">构建项目</string>
+    <string name="workspace_cmd_java_gradle_run">运行程序</string>
+    <string name="workspace_cmd_java_gradle_test">运行测试</string>
+    <string name="workspace_cmd_java_gradle_jar">打包 JAR</string>
+    <string name="workspace_cmd_java_gradle_clean">清理构建</string>
+    <string name="workspace_cmd_java_gradle_tasks">查看所有任务</string>
+
     <string name="chat_added_files_count">已添加 %1$d 个文件</string>
     <string name="chat_process_shared_files_failed">处理分享文件失败: %1$s</string>
     <string name="chat_ai_service_init_network_hint">无法初始化AI服务，请检查网络和API设置</string>
@@ -2614,6 +2779,9 @@
     <string name="model_selection">模型选择</string>
     <string name="prompt_selection">提示词选择</string>
     <string name="memory_selection">记忆选择</string>
+    <string name="memory_details_title">记忆详情</string>
+    <string name="memory_delete_confirmation">确定要删除选中的 %1$d 个记忆节点吗？</string>
+    <string name="memory_delete_warning">此操作不可撤销，删除后将无法恢复这些记忆及其相关连接。</string>
     <string name="not_selected">未选择</string>
     <string name="manage_config">管理配置</string>
     <string name="collapse_verb">收起</string>
@@ -2700,7 +2868,7 @@
     <string name="current_value">当前值</string>
     <string name="closer_to_edge">靠近边缘</string>
     <string name="farther_from_edge">远离边缘</string>
-    <string name="invalid_value_range">无效值。请输入%.1f到%.1f之间的数字</string>
+    <string name="invalid_value_range">无效值。请输入%1$.1f到%2$.1f之间的数字</string>
     <string name="reset_to_default">恢复默认</string>
     <string name="layout_reset_settings">重置布局设置</string>
     <string name="layout_reset_settings_desc">将所有布局调整设置恢复为默认值</string>
@@ -2926,6 +3094,8 @@
     <string name="user_avatar_label">用户头像</string>
     <string name="global_user_avatar_label">全局用户头像</string>
     <string name="ai_avatar_label">AI 头像</string>
+    <string name="character_avatar">角色头像</string>
+    <string name="bind">绑定</string>
     <string name="avatar_shape_title">头像形状</string>
     <string name="avatar_shape_circle">圆形</string>
     <string name="avatar_shape_square">方形</string>
@@ -3007,6 +3177,9 @@
     <string name="no_models_found">没有找到可用模型</string>
     <string name="models_displayed">已显示 %d 个模型</string>
     <string name="models_displayed_filtered"> (已过滤)</string>
+    <string name="models_selected_suffix"> 已选中</string>
+    <string name="model_name_multiple_hint"> (可用逗号分隔多个模型)</string>
+    <string name="auto_save_failed">自动保存失败</string>
     <!-- API Provider names -->
     <string name="provider_openai">OpenAI (GPT系列)</string>
     <string name="provider_anthropic">Anthropic (Claude系列)</string>
@@ -3213,6 +3386,7 @@
     <string name="notes_placeholder">可以记录角色卡来源、作者信息等</string>
     <string name="save">保存</string>
     <string name="cancel">取消</string>
+    <string name="add">添加</string>
     <string name="create_tag">新建标签</string>
     <string name="edit_tag">编辑标签</string>
     <string name="tag_name">标签名称</string>
@@ -3300,7 +3474,22 @@
     <string name="character_card_default_avatar">默认头像</string>
     <string name="character_card_reset">重置</string>
     <string name="character_card_add">添加</string>
-    
+    <string name="card_copy_suffix"> (副本)</string>
+    <string name="color_qr_code">多维码</string>
+    <string name="export_color_qr_desc">进入多维码预览，可选颜色数并保存</string>
+    <string name="saved_to">已保存到：</string>
+    <string name="color_count_suffix">%d色</string>
+    <string name="import_color_qr">导入多维码</string>
+    <string name="scan_color_qr">扫描多维码</string>
+    <string name="tavern_json">酒馆 JSON</string>
+    <string name="export_tavern_json_desc">导出为 .json 并保存到 Download/Operit/exports</string>
+    <string name="tavern_png">酒馆 PNG</string>
+    <string name="export_tavern_png_desc">导出为可导入酒馆的图片，并保存到 Download/Operit/exports</string>
+    <string name="image_read_error">无法读取图片</string>
+    <string name="image_parse_error">无法解析图片</string>
+    <string name="color_qr_not_recognized">无法识别彩色多维码</string>
+    <string name="file_read_error_message">无法读取文件</string>
+
     <!-- 权限请求 -->
     <string name="delete_character_card_confirm">确定要删除角色卡「%1$s」吗？此操作不可撤销。</string>
     <string name="delete_tag">删除标签</string>
@@ -3414,6 +3603,9 @@
     <string name="author_colon">作者:</string>
     <string name="share_colon">分享:</string>
     <string name="downloading_progress">下载中 %1$s</string>
+    <string name="download_file_description">正在下载文件...</string>
+    <string name="download_complete">下载完成: %1$s</string>
+    <string name="download_incomplete">下载未完成: %1$s</string>
     <string name="extracting_progress">解压中...</string>
     <string name="installing_progress">安装中...</string>
     <string name="after_logging_in_you_can">登录 GitHub 账户后，您可以：</string>
@@ -3623,12 +3815,28 @@
     <string name="confirm_delete_emoji">确认删除此表情吗？</string>
     <string name="custom_emoji_desc">添加您喜欢的表情图片，AI将在Waifu模式中使用它们</string>
     <string name="emoji_added_success">成功添加 %1$d 个表情</string>
+    <string name="emoji_added_partial">成功添加 %1$d 个表情，失败 %2$d 个</string>
+    <string name="emoji_add_failed">添加失败，请检查日志</string>
     <string name="emoji_deleted_success">表情已删除</string>
+    <string name="emoji_delete_failed">删除失败，详情请看日志</string>
     <string name="category_created">类别已创建</string>
+    <string name="category_deleted">类别已删除</string>
+    <string name="category_delete_failed">删除失败，详情请看日志</string>
+    <string name="category_already_exists">类别已存在</string>
     <string name="invalid_category_name">类别名称只能包含小写字母、数字和下划线</string>
+    <string name="emoji_reset_success">已重置为默认表情</string>
+    <string name="emoji_reset_failed">重置失败: %1$s</string>
+    <string name="reset_to_default_emoji">重置为默认表情</string>
+    <string name="reset_emoji_warning">此操作将删除所有自定义表情，并恢复为默认表情。此操作不可撤销，确定要继续吗？</string>
+    <string name="confirm_reset_emoji">确定重置</string>
+    <string name="tap_button_add_emoji">点击右下角按钮添加表情</string>
+    <string name="emoji_preview">表情预览</string>
+    <string name="create_group">创建分组</string>
+    <string name="custom">自定义</string>
 
     <!-- Voice Assistant Widget -->
     <string name="voice_assistant_widget_description">快速启动 Operit 语音助手</string>
+    <string name="voice_assistant_widget_title">语音助手</string>
 
     <!-- MNN Model Download -->
     <string name="screen_title_mnn_model_download">MNN模型下载</string>
@@ -3660,6 +3868,8 @@
 
     <!-- Persona Card Generation Screen -->
     <string name="persona_card_generation_title">将修改的角色卡</string>
+    <string name="error_character_card_not_exist">角色卡不存在</string>
+    <string name="error_unsupported_field">不支持的字段: %1$s</string>
     <string name="no_character_card">无角色卡</string>
     <string name="character_card_config">角色卡配置</string>
     <string name="current_character_card">当前角色卡</string>
@@ -3714,6 +3924,34 @@
     <string name="workflow_node_running">执行中</string>
     <string name="workflow_node_success">成功</string>
     <string name="workflow_node_failed">失败</string>
+    <string name="workflow_create_blank">新建空白</string>
+    <string name="workflow_create_from_template">从模板新建</string>
+    <string name="workflow_start_creation">开始创建工作流</string>
+    <string name="workflow_automation_desc">自动化你的任务流程</string>
+    <string name="workflow_new">新建工作流</string>
+    <string name="workflow_disabled">禁用</string>
+    <string name="workflow_select_template_type">选择模板类型</string>
+    <string name="workflow_template_intent_chat_broadcast_title">Intent对话回传模板</string>
+    <string name="workflow_template_intent_chat_broadcast_desc">Intent触发 -> 悬浮窗对话 -> 关闭 -> 广播回传AI结果</string>
+    <string name="workflow_template_chat_title">对话模板</string>
+    <string name="workflow_template_chat_desc">启动悬浮窗 -> 创建对话 -> 发送消息</string>
+    <string name="workflow_template_condition_title">判断（条件比较）</string>
+    <string name="workflow_template_condition_desc">访问网页 -> 关键字判断 -> 分支跟进</string>
+    <string name="workflow_template_logic_and_title">逻辑（AND）</string>
+    <string name="workflow_template_logic_and_desc">网页内容 -> 条件A/B -> AND -> 分支</string>
+    <string name="workflow_template_logic_or_title">逻辑（OR）</string>
+    <string name="workflow_template_logic_or_desc">网页内容 -> 条件A/B -> OR -> 分支</string>
+    <string name="workflow_template_extract_title">运算（Operator）</string>
+    <string name="workflow_template_extract_desc">运算 visit_key -> 跟进搜索链接</string>
+    <string name="workflow_template_error_branch_title">失败分支（On Error）</string>
+    <string name="workflow_template_error_branch_desc">主节点失败 -> 错误处理分支；成功 -> 正常分支</string>
+    <string name="workflow_template_speech_trigger_title">语音触发</string>
+    <string name="workflow_template_speech_trigger_desc">语音识别命中正则 -> 执行动作</string>
+    <string name="workflow_action_create">创建</string>
+    <string name="time_just_now">刚刚</string>
+    <string name="time_minutes_ago">%1$d 分钟前</string>
+    <string name="time_hours_ago">%1$d 小时前</string>
+    <string name="time_days_ago">%1$d 天前</string>
 
     <!-- 默认助手设置引导 -->
     <string name="default_assistant_guide_title">设置默认语音助手</string>
@@ -3908,6 +4146,7 @@
     <string name="content_fragment">内容片段</string>
     <string name="add_text">添加文本</string>
     <string name="add_tag">添加标签</string>
+    <string name="add_to_tag_library">将 \'%1$s\' 添加到你的标签库中。</string>
     <string name="save_and_resend">保存并重发</string>
     <string name="update_memory">更新记忆</string>
     <string name="chat_message">聊天消息</string>
@@ -4383,5 +4622,15 @@
     <string name="toolreg_ffmpeg_execute_desc">执行FFmpeg命令: %1$s</string>
     <string name="toolreg_ffmpeg_info_desc">获取FFmpeg信息</string>
     <string name="toolreg_ffmpeg_convert_desc">转换视频: %1$s → %2$s</string>
+
+    <string name="screen_ocr_capture_failed">截图失败</string>
+    <string name="screen_ocr_load_failed">无法加载截图</string>
+    <string name="screen_ocr_selection_too_small">圈选区域太小</string>
+    <string name="screen_ocr_position">【位置】%1$s</string>
+    <string name="screen_ocr_no_text_recognized">未识别到文字</string>
+    <string name="screen_ocr_selection_ocr_header">【圈选识别】\n</string>
+    <string name="screen_ocr_inline_instruction">请你不要读取文件，直接根据该附件内容和用户提问回答用户问题</string>
+    <string name="screen_ocr_selection_content_captured">已获取圈选内容</string>
+    <string name="screen_ocr_error_prefix">错误：%1$s</string>
 
 </resources>

@@ -441,7 +441,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                 ) {
                     Icon(
                             imageVector = Icons.Default.Terminal,
-                            contentDescription = "AI电脑",
+                            contentDescription = stringResource(R.string.ai_computer),
                             tint =
                             if (showAiComputer) MaterialTheme.colorScheme.primaryContainer
                             else appBarContentColor
@@ -456,7 +456,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                 ) {
                     Icon(
                             imageVector = Icons.Default.Code,
-                            contentDescription = "代码编辑器",
+                            contentDescription = stringResource(R.string.code_editor),
                             tint =
                             if (showWebView) MaterialTheme.colorScheme.primaryContainer
                             else appBarContentColor
@@ -868,7 +868,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                         showAndroidExportDialog = false
                         showExportProgressDialog = true
                         exportProgress = 0f
-                        exportStatus = "开始导出..."
+                        exportStatus = context.getString(R.string.export_starting)
 
                         // 启动导出过程
                         coroutineScope.launch {
@@ -906,7 +906,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                         showWindowsExportDialog = false
                         showExportProgressDialog = true
                         exportProgress = 0f
-                        exportStatus = "开始导出..."
+                        exportStatus = context.getString(R.string.export_starting)
 
                         // 启动导出过程
                         coroutineScope.launch {
@@ -966,10 +966,10 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     popupMessage?.let { message ->
         AlertDialog(
                 onDismissRequest = { actualViewModel.clearPopupMessage() },
-                title = { Text("提示") },
+                title = { Text(stringResource(R.string.dialog_title_prompt)) },
                 text = { Text(message ?: "") },
                 confirmButton = {
-                    TextButton(onClick = { actualViewModel.clearPopupMessage() }) { Text("确定") }
+                    TextButton(onClick = { actualViewModel.clearPopupMessage() }) { Text(stringResource(R.string.ok)) }
                 }
         )
     }
@@ -983,7 +983,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
             actualViewModel.toggleFloatingMode()
             Toast.makeText(
                             context,
-                            "未获得悬浮窗权限，已关闭悬浮窗模式",
+                            context.getString(R.string.floating_window_permission_denied),
                             Toast.LENGTH_SHORT
                     )
                     .show()

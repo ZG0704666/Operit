@@ -5,6 +5,7 @@ import android.net.Uri
 import com.ai.assistance.operit.util.AppLogger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.CustomEmoji
 import com.ai.assistance.operit.data.preferences.CustomEmojiPreferences
 import com.ai.assistance.operit.data.repository.CustomEmojiRepository
@@ -20,6 +21,7 @@ class CustomEmojiViewModel(context: Context) : ViewModel() {
 
     private val repository = CustomEmojiRepository.getInstance(context)
     private val TAG = "CustomEmojiViewModel"
+    private val appContext = context.applicationContext
 
     // 当前选中的类别
     private val _selectedCategory = MutableStateFlow(CustomEmojiPreferences.BUILTIN_EMOTIONS.first())
@@ -94,10 +96,14 @@ class CustomEmojiViewModel(context: Context) : ViewModel() {
             _isLoading.value = false
 
             if (successCount > 0) {
-                _successMessage.value = "成功添加 $successCount 个表情${if (failCount > 0) "，失败 $failCount 个" else ""}"
+                _successMessage.value = if (failCount > 0) {
+                    appContext.getString(R.string.emoji_added_partial, successCount, failCount)
+                } else {
+                    appContext.getString(R.string.emoji_added_success, successCount)
+                }
             }
             if (failCount > 0 && successCount == 0) {
-                _errorMessage.value = "添加失败，请检查日志"
+                _errorMessage.value = appContext.getString(R.string.emoji_add_failed)
             }
         }
     }
@@ -117,12 +123,12 @@ class CustomEmojiViewModel(context: Context) : ViewModel() {
             _isLoading.value = false
 
             if (result.isSuccess) {
-                _successMessage.value = "表情已删除"
+                _successMessage.value = appContext.getString(R.string.emoji_deleted_success)
             } else {
                 result.exceptionOrNull()?.let { ex ->
                     AppLogger.e(TAG, "Failed to delete emoji: $emojiId", ex)
                 } ?: AppLogger.e(TAG, "Failed to delete emoji: $emojiId")
-                _errorMessage.value = "删除失败，详情请看日志"
+                _errorMessage.value = appContext.getString(R.string.emoji_delete_failed)
             }
         }
     }
@@ -142,14 +148,14 @@ class CustomEmojiViewModel(context: Context) : ViewModel() {
             _isLoading.value = false
 
             if (result.isSuccess) {
-                _successMessage.value = "类别已删除"
+                _successMessage.value = appContext.getString(R.string.category_deleted)
                 // 切换到第一个内置类别
                 _selectedCategory.value = CustomEmojiPreferences.BUILTIN_EMOTIONS.first()
             } else {
                 result.exceptionOrNull()?.let { ex ->
                     AppLogger.e(TAG, "Failed to delete category: $category", ex)
                 } ?: AppLogger.e(TAG, "Failed to delete category: $category")
-                _errorMessage.value = "删除失败，详情请看日志"
+                _errorMessage.value = appContext.getString(R.string.category_delete_failed)
             }
         }
     }
@@ -161,12 +167,12 @@ class CustomEmojiViewModel(context: Context) : ViewModel() {
      */
     suspend fun createCategory(categoryName: String): Boolean {
         if (!repository.isValidCategoryName(categoryName)) {
-            _errorMessage.value = "类别名称只能包含小写字母、数字和下划线"
+            _errorMessage.value = appContext.getString(R.string.invalid_category_name)
             return false
         }
 
         if (repository.categoryExists(categoryName)) {
-            _errorMessage.value = "类别已存在"
+            _errorMessage.value = appContext.getString(R.string.category_already_exists)
             return false
         }
 
@@ -174,7 +180,7 @@ class CustomEmojiViewModel(context: Context) : ViewModel() {
 
         // 切换到新创建的类别
         _selectedCategory.value = categoryName
-        _successMessage.value = "类别已创建"
+        _successMessage.value = appContext.getString(R.string.category_created)
         return true
     }
 
@@ -219,13 +225,13 @@ class CustomEmojiViewModel(context: Context) : ViewModel() {
             try {
                 repository.resetToDefault()
                 _isLoading.value = false
-                _successMessage.value = "已重置为默认表情"
+                _successMessage.value = appContext.getString(R.string.emoji_reset_success)
                 // 切换到第一个内置类别
                 _selectedCategory.value = CustomEmojiPreferences.BUILTIN_EMOTIONS.first()
             } catch (e: Exception) {
                 _isLoading.value = false
                 AppLogger.e(TAG, "Failed to reset emojis", e)
-                _errorMessage.value = "重置失败: ${e.message}"
+                _errorMessage.value = appContext.getString(R.string.emoji_reset_failed, e.message ?: "Unknown error")
             }
         }
     }

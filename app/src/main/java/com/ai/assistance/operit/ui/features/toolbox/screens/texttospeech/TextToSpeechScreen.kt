@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,9 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceService
 import kotlinx.coroutines.launch
@@ -57,13 +60,13 @@ fun TextToSpeechScreen(navController: NavController) {
                         try {
                                 isInitialized = voiceService.initialize()
                                 if (!isInitialized) {
-                                        error = "初始化语音引擎失败"
-                                        errorDetails = "服务初始化方法返回 false，但未抛出异常。"
+                                        error = context.getString(R.string.tts_init_failed)
+                                        errorDetails = context.getString(R.string.tts_init_error_details)
                                 }
                         } catch (e: Exception) {
-                                error = "初始化语音引擎错误"
+                                error = context.getString(R.string.tts_init_error)
                                 errorDetails = handleTtsError(e)
-                                debugInfo = "服务类型: ${voiceService.javaClass.simpleName}"
+                                debugInfo = context.getString(R.string.tts_debug_service_type, voiceService.javaClass.simpleName)
                         }
                 }
 
@@ -72,9 +75,10 @@ fun TextToSpeechScreen(navController: NavController) {
         }
 
         // 播放文本
+        @SuppressLint("StringFormatMatches")
         fun speakText() {
                 if (inputText.isBlank()) {
-                        error = "请输入要转换为语音的文本"
+                        error = context.getString(R.string.tts_input_empty)
                         errorDetails = null
                         debugInfo = null
                         return
@@ -90,15 +94,14 @@ fun TextToSpeechScreen(navController: NavController) {
                                 val success =
                                         voiceService.speak(inputText, true, speechRate, speechPitch)
                                 if (!success) {
-                                        error = "播放文本失败"
-                                        errorDetails = "TTS 服务返回失败状态，请检查配置和网络连接"
-                                        debugInfo = "请求参数: 文本='$inputText', 语速=${speechRate}x, 音调=${speechPitch}x"
+                                        error = context.getString(R.string.tts_speak_failed)
+                                        errorDetails = context.getString(R.string.tts_speak_error_details)
+                                        debugInfo = context.getString(R.string.tts_debug_params, inputText, speechRate, speechPitch)
                                 }
                         } catch (e: Exception) {
-                                error = "播放文本错误: ${e.message}"
+                                error = context.getString(R.string.tts_speak_error, e.message ?: "Unknown error")
                                 errorDetails = handleTtsError(e)
-                                debugInfo = "请求参数: 文本='$inputText', 语速=${speechRate}x, 音调=${speechPitch}x\n" +
-                                          "服务类型: ${voiceService.javaClass.simpleName}"
+                                debugInfo = context.getString(R.string.tts_debug_params_with_service, inputText, speechRate, speechPitch, voiceService.javaClass.simpleName)
                         }
                 }
         }
@@ -109,7 +112,7 @@ fun TextToSpeechScreen(navController: NavController) {
                         try {
                                 voiceService.stop()
                         } catch (e: Exception) {
-                                error = "停止播放错误: ${e.message}"
+                                error = context.getString(R.string.tts_stop_error, e.message ?: "Unknown error")
                         }
                 }
         }
@@ -123,7 +126,7 @@ fun TextToSpeechScreen(navController: NavController) {
         ) {
                 // 标题
                 Text(
-                        text = "文本转语音演示",
+                        text = stringResource(R.string.tts_title),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -141,7 +144,7 @@ fun TextToSpeechScreen(navController: NavController) {
                 ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                                 Text(
-                                        text = "输入文本",
+                                        text = stringResource(R.string.tts_input_text),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -153,7 +156,7 @@ fun TextToSpeechScreen(navController: NavController) {
                                         value = inputText,
                                         onValueChange = { inputText = it },
                                         modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                                        placeholder = { Text("请输入要转换为语音的文本") },
+                                        placeholder = { Text(stringResource(R.string.tts_input_hint)) },
                                         colors =
                                                 OutlinedTextFieldDefaults.colors(
                                                         focusedBorderColor =
@@ -177,7 +180,7 @@ fun TextToSpeechScreen(navController: NavController) {
                 ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                                 Text(
-                                        text = "语音设置",
+                                        text = stringResource(R.string.tts_speech_settings),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -187,7 +190,7 @@ fun TextToSpeechScreen(navController: NavController) {
 
                                 // 语速调节
                                 Text(
-                                        text = "语速: ${speechRate}x",
+                                        text = stringResource(R.string.tts_speech_rate, speechRate),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -204,7 +207,7 @@ fun TextToSpeechScreen(navController: NavController) {
 
                                 // 音调调节
                                 Text(
-                                        text = "音调: ${speechPitch}x",
+                                        text = stringResource(R.string.tts_speech_pitch, speechPitch),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -237,11 +240,11 @@ fun TextToSpeechScreen(navController: NavController) {
                         ) {
                                 Icon(
                                         imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "播放",
+                                        contentDescription = stringResource(R.string.tts_play),
                                         modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("播放语音", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.tts_play_speech), style = MaterialTheme.typography.titleMedium)
                         }
 
                         Button(
@@ -257,11 +260,11 @@ fun TextToSpeechScreen(navController: NavController) {
                         ) {
                                 Icon(
                                         imageVector = Icons.Default.Stop,
-                                        contentDescription = "停止",
+                                        contentDescription = stringResource(R.string.tts_stop),
                                         modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("停止播放", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.tts_stop_speech), style = MaterialTheme.typography.titleMedium)
                         }
                 }
 
@@ -296,8 +299,8 @@ fun TextToSpeechScreen(navController: NavController) {
                                         )
                                         Text(
                                                 text =
-                                                        if (isInitialized) "语音引擎已初始化"
-                                                        else "语音引擎未初始化",
+                                                        if (isInitialized) stringResource(R.string.tts_engine_initialized)
+                                                        else stringResource(R.string.tts_engine_not_initialized),
                                                 style = MaterialTheme.typography.bodyMedium
                                         )
                                 }
@@ -320,7 +323,7 @@ fun TextToSpeechScreen(navController: NavController) {
                                                                         .onSecondaryContainer
                                         )
                                         Text(
-                                                text = if (isSpeaking) "正在播放中..." else "未播放",
+                                                text = if (isSpeaking) stringResource(R.string.tts_playing) else stringResource(R.string.tts_not_playing),
                                                 style = MaterialTheme.typography.bodyMedium
                                         )
                                 }
@@ -349,7 +352,7 @@ fun TextToSpeechScreen(navController: NavController) {
                                                 )
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Text(
-                                                        text = "错误",
+                                                        text = stringResource(R.string.tts_error),
                                                         color = MaterialTheme.colorScheme.error,
                                                         style = MaterialTheme.typography.titleMedium,
                                                         fontWeight = FontWeight.Bold
@@ -368,7 +371,7 @@ fun TextToSpeechScreen(navController: NavController) {
                                         if (errorDetails != null) {
                                                 Spacer(modifier = Modifier.height(12.dp))
                                                 Text(
-                                                        text = "错误详情:",
+                                                        text = stringResource(R.string.tts_error_details),
                                                         color = MaterialTheme.colorScheme.onErrorContainer,
                                                         style = MaterialTheme.typography.bodySmall,
                                                         fontWeight = FontWeight.Bold
@@ -385,7 +388,7 @@ fun TextToSpeechScreen(navController: NavController) {
                                         if (debugInfo != null) {
                                                 Spacer(modifier = Modifier.height(12.dp))
                                                 Text(
-                                                        text = "调试信息:",
+                                                        text = stringResource(R.string.tts_debug_info),
                                                         color = MaterialTheme.colorScheme.onErrorContainer,
                                                         style = MaterialTheme.typography.bodySmall,
                                                         fontWeight = FontWeight.Bold
@@ -416,11 +419,11 @@ fun TextToSpeechScreen(navController: NavController) {
                                                 ) {
                                                         Icon(
                                                                 imageVector = Icons.Default.Clear,
-                                                                contentDescription = "清除错误",
+                                                                contentDescription = stringResource(R.string.tts_clear_error),
                                                                 modifier = Modifier.size(16.dp)
                                                         )
                                                         Spacer(modifier = Modifier.width(8.dp))
-                                                        Text("清除错误信息")
+                                                        Text(stringResource(R.string.tts_clear_error_message))
                                                 }
                                         }
                                 }
@@ -441,7 +444,7 @@ fun TextToSpeechScreen(navController: NavController) {
                 ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                        text = "使用说明",
+                                        text = stringResource(R.string.tts_usage_instructions),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold
                                 )
@@ -449,13 +452,7 @@ fun TextToSpeechScreen(navController: NavController) {
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Text(
-                                        text =
-                                                "1. 在输入框中输入要转换为语音的文本\n" +
-                                                        "2. 调整语速和音调设置\n" +
-                                                        "3. 点击「播放语音」按钮开始播放\n" +
-                                                        "4. 点击「停止播放」按钮停止播放\n" +
-                                                        "5. 如果出现错误，查看详细的错误信息和调试信息\n" +
-                                                        "6. 使用「清除错误信息」按钮清除错误显示",
+                                        text = stringResource(R.string.tts_usage_instructions_content),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -463,7 +460,7 @@ fun TextToSpeechScreen(navController: NavController) {
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Text(
-                                        text = "注意：首次使用时需要在系统设置中启用无障碍服务",
+                                        text = stringResource(R.string.tts_accessibility_note),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.error
                                 )
@@ -485,20 +482,20 @@ private fun handleTtsError(e: Exception): String {
             val code = e.httpStatusCode
             val body = e.errorBody?.takeIf { it.isNotBlank() }
             if (code != null && body != null) {
-                "TTS 服务错误 (HTTP $code): $body"
+                "TTS service error (HTTP $code): $body"
             } else if (code != null) {
-                "TTS 服务返回错误，状态码: $code"
+                "TTS service error, status code: $code"
             } else if (body != null) {
-                "TTS 服务返回错误: $body"
+                "TTS service error: $body"
             } else {
-                "TTS 服务发生未知异常: ${e.cause?.message ?: e.message}"
+                "TTS service unknown error: ${e.cause?.message ?: e.message}"
             }
         }
-        is UnknownHostException -> "网络错误: 无法访问主机，请检查网络连接和DNS设置。"
-        is SocketTimeoutException -> "网络超时: 服务器响应超时，请检查网络状况。"
-        is ConnectException -> "网络错误: 无法连接到服务器，请检查服务地址和端口。"
-        is ProtocolException -> "网络协议错误: ${e.message}"
-        is IOException -> "网络IO错误，请检查设备网络连接。"
-        else -> "发生未知错误: ${e.javaClass.simpleName}\n${e.stackTraceToString().take(300)}..."
+        is UnknownHostException -> "Network error: Unable to reach host, please check network connection and DNS settings."
+        is SocketTimeoutException -> "Network timeout: Server response timeout, please check network status."
+        is ConnectException -> "Network error: Unable to connect to server, please check server address and port."
+        is ProtocolException -> "Network protocol error: ${e.message}"
+        is IOException -> "Network IO error, please check device network connection."
+        else -> "Unknown error: ${e.javaClass.simpleName}\n${e.stackTraceToString().take(300)}..."
     }
 }

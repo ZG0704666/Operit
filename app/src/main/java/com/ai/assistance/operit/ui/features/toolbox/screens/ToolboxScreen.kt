@@ -498,7 +498,7 @@ fun TerminalAutoConfigToolScreen(navController: NavController) {
                         // TODO: 需要重构以适配新的终端架构
                         // TerminalAutoConfigScreen(navController = navController)
                         Text(
-                            text = "终端自动配置功能正在重构中...",
+                            text = stringResource(R.string.tool_terminal_auto_config_under_construction),
                             modifier = Modifier.padding(16.dp)
                         )
                 }

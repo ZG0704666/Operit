@@ -57,10 +57,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import com.ai.assistance.operit.R
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -142,7 +144,7 @@ fun ErrorState(message: String, onRetry: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "加载失败",
+            text = stringResource(R.string.update_load_failed),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
@@ -157,7 +159,7 @@ fun ErrorState(message: String, onRetry: () -> Unit) {
         Button(onClick = onRetry) {
             Icon(imageVector = Icons.Default.Refresh, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("重试")
+            Text(stringResource(R.string.action_retry))
         }
     }
 }
@@ -234,7 +236,7 @@ fun UpdateCard(
                             modifier = Modifier.padding(0.dp)
                         ) {
                             Text(
-                                text = "最新",
+                                text = stringResource(R.string.update_latest),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White,
@@ -287,7 +289,7 @@ fun UpdateCard(
             if (canBeTruncated) {
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = { isDescriptionExpanded = !isDescriptionExpanded }) {
-                    Text(if (isDescriptionExpanded) "收起" else "展开更多")
+                    Text(if (isDescriptionExpanded) stringResource(R.string.common_collapse) else stringResource(R.string.common_expand_more))
                 }
             }
 
@@ -315,7 +317,7 @@ fun UpdateCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "查看发布",
+                            text = stringResource(R.string.update_view_release),
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -335,7 +337,7 @@ fun UpdateCard(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "下载",
+                                text = stringResource(R.string.update_download),
                                 fontWeight = FontWeight.Medium
                             )
                         }

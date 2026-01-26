@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.DirectoryListingData
 import com.ai.assistance.operit.core.tools.FileContentData
@@ -211,13 +213,13 @@ fun FileBrowser(
     if (showCreateFileDialog) {
         AlertDialog(
                 onDismissRequest = { showCreateFileDialog = false },
-                title = { Text("创建新文件") },
+                title = { Text(stringResource(R.string.file_manager_create_new_file)) },
                 text = {
                     Column {
                         TextField(
                                 value = newFileName,
                                 onValueChange = { newFileName = it },
-                                label = { Text("文件名") },
+                                label = { Text(stringResource(R.string.file_manager_file_name)) },
                                 singleLine = true,
                                 colors =
                                         TextFieldDefaults.colors(
@@ -239,7 +241,7 @@ fun FileBrowser(
                                         newFileName = ""
                                     }
                                 }
-                        ) { Text("创建文件") }
+                        ) { Text(stringResource(R.string.file_manager_create_file)) }
                         TextButton(
                                 onClick = {
                                     if (newFileName.isNotEmpty()) {
@@ -248,11 +250,11 @@ fun FileBrowser(
                                         newFileName = ""
                                     }
                                 }
-                        ) { Text("创建文件夹") }
+                        ) { Text(stringResource(R.string.file_manager_create_folder)) }
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showCreateFileDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showCreateFileDialog = false }) { Text(stringResource(R.string.file_manager_cancel)) }
                 }
         )
     }
@@ -304,7 +306,7 @@ fun FileBrowser(
                 ) {
                     Icon(
                             if (showHiddenFiles) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (showHiddenFiles) "隐藏.文件" else "显示.文件",
+                            contentDescription = if (showHiddenFiles) stringResource(R.string.file_manager_hide_dot_files) else stringResource(R.string.file_manager_show_dot_files),
                             modifier = Modifier.size(18.dp),
                             tint = if (showHiddenFiles) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -318,25 +320,25 @@ fun FileBrowser(
                     ) {
                         Icon(
                                 Icons.AutoMirrored.Filled.Sort,
-                                contentDescription = "排序",
+                                contentDescription = stringResource(R.string.file_manager_sort),
                                 modifier = Modifier.size(18.dp)
                         )
                     }
-                    
+
                     DropdownMenu(
                             expanded = showSortMenu,
                             onDismissRequest = { showSortMenu = false }
                     ) {
                         DropdownMenuItem(
-                                text = { Text("按名称${if (sortMode == 0) " ✓" else ""}") },
+                                text = { Text(stringResource(R.string.file_manager_sort_name) + "${if (sortMode == 0) " ✓" else ""}") },
                                 onClick = { sortMode = 0; showSortMenu = false }
                         )
                         DropdownMenuItem(
-                                text = { Text("按大小${if (sortMode == 1) " ✓" else ""}") },
+                                text = { Text(stringResource(R.string.file_manager_sort_size) + "${if (sortMode == 1) " ✓" else ""}") },
                                 onClick = { sortMode = 1; showSortMenu = false }
                         )
                         DropdownMenuItem(
-                                text = { Text("按修改时间${if (sortMode == 2) " ✓" else ""}") },
+                                text = { Text(stringResource(R.string.file_manager_sort_by_modified) + "${if (sortMode == 2) " ✓" else ""}") },
                                 onClick = { sortMode = 2; showSortMenu = false }
                         )
                     }
@@ -349,7 +351,7 @@ fun FileBrowser(
                     ) {
                         Icon(
                                 Icons.Default.Add,
-                                contentDescription = "新建",
+                                contentDescription = stringResource(R.string.file_manager_new),
                                 modifier = Modifier.size(18.dp)
                         )
                     }
@@ -360,7 +362,7 @@ fun FileBrowser(
                     ) {
                         Icon(
                                 Icons.Default.Refresh,
-                                contentDescription = "刷新",
+                                contentDescription = stringResource(R.string.file_manager_refresh),
                                 modifier = Modifier.size(18.dp)
                         )
                     }
@@ -452,7 +454,7 @@ fun FileBrowser(
                                     onDismissRequest = { contextMenuExpandedFor = null }
                             ) {
                                 DropdownMenuItem(
-                                        text = { Text("删除") },
+                                        text = { Text(stringResource(R.string.file_manager_delete)) },
                                         onClick = {
                                             val filePath = File(currentPath, item.name).path
                                             deleteFile(filePath)
@@ -461,7 +463,7 @@ fun FileBrowser(
                                         leadingIcon = {
                                             Icon(
                                                     Icons.Default.Delete,
-                                                    contentDescription = "删除",
+                                                    contentDescription = stringResource(R.string.file_manager_delete),
                                                     tint = MaterialTheme.colorScheme.error
                                             )
                                         }
@@ -483,7 +485,7 @@ fun FileBrowser(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(onClick = onCancel) { Text(if (isManageMode) "返回" else "取消") }
+                    OutlinedButton(onClick = onCancel) { Text(if (isManageMode) stringResource(R.string.file_manager_return) else stringResource(R.string.file_manager_cancel)) }
                     Button(onClick = { onBindWorkspace(currentPath) }) {
                         Icon(
                                 Icons.Default.Link,
@@ -491,7 +493,7 @@ fun FileBrowser(
                                 modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("绑定当前文件夹")
+                        Text(stringResource(R.string.file_manager_bind_current_folder))
                     }
                 }
             }

@@ -112,13 +112,13 @@ fun CustomEmojiManagementScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "创建分组",
+                            contentDescription = stringResource(R.string.create_group),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("创建分组", fontSize = 12.sp)
+                        Text(stringResource(R.string.create_group), fontSize = 12.sp)
                     }
-                    
+
                     // 删除分组按钮
                     OutlinedButton(
                         onClick = { showDeleteCategoryDialog = true },
@@ -130,14 +130,14 @@ fun CustomEmojiManagementScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "删除分组",
+                            contentDescription = stringResource(R.string.delete_group),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("删除分组", fontSize = 12.sp)
+                        Text(stringResource(R.string.delete_group), fontSize = 12.sp)
                     }
                 }
-                
+
                 // 右侧：重置按钮
                 OutlinedButton(
                     onClick = { showResetDialog = true },
@@ -149,11 +149,11 @@ fun CustomEmojiManagementScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Restore,
-                        contentDescription = "重置为默认",
+                        contentDescription = stringResource(R.string.reset_to_default),
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("重置为默认", fontSize = 12.sp)
+                    Text(stringResource(R.string.reset_to_default), fontSize = 12.sp)
                 }
             }
 
@@ -164,7 +164,7 @@ fun CustomEmojiManagementScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "点击右下角按钮添加表情",
+                        text = stringResource(R.string.tap_button_add_emoji),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -259,8 +259,8 @@ fun CustomEmojiManagementScreen(
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
-            title = { Text("重置为默认表情") },
-            text = { Text("此操作将删除所有自定义表情，并恢复为默认表情。此操作不可撤销，确定要继续吗？") },
+            title = { Text(stringResource(R.string.reset_to_default_emoji)) },
+            text = { Text(stringResource(R.string.reset_emoji_warning)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -271,12 +271,12 @@ fun CustomEmojiManagementScreen(
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("确定重置")
+                    Text(stringResource(R.string.confirm_reset_emoji))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -292,7 +292,7 @@ fun CustomEmojiManagementScreen(
             ) {
                 AsyncImage(
                     model = uri,
-                    contentDescription = "表情预览",
+                    contentDescription = stringResource(R.string.emoji_preview),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
@@ -306,7 +306,7 @@ fun CustomEmojiManagementScreen(
             modifier = Modifier.padding(16.dp),
             action = {
                 TextButton(onClick = { viewModel.clearErrorMessage() }) {
-                    Text("关闭")
+                    Text(stringResource(R.string.close))
                 }
             }
         ) {
@@ -319,7 +319,7 @@ fun CustomEmojiManagementScreen(
             modifier = Modifier.padding(16.dp),
             action = {
                 TextButton(onClick = { viewModel.clearSuccessMessage() }) {
-                    Text("关闭")
+                    Text(stringResource(R.string.close))
                 }
             }
         ) {
@@ -371,7 +371,7 @@ private fun CategorySelector(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Icon(
                                     Icons.Default.Star,
-                                    contentDescription = "自定义",
+                                    contentDescription = stringResource(R.string.custom),
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -450,7 +450,7 @@ private fun EmojiCard(
             if (showDeleteIcon) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = "删除",
+                    contentDescription = stringResource(R.string.delete),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(4.dp)

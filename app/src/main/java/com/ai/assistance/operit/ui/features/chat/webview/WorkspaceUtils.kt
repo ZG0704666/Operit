@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.webview
 
 import android.content.Context
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.OperitPaths
 import java.io.File
 import java.io.IOException
@@ -20,34 +21,34 @@ fun createAndGetDefaultWorkspace(context: Context, chatId: String, projectType: 
     when (projectType) {
         "node" -> {
             copyTemplateFiles(context, webContentDir, "node")
-            createProjectConfigIfNeeded(webContentDir, ProjectType.NODE)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.NODE)
         }
         "typescript" -> {
             copyTemplateFiles(context, webContentDir, "typescript")
-            createProjectConfigIfNeeded(webContentDir, ProjectType.TYPESCRIPT)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.TYPESCRIPT)
         }
         "python" -> {
             copyTemplateFiles(context, webContentDir, "python")
-            createProjectConfigIfNeeded(webContentDir, ProjectType.PYTHON)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.PYTHON)
         }
         "java" -> {
             copyTemplateFiles(context, webContentDir, "java")
-            createProjectConfigIfNeeded(webContentDir, ProjectType.JAVA)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.JAVA)
         }
         "go" -> {
             copyTemplateFiles(context, webContentDir, "go")
-            createProjectConfigIfNeeded(webContentDir, ProjectType.GO)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.GO)
         }
         "office" -> {
             copyTemplateFiles(context, webContentDir, "office")
-            createProjectConfigIfNeeded(webContentDir, ProjectType.OFFICE)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.OFFICE)
         }
         "blank" -> {
-            createProjectConfigIfNeeded(webContentDir, ProjectType.BLANK)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.BLANK)
         }
         else -> {
             copyTemplateFiles(context, webContentDir, "web")
-            createProjectConfigIfNeeded(webContentDir, ProjectType.WEB)
+            createProjectConfigIfNeeded(context, webContentDir, ProjectType.WEB)
         }
     }
 
@@ -82,11 +83,15 @@ private enum class ProjectType {
     WEB, NODE, TYPESCRIPT, PYTHON, JAVA, GO, OFFICE, BLANK
 }
 
-private const val DEFAULT_BLANK_PROJECT_CONFIG_JSON = """
+/**
+ * 生成空白项目配置JSON
+ */
+private fun generateBlankProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "blank",
-    "title": "空白工作区",
-    "description": "这是一个空白工作区，只包含基础目录结构。你可以编辑 .operit/config.json 来配置项目类型、服务器和命令，例如：server.enabled、preview.type、commands 等。",
+    "title": "${context.getString(R.string.workspace_project_blank_title)}",
+    "description": "${context.getString(R.string.workspace_project_blank_description)}",
     "server": {
         "enabled": false,
         "port": 8080,
@@ -103,13 +108,18 @@ private const val DEFAULT_BLANK_PROJECT_CONFIG_JSON = """
         "enabled": false
     }
 }
-"""
+""".trimIndent()
+}
 
-private const val DEFAULT_WEB_PROJECT_CONFIG_JSON = """
+/**
+ * 生成Web项目配置JSON
+ */
+private fun generateWebProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "web",
-    "title": "Web 项目",
-    "description": "HTML/CSS/JavaScript 网页开发，本地服务器已启用",
+    "title": "${context.getString(R.string.workspace_project_web_title)}",
+    "description": "${context.getString(R.string.workspace_project_web_description)}",
     "server": {
         "enabled": true,
         "port": 8093,
@@ -124,13 +134,18 @@ private const val DEFAULT_WEB_PROJECT_CONFIG_JSON = """
         "enabled": true
     }
 }
-"""
+""".trimIndent()
+}
 
-private const val DEFAULT_NODE_PROJECT_CONFIG_JSON = """
+/**
+ * 生成Node.js项目配置JSON
+ */
+private fun generateNodeProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "node",
-    "title": "Node.js 项目",
-    "description": "使用 npm 管理依赖，适用于后端开发和构建工具",
+    "title": "${context.getString(R.string.workspace_project_node_title)}",
+    "description": "${context.getString(R.string.workspace_project_node_description)}",
     "server": {
         "enabled": false,
         "port": 3000,
@@ -140,7 +155,7 @@ private const val DEFAULT_NODE_PROJECT_CONFIG_JSON = """
         "type": "terminal",
         "url": "http://localhost:3000",
         "showPreviewButton": true,
-        "previewButtonLabel": "浏览器预览"
+        "previewButtonLabel": "${context.getString(R.string.workspace_preview_button_label_browser)}"
     },
     "commands": [
         {
@@ -178,13 +193,18 @@ private const val DEFAULT_NODE_PROJECT_CONFIG_JSON = """
         "enabled": false
     }
 }
-"""
+""".trimIndent()
+}
 
-private const val DEFAULT_TYPESCRIPT_PROJECT_CONFIG_JSON = """
+/**
+ * 生成TypeScript项目配置JSON
+ */
+private fun generateTypeScriptProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "typescript",
-    "title": "TypeScript 项目",
-    "description": "使用 pnpm 和 TypeScript，提供类型安全和实时编译",
+    "title": "${context.getString(R.string.workspace_project_typescript_title)}",
+    "description": "${context.getString(R.string.workspace_project_typescript_description)}",
     "server": {
         "enabled": false,
         "port": 3000,
@@ -240,13 +260,18 @@ private const val DEFAULT_TYPESCRIPT_PROJECT_CONFIG_JSON = """
         "enabled": false
     }
 }
-"""
+""".trimIndent()
+}
 
-private const val DEFAULT_PYTHON_PROJECT_CONFIG_JSON = """
+/**
+ * 生成Python项目配置JSON
+ */
+private fun generatePythonProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "python",
-    "title": "Python 项目",
-    "description": "支持虚拟环境和 pip 包管理，适用于数据分析和开发",
+    "title": "${context.getString(R.string.workspace_project_python_title)}",
+    "description": "${context.getString(R.string.workspace_project_python_description)}",
     "server": {
         "enabled": false,
         "port": 8000,
@@ -260,35 +285,35 @@ private const val DEFAULT_PYTHON_PROJECT_CONFIG_JSON = """
     "commands": [
         {
             "id": "venv_create",
-            "label": "创建虚拟环境",
+            "label": "${context.getString(R.string.workspace_cmd_python_venv_create)}",
             "command": "python -m venv venv",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "venv_activate",
-            "label": "激活虚拟环境",
+            "label": "${context.getString(R.string.workspace_cmd_python_venv_activate)}",
             "command": "source venv/bin/activate || venv\\Scripts\\activate",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "pip_install",
-            "label": "安装依赖",
+            "label": "${context.getString(R.string.workspace_cmd_python_pip_install)}",
             "command": "pip install -r requirements.txt",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "pip_list",
-            "label": "查看已安装包",
+            "label": "${context.getString(R.string.workspace_cmd_python_pip_list)}",
             "command": "pip list",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "python_run",
-            "label": "运行 main.py",
+            "label": "${context.getString(R.string.workspace_cmd_python_run)}",
             "command": "python main.py",
             "workingDir": ".",
             "shell": true
@@ -298,13 +323,18 @@ private const val DEFAULT_PYTHON_PROJECT_CONFIG_JSON = """
         "enabled": false
     }
 }
-"""
+""".trimIndent()
+}
 
-private const val DEFAULT_JAVA_PROJECT_CONFIG_JSON = """
+/**
+ * 生成Java项目配置JSON
+ */
+private fun generateJavaProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "java",
-    "title": "Java 项目",
-    "description": "标准 Gradle 项目结构，支持构建、测试和打包",
+    "title": "${context.getString(R.string.workspace_project_java_title)}",
+    "description": "${context.getString(R.string.workspace_project_java_description)}",
     "server": {
         "enabled": false,
         "port": 8080,
@@ -318,49 +348,49 @@ private const val DEFAULT_JAVA_PROJECT_CONFIG_JSON = """
     "commands": [
         {
             "id": "gradle_init",
-            "label": "初始化 Gradle Wrapper",
+            "label": "${context.getString(R.string.workspace_cmd_java_gradle_init)}",
             "command": "gradle wrapper --gradle-version 8.5",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "gradle_build",
-            "label": "构建项目",
+            "label": "${context.getString(R.string.workspace_cmd_java_gradle_build)}",
             "command": "./gradlew build || gradle build",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "gradle_run",
-            "label": "运行程序",
+            "label": "${context.getString(R.string.workspace_cmd_java_gradle_run)}",
             "command": "./gradlew run || gradle run",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "gradle_test",
-            "label": "运行测试",
+            "label": "${context.getString(R.string.workspace_cmd_java_gradle_test)}",
             "command": "./gradlew test || gradle test",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "gradle_jar",
-            "label": "打包 JAR",
+            "label": "${context.getString(R.string.workspace_cmd_java_gradle_jar)}",
             "command": "./gradlew jar || gradle jar",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "gradle_clean",
-            "label": "清理构建",
+            "label": "${context.getString(R.string.workspace_cmd_java_gradle_clean)}",
             "command": "./gradlew clean || gradle clean",
             "workingDir": ".",
             "shell": true
         },
         {
             "id": "gradle_tasks",
-            "label": "查看所有任务",
+            "label": "${context.getString(R.string.workspace_cmd_java_gradle_tasks)}",
             "command": "./gradlew tasks || gradle tasks",
             "workingDir": ".",
             "shell": true
@@ -370,13 +400,18 @@ private const val DEFAULT_JAVA_PROJECT_CONFIG_JSON = """
         "enabled": false
     }
 }
-"""
+""".trimIndent()
+}
 
-private const val DEFAULT_GO_PROJECT_CONFIG_JSON = """
+/**
+ * 生成Go项目配置JSON
+ */
+private fun generateGoProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "go",
-    "title": "Go 项目",
-    "description": "高性能并发编程，使用 Go Modules 管理依赖",
+    "title": "${context.getString(R.string.workspace_project_go_title)}",
+    "description": "${context.getString(R.string.workspace_project_go_description)}",
     "server": {
         "enabled": false,
         "port": 8080,
@@ -421,13 +456,18 @@ private const val DEFAULT_GO_PROJECT_CONFIG_JSON = """
         "enabled": false
     }
 }
-"""
+""".trimIndent()
+}
 
-private const val DEFAULT_OFFICE_PROJECT_CONFIG_JSON = """
+/**
+ * 生成办公文档项目配置JSON
+ */
+private fun generateOfficeProjectConfig(context: Context): String {
+    return """
 {
     "projectType": "office",
-    "title": "办公文档",
-    "description": "用于文档编辑、文件处理和通用办公任务",
+    "title": "${context.getString(R.string.workspace_project_office_title)}",
+    "description": "${context.getString(R.string.workspace_project_office_description)}",
     "server": {
         "enabled": false,
         "port": 8080,
@@ -444,7 +484,8 @@ private const val DEFAULT_OFFICE_PROJECT_CONFIG_JSON = """
         "enabled": false
     }
 }
-"""
+""".trimIndent()
+}
 
 /**
  * 从 assets 复制项目模板文件到工作区
@@ -452,24 +493,24 @@ private const val DEFAULT_OFFICE_PROJECT_CONFIG_JSON = """
 private fun copyTemplateFiles(context: Context, workspaceDir: File, templateName: String) {
     val assetManager = context.assets
     val templatePath = "templates/$templateName"
-    
+
     try {
         val files = assetManager.list(templatePath) ?: return
-        
+
         for (filename in files) {
             val sourcePath = "$templatePath/$filename"
             // 特殊处理：gitignore (无点) -> .gitignore (有点)
             // 因为 Android 构建工具会排除 assets 中的 .gitignore 文件
             val destFileName = if (filename == "gitignore") ".gitignore" else filename
             val destFile = File(workspaceDir, destFileName)
-            
+
             // 检查是否是目录
             val isDirectory = try {
                 assetManager.list(sourcePath)?.isNotEmpty() == true
             } catch (e: IOException) {
                 false
             }
-            
+
             if (isDirectory) {
                 // 递归复制子目录
                 destFile.mkdirs()
@@ -494,17 +535,17 @@ private fun copyTemplateFiles(context: Context, workspaceDir: File, templateName
 private fun copyTemplateFilesRecursive(assetManager: android.content.res.AssetManager, sourcePath: String, destDir: File) {
     try {
         val files = assetManager.list(sourcePath) ?: return
-        
+
         for (filename in files) {
             val currentSourcePath = "$sourcePath/$filename"
             val destFile = File(destDir, filename)
-            
+
             val isDirectory = try {
                 assetManager.list(currentSourcePath)?.isNotEmpty() == true
             } catch (e: IOException) {
                 false
             }
-            
+
             if (isDirectory) {
                 destFile.mkdirs()
                 copyTemplateFilesRecursive(assetManager, currentSourcePath, destFile)
@@ -521,7 +562,7 @@ private fun copyTemplateFilesRecursive(assetManager: android.content.res.AssetMa
     }
 }
 
-private fun createProjectConfigIfNeeded(workspaceDir: File, projectType: ProjectType) {
+private fun createProjectConfigIfNeeded(context: Context, workspaceDir: File, projectType: ProjectType) {
     // 创建 .operit 目录和 config.json
     val operitDir = File(workspaceDir, ".operit")
     if (!operitDir.exists()) {
@@ -531,14 +572,14 @@ private fun createProjectConfigIfNeeded(workspaceDir: File, projectType: Project
     val configFile = File(operitDir, "config.json")
     if (!configFile.exists()) {
         val configContent = when (projectType) {
-            ProjectType.WEB -> DEFAULT_WEB_PROJECT_CONFIG_JSON
-            ProjectType.NODE -> DEFAULT_NODE_PROJECT_CONFIG_JSON
-            ProjectType.TYPESCRIPT -> DEFAULT_TYPESCRIPT_PROJECT_CONFIG_JSON
-            ProjectType.PYTHON -> DEFAULT_PYTHON_PROJECT_CONFIG_JSON
-            ProjectType.JAVA -> DEFAULT_JAVA_PROJECT_CONFIG_JSON
-            ProjectType.GO -> DEFAULT_GO_PROJECT_CONFIG_JSON
-            ProjectType.OFFICE -> DEFAULT_OFFICE_PROJECT_CONFIG_JSON
-            ProjectType.BLANK -> DEFAULT_BLANK_PROJECT_CONFIG_JSON
+            ProjectType.WEB -> generateWebProjectConfig(context)
+            ProjectType.NODE -> generateNodeProjectConfig(context)
+            ProjectType.TYPESCRIPT -> generateTypeScriptProjectConfig(context)
+            ProjectType.PYTHON -> generatePythonProjectConfig(context)
+            ProjectType.JAVA -> generateJavaProjectConfig(context)
+            ProjectType.GO -> generateGoProjectConfig(context)
+            ProjectType.OFFICE -> generateOfficeProjectConfig(context)
+            ProjectType.BLANK -> generateBlankProjectConfig(context)
         }
 
         try {

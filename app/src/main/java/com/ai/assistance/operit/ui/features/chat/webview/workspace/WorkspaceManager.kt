@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -303,7 +304,7 @@ fun WorkspaceManager(
                     Row(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
                         // 预览标签
                         VSCodeTab(
-                                title = "预览",
+                                title = stringResource(R.string.workspace_preview),
                                 icon = Icons.Default.Visibility,
                                 isActive = currentFileIndex == -1,
                                 isUnsaved = false,
@@ -748,7 +749,7 @@ fun ExpandableFabMenu(
         ) {
             Icon(
                 imageVector = if (isExpanded) Icons.Default.Close else Icons.Default.MoreVert,
-                contentDescription = if (isExpanded) "关闭菜单" else "打开菜单"
+                contentDescription = if (isExpanded) stringResource(R.string.workspace_close_menu) else stringResource(R.string.workspace_open_menu)
             )
         }
             }
@@ -847,14 +848,14 @@ fun VSCodeTab(
                         if (isUnsaved) {
                             Icon(
                                 Icons.Filled.FiberManualRecord,
-                                contentDescription = "未保存",
+                                contentDescription = stringResource(R.string.workspace_unsaved),
                                 modifier = Modifier.size(8.dp),
                                 tint = contentColor.copy(alpha = 0.9f)
                             )
                         } else {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "关闭",
+                                contentDescription = stringResource(R.string.workspace_close),
                                 modifier = Modifier.size(14.dp),
                                 tint = contentColor.copy(alpha = 0.7f)
                             )
@@ -934,7 +935,7 @@ fun CommandButtonsView(
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
             ) {
-                Icon(Icons.Default.Close, contentDescription = "关闭预览")
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.workspace_close_preview))
             }
         }
         return
@@ -956,7 +957,7 @@ fun CommandButtonsView(
         )
         
         Text(
-            text = config.title ?: "${config.projectType.uppercase()} 项目",
+            text = config.title ?: "${config.projectType.uppercase()} ${stringResource(R.string.workspace_project_suffix)}",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -970,7 +971,7 @@ fun CommandButtonsView(
             )
         } else {
             Text(
-                text = "点击下方按钮执行命令",
+                text = stringResource(R.string.workspace_click_buttons_below),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1019,7 +1020,7 @@ fun CommandButtonsView(
                 )
             ) {
                 Text(
-                    text = "暂无配置命令\n\n可以在 .operit/config.json 中添加命令按钮配置",
+                    text = stringResource(R.string.workspace_no_commands_configured),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -1063,7 +1064,7 @@ fun CommandButtonsView(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "工作区路径",
+                    text = stringResource(R.string.workspace_path_label),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

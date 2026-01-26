@@ -2056,7 +2056,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
 
                 if (voiceService == null) {
-                    uiStateDelegate.showToast("语音服务初始化失败，请检查设置")
+                    uiStateDelegate.showToast(context.getString(R.string.chat_voice_service_init_failed))
                     AppLogger.e(TAG, "语音服务初始化超时")
                     return@launch
                 }
@@ -2073,11 +2073,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 ) ?: false
 
                 if (!success) {
-                    uiStateDelegate.showToast("朗读失败")
+                    uiStateDelegate.showToast(context.getString(R.string.chat_speak_failed))
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "朗读消息失败", e)
-                uiStateDelegate.showToast("朗读消息失败: ${e.message}")
+                uiStateDelegate.showToast(context.getString(R.string.chat_speak_message_failed, e.message ?: "Unknown error"))
             }
         }
     }

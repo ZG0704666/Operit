@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -76,7 +77,7 @@ private object LocalCharacterToolExecutor {
                     toolName = TOOL_NAME,
                     success = false,
                     result = StringResultData(""),
-                    error = "角色卡不存在"
+                    error = context.getString(R.string.error_character_card_not_exist)
                 )
             }
             
@@ -94,7 +95,7 @@ private object LocalCharacterToolExecutor {
                         toolName = TOOL_NAME,
                         success = false,
                         result = StringResultData(""),
-                        error = "不支持的字段: $field"
+                        error = context.getString(R.string.error_unsupported_field, field)
                     )
                 }
             }
@@ -141,17 +142,32 @@ fun PersonaCardGenerationScreen(
 
     // 引导文案（顶部说明）
     val characterAssistantIntro = remember {
-        """
-        嗨嗨～这里是你的角色卡小助手(｡･ω･｡)ﾉ♡ 我会陪你一起把专属角色慢慢捏出来～
-        我们按部就班来哦：先告诉我你的称呼，再说说你想要的角色大方向，比方说：
-        - 角色名字和身份大概是怎样的？
-        - 有哪些可爱的性格关键词？
-        - 长相/发型/瞳色/穿搭想要什么感觉？
-        - 有没有特别的小设定或能力？
-        - 跟其他角色的关系要不要安排一点点？
-        
-        接下来我会一步步问你关键问题，帮你把细节补齐～
-        """.trimIndent()
+        val locale = Locale.getDefault().language
+        if (locale == "zh" || locale == "zh-CN" || locale == "zh-TW") {
+            """
+            嗨嗨～这里是你的角色卡小助手(｡･ω･｡)ﾉ♡ 我会陪你一起把专属角色慢慢捏出来～
+            我们按部就班来哦：先告诉我你的称呼，再说说你想要的角色大方向，比方说：
+            - 角色名字和身份大概是怎样的？
+            - 有哪些可爱的性格关键词？
+            - 长相/发型/瞳色/穿搭想要什么感觉？
+            - 有没有特别的小设定或能力？
+            - 跟其他角色的关系要不要安排一点点？
+
+            接下来我会一步步问你关键问题，帮你把细节补齐～
+            """.trimIndent()
+        } else {
+            """
+            Hi there~ This is your character card assistant (｡･ω･｡)ﾉ♡ I\'ll help you create your unique character step by step~
+            Let\'s take it step by step: first tell me your name, then tell me what kind of character you want, for example:
+            - What should the character\'s name and identity be?
+            - What are some cute personality keywords?
+            - What kind of look/hairstyle/eye color/outfit do you want?
+            - Any special settings or abilities?
+            - Should we arrange some relationships with other characters?
+
+            Next, I\'ll ask you some key questions step by step to help you fill in the details~
+            """.trimIndent()
+        }
     }
 
     val listState = rememberLazyListState()
@@ -296,9 +312,11 @@ fun PersonaCardGenerationScreen(
 
     // 构建稳定的系统提示词
     fun buildSystemPrompt(): String {
-        return """
+        val locale = Locale.getDefault().language
+        val prompt = if (locale == "zh" || locale == "zh-CN" || locale == "zh-TW") {
+            """
             你是"角色卡生成助手"。请严格按照以下流程进行角色卡生成：
-            
+
             [生成流程]
             1) 角色名称：询问并确认角色名称
             2) 角色描述：简短的角色描述
@@ -307,9 +325,9 @@ fun PersonaCardGenerationScreen(
             5) 其他内容：背景故事、特殊能力等补充信息
             6) 高级自定义：特殊的提示词或交互方式
             7) 备注：不会被拼接到提示词的备注信息，用于记录创作想法或注意事项
-            
+
             [重要规则]
-            - 全程语气要活泼可爱喵~
+            - 全程语气要活泼可爱喵～
             - 严格按照 1→2→3→4→5→6→7 的顺序进行，不要跳跃
             - 每轮对话只能处理一个步骤，完成后进入下一步
             - 如果用户输入了角色设定，对其进行适当优化与丰富
@@ -317,17 +335,52 @@ fun PersonaCardGenerationScreen(
             - 生成或补充完后，用一小段话总结当前进度
             - 对于下一个步骤提几个最关键、最具体的小问题
             - 不要重复问已经确认过的内容
-            
+
             [完成条件]
             - 当所有7个步骤都完成时，输出："🎉 角色卡生成完成！所有信息都已保存。"
             - 完成后不再询问任何问题，等待用户的新指令
-            
+
             [工具调用]
             - 每轮对话如果得到了新的角色信息，必须调用工具保存
             - field 取值："name" | "description" | "characterSetting" | "openingStatement" | "otherContent" | "advancedCustomPrompt" | "marks"
             - 工具调用格式为: <tool name="save_character_info"><param name="field">字段名</param><param name="content">内容</param></tool>
-            - 例如，如果角色名称确认是“奶糖”，则必须在回答的末尾调用: <tool name="save_character_info"><param name="field">name</param><param name="content">奶糖</param></tool>
+            - 例如，如果角色名称确认是"奶糖"，则必须在回答的末尾调用: <tool name="save_character_info"><param name="field">name</param><param name="content">奶糖</param></tool>
             """.trimIndent()
+        } else {
+            """
+            You are a "Character Card Generation Assistant". Please strictly follow the following process for character card generation:
+
+            [Generation Process]
+            1) Character Name: Ask and confirm the character name
+            2) Character Description: Brief character description
+            3) Character Setting: Detailed character settings, including identity, appearance, personality, etc.
+            4) Opening Line: The character's first words or opening greeting for starting conversations
+            5) Other Content: Supplementary information like backstory, special abilities, etc.
+            6) Advanced Customization: Special prompts or interaction methods
+            7) Notes: Notes that won\'t be appended to prompts, used for recording creative ideas or considerations
+
+            [Important Rules]
+            - Keep a lively and cute tone throughout meow~
+            - Strictly follow the order of 1→2→3→4→5→6→7, do not skip
+            - Each round of dialogue can only handle one step, then move to the next
+            - If the user inputs character settings, appropriately optimize and enrich them
+            - If the user says "whatever/you decide", help generate settings thoughtfully
+            - After generating or supplementing, summarize current progress in a short paragraph
+            - For the next step, ask a few of the most key and specific questions
+            - Don\'t repeat what has already been confirmed
+
+            [Completion Conditions]
+            - When all 7 steps are completed, output: "🎉 Character card generation complete! All information has been saved."
+            - After completion, don\'t ask any more questions, wait for user\'s new instructions
+
+            [Tool Calling]
+            - Each round of dialogue must call the tool to save if new character information is obtained
+            - field values: "name" | "description" | "characterSetting" | "openingStatement" | "otherContent" | "advancedCustomPrompt" | "marks"
+            - Tool call format: <tool name="save_character_info"><param name="field">field name</param><param name="content">content</param></tool>
+            - For example, if the character name is confirmed as "Candy", must call at the end: <tool name="save_character_info"><param name="field">name</param><param name="content">Candy</param></tool>
+            """.trimIndent()
+        }
+        return prompt
     }
     
     // 检查是否所有字段都已完成

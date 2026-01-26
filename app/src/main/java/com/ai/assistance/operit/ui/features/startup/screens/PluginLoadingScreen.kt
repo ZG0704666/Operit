@@ -615,9 +615,9 @@ class PluginLoadingState {
         if (pluginIndex >= 0) {
             val plugin = currentPlugins[pluginIndex]
             val message = if (success) {
-                appContext?.getString(R.string.plugin_registered) ?: "已注册"
+                appContext?.getString(R.string.plugin_registered) ?: "Registered"
             } else {
-                appContext?.getString(R.string.plugin_registration_failed) ?: "注册失败"
+                appContext?.getString(R.string.plugin_registration_failed) ?: "Registration Failed"
             }
             currentPlugins[pluginIndex] = plugin.copy(
                 serviceName = serviceName,
@@ -633,7 +633,7 @@ class PluginLoadingState {
         updatePluginStatus(
                 pluginId,
                 PluginStatus.LOADING,
-                appContext?.getString(R.string.plugin_loading) ?: "正在加载..."
+                appContext?.getString(R.string.plugin_loading) ?: "Loading..."
         )
     }
 
@@ -642,7 +642,7 @@ class PluginLoadingState {
         updatePluginStatus(
                 pluginId,
                 PluginStatus.SUCCESS,
-                message.ifEmpty { appContext?.getString(R.string.plugin_loading_success) ?: "加载成功" }
+                message.ifEmpty { appContext?.getString(R.string.plugin_loading_success) ?: "Loading successful" }
         )
     }
 
@@ -651,7 +651,7 @@ class PluginLoadingState {
         updatePluginStatus(
                 pluginId,
                 PluginStatus.FAILED,
-                message.ifEmpty { appContext?.getString(R.string.plugin_loading_failed) ?: "加载失败" }
+                message.ifEmpty { appContext?.getString(R.string.plugin_loading_failed) ?: "Loading failed" }
         )
     }
 
@@ -678,7 +678,7 @@ class PluginLoadingState {
                     _hasTimedOut.value = true
                     updateMessage(
                             appContext?.getString(R.string.plugin_loading_timeout)
-                                    ?: "加载超时，您可以点击右上角的\"跳过\"继续"
+                                    ?: "Loading timeout, you can click \"Skip\" in the top right corner to continue"
                     )
                 }
     }

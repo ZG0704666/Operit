@@ -80,7 +80,7 @@ fun DrawerContent(
                                 imageVector =
                                         if (isNetworkAvailable) Icons.Default.Wifi
                                         else Icons.Default.WifiOff,
-                                contentDescription = "网络状态",
+                                contentDescription = stringResource(id = R.string.network_status_label),
                                 tint =
                                         if (isNetworkAvailable) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.error,
@@ -102,7 +102,7 @@ fun DrawerContent(
 
                 // 分组导航菜单
                 navGroups.forEach { group ->
-                        NavigationDrawerItemHeader(group.title)
+                        NavigationDrawerItemHeader(stringResource(id = group.titleResId))
                         group.items.forEach { item ->
                                 CompactNavigationDrawerItem(
                                         icon = item.icon,
@@ -149,7 +149,7 @@ fun CollapsedDrawerContent(
                                 imageVector =
                                         if (isNetworkAvailable) Icons.Default.Wifi
                                         else Icons.Default.WifiOff,
-                                contentDescription = "网络状态",
+                                contentDescription = stringResource(id = R.string.network_status_label),
                                 tint =
                                         if (isNetworkAvailable) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.error,

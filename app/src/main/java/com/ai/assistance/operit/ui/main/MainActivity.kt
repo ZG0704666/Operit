@@ -246,7 +246,7 @@ class MainActivity : ComponentActivity() {
         configureDisplaySettings()
 
         // 设置上下文以便获取插件元数据
-        pluginLoadingState.setAppContext(applicationContext)
+        pluginLoadingState.setAppContext(this)
 
         // 设置跳过加载的回调
         pluginLoadingState.setOnSkipCallback {
@@ -453,7 +453,7 @@ class MainActivity : ComponentActivity() {
         // 轻微延迟让首帧 Compose 完成，避免启动阶段后台重任务立刻抢占导致掉帧
         lifecycleScope.launch {
             delay(500)
-            pluginLoadingState.initializeMCPServer(applicationContext, lifecycleScope)
+            pluginLoadingState.initializeMCPServer(this@MainActivity, lifecycleScope)
         }
     }
 

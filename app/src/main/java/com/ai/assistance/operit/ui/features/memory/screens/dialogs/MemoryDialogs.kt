@@ -23,7 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.Memory
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Edge
 import java.text.SimpleDateFormat
@@ -42,7 +44,7 @@ fun MemoryInfoDialog(
 
     AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(text = "记忆详情") },
+            title = { Text(text = stringResource(R.string.memory_details_title)) },
             text = {
                 Column(
                         modifier = Modifier.verticalScroll(scrollState),
@@ -217,15 +219,15 @@ fun BatchDeleteConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("确认删除") },
+        title = { Text(stringResource(R.string.confirm_delete)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "确定要删除选中的 $selectedCount 个记忆节点吗？",
+                    text = stringResource(R.string.memory_delete_confirmation, selectedCount),
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
-                    text = "此操作不可撤销，删除后将无法恢复这些记忆及其相关连接。",
+                    text = stringResource(R.string.memory_delete_warning),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -238,12 +240,12 @@ fun BatchDeleteConfirmDialog(
                     containerColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                Text("确认删除")
+                Text(stringResource(R.string.confirm_delete))
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

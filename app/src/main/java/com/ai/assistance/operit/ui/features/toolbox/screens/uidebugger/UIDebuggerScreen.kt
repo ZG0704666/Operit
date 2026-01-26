@@ -10,6 +10,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +54,7 @@ fun UIDebuggerScreen(
             ) {
                 Icon(
                     Icons.Default.OpenInNew,
-                    contentDescription = "启动悬浮窗"
+                    contentDescription = stringResource(R.string.ui_debugger_launch_floating)
                 )
             }
         }
@@ -73,9 +75,9 @@ fun UIDebuggerScreen(
             )
             
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
-                text = "UI调试工具",
+                text = stringResource(R.string.ui_debugger_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -83,7 +85,7 @@ fun UIDebuggerScreen(
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "点击右下角的按钮启动悬浮窗进行UI调试",
+                text = stringResource(R.string.ui_debugger_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

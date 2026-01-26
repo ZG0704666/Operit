@@ -90,12 +90,12 @@ fun VoiceAssistantWidgetContent(context: Context) {
                 // 麦克风图标
                 Image(
                     provider = ImageProvider(R.drawable.ic_microphone),
-                    contentDescription = "语音助手",
+                    contentDescription = context.getString(R.string.voice_assistant_widget_title),
                     modifier = GlanceModifier.size(48.dp)
                 )
-                
+
                 Spacer(modifier = GlanceModifier.height(12.dp))
-                
+
                 // 标题文字
                 Text(
                     text = "Operit",
@@ -104,12 +104,12 @@ fun VoiceAssistantWidgetContent(context: Context) {
                         color = ColorProvider(Color.White)
                     )
                 )
-                
+
                 Spacer(modifier = GlanceModifier.height(4.dp))
-                
+
                 // 副标题
                 Text(
-                    text = "语音助手",
+                    text = context.getString(R.string.voice_assistant_widget_title),
                     style = TextStyle(
                         fontSize = 12.sp,
                         color = ColorProvider(Color.White.copy(alpha = 0.9f))

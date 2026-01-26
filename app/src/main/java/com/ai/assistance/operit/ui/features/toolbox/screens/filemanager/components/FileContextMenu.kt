@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,7 @@ fun FileContextMenu(
         onOpen: (FileItem) -> Unit,
         onShare: (FileItem) -> Unit
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -103,11 +105,11 @@ fun FileContextMenu(
                     if (result.success) {
                         // 文件已成功打开
                     } else {
-                        withContext(Dispatchers.Main) { error = result.error ?: "打开文件失败" }
+                        withContext(Dispatchers.Main) { error = result.error ?: context.getString(R.string.file_error_open_failed) }
                     }
                 } catch (e: Exception) {
                     AppLogger.e("FileContextMenu", "Error opening file", e)
-                    withContext(Dispatchers.Main) { error = "打开文件错误: ${e.message}" }
+                    withContext(Dispatchers.Main) { error = context.getString(R.string.file_error_open_failed) + ": ${e.message}" }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -136,11 +138,11 @@ fun FileContextMenu(
                     if (result.success) {
                         // 文件已成功分享
                     } else {
-                        withContext(Dispatchers.Main) { error = result.error ?: "分享文件失败" }
+                        withContext(Dispatchers.Main) { error = result.error ?: context.getString(R.string.file_error_share_failed) }
                     }
                 } catch (e: Exception) {
                     AppLogger.e("FileContextMenu", "Error sharing file", e)
-                    withContext(Dispatchers.Main) { error = "分享文件错误: ${e.message}" }
+                    withContext(Dispatchers.Main) { error = context.getString(R.string.file_error_share_failed) + ": ${e.message}" }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -176,11 +178,11 @@ fun FileContextMenu(
                     if (result.success) {
                         withContext(Dispatchers.Main) { onFilesUpdated() }
                     } else {
-                        withContext(Dispatchers.Main) { error = result.error ?: "Unknown error" }
+                        withContext(Dispatchers.Main) { error = result.error ?: context.getString(R.string.file_manager_operation_failed) }
                     }
                 } catch (e: Exception) {
                     AppLogger.e("FileContextMenu", "Error deleting file", e)
-                    withContext(Dispatchers.Main) { error = "Error: ${e.message}" }
+                    withContext(Dispatchers.Main) { error = context.getString(R.string.file_manager_operation_failed) + ": ${e.message}" }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -213,11 +215,11 @@ fun FileContextMenu(
                     if (result.success) {
                         withContext(Dispatchers.Main) { onFilesUpdated() }
                     } else {
-                        withContext(Dispatchers.Main) { error = result.error ?: "Unknown error" }
+                        withContext(Dispatchers.Main) { error = result.error ?: context.getString(R.string.file_manager_operation_failed) }
                     }
                 } catch (e: Exception) {
                     AppLogger.e("FileContextMenu", "Error renaming file", e)
-                    withContext(Dispatchers.Main) { error = "Error: ${e.message}" }
+                    withContext(Dispatchers.Main) { error = context.getString(R.string.file_manager_operation_failed) + ": ${e.message}" }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -254,11 +256,11 @@ fun FileContextMenu(
                     if (result.success) {
                         withContext(Dispatchers.Main) { onFilesUpdated() }
                     } else {
-                        withContext(Dispatchers.Main) { error = result.error ?: "压缩失败" }
+                        withContext(Dispatchers.Main) { error = result.error ?: context.getString(R.string.file_error_compress_failed) }
                     }
                 } catch (e: Exception) {
                     AppLogger.e("FileContextMenu", "Error compressing files", e)
-                    withContext(Dispatchers.Main) { error = "压缩错误: ${e.message}" }
+                    withContext(Dispatchers.Main) { error = context.getString(R.string.file_error_compress_failed) + ": ${e.message}" }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -291,11 +293,11 @@ fun FileContextMenu(
                     if (result.success) {
                         withContext(Dispatchers.Main) { onFilesUpdated() }
                     } else {
-                        withContext(Dispatchers.Main) { error = result.error ?: "解压失败" }
+                        withContext(Dispatchers.Main) { error = result.error ?: context.getString(R.string.file_error_extract_failed) }
                     }
                 } catch (e: Exception) {
                     AppLogger.e("FileContextMenu", "Error unzipping file", e)
-                    withContext(Dispatchers.Main) { error = "解压错误: ${e.message}" }
+                    withContext(Dispatchers.Main) { error = context.getString(R.string.file_error_extract_failed) + ": ${e.message}" }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -348,7 +350,7 @@ fun FileContextMenu(
                     withContext(Dispatchers.Main) { onFilesUpdated() }
                 } catch (e: Exception) {
                     AppLogger.e("FileContextMenu", "Error batch renaming files", e)
-                    withContext(Dispatchers.Main) { error = "批量重命名错误: ${e.message}" }
+                    withContext(Dispatchers.Main) { error = context.getString(R.string.file_error_rename_failed, e.message ?: "Unknown error") }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -456,7 +458,7 @@ fun FileContextMenu(
                     // 多选模式下添加压缩选项
                     FileActionButton(
                             icon = Icons.Default.Archive,
-                            text = "压缩文件",
+                            text = stringResource(R.string.file_compress),
                             onClick = {
                                 compressFileName =
                                         "archive_${System.currentTimeMillis() / 1000}.zip"
@@ -501,7 +503,7 @@ fun FileContextMenu(
                     OutlinedTextField(
                             value = newFileName,
                             onValueChange = { newFileName = it },
-                            label = { Text("新名称") },
+                            label = { Text(stringResource(R.string.file_dialog_new_name)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                     )
@@ -544,7 +546,7 @@ fun FileContextMenu(
                         OutlinedTextField(
                                 value = renamePrefix,
                                 onValueChange = { renamePrefix = it },
-                                label = { Text("前缀") },
+                                label = { Text(stringResource(R.string.file_dialog_rename_prefix)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                         )
@@ -554,7 +556,7 @@ fun FileContextMenu(
                                     checked = renameUseOriginalName,
                                     onCheckedChange = { renameUseOriginalName = it }
                             )
-                            Text("保留原文件名")
+                            Text(stringResource(R.string.file_dialog_rename_keep_original))
                         }
 
                         AnimatedVisibility(visible = !renameUseOriginalName) {
@@ -566,7 +568,7 @@ fun FileContextMenu(
                                             renameStartNumber = it
                                         }
                                     },
-                                    label = { Text("起始序号") },
+                                    label = { Text(stringResource(R.string.file_dialog_rename_start_number)) },
                                     keyboardOptions =
                                             KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -577,7 +579,7 @@ fun FileContextMenu(
                         OutlinedTextField(
                                 value = renameSuffix,
                                 onValueChange = { renameSuffix = it },
-                                label = { Text("后缀") },
+                                label = { Text(stringResource(R.string.file_dialog_rename_suffix)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                         )
@@ -586,11 +588,14 @@ fun FileContextMenu(
 
                         // 预览示例
                         Text(
-                                "示例: ${renamePrefix}" +
-                                        "${if (renameUseOriginalName) "原文件名" else renameStartNumber}" +
-                                        "${renameSuffix}" +
-                                        "${if (selectedFiles.firstOrNull()?.name?.contains(".") == true) 
-                                 ".扩展名" else ""}",
+                                stringResource(
+                                        R.string.file_dialog_rename_preview,
+                                        renamePrefix,
+                                        if (renameUseOriginalName) stringResource(R.string.file_dialog_rename_original) else renameStartNumber,
+                                        renameSuffix,
+                                        if (selectedFiles.firstOrNull()?.name?.contains(".") == true)
+                                                stringResource(R.string.file_dialog_rename_original) else ""
+                                ),
                                 style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -622,7 +627,7 @@ fun FileContextMenu(
     if (showCompressDialog) {
         AlertDialog(
                 onDismissRequest = { showCompressDialog = false },
-                title = { Text("压缩文件") },
+                title = { Text(stringResource(R.string.file_dialog_compress_title)) },
                 text = {
                     Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -638,7 +643,7 @@ fun FileContextMenu(
                         OutlinedTextField(
                                 value = compressFileName,
                                 onValueChange = { compressFileName = it },
-                                label = { Text("压缩文件名") },
+                                label = { Text(stringResource(R.string.file_dialog_compress_filename)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                         )
@@ -657,7 +662,7 @@ fun FileContextMenu(
                                 }
                             },
                             enabled = compressFileName.isNotBlank() && selectedFiles.isNotEmpty()
-                    ) { Text("压缩") }
+                    ) { Text(stringResource(R.string.file_dialog_compress_button)) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showCompressDialog = false }) { Text(stringResource(R.string.cancel)) }
@@ -673,9 +678,9 @@ fun FileContextMenu(
                 text = {
                     Text(
                             if (isMultiSelectMode) {
-                                "确定要删除选中的 ${selectedFiles.size} 个项目吗？"
+                                stringResource(R.string.file_dialog_delete_multiple, selectedFiles.size)
                             } else {
-                                "确定要删除 ${contextMenuFile!!.name} 吗？"
+                                stringResource(R.string.file_dialog_delete_single, contextMenuFile!!.name)
                             }
                     )
                 },
@@ -731,15 +736,15 @@ fun FileContextMenu(
     if (showUnzipDialog && contextMenuFile != null) {
         AlertDialog(
                 onDismissRequest = { showUnzipDialog = false },
-                title = { Text("解压文件") },
-                text = { Text("确定要解压 ${contextMenuFile.name} 吗？") },
+                title = { Text(stringResource(R.string.file_dialog_extract_title)) },
+                text = { Text(stringResource(R.string.file_dialog_extract_message, contextMenuFile.name)) },
                 confirmButton = {
                     TextButton(
                             onClick = {
                                 unzipFile(contextMenuFile, currentPath)
                                 showUnzipDialog = false
                             }
-                    ) { Text("解压") }
+                    ) { Text(stringResource(R.string.file_dialog_extract_button)) }
                 },
                 dismissButton = { TextButton(onClick = { showUnzipDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
@@ -776,7 +781,7 @@ fun FileContextMenu(
     if (error != null) {
         AlertDialog(
                 onDismissRequest = { error = null },
-                title = { Text("错误") },
+                title = { Text(stringResource(R.string.error_title)) },
                 text = { Text(error!!) },
                 confirmButton = { TextButton(onClick = { error = null }) { Text(stringResource(R.string.confirm_delete)) } }
         )

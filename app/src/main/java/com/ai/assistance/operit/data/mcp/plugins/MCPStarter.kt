@@ -2,6 +2,7 @@ package com.ai.assistance.operit.data.mcp.plugins
 
 import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.mcp.MCPManager
 import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
@@ -185,7 +186,7 @@ class MCPStarter(private val context: Context) {
                 val isDeployed = mcpLocalServer.isPluginDeployed(pluginId)
                 if (!isDeployed) {
                     // 自动部署未部署的插件
-                    statusCallback(StartStatus.InProgress("插件未部署，开始自动部署: $pluginId"))
+                    statusCallback(StartStatus.InProgress(context.getString(R.string.plugin_deploying, pluginId)))
                     AppLogger.d(TAG, "插件 $pluginId 未部署，开始自动部署")
 
                     val pluginPath = mcpRepository.installedPluginIds.first()
@@ -193,7 +194,7 @@ class MCPStarter(private val context: Context) {
                         ?.let { mcpRepository.getInstalledPluginPath(it) }
 
                     if (pluginPath == null) {
-                        statusCallback(StartStatus.Error("无法获取插件路径: $pluginId"))
+                        statusCallback(StartStatus.Error(context.getString(R.string.plugin_cannot_get_path, pluginId)))
                         return false
                     }
 
@@ -209,7 +210,7 @@ class MCPStarter(private val context: Context) {
 
                     // 只有非虚拟路径且命令为空时才报错
                     if (deployCommands.isEmpty() && !pluginPath.startsWith("virtual://")) {
-                        statusCallback(StartStatus.Error("无法确定如何部署插件: $pluginId"))
+                        statusCallback(StartStatus.Error(context.getString(R.string.plugin_cannot_determine_deploy, pluginId)))
                         return false
                     }
 
@@ -224,11 +225,11 @@ class MCPStarter(private val context: Context) {
                             when (deployStatus) {
                                 is MCPDeployer.DeploymentStatus.Success -> {
                                     deploySuccess = true
-                                    statusCallback(StartStatus.InProgress("插件部署成功: $pluginId"))
+                                    statusCallback(StartStatus.InProgress(context.getString(R.string.plugin_deploy_success, pluginId)))
                                 }
 
                                 is MCPDeployer.DeploymentStatus.Error -> {
-                                    statusCallback(StartStatus.Error("部署失败: ${deployStatus.message}"))
+                                    statusCallback(StartStatus.Error(context.getString(R.string.plugin_deploy_failed, deployStatus.message)))
                                 }
 
                                 is MCPDeployer.DeploymentStatus.InProgress -> {
@@ -241,11 +242,11 @@ class MCPStarter(private val context: Context) {
                     )
 
                     if (!deploySuccess) {
-                        statusCallback(StartStatus.Error("插件部署失败: $pluginId"))
+                        statusCallback(StartStatus.Error(context.getString(R.string.plugin_deploy_error, pluginId)))
                         return false
                     }
 
-                    statusCallback(StartStatus.InProgress("插件部署完成，继续启动: $pluginId"))
+                    statusCallback(StartStatus.InProgress(context.getString(R.string.plugin_deploy_complete, pluginId)))
                 }
             }
 
@@ -337,11 +338,11 @@ class MCPStarter(private val context: Context) {
                 if (!initBridge()) {
                     when {
                         !isTerminalServiceConnected() -> {
-                            statusCallback(StartStatus.TerminalServiceUnavailable())
+                            statusCallback(StartStatus.TerminalServiceUnavailable(context.getString(R.string.plugin_terminal_service_unavailable)))
                         }
 
                         !isPnpmInstalled() -> {
-                            statusCallback(StartStatus.PnpmMissing())
+                            statusCallback(StartStatus.PnpmMissing(context.getString(R.string.plugin_pnpm_missing)))
                         }
 
                         else -> {
@@ -612,10 +613,10 @@ class MCPStarter(private val context: Context) {
                         ?: "Service not responding"
 
                 if (lastError.isNotBlank()) {
-                    progressListener.onPluginLog(pluginId, "运行时错误: $lastError")
+                    progressListener.onPluginLog(pluginId, context.getString(R.string.plugin_runtime_error, lastError))
                 }
                 if (logs.isNotBlank()) {
-                    progressListener.onPluginLog(pluginId, "运行时输出:\n$logs")
+                    progressListener.onPluginLog(pluginId, context.getString(R.string.plugin_runtime_output, logs))
                 }
 
                 result = VerificationResult(
@@ -649,7 +650,7 @@ class MCPStarter(private val context: Context) {
                 if (!mcpLocalServer.isPluginDeployed(pluginId)) {
                     val deployer = MCPDeployer(context)
                     val pluginPath = mcpRepository.getInstalledPluginPath(pluginId) ?: return null
-                    progressListener?.onPluginLog(pluginId, "插件未部署，开始自动部署")
+                    progressListener?.onPluginLog(pluginId, context.getString(R.string.plugin_auto_deploy))
                     val deployCommands =
                         if (pluginPath.startsWith("virtual://")) emptyList() else deployer.getDeployCommands(
                             pluginId,
@@ -683,7 +684,7 @@ class MCPStarter(private val context: Context) {
                         if (status is MCPDeployer.DeploymentStatus.Success) deploySuccess = true
                     }
                     if (!deploySuccess) return null
-                    progressListener?.onPluginLog(pluginId, "自动部署完成")
+                    progressListener?.onPluginLog(pluginId, context.getString(R.string.plugin_auto_deploy_complete))
                 }
             }
 
@@ -1080,11 +1081,11 @@ class MCPStarter(private val context: Context) {
         data class Success(val message: String) : StartStatus()
         data class Error(val message: String) : StartStatus()
         data class TerminalServiceUnavailable(
-            val message: String = "终端服务不可用，请先启动它"
+            val message: String = ""
         ) : StartStatus()
 
         data class PnpmMissing(
-            val message: String = "终端中未安装pnpm，请先安装"
+            val message: String = ""
         ) : StartStatus()
     }
 

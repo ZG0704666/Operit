@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.ai.assistance.operit.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -341,15 +343,15 @@ fun TagMarketScreen(onBackPressed: () -> Unit) {
     if (showCreateDialog && selectedPreset != null) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
-            title = { Text("添加标签") },
+            title = { Text(stringResource(R.string.add_tag)) },
             text = {
                 Column {
-                    Text("将 '${selectedPreset?.name}' 添加到你的标签库中。")
+                    Text(stringResource(R.string.add_to_tag_library, selectedPreset?.name ?: ""))
                     Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = newTagName,
                         onValueChange = { newTagName = it },
-                        label = { Text("标签名称") },
+                        label = { Text(stringResource(R.string.tag_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -372,10 +374,10 @@ fun TagMarketScreen(onBackPressed: () -> Unit) {
                             }
                         }
                     }
-                ) { Text("添加") }
+                ) { Text(stringResource(R.string.add)) }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) { Text("取消") }
+                TextButton(onClick = { showCreateDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }

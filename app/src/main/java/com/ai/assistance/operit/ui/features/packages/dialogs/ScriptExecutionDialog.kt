@@ -16,10 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.PackageTool
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.javascript.JsToolManager
@@ -78,7 +80,7 @@ fun ScriptExecutionDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "脚本执行",
+                            text = stringResource(R.string.script_execution),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -95,7 +97,7 @@ fun ScriptExecutionDialog(
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     // 脚本编辑器
                     Text(
-                        text = "脚本代码",
+                        text = stringResource(R.string.script_code),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -124,11 +126,11 @@ fun ScriptExecutionDialog(
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
                             ),
-                            placeholder = { 
+                            placeholder = {
                                 Text(
-                                    "编写JavaScript代码...",
+                                    stringResource(R.string.script_code_placeholder),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                ) 
+                                )
                             }
                         )
                     }
@@ -137,7 +139,7 @@ fun ScriptExecutionDialog(
                     if (tool.parameters.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "参数配置",
+                            text = stringResource(R.string.script_params_config),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -167,7 +169,7 @@ fun ScriptExecutionDialog(
                     if (executionResults.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "执行结果",
+                            text = stringResource(R.string.execution_result),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )

@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -28,7 +30,7 @@ fun LogcatScreen(navController: NavController? = null) {
 
     CustomScaffold(
         topBar = {
-            TopAppBar(title = { Text("应用日志导出") })
+            TopAppBar(title = { Text(stringResource(R.string.logcat_export_title)) })
         },
         snackbarHost = {
             saveResult?.let {
@@ -58,11 +60,11 @@ fun LogcatScreen(navController: NavController? = null) {
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "应用日志管理",
+                        text = stringResource(R.string.logcat_management),
                         style = MaterialTheme.typography.titleLarge
                     )
                     Text(
-                        text = "您可以将应用运行期间的所有内部日志导出到一个文件，用于调试和问题分析。",
+                        text = stringResource(R.string.logcat_description),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center
                     )
@@ -77,7 +79,7 @@ fun LogcatScreen(navController: NavController? = null) {
                         } else {
                             Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("保存日志到文件")
+                            Text(stringResource(R.string.logcat_save_to_file))
                         }
                     }
                     OutlinedButton(
@@ -88,7 +90,7 @@ fun LogcatScreen(navController: NavController? = null) {
                     ) {
                         Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("清除所有日志")
+                        Text(stringResource(R.string.logcat_clear_all))
                     }
                 }
             }

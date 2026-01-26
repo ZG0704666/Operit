@@ -413,7 +413,7 @@ class WebViewHandler(private val context: Context) {
             request.setMimeType(mimetype)
             request.addRequestHeader("User-Agent", userAgent)
             request.setTitle(filename)
-            request.setDescription("正在下载文件...")
+            request.setDescription(context.getString(R.string.download_file_description))
             request.setNotificationVisibility(
                     android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
             )
@@ -476,7 +476,7 @@ class WebViewHandler(private val context: Context) {
                                                     val fileUri = Uri.parse(uriString)
                                                     Toast.makeText(
                                                                     context,
-                                                                    "下载完成: $filename",
+                                                                    context.getString(R.string.download_complete, filename),
                                                                     Toast.LENGTH_SHORT
                                                             )
                                                             .show()
@@ -485,7 +485,7 @@ class WebViewHandler(private val context: Context) {
                                         } else {
                                             Toast.makeText(
                                                             context,
-                                                            "下载未完成: $filename",
+                                                            context.getString(R.string.download_incomplete, filename),
                                                             Toast.LENGTH_SHORT
                                                     )
                                                     .show()

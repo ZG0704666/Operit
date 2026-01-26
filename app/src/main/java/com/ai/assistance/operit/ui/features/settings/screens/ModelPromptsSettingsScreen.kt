@@ -174,7 +174,7 @@ fun ModelPromptsSettingsScreen(
                 aspectRatioX = 1
                 aspectRatioY = 1
                 cropMenuCropButtonTitle = context.getString(R.string.theme_crop_done)
-                activityTitle = "裁剪头像"
+                activityTitle = context.getString(R.string.crop_avatar)
                 toolbarColor = Color.Gray.toArgb()
                 toolbarTitleColor = Color.White.toArgb()
             }
@@ -203,13 +203,13 @@ fun ModelPromptsSettingsScreen(
                     val result = when {
                         mimeType == "image/png" || fileName.lowercase().endsWith(".png") -> {
                             context.contentResolver.openInputStream(fileUri).use { inputStream ->
-                                requireNotNull(inputStream) { "无法读取文件" }
+                                requireNotNull(inputStream) { context.getString(R.string.file_read_error_message) }
                                 characterCardManager.createCharacterCardFromTavernPng(inputStream)
                             }
                         }
                         mimeType == "application/json" || fileName.lowercase().endsWith(".json") -> {
                             context.contentResolver.openInputStream(fileUri).use { inputStream ->
-                                requireNotNull(inputStream) { "无法读取文件" }
+                                requireNotNull(inputStream) { context.getString(R.string.file_read_error_message) }
                                 val jsonContent = inputStream.bufferedReader().readText()
                                 characterCardManager.createCharacterCardFromTavernJson(jsonContent)
                             }
@@ -219,14 +219,14 @@ fun ModelPromptsSettingsScreen(
                             try {
                                 // Try JSON first
                                 context.contentResolver.openInputStream(fileUri).use { inputStream ->
-                                    requireNotNull(inputStream) { "无法读取文件" }
+                                    requireNotNull(inputStream) { context.getString(R.string.file_read_error_message) }
                                     val jsonContent = inputStream.bufferedReader().readText()
                                     characterCardManager.createCharacterCardFromTavernJson(jsonContent)
                                 }
                             } catch (e: Exception) {
                                 // If JSON fails, try PNG
                                 context.contentResolver.openInputStream(fileUri).use { inputStream ->
-                                    requireNotNull(inputStream) { "无法读取文件" }
+                                    requireNotNull(inputStream) { context.getString(R.string.file_read_error_message) }
                                     characterCardManager.createCharacterCardFromTavernPng(inputStream)
                                 }
                             }
@@ -252,8 +252,8 @@ fun ModelPromptsSettingsScreen(
         try {
             val bitmap = withContext(Dispatchers.IO) {
                 context.contentResolver.openInputStream(imageUri).use { inputStream ->
-                    requireNotNull(inputStream) { "无法读取图片" }
-                    BitmapFactory.decodeStream(inputStream) ?: throw Exception("无法解析图片")
+                    requireNotNull(inputStream) { context.getString(R.string.image_read_error) }
+                    BitmapFactory.decodeStream(inputStream) ?: throw Exception(context.getString(R.string.image_parse_error))
                 }
             }
 
@@ -320,7 +320,7 @@ fun ModelPromptsSettingsScreen(
                         }
                     }
                 }
-                throw (lastError ?: Exception("无法识别彩色多维码"))
+                throw (lastError ?: Exception(context.getString(R.string.color_qr_not_recognized)))
             }
 
             val result = characterCardManager.createCharacterCardFromTavernJson(jsonContent)
@@ -503,7 +503,7 @@ fun ModelPromptsSettingsScreen(
         scope.launch {
             val duplicatedCard = card.copy(
                 id = "", // 将由createCharacterCard生成新ID
-                name = "${card.name} (副本)",
+                name = "${card.name}" + context.getString(R.string.card_copy_suffix),
                 isDefault = false
             )
             val newCardId = characterCardManager.createCharacterCard(duplicatedCard)
@@ -1103,8 +1103,8 @@ fun ModelPromptsSettingsScreen(
                             }
                         ) {
                             ListItem(
-                                headlineContent = { Text("酒馆 JSON") },
-                                supportingContent = { Text("导出为 .json 并保存到 Download/Operit/exports") },
+                                headlineContent = { Text(stringResource(R.string.tavern_json)) },
+                                supportingContent = { Text(stringResource(R.string.export_tavern_json_desc)) },
                                 leadingContent = { Icon(Icons.Default.DataObject, contentDescription = null) }
                             )
                         }
@@ -1175,8 +1175,8 @@ fun ModelPromptsSettingsScreen(
                             }
                         ) {
                             ListItem(
-                                headlineContent = { Text("酒馆 PNG") },
-                                supportingContent = { Text("导出为可导入酒馆的图片，并保存到 Download/Operit/exports") },
+                                headlineContent = { Text(stringResource(R.string.tavern_png)) },
+                                supportingContent = { Text(stringResource(R.string.export_tavern_png_desc)) },
                                 leadingContent = { Icon(Icons.Default.Image, contentDescription = null) }
                             )
                         }
@@ -1196,8 +1196,8 @@ fun ModelPromptsSettingsScreen(
                             }
                         ) {
                             ListItem(
-                                headlineContent = { Text("多维码") },
-                                supportingContent = { Text("进入多维码预览，可选颜色数并保存") },
+                                headlineContent = { Text(stringResource(R.string.color_qr_code)) },
+                                supportingContent = { Text(stringResource(R.string.export_color_qr_desc)) },
                                 leadingContent = { Icon(Icons.Default.QrCode2, contentDescription = null) }
                             )
                         }
@@ -1221,7 +1221,7 @@ fun ModelPromptsSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("已保存到：", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.saved_to), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     SelectionContainer {
                         Text(exportSavedPath)
                     }
@@ -1319,14 +1319,14 @@ fun ModelPromptsSettingsScreen(
                                     onClick = onClick,
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
-                                    Text("${count}色", fontSize = 12.sp)
+                                    Text(stringResource(R.string.color_count_suffix, count), fontSize = 12.sp)
                                 }
                             } else {
                                 OutlinedButton(
                                     onClick = onClick,
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
-                                    Text("${count}色", fontSize = 12.sp)
+                                    Text(stringResource(R.string.color_count_suffix, count), fontSize = 12.sp)
                                 }
                             }
                         }
@@ -1558,7 +1558,7 @@ fun CharacterCardTab(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("导入多维码") },
+                                    text = { Text(stringResource(R.string.import_color_qr)) },
                                     onClick = {
                                         importMenuExpanded = false
                                         onImportColorQrCode()
@@ -1568,7 +1568,7 @@ fun CharacterCardTab(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("扫描多维码") },
+                                    text = { Text(stringResource(R.string.scan_color_qr)) },
                                     onClick = {
                                         importMenuExpanded = false
                                         onScanColorQrCode()

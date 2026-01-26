@@ -819,7 +819,7 @@ fun ThemeSettingsScreen() {
                 aspectRatioX = 1
                 aspectRatioY = 1
                 cropMenuCropButtonTitle = context.getString(R.string.theme_crop_done)
-                activityTitle = "裁剪头像"
+                activityTitle = context.getString(R.string.crop_avatar)
                 // Basic theming, can be expanded later
                 toolbarColor = Color.Gray.toArgb()
                 toolbarTitleColor = Color.White.toArgb()
@@ -878,14 +878,14 @@ fun ThemeSettingsScreen() {
                     if (aiAvatarUri != null) {
                         Image(
                             painter = rememberAsyncImagePainter(Uri.parse(aiAvatarUri)),
-                            contentDescription = "角色头像",
+                            contentDescription = stringResource(R.string.character_avatar),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     } else {
                         Icon(
                             Icons.Default.Person,
-                            contentDescription = "默认头像",
+                            contentDescription = stringResource(R.string.character_card_default_avatar),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
@@ -908,7 +908,7 @@ fun ThemeSettingsScreen() {
 
                 Icon(
                     Icons.Default.Link,
-                    contentDescription = "绑定",
+                    contentDescription = stringResource(R.string.bind),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )

@@ -56,8 +56,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.AIForegroundService
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
@@ -135,9 +137,9 @@ private fun BottomInputBar(
             OutlinedTextField(
                 value = floatContext.userMessage,
                 onValueChange = { floatContext.userMessage = it },
-                placeholder = { 
+                placeholder = {
                     Text(
-                        text = "输入消息...",
+                        text = stringResource(R.string.chat_input_hint),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp)
                     )
                 },

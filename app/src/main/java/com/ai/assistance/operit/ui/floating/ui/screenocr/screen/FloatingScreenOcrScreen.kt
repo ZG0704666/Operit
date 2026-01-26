@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.floating.ui.screenocr.screen
 
+import com.ai.assistance.operit.R
 import android.widget.Toast
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -83,8 +84,6 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.hypot
-
-private const val OCR_INLINE_INSTRUCTION = "请你不要读取文件，直接根据该附件内容和用户提问回答用户问题"
 
 private data class CropBounds(
     val left: Int,
@@ -338,13 +337,13 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
         }
 
         if (!result.success) {
-            captureError = result.error ?: "截图失败"
+            captureError = result.error ?: context.getString(R.string.screen_ocr_capture_failed)
             return@LaunchedEffect
         }
 
         val path = result.result.toString().trim()
         if (path.isBlank()) {
-            captureError = "截图失败"
+            captureError = context.getString(R.string.screen_ocr_capture_failed)
             return@LaunchedEffect
         }
 
@@ -353,7 +352,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
         }
 
         if (bitmap == null) {
-            captureError = "无法加载截图"
+            captureError = context.getString(R.string.screen_ocr_load_failed)
             return@LaunchedEffect
         }
 
@@ -446,7 +445,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                             },
                             onDragEnd = {
                                 if (points.size < 3) {
-                                    showToast("圈选区域太小")
+                                    showToast(context.getString(R.string.screen_ocr_selection_too_small))
                                     points.clear()
                                     selectionRect = null
                                     showConfirm = false
@@ -461,7 +460,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                                 val w = maxX - minX
                                 val h = maxY - minY
                                 if (w < 10f || h < 10f) {
-                                    showToast("圈选区域太小")
+                                    showToast(context.getString(R.string.screen_ocr_selection_too_small))
                                     points.clear()
                                     selectionRect = null
                                     showConfirm = false
@@ -735,7 +734,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                     ) {
-                        Icon(Icons.Default.Close, "取消")
+                        Icon(Icons.Default.Close, context.getString(R.string.cancel))
                     }
 
                     // 确认按钮
@@ -755,7 +754,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                             val imgH = srcBitmap.height.toFloat().coerceAtLeast(1f)
                             val positionInfo =
                                 buildString {
-                                    append("【位置】screen_selection")
+                                    append(context.getString(R.string.screen_ocr_position, "screen_selection"))
                                     append("; image_px=${srcBitmap.width}x${srcBitmap.height}")
                                     append(
                                         "; rect_norm=${fmt4(bounds.left / imgW)},${fmt4(bounds.top / imgH)},${fmt4(cropRight / imgW)},${fmt4(cropBottom / imgH)}"
@@ -778,21 +777,21 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                                     }
                                     
                                     if (ocrText.isBlank()) {
-                                        showToast("未识别到文字")
+                                        showToast(context.getString(R.string.screen_ocr_no_text_recognized))
                                     }
 
                                     val content =
                                         buildString {
-                                            append("【圈选识别】\n")
+                                            append(context.getString(R.string.screen_ocr_selection_ocr_header))
                                             append(positionInfo)
                                             append("\n\n")
                                             if (ocrText.isBlank()) {
-                                                append("未识别到文字")
+                                                append(context.getString(R.string.screen_ocr_no_text_recognized))
                                             } else {
                                                 append(ocrText)
                                             }
                                             append("\n\n")
-                                            append(OCR_INLINE_INSTRUCTION)
+                                            append(context.getString(R.string.screen_ocr_inline_instruction))
                                         }
                                     val textAttachment = AttachmentInfo(
                                         filePath = "screen_ocr_${System.currentTimeMillis()}",
@@ -807,14 +806,14 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                                         ?.getAttachmentDelegate()
                                         ?.addAttachments(listOf(textAttachment))
                                     
-                                    showToast("已获取圈选内容")
+                                    showToast(context.getString(R.string.screen_ocr_selection_content_captured))
                                     
                                     // Set pending flag for Auto-Check in Fullscreen
                                     floatContext.pendingScreenSelection = true
                                     
                                     floatContext.onModeChange(floatContext.previousMode)
                                 } catch (e: Exception) {
-                                    showToast("Error: ${e.message}")
+                                    showToast(context.getString(R.string.screen_ocr_error_prefix, e.message ?: ""))
                                 } finally {
                                     isBusy = false
                                 }
@@ -826,7 +825,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
                         if (isBusy) {
                             androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(24.dp))
                         } else {
-                            Icon(Icons.Default.Check, "确定")
+                            Icon(Icons.Default.Check, context.getString(R.string.confirm))
                         }
                     }
                 }
@@ -874,7 +873,7 @@ fun FloatingScreenOcrScreen(floatContext: FloatContext) {
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Close",
+                    contentDescription = context.getString(R.string.close),
                     tint = Color.White,
                     modifier = Modifier.size(18.dp)
                 )

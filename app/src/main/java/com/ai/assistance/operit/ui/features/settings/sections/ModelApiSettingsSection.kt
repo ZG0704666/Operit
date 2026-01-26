@@ -241,7 +241,7 @@ fun ModelApiSettingsSection(
             } catch (e: Exception) {
                 if (showSuccess) {
                     withContext(Dispatchers.Main) {
-                        showNotification((e.message ?: "保存失败"))
+                        showNotification((e.message ?: context.getString(R.string.save_failed)))
                     }
                 } else {
                     AppLogger.e(TAG, "API设置自动保存失败: ${e.message}", e)
@@ -285,7 +285,7 @@ fun ModelApiSettingsSection(
                 try {
                     persist(state)
                 } catch (e: Exception) {
-                    showNotification((e.message ?: "自动保存失败"))
+                    showNotification((e.message ?: context.getString(R.string.auto_save_failed)))
                 }
             }
     }
@@ -535,7 +535,7 @@ fun ModelApiSettingsSection(
                     subtitle = when {
                         isMnnProvider -> stringResource(R.string.mnn_select_downloaded_model)
                         isLlamaProvider -> stringResource(R.string.llama_select_downloaded_model)
-                        else -> stringResource(R.string.model_name_placeholder) + " (可用逗号分隔多个模型)"
+                        else -> stringResource(R.string.model_name_placeholder) + stringResource(R.string.model_name_multiple_hint)
                     },
                         value = modelNameInput,
                         onValueChange = {
@@ -979,7 +979,7 @@ fun ModelApiSettingsSection(
                                 text =
                                         stringResource(R.string.models_displayed, filteredModelsList.size) +
                                                 (if (searchQuery.isNotEmpty()) stringResource(R.string.models_displayed_filtered) else "") +
-                                                (if (selectedModels.value.isNotEmpty()) " • ${selectedModels.value.size} 已选中" else ""),
+                                                (if (selectedModels.value.isNotEmpty()) " • ${selectedModels.value.size}" + stringResource(R.string.models_selected_suffix) else ""),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 6.dp, bottom = 6.dp),
