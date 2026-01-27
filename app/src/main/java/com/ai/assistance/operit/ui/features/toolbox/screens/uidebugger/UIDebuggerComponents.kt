@@ -175,7 +175,7 @@ fun UIDebuggerOverlay(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "当前分析界面",
+                            text = stringResource(R.string.uidebugger_current_interface),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -224,7 +224,7 @@ fun UIDebuggerOverlay(
                     if (currentPackageName != null) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "包名: $currentPackageName",
+                            text = stringResource(R.string.uidebugger_package_name, currentPackageName),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
@@ -274,10 +274,10 @@ fun UIDebuggerOverlay(
                 ) {
                     Icon(
                         Icons.Default.Build,
-                        contentDescription = if (isUIAnalysisActive) "关闭UI分析" else "UI分析",
-                        tint = if (isUIAnalysisActive) 
-                            MaterialTheme.colorScheme.onPrimary 
-                        else 
+                        contentDescription = if (isUIAnalysisActive) stringResource(R.string.uidebugger_close_ui_analysis) else stringResource(R.string.uidebugger_ui_analysis),
+                        tint = if (isUIAnalysisActive)
+                            MaterialTheme.colorScheme.onPrimary
+                        else
                             MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.size(20.dp)
                     )
@@ -310,7 +310,7 @@ fun UIDebuggerOverlay(
                             uiState.isActivityListening -> Icons.Default.VisibilityOff
                             else -> Icons.Default.Visibility
                         },
-                        contentDescription = if (uiState.showActivityMonitor) "折叠面板" else "Activity监听",
+                        contentDescription = if (uiState.showActivityMonitor) stringResource(R.string.uidebugger_collapse_panel) else stringResource(R.string.uidebugger_activity_monitor),
                         tint = when {
                             uiState.showActivityMonitor -> MaterialTheme.colorScheme.onPrimary
                             uiState.isActivityListening -> MaterialTheme.colorScheme.onErrorContainer

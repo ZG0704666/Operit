@@ -6,7 +6,8 @@
       "Bash(python3:*)",
       "Bash(ls:*)",
       "Bash(xargs:*)",
-      "Bash(done:*)"
+      "Bash(done:*)",
+      "Bash(./gradlew assembleDebug:*)"
     ]
   }
 }

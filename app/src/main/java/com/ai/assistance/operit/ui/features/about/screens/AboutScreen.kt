@@ -423,7 +423,7 @@ fun AboutScreen(
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             packageInfo.versionName
         } catch (e: PackageManager.NameNotFoundException) {
-            "未知"
+            context.getString(R.string.about_version_unknown)
         }
     }
 

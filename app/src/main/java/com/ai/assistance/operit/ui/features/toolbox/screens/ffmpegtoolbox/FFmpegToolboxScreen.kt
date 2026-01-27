@@ -230,13 +230,13 @@ fun FFmpegToolboxScreen(navController: NavController) {
                 )
 
                 Text(
-                    text = "-i: 输入文件\n" +
-                            "-c:v: 视频编码器\n" +
-                            "-c:a: 音频编码器\n" +
-                            "-b:v: 视频比特率\n" +
-                            "-b:a: 音频比特率\n" +
-                            "-s: 分辨率\n" +
-                            "-r: 帧率",
+                    text = context.getString(R.string.ffmpeg_param_input) + "\n" +
+                            context.getString(R.string.ffmpeg_param_video_codec) + "\n" +
+                            context.getString(R.string.ffmpeg_param_audio_codec) + "\n" +
+                            context.getString(R.string.ffmpeg_param_video_bitrate) + "\n" +
+                            context.getString(R.string.ffmpeg_param_audio_bitrate) + "\n" +
+                            context.getString(R.string.ffmpeg_param_resolution) + "\n" +
+                            context.getString(R.string.ffmpeg_param_framerate),
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -303,7 +303,7 @@ fun FFmpegToolboxScreen(navController: NavController) {
                         Spacer(modifier = Modifier.width(8.dp))
 
                         Text(
-                            text = if (result.success) "命令执行成功" else "命令执行失败",
+                            text = if (result.success) context.getString(R.string.ffmpeg_command_success) else context.getString(R.string.ffmpeg_command_failed),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (result.success)
@@ -325,19 +325,19 @@ fun FFmpegToolboxScreen(navController: NavController) {
                         val ffmpegResult = result.result as FFmpegResultData
 
                         Text(
-                            text = "命令: ${ffmpegResult.command}",
+                            text = context.getString(R.string.ffmpeg_command_label, ffmpegResult.command),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
 
                         Text(
-                            text = "返回码: ${ffmpegResult.returnCode}",
+                            text = context.getString(R.string.ffmpeg_return_code, ffmpegResult.returnCode.toString()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
 
                         Text(
-                            text = "处理时间: ${ffmpegResult.duration}ms",
+                            text = context.getString(R.string.ffmpeg_processing_time, ffmpegResult.duration.toString()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )

@@ -376,7 +376,7 @@ private fun GuideStepCard(
                 // 展开/收起图标
                 Icon(
                     imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (isExpanded) "收起" else "展开",
+                    contentDescription = if (isExpanded) stringResource(R.string.default_assist_collapse) else stringResource(R.string.default_assist_expand),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

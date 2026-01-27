@@ -68,7 +68,7 @@
     <string name="floating_listening">Listening...</string>
     <string name="floating_hold_microphone">Hold microphone</string>
     <string name="floating_start_recording_failed">Failed to start recording</string>
-    <string name="floating_recognizing">Recognizing...</string>
+    <string name="floating_recognizing">Recognizing…</string>
     <string name="floating_thinking_2">Thinking...</string>
     <string name="floating_didnt_hear_clearly">Didn\'t hear clearly</string>
     <string name="floating_hello">Hello</string>
@@ -2211,7 +2211,6 @@
     <string name="logcat_no_logs">No log data</string>
     <string name="logcat_permission_required">Log read permission required</string>
     <string name="logcat_logs_saved">Logs saved to %s</string>
-    <string name="logcat_save_failed">Failed to save logs</string>
     <string name="logcat_export_title">App Log Export</string>
     <string name="logcat_management">App Log Management</string>
     <string name="logcat_description">You can export all internal logs during app runtime to a file for debugging and issue analysis.</string>
@@ -4507,6 +4506,52 @@
     <!-- Help Screen - Mirror Selection Dialog -->
     <string name="help_loading_message">Loading user guide...</string>
     <string name="help_mirror_dialog_title">Select help site mirror</string>
+
+    <!-- About Screen -->
+    <string name="about_version_unknown">Unknown</string>
+
+    <!-- Default Assistant Guide -->
+    <string name="default_assist_collapse">Collapse</string>
+    <string name="default_assist_expand">Expand</string>
+
+    <!-- FFmpeg Toolbox -->
+    <string name="ffmpeg_param_input">-i: Input file</string>
+    <string name="ffmpeg_param_video_codec">-c:v: Video codec</string>
+    <string name="ffmpeg_param_audio_codec">-c:a: Audio codec</string>
+    <string name="ffmpeg_param_video_bitrate">-b:v: Video bitrate</string>
+    <string name="ffmpeg_param_audio_bitrate">-b:a: Audio bitrate</string>
+    <string name="ffmpeg_param_resolution">-s: Resolution</string>
+    <string name="ffmpeg_param_framerate">-r: Frame rate</string>
+    <string name="ffmpeg_command_success">Command executed successfully</string>
+    <string name="ffmpeg_command_failed">Command execution failed</string>
+    <string name="ffmpeg_command_label">Command: %1$s</string>
+    <string name="ffmpeg_return_code">Return code: %1$s</string>
+    <string name="ffmpeg_processing_time">Processing time: %1$sms</string>
+
+    <!-- UI Debugger -->
+    <string name="uidebugger_current_interface">Current analysis interface</string>
+    <string name="uidebugger_package_name">Package: %1$s</string>
+    <string name="uidebugger_close_ui_analysis">Close UI analysis</string>
+    <string name="uidebugger_ui_analysis">UI analysis</string>
+    <string name="uidebugger_collapse_panel">Collapse panel</string>
+    <string name="uidebugger_activity_monitor">Activity monitor</string>
+
+    <!-- Logcat -->
+    <string name="logcat_no_logs_to_save">No logs to save</string>
+    <string name="logcat_header">=== Operit Logs ===</string>
+    <string name="logcat_date">Date: %1$s</string>
+    <string name="logcat_total_count">Total count: %1$d</string>
+    <string name="logcat_save_failed">Save failed: %1$s</string>
+    <string name="logcat_unknown_error">Unknown error</string>
+    <string name="logcat_saved_to">Logs saved to: %1$s</string>
+    <string name="logcat_cannot_create_file">Save failed: Unable to create file, possibly due to storage permissions</string>
+    <string name="logcat_cannot_open_output_stream">Cannot open output stream</string>
+    <string name="logcat_mediestore_save_failed">MediaStore save failed: %1$s</string>
+    <string name="logcat_cannot_create_download_dir">Cannot create download directory</string>
+    <string name="logcat_cannot_create_operit_dir">Cannot create operit directory</string>
+    <string name="logcat_file_create_failed">File creation failed or is empty</string>
+    <string name="logcat_filesystem_save_failed">Filesystem save failed: %1$s</string>
+
     <string name="help_mirror_label_main">Main site</string>
     <string name="help_mirror_label_mirror1">Mirror 1</string>
     <string name="help_mirror_label_legacy">Legacy site</string>
@@ -4955,7 +5000,6 @@
     <!-- UI Debugger Components -->
     <string name="uidebugger_create_new_package">Create New Config Package</string>
     <string name="uidebugger_app_name">App Name</string>
-    <string name="uidebugger_package_name">Package Name</string>
     <string name="uidebugger_description_optional">Description (Optional)</string>
     <string name="uidebugger_create">Create</string>
     <string name="uidebugger_cancel2">Cancel</string>

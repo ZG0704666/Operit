@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.packages.screens
 
+import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -70,6 +71,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun SkillManagerScreen(
     skillRepository: SkillRepository,
