@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.api.chat.llmprovider
 
+import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.util.Base64
@@ -137,19 +138,21 @@ open class OpenAIProvider(
          activeCall = null
      }
 
-     override suspend fun getModelsList(): Result<List<ModelOption>> {
+     override suspend fun getModelsList(context: Context): Result<List<ModelOption>> {
          return ModelListFetcher.getModelsList(
+             context = context,
              apiKey = apiKeyProvider.getApiKey(),
              apiEndpoint = apiEndpoint,
              apiProviderType = providerType
          )
      }
 
-     override suspend fun testConnection(): Result<String> {
+     override suspend fun testConnection(context: Context): Result<String> {
          return try {
              val testHistory = listOf("system" to "You are a helpful assistant.")
              val stream =
                  sendMessage(
+                     context,
                      "Hi",
                      testHistory,
                      emptyList(),
@@ -1571,6 +1574,7 @@ open class OpenAIProvider(
     }
 
     override suspend fun sendMessage(
+        context: Context,
         message: String,
         chatHistory: List<Pair<String, String>>,
         modelParameters: List<ModelParameter<*>>,

@@ -27,7 +27,6 @@ import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
 import com.ai.assistance.operit.ui.features.assistant.screens.AssistantConfigScreen
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
-import com.ai.assistance.operit.ui.features.event.screens.EventCampaignScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
 import com.ai.assistance.operit.ui.features.memory.screens.MemoryScreen
@@ -162,22 +161,6 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             MemoryScreen()
-        }
-    }
-
-    data object EventCampaign : Screen(navItem = NavItem.EventCampaign, titleRes = R.string.nav_event_campaign) {
-        @Composable
-        override fun Content(
-                navController: NavController,
-                navigateTo: ScreenNavigationHandler,
-                updateNavItem: NavItemChangeHandler,
-                onGoBack: () -> Unit,
-                hasBackgroundImage: Boolean,
-                onLoading: (Boolean) -> Unit,
-                onError: (String) -> Unit,
-                onGestureConsumed: (Boolean) -> Unit
-        ) {
-            EventCampaignScreen()
         }
     }
 
@@ -1397,7 +1380,6 @@ object OperitRouter {
         return when (navItem) {
             NavItem.AiChat -> Screen.AiChat
             NavItem.MemoryBase -> Screen.MemoryBase
-            NavItem.EventCampaign -> Screen.EventCampaign
             NavItem.Packages -> Screen.Packages
             NavItem.Toolbox -> Screen.Toolbox
             NavItem.ShizukuCommands -> Screen.ShizukuCommands

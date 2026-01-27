@@ -43,7 +43,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.features.update.screens.UpdateScreen
-import java.time.LocalDateTime
 
 // 为TopAppBar的actions提供CompositionLocal
 // 它允许子组件（如AIChatScreen）向上提供它们的action Composable
@@ -166,8 +165,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         showChatBindingAnnouncement = false
     }
 
-    val isEventCampaignActive = remember { isEventCampaignActive() }
-
     // Navigation items grouped by category
     val navGroups = listOf(
         NavGroup(
@@ -192,7 +189,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             R.string.nav_group_system,
             listOfNotNull(
                 NavItem.Settings,
-                if (isEventCampaignActive) NavItem.EventCampaign else null,
                 NavItem.Help,
                 NavItem.About,
                 NavItem.UpdateHistory
@@ -307,15 +303,5 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                 onAcknowledge = { dismissChatBindingAnnouncement() }
             )
         }
-    }
-}
-
-fun isEventCampaignActive(): Boolean {
-    return try {
-        val now = LocalDateTime.now()
-        val end = LocalDateTime.of(2025, 12, 24, 23, 59)
-        now.isBefore(end)
-    } catch (e: Exception) {
-        false
     }
 }

@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.settings.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.LazyColumn
@@ -84,6 +85,7 @@ import com.ai.assistance.operit.api.voice.VoiceService
 import com.ai.assistance.operit.api.chat.llmprovider.ModelListFetcher
 import androidx.compose.runtime.LaunchedEffect
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SpeechServicesSettingsScreen(
@@ -616,7 +618,7 @@ fun SpeechServicesSettingsScreen(
 
                                 // 音色选择
                                 var voiceDropdownExpanded by remember { mutableStateOf(false) }
-                                val availableVoices = remember { SiliconFlowVoiceProvider.AVAILABLE_VOICES }
+                                val availableVoices = remember(context) { SiliconFlowVoiceProvider.getAvailableVoices(context) }
                                 val selectedVoiceName = remember(ttsVoiceIdInput) {
                                     availableVoices.find { it.id == ttsVoiceIdInput }?.name ?: context.getString(R.string.speech_services_siliconflow_voice_custom)
                                 }
@@ -733,6 +735,7 @@ fun SpeechServicesSettingsScreen(
                                     scope.launch {
                                         try {
                                             val result = ModelListFetcher.getModelsList(
+                                                context = context,
                                                 apiKey = ttsApiKeyInput,
                                                 apiEndpoint = ttsUrlTemplateInput,
                                                 apiProviderType = ApiProviderType.OPENAI_GENERIC

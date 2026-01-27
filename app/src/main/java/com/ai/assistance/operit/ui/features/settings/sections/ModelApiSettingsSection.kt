@@ -625,6 +625,7 @@ fun ModelApiSettingsSection(
                                     try {
                                         val result =
                                                 ModelListFetcher.getModelsList(
+                                                        context,
                                                         apiKeyInput,
                                                         apiEndpointInput,
                                                         selectedApiProvider
@@ -788,6 +789,7 @@ fun ModelApiSettingsSection(
                                             try {
                                                 val result =
                                                         ModelListFetcher.getModelsList(
+                                                                context,
                                                                 apiKeyInput,
                                                                 apiEndpointInput,
                                                                 selectedApiProvider

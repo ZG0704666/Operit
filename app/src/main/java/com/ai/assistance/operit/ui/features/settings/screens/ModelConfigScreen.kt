@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.settings.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.*
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.BorderStroke
@@ -50,6 +51,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ModelConfigScreen(
@@ -302,7 +304,7 @@ fun ModelConfigScreen(
                                                         modelConfigManager = configManager,
                                                         context = context
                                                     )
-                                                testResult = service.testConnection()
+                                                testResult = service.testConnection(context)
                                             } ?: run {
                                                 testResult =
                                                     Result.failure(

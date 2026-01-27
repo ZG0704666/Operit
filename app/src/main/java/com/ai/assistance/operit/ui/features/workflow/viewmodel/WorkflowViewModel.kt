@@ -19,6 +19,7 @@ import com.ai.assistance.operit.data.model.ParameterValue
 import com.ai.assistance.operit.data.model.TriggerNode
 import com.ai.assistance.operit.data.model.WorkflowNodeConnection
 import com.ai.assistance.operit.data.model.Workflow
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.repository.WorkflowRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +37,8 @@ import java.util.UUID
 class WorkflowViewModel(application: Application) : AndroidViewModel(application) {
     
     private val repository = WorkflowRepository(application)
-    
+    private val app = application
+
     var workflows by mutableStateOf<List<Workflow>>(emptyList())
         private set
     
@@ -67,7 +69,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             
             repository.getAllWorkflows().fold(
                 onSuccess = { workflows = it },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
             isLoading = false
@@ -81,7 +83,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildIntentChatBroadcastTemplateWorkflow(
-                name = "Intent对话回传模板 $time",
+                name = app.getString(R.string.workflow_template_intent, time),
                 description = ""
             )
 
@@ -90,7 +92,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -104,7 +106,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildSpeechTriggerTemplateWorkflow(
-                name = "语音触发模板 $time",
+                name = app.getString(R.string.workflow_template_voice, time),
                 description = ""
             )
 
@@ -113,7 +115,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -127,7 +129,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildErrorBranchTemplateWorkflow(
-                name = "失败分支模板 $time",
+                name = app.getString(R.string.workflow_template_failure, time),
                 description = ""
             )
 
@@ -136,7 +138,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -179,10 +181,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                             loadWorkflows()
                             onSuccess()
                         },
-                        onFailure = { error = it.message ?: "更新连接条件失败" }
+                        onFailure = { error = it.message ?: app.getString(R.string.workflow_update_condition_failed) }
                     )
                 },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
 
             isLoading = false
@@ -196,7 +198,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildChatTemplateWorkflow(
-                name = "对话模板 $time",
+                name = app.getString(R.string.workflow_template_chat, time),
                 description = ""
             )
 
@@ -205,7 +207,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -219,7 +221,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildConditionTemplateWorkflow(
-                name = "判断模板 $time",
+                name = app.getString(R.string.workflow_template_judgment, time),
                 description = ""
             )
 
@@ -228,7 +230,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -243,7 +245,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildLogicTemplateWorkflow(
                 operator = LogicOperator.AND,
-                name = "逻辑AND模板 $time",
+                name = app.getString(R.string.workflow_template_logic_and, time),
                 description = ""
             )
 
@@ -252,7 +254,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -267,7 +269,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildLogicTemplateWorkflow(
                 operator = LogicOperator.OR,
-                name = "逻辑OR模板 $time",
+                name = app.getString(R.string.workflow_template_logic_or, time),
                 description = ""
             )
 
@@ -276,7 +278,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -290,7 +292,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildExtractTemplateWorkflow(
-                name = "运算模板 $time",
+                name = app.getString(R.string.workflow_template_calculate, time),
                 description = ""
             )
 
@@ -299,7 +301,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
 
             isLoading = false
@@ -332,7 +334,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = "Intent触发",
+            name = app.getString(R.string.workflow_trigger_intent),
             triggerType = "intent",
             triggerConfig = mapOf(
                 "action" to "com.ai.assistance.operit.TRIGGER_WORKFLOW"
@@ -342,14 +344,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val startChat = ExecuteNode(
             id = startId,
-            name = "启动悬浮窗",
+            name = app.getString(R.string.workflow_action_start_chat),
             actionType = "start_chat_service",
             position = templateNodePosition(1)
         )
 
         val createChat = ExecuteNode(
             id = createChatId,
-            name = "创建对话",
+            name = app.getString(R.string.workflow_action_create_chat),
             actionType = "create_new_chat",
             actionConfig = mapOf(
                 "group" to ParameterValue.StaticValue("workflow")
@@ -359,7 +361,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val extractMessage = ExtractNode(
             id = extractMessageId,
-            name = "提取Intent消息（message）",
+            name = app.getString(R.string.workflow_action_extract_intent),
             mode = ExtractMode.JSON,
             source = ParameterValue.NodeReference(triggerId),
             expression = "message",
@@ -369,7 +371,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val sendMessage = ExecuteNode(
             id = sendId,
-            name = "发送消息（来自Intent）",
+            name = app.getString(R.string.workflow_action_send_intent),
             actionType = "send_message_to_ai",
             actionConfig = mapOf(
                 "message" to ParameterValue.NodeReference(extractMessageId)
@@ -379,14 +381,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val stopChat = ExecuteNode(
             id = stopId,
-            name = "停止悬浮窗",
+            name = app.getString(R.string.workflow_action_stop_chat),
             actionType = "stop_chat_service",
             position = templateNodePosition(5)
         )
 
         val sendBroadcast = ExecuteNode(
             id = broadcastId,
-            name = "发送广播回传AI结果",
+            name = app.getString(R.string.workflow_action_send_broadcast),
             actionType = "send_broadcast",
             actionConfig = mapOf(
                 "action" to ParameterValue.StaticValue("com.ai.assistance.operit.WORKFLOW_RESULT"),
@@ -398,7 +400,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val closeAllDisplays = ExecuteNode(
             id = closeDisplaysId,
-            name = "关闭所有虚拟屏幕",
+            name = app.getString(R.string.workflow_action_close_displays),
             actionType = "close_all_virtual_displays",
             position = templateNodePosition(7)
         )
@@ -431,21 +433,21 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = "手动触发",
+            name = app.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val startChat = ExecuteNode(
             id = startId,
-            name = "启动悬浮窗",
+            name = app.getString(R.string.workflow_action_start_chat),
             actionType = "start_chat_service",
             position = templateNodePosition(1)
         )
 
         val createChat = ExecuteNode(
             id = createChatId,
-            name = "创建对话",
+            name = app.getString(R.string.workflow_action_create_chat),
             actionType = "create_new_chat",
             actionConfig = mapOf(
                 "group" to ParameterValue.StaticValue("workflow")
@@ -455,24 +457,24 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val sendMessage = ExecuteNode(
             id = sendId,
-            name = "发送消息",
+            name = app.getString(R.string.workflow_action_send),
             actionType = "send_message_to_ai",
             actionConfig = mapOf(
-                "message" to ParameterValue.StaticValue("你好")
+                "message" to ParameterValue.StaticValue(app.getString(R.string.workflow_param_message_hello))
             ),
             position = templateNodePosition(3)
         )
 
         val stopChat = ExecuteNode(
             id = stopId,
-            name = "停止悬浮窗",
+            name = app.getString(R.string.workflow_action_stop_chat),
             actionType = "stop_chat_service",
             position = templateNodePosition(4)
         )
 
         val closeAllDisplays = ExecuteNode(
             id = closeDisplaysId,
-            name = "关闭所有虚拟屏幕",
+            name = app.getString(R.string.workflow_action_close_displays),
             actionType = "close_all_virtual_displays",
             position = templateNodePosition(5)
         )
@@ -503,14 +505,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = "手动触发",
+            name = app.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val visitWeb = ExecuteNode(
             id = visitId,
-            name = "访问网页",
+            name = app.getString(R.string.workflow_action_visit_web),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.com")
@@ -520,7 +522,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val extractVisitKey = ExtractNode(
             id = extractVisitKeyId,
-            name = "运算 visit_key",
+            name = app.getString(R.string.workflow_action_calculate_visit_key),
             source = ParameterValue.NodeReference(visitId),
             mode = ExtractMode.REGEX,
             expression = "Visit key:\\s*([0-9a-fA-F-]+)",
@@ -531,7 +533,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val condition = ConditionNode(
             id = conditionId,
-            name = "网页是否包含关键字",
+            name = app.getString(R.string.workflow_condition_check_keywords),
             left = ParameterValue.NodeReference(visitId),
             operator = ConditionOperator.CONTAINS,
             right = ParameterValue.StaticValue("Example Domain"),
@@ -540,7 +542,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val followFirstLink = ExecuteNode(
             id = followLinkId,
-            name = "命中 -> 打开第1个链接",
+            name = app.getString(R.string.workflow_action_match_open_link),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "visit_key" to ParameterValue.NodeReference(extractVisitKeyId),
@@ -551,7 +553,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val fallbackVisit = ExecuteNode(
             id = fallbackVisitId,
-            name = "未命中 -> 访问备用页面",
+            name = app.getString(R.string.workflow_action_no_match_backup),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.org")
@@ -594,14 +596,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = "手动触发",
+            name = app.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val visitWeb = ExecuteNode(
             id = visitId,
-            name = "访问网页",
+            name = app.getString(R.string.workflow_action_visit_web),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.com")
@@ -611,7 +613,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val conditionA = ConditionNode(
             id = conditionAId,
-            name = "条件A: 包含 Example Domain",
+            name = app.getString(R.string.workflow_condition_a),
             left = ParameterValue.NodeReference(visitId),
             operator = ConditionOperator.CONTAINS,
             right = ParameterValue.StaticValue("Example Domain"),
@@ -620,7 +622,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val conditionB = ConditionNode(
             id = conditionBId,
-            name = "条件B: 包含 More information",
+            name = app.getString(R.string.workflow_condition_b),
             left = ParameterValue.NodeReference(visitId),
             operator = ConditionOperator.CONTAINS,
             right = ParameterValue.StaticValue("More information"),
@@ -629,14 +631,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val logic = LogicNode(
             id = logicId,
-            name = "逻辑判断",
+            name = app.getString(R.string.workflow_action_logic_judgment),
             operator = operator,
             position = templateNodePosition(4)
         )
 
         val extractVisitKey = ExtractNode(
             id = extractVisitKeyId,
-            name = "运算 visit_key",
+            name = app.getString(R.string.workflow_action_calculate_visit_key),
             source = ParameterValue.NodeReference(visitId),
             mode = ExtractMode.REGEX,
             expression = "Visit key:\\s*([0-9a-fA-F-]+)",
@@ -647,7 +649,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val followFirstLink = ExecuteNode(
             id = followLinkId,
-            name = "逻辑为真 -> 打开第1个链接",
+            name = app.getString(R.string.workflow_action_logic_true),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "visit_key" to ParameterValue.NodeReference(extractVisitKeyId),
@@ -658,7 +660,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val fallbackVisit = ExecuteNode(
             id = fallbackVisitId,
-            name = "逻辑为假 -> 访问备用页面",
+            name = app.getString(R.string.workflow_action_logic_false),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.org")
@@ -708,14 +710,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = "手动触发",
+            name = app.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val fixedInt = ExtractNode(
             id = fixedIntId,
-            name = "运算 固定数字",
+            name = app.getString(R.string.workflow_action_calculate_fixed),
             mode = ExtractMode.RANDOM_INT,
             useFixed = true,
             fixedValue = "42",
@@ -726,7 +728,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val randomInt = ExtractNode(
             id = randomIntId,
-            name = "运算 随机数字",
+            name = app.getString(R.string.workflow_action_calculate_random),
             mode = ExtractMode.RANDOM_INT,
             useFixed = false,
             randomMin = 1,
@@ -736,7 +738,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val fixedStr = ExtractNode(
             id = fixedStrId,
-            name = "运算 固定字符串",
+            name = app.getString(R.string.workflow_action_calculate_fixed_string),
             mode = ExtractMode.RANDOM_STRING,
             useFixed = true,
             fixedValue = "hello",
@@ -747,7 +749,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val randomStr = ExtractNode(
             id = randomStrId,
-            name = "运算 随机字符串",
+            name = app.getString(R.string.workflow_action_calculate_random_string),
             mode = ExtractMode.RANDOM_STRING,
             useFixed = false,
             randomStringLength = 8,
@@ -757,7 +759,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val concat = ExtractNode(
             id = concatId,
-            name = "运算 拼接",
+            name = app.getString(R.string.workflow_action_calculate_concat),
             mode = ExtractMode.CONCAT,
             source = ParameterValue.NodeReference(fixedStrId),
             others = listOf(
@@ -771,7 +773,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val sub = ExtractNode(
             id = subId,
-            name = "运算 截取",
+            name = app.getString(R.string.workflow_action_calculate_substring),
             mode = ExtractMode.SUB,
             source = ParameterValue.NodeReference(concatId),
             startIndex = 0,
@@ -782,7 +784,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val compare = ConditionNode(
             id = compareId,
-            name = "条件: 随机数字 > 50",
+            name = app.getString(R.string.workflow_condition_random),
             left = ParameterValue.NodeReference(randomIntId),
             operator = ConditionOperator.GT,
             right = ParameterValue.StaticValue("50"),
@@ -791,7 +793,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val showResult = ExecuteNode(
             id = showId,
-            name = "展示结果（Toast）",
+            name = app.getString(R.string.workflow_action_show_result),
             actionType = "toast",
             actionConfig = mapOf(
                 "message" to ParameterValue.NodeReference(subId)
@@ -836,21 +838,21 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = "手动触发",
+            name = app.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val mainAction = ExecuteNode(
             id = mainId,
-            name = "主动作（请配置）",
+            name = app.getString(R.string.workflow_action_main),
             actionType = "",
             position = templateNodePosition(1)
         )
 
         val onSuccess = ConditionNode(
             id = successId,
-            name = "成功 -> 正常分支",
+            name = app.getString(R.string.workflow_action_success_branch),
             left = ParameterValue.StaticValue("1"),
             operator = ConditionOperator.EQ,
             right = ParameterValue.StaticValue("1"),
@@ -859,7 +861,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val onError = ConditionNode(
             id = errorId,
-            name = "失败 -> 错误处理分支",
+            name = app.getString(R.string.workflow_action_error_branch),
             left = ParameterValue.StaticValue("1"),
             operator = ConditionOperator.EQ,
             right = ParameterValue.StaticValue("1"),
@@ -886,7 +888,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = "语音触发",
+            name = app.getString(R.string.workflow_trigger_voice),
             triggerType = "speech",
             triggerConfig = mapOf(
                 "pattern" to ".*(打开|启动).*(对话|聊天|悬浮窗).*",
@@ -899,7 +901,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val startChat = ExecuteNode(
             id = startChatId,
-            name = "启动悬浮窗",
+            name = app.getString(R.string.workflow_action_start_chat),
             actionType = "start_chat_service",
             position = templateNodePosition(1)
         )
@@ -926,7 +928,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             
             repository.getWorkflowById(id).fold(
                 onSuccess = { currentWorkflow = it },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
             isLoading = false
@@ -951,7 +953,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess(it)
                 },
-                onFailure = { error = it.message ?: "创建工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_create_failed) }
             )
             
             isLoading = false
@@ -972,7 +974,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess()
                 },
-                onFailure = { error = it.message ?: "更新工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_error_update_failed) }
             )
             
             isLoading = false
@@ -993,10 +995,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                         loadWorkflows()
                         onSuccess()
                     } else {
-                        error = "删除工作流失败"
+                        error = app.getString(R.string.workflow_error_delete_failed)
                     }
                 },
-                onFailure = { error = it.message ?: "删除工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_error_delete_failed) }
             )
             
             isLoading = false
@@ -1031,8 +1033,8 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     if (currentWorkflow?.id == id) {
                         loadWorkflow(id)
                     }
-                    this@WorkflowViewModel.error = error.message ?: "触发工作流失败"
-                    onComplete("执行失败: ${error.message}")
+                    this@WorkflowViewModel.error = error.message ?: app.getString(R.string.workflow_error_trigger_failed)
+                    onComplete(app.getString(R.string.workflow_error_execute_failed, error.message ?: ""))
                 }
             )
         }
@@ -1066,10 +1068,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                             loadWorkflows()
                             onSuccess()
                         },
-                        onFailure = { error = it.message ?: "添加节点失败" }
+                        onFailure = { error = it.message ?: app.getString(R.string.workflow_error_add_node_failed) }
                     )
                 },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
             isLoading = false
@@ -1100,10 +1102,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                             loadWorkflows()
                             onSuccess()
                         },
-                        onFailure = { error = it.message ?: "删除节点失败" }
+                        onFailure = { error = it.message ?: app.getString(R.string.workflow_error_delete_node_failed) }
                     )
                 },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
             isLoading = false
@@ -1131,10 +1133,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                             loadWorkflows()
                             onSuccess()
                         },
-                        onFailure = { error = it.message ?: "更新节点失败" }
+                        onFailure = { error = it.message ?: app.getString(R.string.workflow_error_update_node_failed) }
                     )
                 },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
             isLoading = false
@@ -1171,7 +1173,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     }
                     
                     if (connectionExists) {
-                        error = "连接已存在"
+                        error = app.getString(R.string.workflow_error_connection_exists)
                         isLoading = false
                         return@fold
                     }
@@ -1192,10 +1194,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                             loadWorkflows()
                             onSuccess()
                         },
-                        onFailure = { error = it.message ?: "创建连接失败" }
+                        onFailure = { error = it.message ?: app.getString(R.string.workflow_error_create_connection_failed) }
                     )
                 },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
             isLoading = false
@@ -1227,10 +1229,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                             loadWorkflows()
                             onSuccess()
                         },
-                        onFailure = { error = it.message ?: "删除连接失败" }
+                        onFailure = { error = it.message ?: app.getString(R.string.workflow_error_delete_connection_failed) }
                     )
                 },
-                onFailure = { error = it.message ?: "加载工作流失败" }
+                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
             isLoading = false
@@ -1295,10 +1297,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                     loadWorkflows()
                     onSuccess()
                 } else {
-                    onFailure("无法调度工作流")
+                    onFailure(app.getString(R.string.workflow_error_cannot_schedule))
                 }
             } catch (e: Exception) {
-                onFailure(e.message ?: "调度工作流失败")
+                onFailure(e.message ?: app.getString(R.string.workflow_error_schedule_failed))
             }
         }
     }
@@ -1313,7 +1315,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                 loadWorkflows()
                 onSuccess()
             } catch (e: Exception) {
-                error = e.message ?: "取消调度失败"
+                error = e.message ?: app.getString(R.string.workflow_error_cancel_schedule_failed)
             }
         }
     }

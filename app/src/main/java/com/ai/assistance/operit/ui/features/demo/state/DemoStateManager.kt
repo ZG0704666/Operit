@@ -28,6 +28,7 @@ import com.ai.assistance.operit.core.tools.system.AccessibilityProviderInstaller
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.core.tools.system.Terminal
 import com.ai.assistance.operit.data.mcp.plugins.MCPSharedSession
+import com.ai.assistance.operit.R
 
 private const val TAG = "DemoStateManager"
 
@@ -480,45 +481,45 @@ data class DemoScreenState(
 
         // Command execution
         val commandText: MutableState<String> = mutableStateOf(""),
-        val resultText: MutableState<String> = mutableStateOf("结果将显示在这里"),
+        val resultText: MutableState<String> = mutableStateOf(""),  // Will be set by context in usage
         val resultDialogTitle: MutableState<String> = mutableStateOf(""),
         val resultDialogContent: MutableState<String> = mutableStateOf(""),
         val isLoading: MutableState<Boolean> = mutableStateOf(false)
 )
 
 // Sample command lists that can be reused
-val sampleAdbCommands =
+fun getSampleAdbCommands(context: Context) =
         listOf(
-                "getprop ro.build.version.release" to "获取Android版本",
-                "pm list packages" to "列出已安装的应用包名",
-                "dumpsys battery" to "查看电池状态",
-                "settings list system" to "列出系统设置",
-                "am start -a android.intent.action.VIEW -d https://www.example.com" to "打开网页",
-                "dumpsys activity activities" to "查看活动的Activity",
-                "service list" to "列出系统服务",
-                "wm size" to "查看屏幕分辨率"
+                "getprop ro.build.version.release" to context.getString(R.string.demo_cmd_get_android_version),
+                "pm list packages" to context.getString(R.string.demo_cmd_list_packages),
+                "dumpsys battery" to context.getString(R.string.demo_cmd_check_battery),
+                "settings list system" to context.getString(R.string.demo_cmd_list_settings),
+                "am start -a android.intent.action.VIEW -d https://www.example.com" to context.getString(R.string.demo_cmd_open_webpage),
+                "dumpsys activity activities" to context.getString(R.string.demo_cmd_list_activities),
+                "service list" to context.getString(R.string.demo_cmd_list_services),
+                "wm size" to context.getString(R.string.demo_cmd_check_resolution)
         )
 
 // Predefined OperitTerminal commands (previously Termux)
-val operitTerminalSampleCommands =
+fun getOperitTerminalSampleCommands(context: Context) =
         listOf(
-                "echo 'Hello OperitTerminal'" to "打印Hello OperitTerminal",
-                "ls -la" to "列出文件和目录",
-                "whoami" to "显示当前用户",
-                "apt update" to "更新包管理器 (Ubuntu)",
-                "apt install python3" to "安装Python (Ubuntu)",
-                "ip addr" to "显示网络信息"
+                "echo 'Hello OperitTerminal'" to context.getString(R.string.demo_cmd_echo_hello),
+                "ls -la" to context.getString(R.string.demo_cmd_list_files),
+                "whoami" to context.getString(R.string.demo_cmd_show_user),
+                "apt update" to context.getString(R.string.demo_cmd_update_package_manager),
+                "apt install python3" to context.getString(R.string.demo_cmd_install_python),
+                "ip addr" to context.getString(R.string.demo_cmd_show_network)
         )
 
 // Root命令示例
-val rootSampleCommands =
+fun getRootSampleCommands(context: Context) =
         listOf(
-                "mount -o rw,remount /system" to "重新挂载系统分区为可写",
-                "cat /proc/version" to "查看内核版本信息",
-                "ls -la /data" to "查看/data目录内容",
-                "getenforce" to "查看SELinux状态",
-                "ps -A" to "列出所有进程",
-                "cat /proc/meminfo" to "查看内存信息",
-                "pm list features" to "列出系统功能",
-                "dumpsys power" to "查看电源管理状态"
+                "mount -o rw,remount /system" to context.getString(R.string.demo_cmd_remount_system),
+                "cat /proc/version" to context.getString(R.string.demo_cmd_check_kernel),
+                "ls -la /data" to context.getString(R.string.demo_cmd_list_data_dir),
+                "getenforce" to context.getString(R.string.demo_cmd_check_selinux),
+                "ps -A" to context.getString(R.string.demo_cmd_list_processes),
+                "cat /proc/meminfo" to context.getString(R.string.demo_cmd_check_memory),
+                "pm list features" to context.getString(R.string.demo_cmd_list_features),
+                "dumpsys power" to context.getString(R.string.demo_cmd_check_power)
         )

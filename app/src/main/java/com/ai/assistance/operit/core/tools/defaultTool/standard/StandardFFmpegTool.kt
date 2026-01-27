@@ -27,7 +27,7 @@ class StandardFFmpegToolExecutor(private val context: Context) : ToolExecutor {
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "命令不能为空"
+                    error = "Command cannot be empty"
             )
         }
 
@@ -57,14 +57,14 @@ class StandardFFmpegToolExecutor(private val context: Context) : ToolExecutor {
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "FFmpeg命令被取消"
+                        error = "FFmpeg command was cancelled"
                 )
             } else {
                 ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "FFmpeg执行失败，返回码: ${returnCode.value}\n输出:\n$output"
+                        error = "FFmpeg execution failed, return code: ${returnCode.value}\nOutput:\n$output"
                 )
             }
         } catch (e: Exception) {
@@ -72,7 +72,7 @@ class StandardFFmpegToolExecutor(private val context: Context) : ToolExecutor {
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "FFmpeg执行异常: ${e.message}"
+                    error = "FFmpeg execution exception: ${e.message}"
             )
         }
     }
@@ -81,7 +81,7 @@ class StandardFFmpegToolExecutor(private val context: Context) : ToolExecutor {
         val command = tool.parameters.find { it.name == "command" }?.value
 
         if (command.isNullOrEmpty()) {
-            return ToolValidationResult(valid = false, errorMessage = "必须提供command参数")
+            return ToolValidationResult(valid = false, errorMessage = "Must provide command parameter")
         }
 
         return ToolValidationResult(valid = true)
@@ -100,15 +100,15 @@ class StandardFFmpegInfoToolExecutor : ToolExecutor {
             val startTime = System.currentTimeMillis()
 
             // 获取FFmpeg版本信息
-            info.appendLine("FFmpeg版本: ${FFmpegKitConfig.getVersion()}")
-            info.appendLine("构建配置: ${FFmpegKitConfig.getBuildDate()}")
+            info.appendLine("FFmpeg version: ${FFmpegKitConfig.getVersion()}")
+            info.appendLine("Build configuration: ${FFmpegKitConfig.getBuildDate()}")
 
             // 列出支持的编解码器
             val codecsSession = FFmpegKit.execute("-codecs")
             val codecsOutput = codecsSession.output ?: ""
             val duration = System.currentTimeMillis() - startTime
 
-            info.appendLine("\n支持的编解码器:")
+            info.appendLine("\nSupported codecs:")
             info.appendLine(codecsOutput)
 
             ToolResult(
@@ -127,7 +127,7 @@ class StandardFFmpegInfoToolExecutor : ToolExecutor {
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "获取FFmpeg信息失败: ${e.message}"
+                    error = "Failed to get FFmpeg info: ${e.message}"
             )
         }
     }
@@ -158,7 +158,7 @@ class StandardFFmpegConvertToolExecutor(private val context: Context) : ToolExec
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "输入路径和输出路径不能为空"
+                    error = "Input path and output path cannot be empty"
             )
         }
 
@@ -168,7 +168,7 @@ class StandardFFmpegConvertToolExecutor(private val context: Context) : ToolExec
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "输入文件不存在: $inputPath"
+                    error = "Input file does not exist: $inputPath"
             )
         }
 
@@ -335,7 +335,7 @@ class StandardFFmpegConvertToolExecutor(private val context: Context) : ToolExec
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "视频转换失败，返回码: ${returnCode.value}\n命令: $command\n输出:\n$output"
+                        error = "Video conversion failed, return code: ${returnCode.value}\nCommand: $command\nOutput:\n$output"
                 )
             }
         } catch (e: Exception) {
@@ -343,7 +343,7 @@ class StandardFFmpegConvertToolExecutor(private val context: Context) : ToolExec
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "视频转换异常: ${e.message}\n命令: $command"
+                    error = "Video conversion exception: ${e.message}\nCommand: $command"
             )
         }
     }
@@ -353,11 +353,11 @@ class StandardFFmpegConvertToolExecutor(private val context: Context) : ToolExec
         val outputPath = tool.parameters.find { it.name == "output_path" }?.value
 
         if (inputPath.isNullOrEmpty()) {
-            return ToolValidationResult(valid = false, errorMessage = "必须提供input_path参数")
+            return ToolValidationResult(valid = false, errorMessage = "Must provide input_path parameter")
         }
 
         if (outputPath.isNullOrEmpty()) {
-            return ToolValidationResult(valid = false, errorMessage = "必须提供output_path参数")
+            return ToolValidationResult(valid = false, errorMessage = "Must provide output_path parameter")
         }
 
         return ToolValidationResult(valid = true)

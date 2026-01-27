@@ -27,7 +27,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "必须提供setting和value参数"
+                error = "Must provide setting and value parameters"
             )
         }
 
@@ -37,7 +37,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
+                error = "Namespace must be one of: ${validNamespaces.joinToString(", ")}"
             )
         }
 
@@ -60,16 +60,16 @@ open class DebuggerSystemOperationTools(context: Context) :
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "设置失败: ${result.stderr}"
+                    error = "Failed to set setting: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "修改系统设置时出错", e)
+            AppLogger.e(TAG, "Error modifying system setting", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "修改系统设置时出错: ${e.message}"
+                error = "Error modifying system setting: ${e.message}"
             )
         }
     }
@@ -83,7 +83,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "必须提供setting参数"
+                error = "Must provide setting parameter"
             )
         }
 
@@ -93,7 +93,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
+                error = "Namespace must be one of: ${validNamespaces.joinToString(", ")}"
             )
         }
 
@@ -120,16 +120,16 @@ open class DebuggerSystemOperationTools(context: Context) :
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "获取设置失败: ${result.stderr}"
+                    error = "Failed to get setting: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "获取系统设置时出错", e)
+            AppLogger.e(TAG, "Error getting system setting", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "获取系统设置时出错: ${e.message}"
+                error = "Error getting system setting: ${e.message}"
             )
         }
     }
@@ -142,7 +142,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "必须提供apk_path参数"
+                error = "Must provide apk_path parameter"
             )
         }
 
@@ -155,7 +155,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "APK文件不存在: $apkPath"
+                error = "APK file does not exist: $apkPath"
             )
         }
 
@@ -182,16 +182,16 @@ open class DebuggerSystemOperationTools(context: Context) :
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "安装失败: ${result.stderr}"
+                    error = "Installation failed: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "安装应用时出错", e)
+            AppLogger.e(TAG, "Error installing app", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "安装应用时出错: ${e.message}"
+                error = "Error installing app: ${e.message}"
             )
         }
     }
@@ -205,7 +205,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "必须提供package_name参数"
+                error = "Must provide package_name parameter"
             )
         }
 
@@ -217,7 +217,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "应用未安装: $packageName"
+                error = "App not installed: $packageName"
             )
         }
 
@@ -232,7 +232,7 @@ open class DebuggerSystemOperationTools(context: Context) :
             val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success && result.stdout.contains("Success")) {
-                val details = if (keepData) "(保留数据)" else ""
+                val details = if (keepData) "(keep data)" else ""
                 val resultData =
                     AppOperationData(
                         operationType = "uninstall",
@@ -252,16 +252,16 @@ open class DebuggerSystemOperationTools(context: Context) :
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "卸载失败: ${result.stderr}"
+                    error = "Uninstallation failed: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "卸载应用时出错", e)
+            AppLogger.e(TAG, "Error uninstalling app", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "卸载应用时出错: ${e.message}"
+                error = "Error uninstalling app: ${e.message}"
             )
         }
     }
@@ -275,7 +275,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "必须提供package_name参数"
+                error = "Must provide package_name parameter"
             )
         }
 
@@ -301,14 +301,14 @@ open class DebuggerSystemOperationTools(context: Context) :
                         // 如果只返回了 Activity 名，拼接包名
                         "am start -n $packageName/$mainActivity"
                     }
-                    AppLogger.d(TAG, "解析到主 Activity: $mainActivity，使用命令: $command")
+                    AppLogger.d(TAG, "Resolved main Activity: $mainActivity, using command: $command")
                 } else {
                     // 如果无法解析 Activity，返回错误
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "无法解析应用主 Activity。请提供 activity 参数，或确保应用已正确安装。包名: $packageName"
+                        error = "Cannot resolve app main Activity. Please provide activity parameter or ensure app is properly installed. Package: $packageName"
                     )
                 }
             } else {
@@ -318,7 +318,7 @@ open class DebuggerSystemOperationTools(context: Context) :
             val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
-                val details = if (activity.isNotBlank()) "活动: $activity" else ""
+                val details = if (activity.isNotBlank()) "Activity: $activity" else ""
                 val resultData =
                     AppOperationData(
                         operationType = "start",
@@ -338,16 +338,16 @@ open class DebuggerSystemOperationTools(context: Context) :
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "启动应用失败: ${result.stderr}"
+                    error = "Failed to start app: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "启动应用时出错", e)
+            AppLogger.e(TAG, "Error starting app", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "启动应用时出错: ${e.message}"
+                error = "Error starting app: ${e.message}"
             )
         }
     }
@@ -360,7 +360,7 @@ open class DebuggerSystemOperationTools(context: Context) :
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "必须提供package_name参数"
+                error = "Must provide package_name parameter"
             )
         }
 
@@ -387,16 +387,16 @@ open class DebuggerSystemOperationTools(context: Context) :
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "停止应用失败: ${result.stderr}"
+                    error = "Failed to stop app: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "停止应用时出错", e)
+            AppLogger.e(TAG, "Error stopping app", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "停止应用时出错: ${e.message}"
+                error = "Error stopping app: ${e.message}"
             )
         }
     }
@@ -474,16 +474,16 @@ open class DebuggerSystemOperationTools(context: Context) :
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "获取通知失败: ${result.stderr}"
+                    error = "Failed to get notifications: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "获取通知时出错", e)
+            AppLogger.e(TAG, "Error getting notifications", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "获取通知时出错: ${e.message}"
+                error = "Error getting notifications: ${e.message}"
             )
         }
     }

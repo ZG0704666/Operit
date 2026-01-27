@@ -191,32 +191,46 @@ fun ChatHistorySelector(
     val ungroupedText = stringResource(R.string.ungrouped)
 
     // 当搜索查询改变时，执行内容搜索（带防抖延迟）
-    LaunchedEffect(searchQuery) {
-        if (searchQuery.isNotBlank()) {
-            // 延迟400ms，如果用户继续输入则取消本次搜索（LaunchedEffect会自动取消）
-            delay(400)
-            // 延迟后再次检查，确保 searchQuery 仍然有效
-            // 注意：如果 searchQuery 在延迟期间改变，LaunchedEffect 会重新启动，这里检查的是当前值
-            isSearching = true
-            try {
-                matchedChatIdsByContent = chatHistoryManager.searchChatIdsByContent(searchQuery)
-            } catch (e: Exception) {
-                // 如果搜索出错，清空结果
-                matchedChatIdsByContent = emptySet()
-            } finally {
-                isSearching = false
-            }
-        } else {
+    LaunchedEffect(searchQuery, chatHistories) {
+        val trimmedQuery = searchQuery.trim()
+        if (trimmedQuery.isBlank()) {
             matchedChatIdsByContent = emptySet()
+            isSearching = false
+            return@LaunchedEffect
+        }
+
+        val hasTitleOrGroupMatch =
+            chatHistories.any { history ->
+                history.title.contains(trimmedQuery, ignoreCase = true) ||
+                    (history.group?.contains(trimmedQuery, ignoreCase = true) == true)
+            }
+
+        val shouldSearchByContent = !hasTitleOrGroupMatch && trimmedQuery.length >= 2
+        if (!shouldSearchByContent) {
+            matchedChatIdsByContent = emptySet()
+            isSearching = false
+            return@LaunchedEffect
+        }
+
+        // 延迟400ms，如果用户继续输入则取消本次搜索（LaunchedEffect会自动取消）
+        delay(400)
+        // 注意：如果 searchQuery 在延迟期间改变，LaunchedEffect 会重新启动，这里检查的是当前值
+        isSearching = true
+        try {
+            matchedChatIdsByContent = chatHistoryManager.searchChatIdsByContent(trimmedQuery)
+        } catch (e: Exception) {
+            matchedChatIdsByContent = emptySet()
+        } finally {
             isSearching = false
         }
     }
 
     val filteredHistories = remember(chatHistories, searchQuery, matchedChatIdsByContent) {
-        if (searchQuery.isNotBlank()) {
+        val trimmedQuery = searchQuery.trim()
+        if (trimmedQuery.isNotBlank()) {
             chatHistories.filter { history ->
-                val matchesTitleOrGroup = history.title.contains(searchQuery, ignoreCase = true) ||
-                        (history.group?.contains(searchQuery, ignoreCase = true) == true)
+                val matchesTitleOrGroup = history.title.contains(trimmedQuery, ignoreCase = true) ||
+                        (history.group?.contains(trimmedQuery, ignoreCase = true) == true)
                 val matchesContent = matchedChatIdsByContent.contains(history.id)
                 matchesTitleOrGroup || matchesContent
             }

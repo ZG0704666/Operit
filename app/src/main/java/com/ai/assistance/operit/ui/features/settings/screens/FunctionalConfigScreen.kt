@@ -475,7 +475,7 @@ fun FunctionConfigCard(
                                                             modelConfigManager = modelConfigManager,
                                                             context = context
                                                     )
-                                            testResult = service.testConnection()
+                                            testResult = service.testConnection(context)
                                         } catch (e: Exception) {
                                             testResult = Result.failure(e)
                                         }

@@ -41,6 +41,7 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.PromptTag
 import com.ai.assistance.operit.data.model.TagType
+import com.ai.assistance.operit.data.preferences.CharacterCardBilingualData
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.PromptTagManager
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
@@ -598,8 +599,8 @@ fun ModelPromptsSettingsScreen(
                                 id = "",
                                 name = "",
                                 description = "",
-                                characterSetting = CharacterCardManager.DEFAULT_CHARACTER_SETTING,
-                                otherContent = CharacterCardManager.DEFAULT_CHARACTER_OTHER_CONTENT,
+                                characterSetting = CharacterCardBilingualData.getDefaultCharacterSetting(context),
+                                otherContent = CharacterCardBilingualData.getDefaultOtherContent(context),
                                 attachedTagIds = emptyList(),
                                 advancedCustomPrompt = "",
                                 marks = ""

@@ -163,12 +163,12 @@ object ProblemLibrary {
             useEnglish = useEnglish
         )
 
-        val userMessage = if (useEnglish) "Please categorize the memories above." else "请为以上记忆分类"
+        val userMessage = FunctionalPrompts.memoryAutoCategorizeUserMessage(useEnglish)
         val messages = listOf(Pair("system", systemPrompt), Pair("user", userMessage))
         val result = StringBuilder()
         
         withContext(Dispatchers.IO) {
-            val stream = aiService.sendMessage(message = userMessage, chatHistory = messages)
+            val stream = aiService.sendMessage(context = context, message = userMessage, chatHistory = messages)
             stream.collect { content -> result.append(content) }
         }
         
@@ -484,36 +484,18 @@ object ProblemLibrary {
             val duplicatesPromptPart = findAndDescribeDuplicates(candidateMemories, memoryRepository, useEnglish)
 
             val existingMemoriesPrompt = if (candidateMemories.isNotEmpty()) {
-                if (useEnglish) {
-                    "To avoid duplicates, please refer to these potentially relevant existing memories. If an extracted entity is semantically the same as an existing memory, use the `alias_for` field:\n" +
-                        candidateMemories.joinToString("\n") { "- \"${it.title}\": ${it.content.take(150).replace("\n", " ")}..." }
-                } else {
-                    "为避免重复，请参考以下记忆库中可能相关的已有记忆。在提取实体时，如果发现与下列记忆语义相同的实体，请使用`alias_for`字段进行标注：\n" +
-                        candidateMemories.joinToString("\n") { "- \"${it.title}\": ${it.content.take(150).replace("\n", " ")}..." }
-                }
+                FunctionalPrompts.knowledgeGraphExistingMemoriesPrefix(useEnglish) +
+                    candidateMemories.joinToString("\n") { "- \"${it.title}\": ${it.content.take(150).replace("\n", " ")}..." }
             } else {
-                if (useEnglish) {
-                    "The memory library is empty or no relevant memories were found. You may extract entities freely."
-                } else {
-                    "记忆库目前为空或没有找到相关记忆，请自由提取实体。"
-                }
+                FunctionalPrompts.knowledgeGraphNoExistingMemoriesMessage(useEnglish)
             }
 
             // 获取现有文件夹列表
             val existingFolders = memoryRepository.getAllFolderPaths()
-            val existingFoldersPrompt = if (existingFolders.isNotEmpty()) {
-                if (useEnglish) {
-                    "Existing folder categories (prefer reusing them):\n${existingFolders.joinToString(", ")}"
-                } else {
-                    "当前已存在的文件夹分类如下，请优先使用或参考它们来决定新知识的分类：\n${existingFolders.joinToString(", ")}"
-                }
-            } else {
-                if (useEnglish) {
-                    "No folder categories exist yet. Please create a suitable category based on the content."
-                } else {
-                    "当前还没有文件夹分类，请根据内容创建一个合适的分类。"
-                }
-            }
+            val existingFoldersPrompt = FunctionalPrompts.knowledgeGraphExistingFoldersPrompt(
+                existingFolders = existingFolders,
+                useEnglish = useEnglish
+            )
 
             val systemPrompt = FunctionalPrompts.buildKnowledgeGraphExtractionPrompt(
                 duplicatesPromptPart = duplicatesPromptPart,
@@ -528,7 +510,7 @@ object ProblemLibrary {
             val result = StringBuilder()
 
             withContext(Dispatchers.IO) {
-                val stream = aiService.sendMessage(message = analysisMessage, chatHistory = messages)
+                val stream = aiService.sendMessage(context = context, message = analysisMessage, chatHistory = messages)
                 stream.collect { content -> result.append(content) }
             }
 
@@ -560,21 +542,17 @@ object ProblemLibrary {
             val memoriesWithSameTitle = memoryRepository.findMemoriesByTitle(title)
             if (memoriesWithSameTitle.size > 1) {
                 duplicatesFound.add(
-                    if (useEnglish) {
-                        "Found ${memoriesWithSameTitle.size} memories with the exact same title: \"$title\". Please use `merge` to combine them into a single, better memory in this analysis."
-                    } else {
-                        "发现 ${memoriesWithSameTitle.size} 个标题完全相同的记忆: \"$title\"。请在本次分析中使用 `merge` 功能将它们合并成一个单一、更完善的记忆。"
-                    }
+                    FunctionalPrompts.knowledgeGraphDuplicateTitleInstruction(
+                        title = title,
+                        count = memoriesWithSameTitle.size,
+                        useEnglish = useEnglish
+                    )
                 )
             }
         }
 
         return if (duplicatesFound.isNotEmpty()) {
-            if (useEnglish) {
-                "[IMPORTANT: deduplicate memories]\n" + duplicatesFound.joinToString("\n") + "\n"
-            } else {
-                "【重要指令：清理重复记忆】\n" + duplicatesFound.joinToString("\n") + "\n"
-            }
+            FunctionalPrompts.knowledgeGraphDuplicateHeader(useEnglish) + duplicatesFound.joinToString("\n") + "\n"
         } else {
             ""
         }

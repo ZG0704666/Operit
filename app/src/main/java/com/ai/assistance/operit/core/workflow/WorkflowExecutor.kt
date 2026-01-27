@@ -93,8 +93,8 @@ class WorkflowExecutor(private val context: Context) {
                 when (refState) {
                     is NodeExecutionState.Success -> refState.result
                     is NodeExecutionState.Skipped -> refState.reason
-                    is NodeExecutionState.Failed -> throw IllegalStateException("引用的节点 ${value.nodeId} 执行失败")
-                    else -> throw IllegalStateException("引用的节点 ${value.nodeId} 尚未完成执行")
+                    is NodeExecutionState.Failed -> throw IllegalStateException("Referenced node ${value.nodeId} execution failed")
+                    else -> throw IllegalStateException("Referenced node ${value.nodeId} has not completed execution")
                 }
             }
         }
@@ -117,7 +117,7 @@ class WorkflowExecutor(private val context: Context) {
                 if (leftNum != null && rightNum != null) {
                     leftNum == rightNum
                 } else if (leftNum != null || rightNum != null) {
-                    throw IllegalArgumentException("条件比较类型不一致：left='$left', right='$right'")
+                    throw IllegalArgumentException("Condition comparison type mismatch: left='$left', right='$right'")
                 } else {
                     left == right
                 }
@@ -128,7 +128,7 @@ class WorkflowExecutor(private val context: Context) {
                 if (leftNum != null && rightNum != null) {
                     leftNum != rightNum
                 } else if (leftNum != null || rightNum != null) {
-                    throw IllegalArgumentException("条件比较类型不一致：left='$left', right='$right'")
+                    throw IllegalArgumentException("Condition comparison type mismatch: left='$left', right='$right'")
                 } else {
                     left != right
                 }
@@ -139,7 +139,7 @@ class WorkflowExecutor(private val context: Context) {
                 if (leftNum != null && rightNum != null) {
                     leftNum > rightNum
                 } else if (leftNum != null || rightNum != null) {
-                    throw IllegalArgumentException("条件比较类型不一致：left='$left', right='$right'")
+                    throw IllegalArgumentException("Condition comparison type mismatch: left='$left', right='$right'")
                 } else {
                     left > right
                 }
@@ -150,7 +150,7 @@ class WorkflowExecutor(private val context: Context) {
                 if (leftNum != null && rightNum != null) {
                     leftNum >= rightNum
                 } else if (leftNum != null || rightNum != null) {
-                    throw IllegalArgumentException("条件比较类型不一致：left='$left', right='$right'")
+                    throw IllegalArgumentException("Condition comparison type mismatch: left='$left', right='$right'")
                 } else {
                     left >= right
                 }
@@ -161,7 +161,7 @@ class WorkflowExecutor(private val context: Context) {
                 if (leftNum != null && rightNum != null) {
                     leftNum < rightNum
                 } else if (leftNum != null || rightNum != null) {
-                    throw IllegalArgumentException("条件比较类型不一致：left='$left', right='$right'")
+                    throw IllegalArgumentException("Condition comparison type mismatch: left='$left', right='$right'")
                 } else {
                     left < right
                 }
@@ -172,7 +172,7 @@ class WorkflowExecutor(private val context: Context) {
                 if (leftNum != null && rightNum != null) {
                     leftNum <= rightNum
                 } else if (leftNum != null || rightNum != null) {
-                    throw IllegalArgumentException("条件比较类型不一致：left='$left', right='$right'")
+                    throw IllegalArgumentException("Condition comparison type mismatch: left='$left', right='$right'")
                 } else {
                     left <= right
                 }
@@ -196,7 +196,7 @@ class WorkflowExecutor(private val context: Context) {
                     val listAllStr = itemNums.all { it == null }
 
                     if (!listAllNum && !listAllStr) {
-                        throw IllegalArgumentException("IN 列表类型不一致：包含数字与非数字 right='$right'")
+                        throw IllegalArgumentException("IN list type mismatch: contains numbers and non-numbers right='$right'")
                     }
 
                     if (listAllNum) {
@@ -204,7 +204,7 @@ class WorkflowExecutor(private val context: Context) {
                         itemNums.filterNotNull().any { it == ln }
                     } else {
                         if (leftNum != null) {
-                            throw IllegalArgumentException("条件比较类型不一致：left='$left', right='$right'")
+                            throw IllegalArgumentException("Condition comparison type mismatch: left='$left', right='$right'")
                         }
                         items.contains(left)
                     }
@@ -448,7 +448,7 @@ class WorkflowExecutor(private val context: Context) {
                     workflowId = workflow.id,
                     success = false,
                     nodeResults = nodeResults,
-                    message = "工作流没有触发节点，无法执行"
+                    message = "Workflow has no trigger node, cannot execute"
                 )
             }
             
@@ -462,7 +462,7 @@ class WorkflowExecutor(private val context: Context) {
                         workflowId = workflow.id,
                         success = false,
                         nodeResults = nodeResults,
-                        message = "指定的触发节点不存在: $triggerNodeId"
+                        message = "Specified trigger node does not exist: $triggerNodeId"
                     )
                 }
                 AppLogger.d(TAG, "定时触发: 只执行指定触发节点 ${specificNode.name}")
@@ -476,7 +476,7 @@ class WorkflowExecutor(private val context: Context) {
                         workflowId = workflow.id,
                         success = false,
                         nodeResults = nodeResults,
-                        message = "没有手动触发类型的触发节点"
+                        message = "No manual trigger type trigger node"
                     )
                 }
                 AppLogger.d(TAG, "手动触发: 执行所有手动触发类型的节点")
@@ -495,7 +495,7 @@ class WorkflowExecutor(private val context: Context) {
                     workflowId = workflow.id,
                     success = false,
                     nodeResults = nodeResults,
-                    message = "工作流存在循环依赖，无法执行"
+                    message = "Workflow has circular dependencies, cannot execute"
                 )
             }
             
@@ -523,7 +523,7 @@ class WorkflowExecutor(private val context: Context) {
                     workflowId = workflow.id,
                     success = false,
                     nodeResults = nodeResults,
-                    message = "工作流执行失败"
+                    message = "Workflow execution failed"
                 )
             }
             
@@ -533,7 +533,7 @@ class WorkflowExecutor(private val context: Context) {
                 workflowId = workflow.id,
                 success = true,
                 nodeResults = nodeResults,
-                message = "工作流执行成功"
+                message = "Workflow executed successfully"
             )
             
         } catch (e: Exception) {
@@ -542,7 +542,7 @@ class WorkflowExecutor(private val context: Context) {
                 workflowId = workflow.id,
                 success = false,
                 nodeResults = nodeResults,
-                message = "工作流执行异常: ${e.message}"
+                message = "Workflow execution exception: ${e.message}"
             )
         }
     }
@@ -950,7 +950,7 @@ class WorkflowExecutor(private val context: Context) {
                         if (node.useFixed) {
                             val fixed = node.fixedValue.trim()
                             val fixedInt = fixed.toLongOrNull()
-                                ?: throw IllegalArgumentException("固定值必须是整数: '${node.fixedValue}'")
+                                ?: throw IllegalArgumentException("Fixed value must be an integer: '${node.fixedValue}'")
                             fixedInt.toString()
                         } else {
                             randomInt(node.randomMin, node.randomMax).toString()

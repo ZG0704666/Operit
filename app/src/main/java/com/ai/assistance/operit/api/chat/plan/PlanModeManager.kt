@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.chat.plan
 import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.InputProcessingState
@@ -89,15 +90,15 @@ class PlanModeManager(
         try {
             // 开始时设置执行状态，整个计划执行期间保持这个状态
             enhancedAIService.setInputProcessingState(
-                InputProcessingState.Processing("正在执行深度搜索模式...")
+                InputProcessingState.Processing(context.getString(R.string.plan_mode_executing_deep_search))
             )
-            
-            emit("<log>🧠 启动深度搜索模式...</log>\n")
-            emit("<log>📊 正在分析您的请求并生成执行计划...</log>\n")
-            
+
+            emit("<log>🧠 ${context.getString(R.string.plan_mode_starting)}</log>\n")
+            emit("<log>📊 ${context.getString(R.string.plan_mode_analyzing_request)}</log>\n")
+
             // 第一步：生成执行计划
             enhancedAIService.setInputProcessingState(
-                InputProcessingState.Processing("正在生成执行计划...")
+                InputProcessingState.Processing(context.getString(R.string.plan_mode_generating_plan))
             )
             
             val executionGraph = generateExecutionPlan(
@@ -110,12 +111,12 @@ class PlanModeManager(
             )
             
             if (isCancelled.get()) {
-                emit("<log>🟡 任务已取消。</log>\n")
+                emit("<log>🟡 ${context.getString(R.string.plan_mode_task_cancelled)}</log>\n")
                 return@stream
             }
 
             if (executionGraph == null) {
-                emit("<error>❌ 无法生成有效的执行计划，切换回普通模式</error>\n")
+                emit("<error>❌ ${context.getString(R.string.plan_mode_failed_to_generate_plan)}</error>\n")
                 // 计划生成失败，恢复idle状态
                 enhancedAIService.setInputProcessingState(
                     InputProcessingState.Idle
@@ -133,7 +134,7 @@ class PlanModeManager(
             
             // 第二步：执行计划
             enhancedAIService.setInputProcessingState(
-                InputProcessingState.Processing("正在执行子任务...")
+                InputProcessingState.Processing(context.getString(R.string.plan_mode_executing_subtasks))
             )
             
             val executionStream = taskExecutor.executeSubtasks(
@@ -152,18 +153,18 @@ class PlanModeManager(
             }
 
             if (isCancelled.get()) {
-                emit("<log>🟡 任务已取消，正在停止...</log>\n")
+                emit("<log>🟡 ${context.getString(R.string.plan_mode_cancelling)}</log>\n")
                 emit("</plan>\n")
                 return@stream
             }
-            
-            emit("<log>🎯 所有子任务执行完成，开始汇总结果...</log>\n")
-            
+
+            emit("<log>🎯 ${context.getString(R.string.plan_mode_all_tasks_completed)}</log>\n")
+
             emit("</plan>\n")
-            
+
             // 第三步：汇总结果 - 设置汇总状态
             enhancedAIService.setInputProcessingState(
-                InputProcessingState.Processing("正在汇总执行结果...")
+                InputProcessingState.Processing(context.getString(R.string.plan_mode_summarizing_results))
             )
             
             // 第三步：汇总结果
@@ -189,10 +190,10 @@ class PlanModeManager(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException || isCancelled.get()) {
                 AppLogger.d(TAG, "深度搜索模式被取消")
-                emit("<log>🟡 深度搜索模式已取消。</log>\n")
+                emit("<log>🟡 ${context.getString(R.string.plan_mode_cancelled)}</log>\n")
             } else {
                 AppLogger.e(TAG, "深度搜索模式执行失败", e)
-                emit("<error>❌ 深度搜索模式执行失败: ${e.message}</error>\n")
+                emit("<error>❌ ${context.getString(R.string.plan_mode_execution_failed)}: ${e.message}</error>\n")
             }
             // 执行失败或取消，设置为idle状态
             enhancedAIService.setInputProcessingState(
@@ -228,6 +229,7 @@ class PlanModeManager(
 
             // 使用获取到的服务实例来发送规划请求
             val planningStream = planningService.sendMessage(
+                context = context,
                 message = "请为这个请求生成详细的执行计划",
                 chatHistory = planningHistory, // 传入包含系统提示词的历史
                 modelParameters = emptyList(), // 修正类型为 List

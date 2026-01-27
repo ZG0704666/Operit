@@ -1286,7 +1286,7 @@
     <string name="current_value">Valor Actual</string>
     <string name="closer_to_edge">Más Cerca del Borde</string>
     <string name="farther_from_edge">Más Lejos del Borde</string>
-    <string name="invalid_value_range">Valor inválido. Por favor ingrese un número entre %.1f y %.1f</string>
+    <string name="invalid_value_range">Valor inválido. Por favor ingrese un número entre %1$.1f y %2$.1f</string>
     <string name="reset_to_default">Restablecer por Defecto</string>
     <string name="layout_reset_settings">Restablecer Configuración de Diseño</string>
     <string name="layout_reset_settings_desc">Restablecer todas las configuraciones de ajuste de diseño a valores predeterminados</string>

@@ -971,14 +971,14 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                     when {
                         e is InterruptedException ||
                                 e.message?.contains("interrupted", ignoreCase = true) == true ->
-                                "ADB连接被中断，可能是网络不稳定导致。请检查ADB连接并重试。错误详情: ${e.message}"
+                                "ADB connection interrupted, possibly due to network instability. Please check ADB connection and retry. Error details: ${e.message}"
                         e is java.net.SocketException ||
                                 e.message?.contains("socket", ignoreCase = true) == true ->
-                                "ADB网络连接异常，请检查设备是否仍然连接并重试。错误详情: ${e.message}"
-                        e is java.io.IOException -> "文件IO错误: ${e.message}。请检查文件路径是否有写入权限。"
+                                "ADB network connection exception, please check if device is still connected and retry. Error details: ${e.message}"
+                        e is java.io.IOException -> "File IO error: ${e.message}. Please check if the file path has write permission."
                         e.message?.contains("permission", ignoreCase = true) == true ->
-                                "权限拒绝，无法写入文件: ${e.message}。请检查应用是否有适当的权限。"
-                        else -> "写入文件时出错: ${e.message}"
+                                "Permission denied, cannot write to file: ${e.message}. Please check if the app has appropriate permissions."
+                        else -> "Error writing to file: ${e.message}"
                     }
 
             return ToolResult(
@@ -2428,9 +2428,9 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                     operation = "open",
                                     path = "",
                                     successful = false,
-                                    details = "必须提供path参数"
+                                    details = "Must provide path parameter"
                             ),
-                    error = "必须提供path参数"
+                    error = "Must provide path parameter"
             )
         }
 
@@ -2449,9 +2449,9 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "open",
                                         path = path,
                                         successful = false,
-                                        details = "文件不存在: $path"
+                                        details = "File does not exist: $path"
                                 ),
-                        error = "文件不存在: $path"
+                        error = "File does not exist: $path"
                 )
             }
 
@@ -2475,7 +2475,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "open",
                                         path = path,
                                         successful = true,
-                                        details = "已使用系统应用打开文件: $path"
+                                        details = "Opened file with system app: $path"
                                 ),
                         error = ""
                 )
@@ -2488,13 +2488,13 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "open",
                                         path = path,
                                         successful = false,
-                                        details = "打开文件失败: ${result.stderr}"
+                                        details = "Failed to open file: ${result.stderr}"
                                 ),
-                        error = "打开文件失败: ${result.stderr}"
+                        error = "Failed to open file: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "打开文件时出错", e)
+            AppLogger.e(TAG, "Error opening file", e)
             return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -2503,9 +2503,9 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                     operation = "open",
                                     path = path,
                                     successful = false,
-                                    details = "打开文件时出错: ${e.message}"
+                                    details = "Error opening file: ${e.message}"
                             ),
-                    error = "打开文件时出错: ${e.message}"
+                    error = "Error opening file: ${e.message}"
             )
         }
     }
@@ -2533,9 +2533,9 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                     operation = "share",
                                     path = "",
                                     successful = false,
-                                    details = "必须提供path参数"
+                                    details = "Must provide path parameter"
                             ),
-                    error = "必须提供path参数"
+                    error = "Must provide path parameter"
             )
         }
 
@@ -2554,9 +2554,9 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "share",
                                         path = path,
                                         successful = false,
-                                        details = "文件不存在: $path"
+                                        details = "File does not exist: $path"
                                 ),
-                        error = "文件不存在: $path"
+                        error = "File does not exist: $path"
                 )
             }
 
@@ -2581,7 +2581,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "share",
                                         path = path,
                                         successful = true,
-                                        details = "已打开分享界面，分享文件: $path"
+                                        details = "Opened share interface, sharing file: $path"
                                 ),
                         error = ""
                 )
@@ -2594,13 +2594,13 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "share",
                                         path = path,
                                         successful = false,
-                                        details = "分享文件失败: ${result.stderr}"
+                                        details = "Failed to share file: ${result.stderr}"
                                 ),
-                        error = "分享文件失败: ${result.stderr}"
+                        error = "Failed to share file: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "分享文件时出错", e)
+            AppLogger.e(TAG, "Error sharing file", e)
             return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -2609,9 +2609,9 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                     operation = "share",
                                     path = path,
                                     successful = false,
-                                    details = "分享文件时出错: ${e.message}"
+                                    details = "Error sharing file: ${e.message}"
                             ),
-                    error = "分享文件时出错: ${e.message}"
+                    error = "Error sharing file: ${e.message}"
             )
         }
     }

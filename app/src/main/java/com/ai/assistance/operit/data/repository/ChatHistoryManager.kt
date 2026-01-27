@@ -695,7 +695,14 @@ class ChatHistoryManager private constructor(private val context: Context) {
                 if (query.isBlank()) {
                     return@withContext emptySet()
                 }
-                val chatIds = messageDao.searchChatIdsByContent(query)
+                val escapedQuery =
+                    query
+                        .trim()
+                        .replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_")
+
+                val chatIds = messageDao.searchChatIdsByContent(escapedQuery)
                 chatIds.toSet()
             } catch (e: Exception) {
                 AppLogger.e(TAG, "搜索聊天内容失败: $query", e)

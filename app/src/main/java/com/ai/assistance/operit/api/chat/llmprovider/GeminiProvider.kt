@@ -14,9 +14,11 @@ import com.ai.assistance.operit.util.exceptions.UserCancellationException
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.stream
+import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.util.Base64
+import com.ai.assistance.operit.R
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -636,6 +638,7 @@ class GeminiProvider(
 
     /** 发送消息到Gemini API */
     override suspend fun sendMessage(
+            context: Context,
             message: String,
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
@@ -682,7 +685,7 @@ class GeminiProvider(
             // 在循环开始时检查是否已被取消
             if (isManuallyCancelled) {
                 logError("请求被用户取消，停止重试。")
-                throw UserCancellationException("请求已被用户取消")
+                throw UserCancellationException(context.getString(R.string.gemini_error_request_cancelled))
             }
             
             try {
@@ -725,14 +728,14 @@ class GeminiProvider(
                         emitConnectionStatus("连接成功，处理响应...")
 
                         if (!response.isSuccessful) {
-                            val errorBody = response.body?.string() ?: "无错误详情"
+                            val errorBody = response.body?.string() ?: context.getString(R.string.gemini_error_no_error_details)
                             logError("API请求失败: ${response.code}, $errorBody")
                             // 对于4xx这类明确的客户端错误，直接抛出，不进行重试
                             if (response.code in 400..499) {
-                                throw NonRetriableException("API请求失败: ${response.code}, $errorBody")
+                                throw NonRetriableException(context.getString(R.string.gemini_error_api_request_failed, response.code, errorBody))
                             }
                             // 对于5xx等服务端错误，允许重试
-                            throw IOException("API请求失败: ${response.code}, $errorBody")
+                            throw IOException(context.getString(R.string.gemini_error_api_request_failed, response.code, errorBody))
                         }
 
                         // 根据stream参数处理响应
@@ -759,13 +762,13 @@ class GeminiProvider(
             } catch (e: SocketTimeoutException) {
                 if (isManuallyCancelled) {
                     logError("请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException(context.getString(R.string.gemini_error_request_cancelled), e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     logError("连接超时且达到最大重试次数", e)
-                    throw IOException("AI响应获取失败，连接超时且已达最大重试次数: ${e.message}")
+                    throw IOException(context.getString(R.string.gemini_error_timeout_max_retries, e.message ?: ""))
                 }
                 logError("连接超时，尝试重试 $retryCount/$maxRetries", e)
                 onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
@@ -773,13 +776,13 @@ class GeminiProvider(
             } catch (e: UnknownHostException) {
                 if (isManuallyCancelled) {
                     logError("请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException(context.getString(R.string.gemini_error_request_cancelled), e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     logError("无法解析主机且达到最大重试次数", e)
-                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                    throw IOException(context.getString(R.string.gemini_error_cannot_connect))
                 }
                 logError("无法解析主机，尝试重试 $retryCount/$maxRetries", e)
                 onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
@@ -787,14 +790,14 @@ class GeminiProvider(
             } catch (e: IOException) {
                 if (isManuallyCancelled) {
                     logError("请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException(context.getString(R.string.gemini_error_request_cancelled), e)
                 }
                 // 捕获所有其他IO异常，包括流读取中断
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     logError("达到最大重试次数后仍然失败", e)
-                    throw IOException("AI响应获取失败，已达最大重试次数: ${e.message}")
+                    throw IOException(context.getString(R.string.gemini_error_max_retries, e.message ?: ""))
                 }
                 logError("IO异常，尝试重试 $retryCount/$maxRetries", e)
                 onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
@@ -802,16 +805,16 @@ class GeminiProvider(
             } catch (e: Exception) {
                 if (isManuallyCancelled) {
                     logError("请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException(context.getString(R.string.gemini_error_request_cancelled), e)
                 }
                 lastException = e
                 logError("发送消息时发生未知异常，不进行重试", e)
-                throw IOException("AI响应获取失败: ${e.message}", e)
+                throw IOException(context.getString(R.string.gemini_error_response_failed, e.message ?: ""), e)
             }
         }
 
         logError("重试${maxRetries}次后仍然失败", lastException)
-        throw IOException("连接超时或中断，已重试 $maxRetries 次: ${lastException?.message}")
+        throw IOException(context.getString(R.string.gemini_error_connection_timeout, maxRetries, lastException?.message ?: ""))
     }
 
     /** 创建请求体 */
@@ -1528,21 +1531,22 @@ class GeminiProvider(
     }
 
     /** 获取模型列表 */
-    override suspend fun getModelsList(): Result<List<ModelOption>> {
+    override suspend fun getModelsList(context: Context): Result<List<ModelOption>> {
         return ModelListFetcher.getModelsList(
+            context = context,
             apiKey = apiKeyProvider.getApiKey(),
             apiEndpoint = apiEndpoint,
             apiProviderType = ApiProviderType.GOOGLE
         )
     }
 
-    override suspend fun testConnection(): Result<String> {
+    override suspend fun testConnection(context: Context): Result<String> {
         return try {
             // 通过发送一条短消息来测试完整的连接、认证和API端点。
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList(), false, onTokensUpdated = { _, _, _ -> }, onNonFatalError = {})
+            val stream = sendMessage(context, "Hi", testHistory, emptyList(), false, false, null, onTokensUpdated = { _, _, _ -> }, onNonFatalError = {})
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。
@@ -1553,10 +1557,10 @@ class GeminiProvider(
 
             // 某些情况下，即使连接成功，也可能不会返回任何数据（例如，如果模型只处理了提示而没有生成响应）。
             // 因此，只要不抛出异常，我们就认为连接成功。
-            Result.success("连接成功！")
+            Result.success(context.getString(R.string.gemini_connection_success))
         } catch (e: Exception) {
             logError("连接测试失败", e)
-            Result.failure(IOException("连接测试失败: ${e.message}", e))
+            Result.failure(IOException(context.getString(R.string.gemini_connection_test_failed, e.message ?: ""), e))
         }
     }
 }

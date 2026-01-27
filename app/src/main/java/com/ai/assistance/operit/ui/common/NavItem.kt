@@ -53,8 +53,6 @@ sealed class NavItem(val route: String, val titleResId: Int, val icon: ImageVect
         object Packages : NavItem("packages", R.string.nav_packages, Icons.Default.Extension)
         object MemoryBase :
                 NavItem("memory_base", R.string.nav_memory_base, Icons.Default.History)
-        object EventCampaign :
-                NavItem("event_campaign", R.string.nav_event_campaign, Icons.Default.Description)
         object Terminal : NavItem("terminal", R.string.terminal, Icons.Default.Terminal)
         object Toolbox : NavItem("toolbox", R.string.toolbox, Icons.Default.Apps)
         object About : NavItem("about", R.string.nav_about, Icons.Default.Info)

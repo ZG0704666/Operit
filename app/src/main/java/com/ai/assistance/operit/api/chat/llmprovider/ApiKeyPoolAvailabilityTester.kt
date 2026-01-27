@@ -181,7 +181,7 @@ class ApiKeyPoolAvailabilityTester(
             )
 
             try {
-                val result = service.testConnection()
+                val result = service.testConnection(context)
                 result.getOrThrow()
             } finally {
                 service.release()

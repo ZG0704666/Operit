@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.api.chat.llmprovider
 
+import android.content.Context
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ToolPrompt
@@ -27,14 +28,16 @@ interface AIService {
 
     /**
      * 获取模型列表
-     * 
+     *
+     * @param context Android Context
      * @return 模型列表结果，成功返回模型列表，失败返回错误信息
      */
-    suspend fun getModelsList(): Result<List<ModelOption>>
+    suspend fun getModelsList(context: Context): Result<List<ModelOption>>
 
     /**
      * 发送消息到AI服务
      *
+     * @param context Android Context
      * @param message 用户消息内容
      * @param chatHistory 聊天历史记录，(角色, 内容)对的列表
      * @param modelParameters 模型参数列表
@@ -46,6 +49,7 @@ interface AIService {
      * @return 流式响应内容的Stream（无论stream参数如何，都返回Stream）
      */
     suspend fun sendMessage(
+            context: Context,
             message: String,
             chatHistory: List<Pair<String, String>> = emptyList(),
             modelParameters: List<ModelParameter<*>> = emptyList(),
@@ -60,9 +64,10 @@ interface AIService {
     /**
      * 测试与AI服务的连接
      *
+     * @param context Android Context
      * @return 成功时返回成功信息，失败时返回包含错误的Result
      */
-    suspend fun testConnection(): Result<String>
+    suspend fun testConnection(context: Context): Result<String>
 
     /**
      * 精确计算下一次请求的输入Token数量

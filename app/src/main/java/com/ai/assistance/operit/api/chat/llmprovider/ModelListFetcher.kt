@@ -2,6 +2,7 @@ package com.ai.assistance.operit.api.chat.llmprovider
 
 import android.content.Context
 import android.os.Environment
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
@@ -127,12 +128,14 @@ object ModelListFetcher {
     /**
      * 获取模型列表
      *
+     * @param context Android Context
      * @param apiKey API密钥
      * @param apiEndpoint 完整的API端点URL
      * @param apiProviderType API提供商类型
      * @return 模型列表结果
      */
     suspend fun getModelsList(
+            context: Context,
             apiKey: String,
             apiEndpoint: String,
             apiProviderType: ApiProviderType = ApiProviderType.OPENAI
@@ -214,7 +217,7 @@ object ModelListFetcher {
                                     return@withContext Result.failure(IOException("响应体为空"))
                                 }
                                 fallbackResponse.close()
-                                val modelOptions = parseOpenAIModelResponse(fallbackBody)
+                                val modelOptions = parseOpenAIModelResponse(context, fallbackBody)
                                 AppLogger.d(TAG, "成功解析模型列表，共获取 ${modelOptions.size} 个模型")
                                 return@withContext Result.success(modelOptions)
                             } else {
@@ -262,14 +265,14 @@ object ModelListFetcher {
                                     ApiProviderType.INFINIAI,
                                     ApiProviderType.ALIPAY_BAILING,
                                     ApiProviderType.LMSTUDIO,
-                                    ApiProviderType.PPINFRA -> parseOpenAIModelResponse(responseBody)
+                                    ApiProviderType.PPINFRA -> parseOpenAIModelResponse(context, responseBody)
                                     ApiProviderType.ANTHROPIC,
-                                    ApiProviderType.ANTHROPIC_GENERIC -> parseAnthropicModelResponse(responseBody)
+                                    ApiProviderType.ANTHROPIC_GENERIC -> parseAnthropicModelResponse(context, responseBody)
                                     ApiProviderType.GOOGLE,
-                                    ApiProviderType.GEMINI_GENERIC -> parseGoogleModelResponse(responseBody)
+                                    ApiProviderType.GEMINI_GENERIC -> parseGoogleModelResponse(context, responseBody)
 
                                     // 其他提供商可能需要单独的解析方法
-                                    else -> parseOpenAIModelResponse(responseBody) // 默认尝试OpenAI格式
+                                    else -> parseOpenAIModelResponse(context, responseBody) // 默认尝试OpenAI格式
                                 }
                             } catch (e: Exception) {
                                 AppLogger.e(TAG, "解析响应失败: ${e.message}")
@@ -303,7 +306,7 @@ object ModelListFetcher {
                     }
                 } catch (e: UnknownHostException) {
                     AppLogger.e(TAG, "无法连接到服务器，域名解析失败", e)
-                    return@withContext Result.failure(IOException("无法连接到服务器，请检查网络连接和API地址是否正确", e))
+                    return@withContext Result.failure(IOException(context.getString(R.string.modellist_error_cannot_connect), e))
                 } catch (e: Exception) {
                     lastException = e
                     retryCount++
@@ -320,19 +323,19 @@ object ModelListFetcher {
 
             // 所有重试都失败
             AppLogger.e(TAG, "超过最大重试次数，获取模型列表失败")
-            Result.failure(lastException ?: IOException("获取模型列表失败"))
+            Result.failure(lastException ?: IOException(context.getString(R.string.modellist_error_fetch_failed)))
         }
     }
 
     /** 解析OpenAI格式的模型响应 格式: {"data": [{"id": "model-id", "object": "model", ...}, ...]} */
-    private fun parseOpenAIModelResponse(jsonResponse: String): List<ModelOption> {
+    private fun parseOpenAIModelResponse(context: Context, jsonResponse: String): List<ModelOption> {
         val modelList = mutableListOf<ModelOption>()
 
         try {
             val jsonObject = JSONObject(jsonResponse)
             if (!jsonObject.has("data")) {
                 AppLogger.e(TAG, "OpenAI响应格式错误: 缺少'data'字段")
-                throw JSONException("响应格式错误: 缺少'data'字段")
+                throw JSONException(context.getString(R.string.modellist_error_missing_data))
             }
 
             val dataArray = jsonObject.getJSONArray("data")
@@ -353,7 +356,7 @@ object ModelListFetcher {
     }
 
     /** 解析Anthropic格式的模型响应 */
-    private fun parseAnthropicModelResponse(jsonResponse: String): List<ModelOption> {
+    private fun parseAnthropicModelResponse(context: Context, jsonResponse: String): List<ModelOption> {
         val modelList = mutableListOf<ModelOption>()
 
         try {
@@ -363,7 +366,7 @@ object ModelListFetcher {
                 jsonObject.has("models") -> jsonObject.getJSONArray("models")
                 else -> {
                     AppLogger.e(TAG, "Anthropic响应格式错误: 缺少'data'或'models'字段")
-                    throw JSONException("响应格式错误: 缺少'data'或'models'字段")
+                    throw JSONException(context.getString(R.string.modellist_error_missing_data_or_models))
                 }
             }
 
@@ -393,7 +396,7 @@ object ModelListFetcher {
      * 1. 直接API格式: {"models": [{model对象}, ...]}
      * 2. Vertex AI格式: {"models" 或 "publisher_models": [{model对象}, ...]}
      */
-    private fun parseGoogleModelResponse(jsonResponse: String): List<ModelOption> {
+    private fun parseGoogleModelResponse(context: Context, jsonResponse: String): List<ModelOption> {
         val modelList = mutableListOf<ModelOption>()
 
         try {
@@ -459,7 +462,7 @@ object ModelListFetcher {
                 }
             } else {
                 AppLogger.e(TAG, "Google响应格式错误: 未找到'models'字段")
-                throw JSONException("响应格式错误: 未找到'models'字段")
+                throw JSONException(context.getString(R.string.modellist_error_missing_models))
             }
         } catch (e: JSONException) {
             AppLogger.e(TAG, "解析Google模型JSON失败: ${e.message}", e)

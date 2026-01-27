@@ -450,7 +450,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         accumulatedOutputTokenCount = 0
 
         return stream {
-            val context = MessageExecutionContext(conversationHistory = chatHistory.toMutableList())
+            val execContext = MessageExecutionContext(conversationHistory = chatHistory.toMutableList())
             var hadFatalError = false
             try {
                 // 确保所有操作都在IO线程上执行
@@ -477,7 +477,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // Prepare conversation history with system prompt
                     val preparedHistory =
                             prepareConversationHistory(
-                                    context.conversationHistory, // 始终使用内部历史记录
+                                    execContext.conversationHistory, // 始终使用内部历史记录
                                     processedInput,
                                     workspacePath,
                                     promptFunctionType,
@@ -491,8 +491,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                     AppLogger.d(TAG, "sendMessage本地耗时: prepareConversationHistory=${tAfterPrepareHistory - tAfterProcessInput}ms")
                     
                     // 关键修复：用准备好的历史记录（包含了系统提示）去同步更新内部的 conversationHistory 状态
-                    context.conversationHistory.clear()
-                    context.conversationHistory.addAll(preparedHistory)
+                    execContext.conversationHistory.clear()
+                    execContext.conversationHistory.addAll(preparedHistory)
 
                     // Update UI state to connecting
                     if (!isSubTask) {
@@ -523,6 +523,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     AppLogger.d(TAG, "调用AI服务，处理时间: ${tAfterGetTools - startTime}ms, 流式输出: $stream")
                     val responseStream =
                             serviceForFunction.sendMessage(
+                                    context = this@EnhancedAIService.context,
                                     message = processedInput,
                                     chatHistory = preparedHistory,
                                     modelParameters = modelParameters,
@@ -539,8 +540,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                     var isFirstChunk = true
 
                     // 创建一个新的轮次来管理内容
-                    context.roundManager.startNewRound()
-                    context.streamBuffer.clear()
+                    execContext.roundManager.startNewRound()
+                    execContext.streamBuffer.clear()
 
                     // 从原始stream收集内容并处理
                     var chunkCount = 0
@@ -573,10 +574,10 @@ class EnhancedAIService private constructor(private val context: Context) {
                         }
 
                         // 更新streamBuffer，保持与原有逻辑一致
-                        context.streamBuffer.append(content)
+                        execContext.streamBuffer.append(content)
 
                         // 更新内容到轮次管理器
-                        context.roundManager.updateContent(context.streamBuffer.toString())
+                        execContext.roundManager.updateContent(execContext.streamBuffer.toString())
 
                         // 发射当前内容片段
                         emit(content)
@@ -584,7 +585,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
                     // 流收集完成后，添加用户消息到对话历史
                     // 只有在成功收到响应后，才将用户消息添加到历史记录中
-                    context.conversationHistory.add(Pair("user", processedInput))
+                    execContext.conversationHistory.add(Pair("user", processedInput))
 
                     // Update accumulated token counts and persist them
                     val inputTokens = serviceForFunction.inputTokenCount
@@ -636,7 +637,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     val collector = this
                     withContext(Dispatchers.IO) {
                         processStreamCompletion(
-                            context,
+                            execContext,
                             functionType,
                             collector,
                             enableThinking,
@@ -1128,6 +1129,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 val aiStartTime = System.currentTimeMillis()
                 val responseStream =
                         serviceForFunction.sendMessage(
+                                context = this@EnhancedAIService.context,
                                 message = toolResultMessage,
                                 chatHistory = currentChatHistory,
                                 modelParameters = modelParameters,

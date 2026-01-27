@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.utils
 
+import android.content.Context
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -48,33 +50,33 @@ fun getFileIcon(file: FileItem): ImageVector {
 }
 
 /** 获取文件类型描述 */
-fun getFileType(fileName: String): String {
+fun getFileType(context: Context, fileName: String): String {
     return when {
-        fileName.endsWith(".pdf", ignoreCase = true) -> "PDF 文档"
+        fileName.endsWith(".pdf", ignoreCase = true) -> context.getString(R.string.file_type_pdf)
         fileName.endsWith(".jpg", ignoreCase = true) ||
-                fileName.endsWith(".jpeg", ignoreCase = true) -> "JPEG 图片"
-        fileName.endsWith(".png", ignoreCase = true) -> "PNG 图片"
-        fileName.endsWith(".gif", ignoreCase = true) -> "GIF 图片"
-        fileName.endsWith(".bmp", ignoreCase = true) -> "BMP 图片"
-        fileName.endsWith(".mp3", ignoreCase = true) -> "MP3 音频"
-        fileName.endsWith(".wav", ignoreCase = true) -> "WAV 音频"
-        fileName.endsWith(".ogg", ignoreCase = true) -> "OGG 音频"
-        fileName.endsWith(".mp4", ignoreCase = true) -> "MP4 视频"
-        fileName.endsWith(".avi", ignoreCase = true) -> "AVI 视频"
-        fileName.endsWith(".mkv", ignoreCase = true) -> "MKV 视频"
-        fileName.endsWith(".mov", ignoreCase = true) -> "MOV 视频"
-        fileName.endsWith(".zip", ignoreCase = true) -> "ZIP 压缩文件"
-        fileName.endsWith(".rar", ignoreCase = true) -> "RAR 压缩文件"
-        fileName.endsWith(".7z", ignoreCase = true) -> "7Z 压缩文件"
-        fileName.endsWith(".tar", ignoreCase = true) -> "TAR 压缩文件"
-        fileName.endsWith(".txt", ignoreCase = true) -> "文本文档"
-        fileName.endsWith(".doc", ignoreCase = true) -> "Word 文档"
-        fileName.endsWith(".docx", ignoreCase = true) -> "Word 文档"
-        fileName.endsWith(".xls", ignoreCase = true) -> "Excel 表格"
-        fileName.endsWith(".xlsx", ignoreCase = true) -> "Excel 表格"
-        fileName.endsWith(".ppt", ignoreCase = true) -> "PowerPoint 演示文稿"
-        fileName.endsWith(".pptx", ignoreCase = true) -> "PowerPoint 演示文稿"
-        else -> "文件"
+                fileName.endsWith(".jpeg", ignoreCase = true) -> context.getString(R.string.file_type_jpeg)
+        fileName.endsWith(".png", ignoreCase = true) -> context.getString(R.string.file_type_png)
+        fileName.endsWith(".gif", ignoreCase = true) -> context.getString(R.string.file_type_gif)
+        fileName.endsWith(".bmp", ignoreCase = true) -> context.getString(R.string.file_type_bmp)
+        fileName.endsWith(".mp3", ignoreCase = true) -> context.getString(R.string.file_type_mp3)
+        fileName.endsWith(".wav", ignoreCase = true) -> context.getString(R.string.file_type_wav)
+        fileName.endsWith(".ogg", ignoreCase = true) -> context.getString(R.string.file_type_ogg)
+        fileName.endsWith(".mp4", ignoreCase = true) -> context.getString(R.string.file_type_mp4)
+        fileName.endsWith(".avi", ignoreCase = true) -> context.getString(R.string.file_type_avi)
+        fileName.endsWith(".mkv", ignoreCase = true) -> context.getString(R.string.file_type_mkv)
+        fileName.endsWith(".mov", ignoreCase = true) -> context.getString(R.string.file_type_mov)
+        fileName.endsWith(".zip", ignoreCase = true) -> context.getString(R.string.file_type_zip)
+        fileName.endsWith(".rar", ignoreCase = true) -> context.getString(R.string.file_type_rar)
+        fileName.endsWith(".7z", ignoreCase = true) -> context.getString(R.string.file_type_7z)
+        fileName.endsWith(".tar", ignoreCase = true) -> context.getString(R.string.file_type_tar)
+        fileName.endsWith(".txt", ignoreCase = true) -> context.getString(R.string.file_type_txt)
+        fileName.endsWith(".doc", ignoreCase = true) ||
+                fileName.endsWith(".docx", ignoreCase = true) -> context.getString(R.string.file_type_doc)
+        fileName.endsWith(".xls", ignoreCase = true) ||
+                fileName.endsWith(".xlsx", ignoreCase = true) -> context.getString(R.string.file_type_xls)
+        fileName.endsWith(".ppt", ignoreCase = true) ||
+                fileName.endsWith(".pptx", ignoreCase = true) -> context.getString(R.string.file_type_ppt)
+        else -> context.getString(R.string.file_type_unknown)
     }
 }
 

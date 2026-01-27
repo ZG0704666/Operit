@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.api.chat.llmprovider
 
+import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
@@ -685,6 +686,7 @@ class ClaudeProvider(
     }
 
     override suspend fun sendMessage(
+            context: Context,
             message: String,
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
@@ -768,7 +770,7 @@ class ClaudeProvider(
         while (retryCount < maxRetries) {
             if (isManuallyCancelled) {
                 AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                throw UserCancellationException("请求已被用户取消")
+                throw UserCancellationException("Request cancelled by user")
             }
 
             val call = try {
@@ -815,13 +817,13 @@ class ClaudeProvider(
                         if (!response.isSuccessful) {
                             val errorBody = response.body?.string() ?: "No error details"
                             if (response.code in 400..499) {
-                                throw NonRetriableException("API请求失败，状态码: ${response.code}，错误信息: $errorBody")
+                                throw NonRetriableException("API request failed, status code: ${response.code}, error: $errorBody")
                             }
-                            throw IOException("API请求失败，状态码: ${response.code}，错误信息: $errorBody")
+                            throw IOException("API request failed, status code: ${response.code}, error: $errorBody")
                         }
 
                         AppLogger.d("AIService", "连接成功，等待响应...")
-                        val responseBody = response.body ?: throw IOException("API响应为空")
+                        val responseBody = response.body ?: throw IOException("Response body is empty")
 
                         val contentType = response.header("Content-Type") ?: ""
                         AppLogger.d(
@@ -853,7 +855,7 @@ class ClaudeProvider(
                                     tokenCacheManager.outputTokenCount
                                 )
                             } else {
-                                throw IOException("响应解析为空")
+                                throw IOException("Response parsing returned empty")
                             }
                             return@withContext
                         }
@@ -1164,13 +1166,13 @@ class ClaudeProvider(
             } catch (e: SocketTimeoutException) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException("Request cancelled by user", e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     AppLogger.e("AIService", "【Claude】连接超时且达到最大重试次数", e)
-                    throw IOException("AI响应获取失败，连接超时且已达最大重试次数: ${e.message}")
+                    throw IOException("Failed to get AI response, connection timeout and max retries reached: ${e.message}")
                 }
                 AppLogger.w("AIService", "【Claude】连接超时，正在进行第 $retryCount 次重试...", e)
                 onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
@@ -1178,13 +1180,13 @@ class ClaudeProvider(
             } catch (e: UnknownHostException) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException("Request cancelled by user", e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     AppLogger.e("AIService", "【Claude】无法解析主机且达到最大重试次数", e)
-                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                    throw IOException("Cannot connect to server, please check network connection and API address")
                 }
                 AppLogger.w("AIService", "【Claude】无法解析主机，正在进行第 $retryCount 次重试...", e)
                 onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
@@ -1192,13 +1194,13 @@ class ClaudeProvider(
             } catch (e: IOException) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException("Request cancelled by user", e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     AppLogger.e("AIService", "【Claude】达到最大重试次数", e)
-                    throw IOException("AI响应获取失败，已达最大重试次数: ${e.message}")
+                    throw IOException("Failed to get AI response, max retries reached: ${e.message}")
                 }
                 AppLogger.w("AIService", "【Claude】网络中断，正在进行第 $retryCount 次重试...", e)
                 onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
@@ -1206,10 +1208,10 @@ class ClaudeProvider(
             } catch (e: Exception) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("请求已被用户取消", e)
+                    throw UserCancellationException("Request cancelled by user", e)
                 }
                 AppLogger.e("AIService", "【Claude】发生未知异常，停止重试", e)
-                throw IOException("AI响应获取失败: ${e.message}", e)
+                throw IOException("Failed to get AI response: ${e.message}", e)
             } finally {
                 activeCall = null
                 activeResponse = null
@@ -1219,38 +1221,39 @@ class ClaudeProvider(
         lastException?.let { ex ->
             AppLogger.e("AIService", "【Claude】重试失败，请检查网络连接", ex)
         } ?: AppLogger.e("AIService", "【Claude】重试失败，请检查网络连接")
-        throw IOException("连接超时或中断，已重试 $maxRetries 次: ${lastException?.message}")
+        throw IOException("Connection timeout or interrupted, retried $maxRetries times: ${lastException?.message}")
     }
 
     /**
      * 获取模型列表 注意：此方法直接调用ModelListFetcher获取模型列表
      * @return 模型列表结果
      */
-    override suspend fun getModelsList(): Result<List<ModelOption>> {
+    override suspend fun getModelsList(context: Context): Result<List<ModelOption>> {
         // 调用ModelListFetcher获取模型列表
         return ModelListFetcher.getModelsList(
+            context = context,
             apiKey = apiKeyProvider.getApiKey(),
             apiEndpoint = apiEndpoint,
             apiProviderType = providerType
         )
     }
 
-    override suspend fun testConnection(): Result<String> {
+    override suspend fun testConnection(context: Context): Result<String> {
         return try {
             // 通过发送一条短消息来测试完整的连接、认证和API端点。
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList(), false, onTokensUpdated = { _, _, _ -> }, onNonFatalError = {})
+            val stream = sendMessage(context, "Hi", testHistory, emptyList(), false, onTokensUpdated = { _, _, _ -> }, onNonFatalError = {})
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。
             stream.collect { _ -> }
 
-            Result.success("连接成功！")
+            Result.success("Connection successful!")
         } catch (e: Exception) {
             AppLogger.e("AIService", "连接测试失败", e)
-            Result.failure(IOException("连接测试失败: ${e.message}", e))
+            Result.failure(IOException("Connection test failed: ${e.message}", e))
         }
     }
 }

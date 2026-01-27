@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import kotlin.math.min
@@ -39,8 +40,9 @@ class AccessibilityProviderInstaller {
                 return versionInfo
             } catch (e: Exception) {
                 AppLogger.e(TAG, "获取内置无障碍服务版本失败", e)
-                cachedBundledVersion = "未知"
-                return "未知"
+                val unknown = context.getString(R.string.accessibility_provider_unknown)
+                cachedBundledVersion = unknown
+                return unknown
             }
         }
 
@@ -88,7 +90,8 @@ class AccessibilityProviderInstaller {
             }
 
             val bundledVersion = getBundledVersion(context)
-            if (bundledVersion == "未知") {
+            val unknown = context.getString(R.string.accessibility_provider_unknown)
+            if (bundledVersion == unknown) {
                 cachedUpdateNeeded = false
                 updateCacheTimestamp()
                 return false // Cannot determine bundled version, do not suggest update

@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.chat.plan
 import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.util.ChatMarkupRegex
@@ -60,17 +61,17 @@ class TaskExecutor(
 
             val (isValid, errorMessage) = PlanParser.validateExecutionGraph(graph)
             if (!isValid) {
-                emit("<error>❌ 执行图验证失败: $errorMessage</error>\n")
+                emit("<error>❌ ${context.getString(R.string.plan_error_graph_validation_failed)}: $errorMessage</error>\n")
                 return@stream
             }
 
             val sortedTasks = PlanParser.topologicalSort(graph)
             if (sortedTasks.isEmpty()) {
-                emit("<error>❌ 无法对任务进行拓扑排序，可能存在循环依赖</error>\n")
+                emit("<error>❌ ${context.getString(R.string.plan_error_topological_sort_failed)}</error>\n")
                 return@stream
             }
 
-            emit("<log>📋 开始执行计划，共 ${sortedTasks.size} 个任务</log>\n")
+            emit("<log>📋 ${context.getString(R.string.plan_log_starting_execution, sortedTasks.size)}</log>\n")
 
             coroutineScope {
                 val job = SupervisorJob()
@@ -87,7 +88,7 @@ class TaskExecutor(
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "执行子任务时发生错误", e)
-            emit("<error>❌ 执行子任务时发生错误: ${e.message}</error>\n")
+            emit("<error>❌ ${context.getString(R.string.plan_error_execution_failed)}: ${e.message}</error>\n")
         }
     }
 
@@ -147,7 +148,7 @@ class TaskExecutor(
             
             if (readyTasks.isEmpty()) {
                 // 如果没有就绪的任务，说明存在问题
-                onMessage("<error>❌ 无法找到可执行的任务，可能存在依赖问题</error>\n")
+                onMessage("<error>❌ ${context.getString(R.string.plan_error_no_executable_tasks)}</error>\n")
                 break
             }
             
@@ -245,7 +246,7 @@ class TaskExecutor(
             // 捕获并处理异常，包括取消异常
             if (e is CancellationException) {
                 AppLogger.d(TAG, "Task ${task.id} was cancelled.")
-                onMessage("""<update id="${task.id}" status="FAILED" tool_count="${toolCount.get()}" error="任务已取消"/>""" + "\n")
+                onMessage("""<update id="${task.id}" status="FAILED" tool_count="${toolCount.get()}" error="${context.getString(R.string.plan_error_task_cancelled)}"/>""" + "\n")
             } else {
                 AppLogger.e(TAG, "执行任务 ${task.id} 时发生错误", e)
                 val errorMessage = e.message ?: "Unknown error"
@@ -387,7 +388,7 @@ $graph.finalSummaryInstruction
 
         } catch (e: Exception) {
             AppLogger.e(TAG, "执行最终汇总时发生错误", e)
-            return stream { emit("汇总执行失败: ${e.message}") }
+            return stream { emit("${context.getString(R.string.plan_error_summary_failed)}: ${e.message}") }
         }
     }
     

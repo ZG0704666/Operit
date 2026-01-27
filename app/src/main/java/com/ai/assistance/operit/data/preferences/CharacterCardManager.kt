@@ -10,6 +10,7 @@ import com.ai.assistance.operit.data.model.PromptTag
 import com.ai.assistance.operit.data.model.TagType
 import com.ai.assistance.operit.data.model.TavernCharacterCard
 import com.ai.assistance.operit.data.model.TavernCharacterData
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.TavernExtensions
 import com.ai.assistance.operit.data.model.OperitTavernExtension
 import com.ai.assistance.operit.data.model.OperitCharacterCardPayload
@@ -60,9 +61,6 @@ class CharacterCardManager private constructor(private val context: Context) {
         const val DEFAULT_CHARACTER_CARD_ID = "default_character"
 
         const val DEFAULT_CHARACTER_NAME = "Operit"
-        const val DEFAULT_CHARACTER_DESCRIPTION = "系统默认的角色卡配置"
-        const val DEFAULT_CHARACTER_SETTING = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。"
-        const val DEFAULT_CHARACTER_OTHER_CONTENT = "保持有帮助的语气，并清楚地传达限制。"
         
         @Volatile
         private var INSTANCE: CharacterCardManager? = null
@@ -362,7 +360,7 @@ class CharacterCardManager private constructor(private val context: Context) {
         val nameKey = stringPreferencesKey("character_card_${id}_name")
         val descriptionKey = stringPreferencesKey("character_card_${id}_description")
         val characterSettingKey = stringPreferencesKey("character_card_${id}_character_setting")
-        val openingStatementKey = stringPreferencesKey("character_card_${id}_opening_statement") // 新增
+        val openingStatementKey = stringPreferencesKey("character_card_${id}_opening_statement")
         val otherContentKey = stringPreferencesKey("character_card_${id}_other_content")
         val attachedTagIdsKey = stringSetPreferencesKey("character_card_${id}_attached_tag_ids")
         val advancedCustomPromptKey = stringPreferencesKey("character_card_${id}_advanced_custom_prompt")
@@ -370,12 +368,12 @@ class CharacterCardManager private constructor(private val context: Context) {
         val isDefaultKey = booleanPreferencesKey("character_card_${id}_is_default")
         val createdAtKey = longPreferencesKey("character_card_${id}_created_at")
         val updatedAtKey = longPreferencesKey("character_card_${id}_updated_at")
-        
+
         preferences[nameKey] = DEFAULT_CHARACTER_NAME
-        preferences[descriptionKey] = DEFAULT_CHARACTER_DESCRIPTION
-        preferences[characterSettingKey] = DEFAULT_CHARACTER_SETTING
+        preferences[descriptionKey] = CharacterCardBilingualData.getDefaultDescription(context)
+        preferences[characterSettingKey] = CharacterCardBilingualData.getDefaultCharacterSetting(context)
         preferences[openingStatementKey] = ""
-        preferences[otherContentKey] = DEFAULT_CHARACTER_OTHER_CONTENT
+        preferences[otherContentKey] = CharacterCardBilingualData.getDefaultOtherContent(context)
         preferences[attachedTagIdsKey] = setOf<String>()
         preferences[advancedCustomPromptKey] = ""
         preferences[marksKey] = ""
@@ -432,14 +430,14 @@ class CharacterCardManager private constructor(private val context: Context) {
 
     suspend fun importAllCharacterCardsFromBackupContent(jsonContent: String): CharacterCardImportResult {
         if (jsonContent.isBlank()) {
-            throw Exception("导入的文件为空")
+            throw Exception(context.getString(R.string.charactercard_import_file_empty))
         }
 
         val gson = Gson()
         val root: JsonElement = try {
             JsonParser.parseString(jsonContent)
         } catch (e: Exception) {
-            throw Exception("JSON格式错误: ${e.message}")
+            throw Exception(context.getString(R.string.charactercard_json_format_error, e.message ?: ""))
         }
 
         val cards: List<CharacterCard> = try {
@@ -452,7 +450,7 @@ class CharacterCardManager private constructor(private val context: Context) {
                 emptyList()
             }
         } catch (e: Exception) {
-            throw Exception("解析失败: ${e.message}")
+            throw Exception(context.getString(R.string.charactercard_parse_failed, e.message ?: ""))
         }
 
         if (cards.isEmpty()) {
@@ -537,7 +535,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             val tavernCard = gson.fromJson(jsonString, TavernCharacterCard::class.java)
             
             if (tavernCard.data.name.isBlank()) {
-                return Result.failure(Exception("角色卡名称不能为空"))
+                return Result.failure(Exception(context.getString(R.string.charactercard_name_empty)))
             }
 
             // --- New logic for Character Book ---
@@ -555,8 +553,8 @@ class CharacterCardManager private constructor(private val context: Context) {
 
                     if (worldBookContent.isNotBlank()) {
                         worldBookTagId = tagManager.createOrReusePromptTag(
-                            name = "世界书: ${tavernCard.data.name}",
-                            description = "为角色'${tavernCard.data.name}'自动生成的世界书。",
+                            name = CharacterCardBilingualData.getWorldBookTagName(context, tavernCard.data.name),
+                            description = CharacterCardBilingualData.getWorldBookTagDescription(context, tavernCard.data.name),
                             promptContent = worldBookContent,
                             tagType = TagType.FUNCTION
                         )
@@ -594,9 +592,9 @@ class CharacterCardManager private constructor(private val context: Context) {
             val id = createCharacterCard(finalCard)
             Result.success(id)
         } catch (e: JsonSyntaxException) {
-            Result.failure(Exception("JSON格式错误: ${e.message}"))
+            Result.failure(Exception(context.getString(R.string.charactercard_json_format_error, e.message ?: "")))
         } catch (e: Exception) {
-            Result.failure(Exception("解析失败: ${e.message}"))
+            Result.failure(Exception(context.getString(R.string.charactercard_parse_failed, e.message ?: "")))
         }
     }
     
@@ -608,7 +606,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             val jsonString = extractJsonFromPng(inputStream)
             createCharacterCardFromTavernJson(jsonString)
         } catch (e: Exception) {
-            Result.failure(Exception("PNG解析失败: ${e.message}"))
+            Result.failure(Exception(context.getString(R.string.charactercard_png_parse_failed, e.message ?: "")))
         }
     }
 
@@ -658,7 +656,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             val gson = Gson()
             Result.success(gson.toJson(tavernCard))
         } catch (e: Exception) {
-            Result.failure(Exception("导出失败: ${e.message}"))
+            Result.failure(Exception(context.getString(R.string.charactercard_export_failed, e.message ?: "")))
         }
     }
     
@@ -670,7 +668,7 @@ class CharacterCardManager private constructor(private val context: Context) {
         
         // PNG文件头检查
         if (bytes.size < 8 || !isPngHeader(bytes)) {
-            throw Exception("不是有效的PNG文件")
+            throw Exception(context.getString(R.string.charactercard_invalid_png))
         }
         
         var offset = 8 // 跳过PNG头
@@ -704,7 +702,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             offset += chunkLength.toInt() + 4
         }
         
-        throw Exception("在PNG文件中未找到角色卡数据")
+        throw Exception(context.getString(R.string.charactercard_no_data_in_png))
     }
     
     /**
@@ -735,7 +733,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
             return String(decodedBytes, Charsets.UTF_8)
         } catch (e: Exception) {
-            throw Exception("Base64解码失败: ${e.message}")
+            throw Exception(context.getString(R.string.charactercard_base64_decode_failed, e.message ?: ""))
         }
     }
     
@@ -748,72 +746,84 @@ class CharacterCardManager private constructor(private val context: Context) {
         // 组合角色设定
         val characterSetting = buildString {
             if (data.description.isNotBlank()) {
-                append("角色描述：\n${data.description}\n\n")
+                append(CharacterCardBilingualData.getCharacterDescriptionLabel(context))
+                append("\n${data.description}\n\n")
             }
             if (data.personality.isNotBlank()) {
-                append("性格特征：\n${data.personality}\n\n")
+                append(CharacterCardBilingualData.getPersonalityLabel(context))
+                append("\n${data.personality}\n\n")
             }
             if (data.scenario.isNotBlank()) {
-                append("场景设定：\n${data.scenario}\n\n")
+                append(CharacterCardBilingualData.getScenarioLabel(context))
+                append("\n${data.scenario}\n\n")
             }
         }.trim()
-        
+
         // 组合其他内容
         val otherContent = buildString {
             if (data.mes_example.isNotBlank()) {
-                append("对话示例：\n${data.mes_example}\n\n")
+                append(CharacterCardBilingualData.getDialogueExampleLabel(context))
+                append("\n${data.mes_example}\n\n")
             }
             if (data.system_prompt.isNotBlank()) {
-                append("系统提示词：\n${data.system_prompt}\n\n")
+                append(CharacterCardBilingualData.getSystemPromptLabel(context))
+                append("\n${data.system_prompt}\n\n")
             }
             if (data.post_history_instructions.isNotBlank()) {
-                append("历史指令：\n${data.post_history_instructions}\n\n")
+                append(CharacterCardBilingualData.getPostHistoryInstructionsLabel(context))
+                append("\n${data.post_history_instructions}\n\n")
             }
-            
+
             // 添加备用问候语
             if (data.alternate_greetings.isNotEmpty()) {
-                append("备用问候语：\n")
+                append(CharacterCardBilingualData.getAlternateGreetingsLabel(context))
                 data.alternate_greetings.forEachIndexed { index, greeting ->
                     append("${index + 1}. $greeting\n")
                 }
                 append("\n")
             }
         }.trim()
-        
+
         // 组合高级自定义提示词
         val advancedCustomPrompt = buildString {
-            
-            
+
+
             data.extensions?.depth_prompt?.let { depthPrompt ->
                 if (depthPrompt.prompt.isNotBlank()) {
-                    append("深度提示词：\n${depthPrompt.prompt}\n\n")
+                    append(CharacterCardBilingualData.getDepthPromptLabel(context))
+                    append("\n${depthPrompt.prompt}\n\n")
                 }
             }
         }.trim()
-        
+
         // 生成描述（简化版，不包含作者信息）
         val description = if (data.tags.isNotEmpty()) {
-            "标签：${data.tags.take(5).joinToString(", ")}" + 
-            if (data.tags.size > 5) "等${data.tags.size}个" else ""
+            CharacterCardBilingualData.getTagsLabel(context) + data.tags.take(5).joinToString(", ") +
+            if (data.tags.size > 5) CharacterCardBilingualData.getEtAlLabel(context) + "${data.tags.size}" else ""
         } else ""
-        
+
         // 生成备注信息
         val marks = buildString {
-            append("来源：酒馆角色卡\n")
+            append(CharacterCardBilingualData.getSourceLabel(context))
             if (data.creator.isNotBlank()) {
-                append("作者：${data.creator}\n")
+                append(CharacterCardBilingualData.getAuthorLabel(context))
+                append("${data.creator}\n")
             }
             if (data.creator_notes.isNotBlank()) {
-                append("作者备注：\n${data.creator_notes}\n\n")
+                append(CharacterCardBilingualData.getAuthorNotesLabel(context))
+                append("${data.creator_notes}\n\n")
             }
             if (data.character_version.isNotBlank()) {
-                append("版本：${data.character_version}\n")
+                append(CharacterCardBilingualData.getVersionLabel(context))
+                append("${data.character_version}\n")
             }
             if (data.tags.isNotEmpty()) {
-                append("原始标签：${data.tags.joinToString(", ")}\n")
+                append(CharacterCardBilingualData.getOriginalTagsLabel(context))
+                append("${data.tags.joinToString(", ")}\n")
             }
             if (tavernCard.spec.isNotBlank()) {
-                append("格式：${tavernCard.spec}")
+                append(CharacterCardBilingualData.getFormatLabel(context))
+                append("${tavernCard.spec}")
                 if (tavernCard.spec_version.isNotBlank()) {
                     append(" v${tavernCard.spec_version}")
                 }

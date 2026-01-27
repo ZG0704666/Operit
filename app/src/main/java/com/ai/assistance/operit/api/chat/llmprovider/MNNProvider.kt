@@ -516,6 +516,7 @@ class MNNProvider(
     }
 
     override suspend fun sendMessage(
+        context: Context,
         message: String,
         chatHistory: List<Pair<String, String>>,
         modelParameters: List<ModelParameter<*>>,
@@ -627,7 +628,7 @@ class MNNProvider(
         }
     }
 
-    override suspend fun testConnection(): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun testConnection(context: Context): Result<String> = withContext(Dispatchers.IO) {
         try {
             // 检查模型名称
             if (modelName.isEmpty()) {
@@ -886,7 +887,7 @@ class MNNProvider(
             }
     }
 
-    override suspend fun getModelsList(): Result<List<ModelOption>> {
+    override suspend fun getModelsList(context: Context): Result<List<ModelOption>> {
         // MNN使用本地模型，从固定目录读取已下载的模型
         return ModelListFetcher.getMnnLocalModels(context)
     }

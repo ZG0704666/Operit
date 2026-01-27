@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.data.mcp.plugins
 
 import android.content.Context
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
 import com.ai.assistance.operit.core.tools.system.Terminal
@@ -47,10 +48,11 @@ class MCPDeployer(private val context: Context) {
 
         val maxChunkSize = 3500
         var start = 0
+        val prefix = context.getString(R.string.mcp_deployment_output_prefix)
         while (start < output.length) {
             val end = kotlin.math.min(start + maxChunkSize, output.length)
             val chunk = output.substring(start, end)
-            statusCallback(DeploymentStatus.InProgress("输出: $chunk"))
+            statusCallback(DeploymentStatus.InProgress("$prefix$chunk"))
             start = end
         }
     }
@@ -72,7 +74,7 @@ class MCPDeployer(private val context: Context) {
     ): Boolean =
             withContext(Dispatchers.IO) {
                 try {
-                    statusCallback(DeploymentStatus.InProgress("开始部署插件: $pluginId"))
+                    statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_start, pluginId)))
                     AppLogger.d(TAG, "开始部署插件(自定义命令): $pluginId, 路径: $pluginPath")
 
                     val mcpLocalServer = MCPLocalServer.getInstance(context)
@@ -83,29 +85,29 @@ class MCPDeployer(private val context: Context) {
                         val command = serverConfig?.command?.lowercase() ?: "npx/uvx/uv"
 
                         AppLogger.d(TAG, "插件 $pluginId 使用 $command 命令（虚拟路径），开始最小化部署...")
-                        statusCallback(DeploymentStatus.InProgress("检测到 $command 类型插件，执行最小化部署"))
+                        statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_virtual_plugin_detected, command)))
 
                         val terminal = Terminal.getInstance(context)
                         val pluginShortName = pluginId.split("/").last()
                         val sessionId = terminal.createSession("deploy-$pluginShortName")
                         if (sessionId == null) {
-                            statusCallback(DeploymentStatus.Error("无法创建终端会话"))
+                            statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_cannot_create_terminal)))
                             return@withContext false
                         }
 
                         try {
                             val pluginHomeDir = "~/mcp_plugins"
                             val pluginDir = "$pluginHomeDir/${pluginId.split("/").last()}"
-                            statusCallback(DeploymentStatus.InProgress("创建插件目录: $pluginDir"))
+                            statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_creating_directory, pluginDir)))
 
                             val mkdirExecuted = terminal.executeCommand(sessionId, "mkdir -p $pluginDir")
                             if (mkdirExecuted == null) {
-                                statusCallback(DeploymentStatus.Error("创建插件目录失败"))
+                                statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_create_directory_failed)))
                                 return@withContext false
                             }
 
                             AppLogger.d(TAG, "虚拟路径插件 $pluginId 最小化部署完成")
-                            statusCallback(DeploymentStatus.Success("$command 类型插件最小化部署完成，已可直接使用"))
+                            statusCallback(DeploymentStatus.Success(context.getString(R.string.mcp_deployment_minimal_complete, command)))
                             return@withContext true
                         } finally {
                             kotlinx.coroutines.delay(2000L)
@@ -118,7 +120,7 @@ class MCPDeployer(private val context: Context) {
                     val pluginDir = File(pluginPath)
                     if (!pluginDir.exists() || !pluginDir.isDirectory) {
                         AppLogger.e(TAG, "插件目录不存在: $pluginPath")
-                        statusCallback(DeploymentStatus.Error("插件目录不存在: $pluginPath"))
+                        statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_plugin_not_exist, pluginPath)))
                         return@withContext false
                     }
 
@@ -134,7 +136,7 @@ class MCPDeployer(private val context: Context) {
                     if (!marketConfig.isNullOrBlank()) {
                         // 优先使用市场配置
                         AppLogger.d(TAG, "使用市场配置部署插件: $pluginId")
-                        statusCallback(DeploymentStatus.InProgress("使用市场配置部署插件..."))
+                        statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_using_market_config)))
                         mcpConfig = marketConfig
                     } else {
                         // 没有市场配置，分析项目并生成配置
@@ -146,7 +148,7 @@ class MCPDeployer(private val context: Context) {
                         val readmeContent = readmeFile?.readText() ?: ""
 
                         // 分析项目结构以便生成配置
-                        statusCallback(DeploymentStatus.InProgress("分析项目结构..."))
+                        statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_analyzing_structure)))
                         val projectStructure = projectAnalyzer.analyzeProjectStructure(pluginDir, readmeContent)
 
                         // 定义插件在 proot 环境中的目录路径
@@ -163,14 +165,14 @@ class MCPDeployer(private val context: Context) {
                     }
 
                     // 保存MCP配置
-                    statusCallback(DeploymentStatus.InProgress("保存MCP配置..."))
+                    statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_saving_config)))
 
                     // 解析生成的MCP配置并保存为正确的格式
                     val configSaveResult = saveMCPConfigToLocalServer(mcpLocalServer, pluginId, mcpConfig)
 
                     if (!configSaveResult) {
                         AppLogger.e(TAG, "保存MCP配置失败: $pluginId")
-                        statusCallback(DeploymentStatus.Error("保存MCP配置失败"))
+                        statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_save_config_failed)))
                         return@withContext false
                     }
 
@@ -186,7 +188,7 @@ class MCPDeployer(private val context: Context) {
                     )
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "使用自定义命令部署插件时出错", e)
-                    statusCallback(DeploymentStatus.Error("部署出错: ${e.message}"))
+                    statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_error, e.message ?: "")))
                     return@withContext false
                 }
             }
@@ -251,7 +253,7 @@ class MCPDeployer(private val context: Context) {
             val pluginShortName = pluginId.split("/").last()
             sessionId = terminal.createSession("deploy-$pluginShortName")
             if (sessionId == null) {
-                statusCallback(DeploymentStatus.Error("无法创建终端会话"))
+                statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_cannot_create_terminal)))
                 return@withContext false
             }
 
@@ -262,16 +264,16 @@ class MCPDeployer(private val context: Context) {
             val pluginDir = "$pluginHomeDir/${pluginId.split("/").last()}"
 
             // 首先创建插件目录
-            statusCallback(DeploymentStatus.InProgress("创建插件目录: $pluginDir"))
+            statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_creating_directory, pluginDir)))
 
             val mkdirExecuted = terminal.executeCommand(sessionId, "mkdir -p $pluginDir")
             if (mkdirExecuted == null) {
-                statusCallback(DeploymentStatus.Error("创建插件目录失败"))
+                statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_create_directory_failed)))
                 return@withContext false
             }
 
             // 复制插件文件到目标目录
-            statusCallback(DeploymentStatus.InProgress("复制插件文件到目标目录..."))
+            statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_copying_files)))
 
             // 将pluginPath转换为终端可访问的路径
             val terminalPluginPath = if (pluginPath.startsWith("/storage/")) {
@@ -300,17 +302,17 @@ class MCPDeployer(private val context: Context) {
             
             val copyResult = toolHandler.executeTool(copyTool)
             if (!copyResult.success) {
-                statusCallback(DeploymentStatus.Error("复制文件到目标目录失败: ${copyResult.error}"))
+                statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_copy_failed, copyResult.error ?: "")))
                 return@withContext false
             }
             AppLogger.d(TAG, "成功复制插件目录: $terminalPluginPath -> $pluginDir")
 
             // 切换到插件目录
-            statusCallback(DeploymentStatus.InProgress("切换到插件目录"))
+            statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_switching_directory)))
 
             val cdExecuted = terminal.executeCommand(sessionId, "cd $pluginDir")
             if (cdExecuted == null) {
-                statusCallback(DeploymentStatus.Error("切换到插件目录失败"))
+                statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_switch_failed)))
                 return@withContext false
             }
 
@@ -340,7 +342,7 @@ class MCPDeployer(private val context: Context) {
 
                 statusCallback(
                         DeploymentStatus.InProgress(
-                                "执行命令 (${index + 1}/${deployCommands.size}): $cleanCommand"
+                                context.getString(R.string.mcp_deployment_executing_command, index + 1, deployCommands.size, cleanCommand)
                         )
                 )
                 AppLogger.d(TAG, "执行命令 (${index + 1}/${deployCommands.size}): $cleanCommand")
@@ -358,38 +360,38 @@ class MCPDeployer(private val context: Context) {
                         AppLogger.w(TAG, "非关键命令执行失败，但将继续部署: $cleanCommand")
                         statusCallback(
                                 DeploymentStatus.InProgress(
-                                        "非关键命令执行失败，继续后续步骤: $cleanCommand"
+                                        context.getString(R.string.mcp_deployment_non_critical_failed, cleanCommand)
                                 )
                         )
                     } else {
                         // 关键命令失败，中止部署
                         AppLogger.e(TAG, "命令执行失败: $cleanCommand")
-                        statusCallback(DeploymentStatus.Error("命令执行失败: $cleanCommand"))
+                        statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_command_failed, cleanCommand)))
                         return@withContext false
                     }
                 }
             }
 
             // 构建部署成功消息
-            val successMessage = StringBuilder()
-            successMessage.append("插件部署成功: $pluginId\n")
-            successMessage.append("部署路径: $pluginDir\n")
-
-            // 如果有MCP配置，添加服务器名称
             val finalServerName = serverName ?: pluginId.split("/").last().lowercase()
-            successMessage.append("服务器名称: $finalServerName\n")
-
-            // 保存当前时间作为部署时间
             val currentTime = System.currentTimeMillis()
-            successMessage.append("部署时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(currentTime))}")
+            val deployTime = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(currentTime))
+
+            val successMessage = context.getString(
+                R.string.mcp_deployment_success,
+                pluginId,
+                pluginDir,
+                finalServerName,
+                deployTime
+            )
 
             AppLogger.d(TAG, "插件 $pluginId 部署完成")
-            statusCallback(DeploymentStatus.Success(successMessage.toString()))
+            statusCallback(DeploymentStatus.Success(successMessage))
             deploySuccess = true
             return@withContext true
         } catch (e: Exception) {
             AppLogger.e(TAG, "执行部署命令时出错", e)
-            statusCallback(DeploymentStatus.Error("部署出错: ${e.message}"))
+            statusCallback(DeploymentStatus.Error(context.getString(R.string.mcp_deployment_error, e.message ?: "")))
             return@withContext false
         } finally {
             // 无论成功失败，都关闭部署会话

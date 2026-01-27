@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
 import com.ai.assistance.operit.util.AppLogger
 import kotlinx.coroutines.Dispatchers
@@ -38,15 +39,15 @@ class SiliconFlowVoiceProvider(
 
         // 可用音色列表 - 根据硅基流动官方文档
         // 注意：现在只列出音色名称，模型在设置中独立配置
-        val AVAILABLE_VOICES = listOf(
-            VoiceService.Voice("alex", "Alex - 沉稳男声", "zh-CN", "MALE"),
-            VoiceService.Voice("benjamin", "Benjamin - 低沉男声", "zh-CN", "MALE"),
-            VoiceService.Voice("charles", "Charles - 磁性男声", "zh-CN", "MALE"),
-            VoiceService.Voice("david", "David - 欢快男声", "zh-CN", "MALE"),
-            VoiceService.Voice("anna", "Anna - 沉稳女声", "zh-CN", "FEMALE"),
-            VoiceService.Voice("bella", "Bella - 激情女声", "zh-CN", "FEMALE"),
-            VoiceService.Voice("claire", "Claire - 温柔女声", "zh-CN", "FEMALE"),
-            VoiceService.Voice("diana", "Diana - 欢快女声", "zh-CN", "FEMALE")
+        fun getAvailableVoices(context: Context): List<VoiceService.Voice> = listOf(
+            VoiceService.Voice("alex", context.getString(R.string.siliconflow_voice_alex), "zh-CN", "MALE"),
+            VoiceService.Voice("benjamin", context.getString(R.string.siliconflow_voice_benjamin), "zh-CN", "MALE"),
+            VoiceService.Voice("charles", context.getString(R.string.siliconflow_voice_charles), "zh-CN", "MALE"),
+            VoiceService.Voice("david", context.getString(R.string.siliconflow_voice_david), "zh-CN", "MALE"),
+            VoiceService.Voice("anna", context.getString(R.string.siliconflow_voice_anna), "zh-CN", "FEMALE"),
+            VoiceService.Voice("bella", context.getString(R.string.siliconflow_voice_bella), "zh-CN", "FEMALE"),
+            VoiceService.Voice("claire", context.getString(R.string.siliconflow_voice_claire), "zh-CN", "FEMALE"),
+            VoiceService.Voice("diana", context.getString(R.string.siliconflow_voice_diana), "zh-CN", "FEMALE")
         )
         val DEFAULT_VOICE_ID = "charles"
     }
@@ -74,12 +75,12 @@ class SiliconFlowVoiceProvider(
     override suspend fun initialize(): Boolean = withContext(Dispatchers.IO) {
         try {
             if (apiKey.isBlank()) {
-                throw TtsException("API密钥未设置，请在设置中填写。")
+                throw TtsException(context.getString(R.string.siliconflow_error_api_key_not_set))
             }
             if (voiceId.isBlank()) {
-                throw TtsException("音色ID未设置，请选择一个有效音色。")
+                throw TtsException(context.getString(R.string.siliconflow_error_voice_id_not_set))
             }
-            
+
             _isInitialized.value = true
             AppLogger.i(TAG, "硅基流动TTS初始化成功")
             true
@@ -87,7 +88,7 @@ class SiliconFlowVoiceProvider(
             AppLogger.e(TAG, "硅基流动TTS初始化失败", e)
             _isInitialized.value = false
             if (e is TtsException) throw e
-            throw TtsException("初始化硅基流动TTS服务时发生意外错误", cause = e)
+            throw TtsException(context.getString(R.string.siliconflow_error_init_failed), cause = e)
         }
     }
 
@@ -300,12 +301,12 @@ class SiliconFlowVoiceProvider(
     }
 
     override suspend fun getAvailableVoices(): List<VoiceService.Voice> {
-        return AVAILABLE_VOICES
+        return getAvailableVoices(context)
     }
 
     override suspend fun setVoice(voiceId: String): Boolean {
         // 支持系统预置音色和用户自定义音色（以speech:开头）
-        if (AVAILABLE_VOICES.any { it.id == voiceId } || voiceId.startsWith("speech:")) {
+        if (getAvailableVoices(context).any { it.id == voiceId } || voiceId.startsWith("speech:")) {
             this.voiceId = voiceId
             AppLogger.d(TAG, "设置音色: $voiceId")
             return true

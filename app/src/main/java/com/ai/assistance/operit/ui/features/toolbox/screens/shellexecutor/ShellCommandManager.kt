@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,114 +30,114 @@ class ShellCommandManager(private val context: Context) {
     fun getPresetCommands(): List<PresetCommand> {
         return listOf(
             PresetCommand(
-                name = "测试命令",
-                command = "echo \"命令执行器测试成功\"",
-                description = "一个简单的测试命令",
+                name = context.getString(R.string.shell_cmd_test),
+                command = context.getString(R.string.shell_cmd_test_command),
+                description = context.getString(R.string.shell_cmd_test_desc),
                 category = CommandCategory.SYSTEM,
                 icon = Icons.Default.Check
             ),
             PresetCommand(
-                name = "系统信息",
-                command = "uname -a",
-                description = "显示系统内核信息",
+                name = context.getString(R.string.shell_cmd_sys_info),
+                command = context.getString(R.string.shell_cmd_sys_info_cmd),
+                description = context.getString(R.string.shell_cmd_sys_info_desc),
                 category = CommandCategory.SYSTEM,
                 icon = Icons.Default.Info
             ),
             PresetCommand(
-                name = "磁盘使用情况",
-                command = "df -h",
-                description = "显示磁盘空间使用情况",
+                name = context.getString(R.string.shell_cmd_disk),
+                command = context.getString(R.string.shell_cmd_disk_cmd),
+                description = context.getString(R.string.shell_cmd_disk_desc),
                 category = CommandCategory.SYSTEM,
                 icon = Icons.Default.Storage
             ),
             PresetCommand(
-                name = "内存信息",
-                command = "cat /proc/meminfo",
-                description = "显示内存使用详情",
+                name = context.getString(R.string.shell_cmd_memory),
+                command = context.getString(R.string.shell_cmd_memory_cmd),
+                description = context.getString(R.string.shell_cmd_memory_desc),
                 category = CommandCategory.HARDWARE,
                 icon = Icons.Default.Memory
             ),
             PresetCommand(
-                name = "CPU信息",
-                command = "cat /proc/cpuinfo",
-                description = "显示CPU详细信息",
+                name = context.getString(R.string.shell_cmd_cpu),
+                command = context.getString(R.string.shell_cmd_cpu_cmd),
+                description = context.getString(R.string.shell_cmd_cpu_desc),
                 category = CommandCategory.HARDWARE,
                 icon = Icons.Default.SettingsApplications
             ),
             PresetCommand(
-                name = "网络接口",
-                command = "ip addr",
-                description = "显示网络接口信息",
+                name = context.getString(R.string.shell_cmd_network),
+                command = context.getString(R.string.shell_cmd_network_cmd),
+                description = context.getString(R.string.shell_cmd_network_desc),
                 category = CommandCategory.NETWORK,
                 icon = Icons.Default.Wifi
             ),
             PresetCommand(
-                name = "路由表",
-                command = "ip route",
-                description = "显示路由表信息",
+                name = context.getString(R.string.shell_cmd_route),
+                command = context.getString(R.string.shell_cmd_route_cmd),
+                description = context.getString(R.string.shell_cmd_route_desc),
                 category = CommandCategory.NETWORK,
                 icon = Icons.Default.Router
             ),
             PresetCommand(
-                name = "网络连接",
-                command = "netstat -tunlp",
-                description = "显示网络连接状态",
+                name = context.getString(R.string.shell_cmd_connection),
+                command = context.getString(R.string.shell_cmd_connection_cmd),
+                description = context.getString(R.string.shell_cmd_connection_desc),
                 category = CommandCategory.NETWORK,
                 icon = Icons.Default.NetworkCheck
             ),
             PresetCommand(
-                name = "已安装应用",
-                command = "pm list packages",
-                description = "列出所有已安装的应用包名",
+                name = context.getString(R.string.shell_cmd_installed_apps),
+                command = context.getString(R.string.shell_cmd_installed_apps_cmd),
+                description = context.getString(R.string.shell_cmd_installed_apps_desc),
                 category = CommandCategory.PACKAGE,
                 icon = Icons.Default.Apps
             ),
             PresetCommand(
-                name = "系统应用",
-                command = "pm list packages -s",
-                description = "列出所有系统应用",
+                name = context.getString(R.string.shell_cmd_system_apps),
+                command = context.getString(R.string.shell_cmd_system_apps_cmd),
+                description = context.getString(R.string.shell_cmd_system_apps_desc),
                 category = CommandCategory.PACKAGE,
                 icon = Icons.Default.Android
             ),
             PresetCommand(
-                name = "第三方应用",
-                command = "pm list packages -3",
-                description = "列出所有第三方应用",
+                name = context.getString(R.string.shell_cmd_3rd_apps),
+                command = context.getString(R.string.shell_cmd_3rd_apps_cmd),
+                description = context.getString(R.string.shell_cmd_3rd_apps_desc),
                 category = CommandCategory.PACKAGE,
                 icon = Icons.Default.AppShortcut
             ),
             PresetCommand(
-                name = "当前目录",
-                command = "ls -la",
-                description = "列出当前目录下所有文件",
+                name = context.getString(R.string.shell_cmd_current_dir),
+                command = context.getString(R.string.shell_cmd_current_dir_cmd),
+                description = context.getString(R.string.shell_cmd_current_dir_desc),
                 category = CommandCategory.FILE,
                 icon = Icons.Default.Folder
             ),
             PresetCommand(
-                name = "根目录",
-                command = "ls -la /",
-                description = "列出根目录下所有文件",
+                name = context.getString(R.string.shell_cmd_root_dir),
+                command = context.getString(R.string.shell_cmd_root_dir_cmd),
+                description = context.getString(R.string.shell_cmd_root_dir_desc),
                 category = CommandCategory.FILE,
                 icon = Icons.Default.FolderOpen
             ),
             PresetCommand(
-                name = "存储空间",
-                command = "ls -la /sdcard/",
-                description = "列出外部存储空间文件",
+                name = context.getString(R.string.shell_cmd_storage),
+                command = context.getString(R.string.shell_cmd_storage_cmd),
+                description = context.getString(R.string.shell_cmd_storage_desc),
                 category = CommandCategory.FILE,
                 icon = Icons.Default.SdCard
             ),
             PresetCommand(
-                name = "进程列表",
-                command = "ps -ef",
-                description = "显示系统进程列表",
+                name = context.getString(R.string.shell_cmd_process),
+                command = context.getString(R.string.shell_cmd_process_cmd),
+                description = context.getString(R.string.shell_cmd_process_desc),
                 category = CommandCategory.SYSTEM,
                 icon = Icons.Default.ViewList
             ),
             PresetCommand(
-                name = "系统属性",
-                command = "getprop",
-                description = "显示全部系统属性",
+                name = context.getString(R.string.shell_cmd_properties),
+                command = context.getString(R.string.shell_cmd_properties_cmd),
+                description = context.getString(R.string.shell_cmd_properties_desc),
                 category = CommandCategory.SYSTEM,
                 icon = Icons.Default.Settings
             )

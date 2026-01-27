@@ -542,6 +542,7 @@ class PhoneAgent(
         _contextHistory.add("user" to userMessage)
 
         val responseStream = uiService.sendMessage(
+            context = context,
             message = userMessage,
             chatHistory = _contextHistory.toList(),
             enableThinking = false,

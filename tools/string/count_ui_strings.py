@@ -24,6 +24,8 @@ LOG_CALL_PATTERNS = [
     re.compile(r'\bTimber\.\w+\s*\('),
     re.compile(r'\bandroid\.util\.Log\.\w+\s*\('),
     re.compile(r'\bLog\.\w+\s*\('),
+    re.compile(r'\blog(?:Verbose|Debug|Info|Warn|Warning|Error|Trace)\s*\('),
+    re.compile(r'\blog[VDIWE]\s*\('),
     re.compile(r'\bprintln\s*\('),
     re.compile(r'\bprint\s*\('),
     re.compile(r'\bSystem\.out\.println\s*\('),
@@ -31,7 +33,10 @@ LOG_CALL_PATTERNS = [
 ]
 
 EXCLUDED_PATH_SUBSTRINGS = [
-    '\\core\\config\\'
+    '\\core\\config\\',
+    '\\ui\\features\\settings\\screens\\TagMarketBilingualData.kt',
+    '\\data\\preferences\\CharacterCardBilingualData.kt',
+    '\\core\\tools\\defaultTool\\standard\\StandardUITools.kt'
 ]
 
 def _should_skip_file(file_path: Path) -> bool:

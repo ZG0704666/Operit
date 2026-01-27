@@ -156,6 +156,7 @@ open class StandardFileSystemTools(protected val context: Context) {
         val sb = StringBuilder()
         val stream =
             service.sendMessage(
+                context = context,
                 message = prompt,
                 chatHistory = emptyList(),
                 modelParameters = modelParameters,

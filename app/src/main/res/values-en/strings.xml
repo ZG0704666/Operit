@@ -107,7 +107,6 @@
     <string name="menu">Menu</string>
     <string name="token_config">Get API Key</string>
     <string name="desktop_pet_start">Start Desktop Pet</string>
-    <string name="nav_event_campaign">Creator Incentive Campaign</string>
     
     <!-- Workflow related -->
     <string name="workflow_list_title">Workflow List</string>
@@ -5054,5 +5053,354 @@
     <string name="mcp_preparing">Preparing...</string>
     <string name="mcp_ok">OK</string>
     <string name="mcp_operation_in_progress">%1$s in progress...</string>
+
+    <!-- Shell Executor Preset Commands -->
+    <string name="shell_cmd_test">Test Command</string>
+    <string name="shell_cmd_test_command">echo "Command executor test successful"</string>
+    <string name="shell_cmd_test_desc">A simple test command</string>
+    <string name="shell_cmd_sys_info">System Info</string>
+    <string name="shell_cmd_sys_info_cmd">uname -a</string>
+    <string name="shell_cmd_sys_info_desc">Display system kernel information</string>
+    <string name="shell_cmd_disk">Disk Usage</string>
+    <string name="shell_cmd_disk_cmd">df -h</string>
+    <string name="shell_cmd_disk_desc">Display disk space usage</string>
+    <string name="shell_cmd_memory">Memory Info</string>
+    <string name="shell_cmd_memory_cmd">cat /proc/meminfo</string>
+    <string name="shell_cmd_memory_desc">Display memory usage details</string>
+    <string name="shell_cmd_cpu">CPU Info</string>
+    <string name="shell_cmd_cpu_cmd">cat /proc/cpuinfo</string>
+    <string name="shell_cmd_cpu_desc">Display CPU detailed information</string>
+    <string name="shell_cmd_network">Network Interface</string>
+    <string name="shell_cmd_network_cmd">ip addr</string>
+    <string name="shell_cmd_network_desc">Display network interface information</string>
+    <string name="shell_cmd_route">Routing Table</string>
+    <string name="shell_cmd_route_cmd">ip route</string>
+    <string name="shell_cmd_route_desc">Display routing table information</string>
+    <string name="shell_cmd_connection">Network Connections</string>
+    <string name="shell_cmd_connection_cmd">cat /proc/net/tcp</string>
+    <string name="shell_cmd_connection_desc">Display network connection status</string>
+    <string name="shell_cmd_installed_apps">Installed Apps</string>
+    <string name="shell_cmd_installed_apps_cmd">pm list packages</string>
+    <string name="shell_cmd_installed_apps_desc">List all installed app package names</string>
+    <string name="shell_cmd_system_apps">System Apps</string>
+    <string name="shell_cmd_system_apps_cmd">pm list packages -s</string>
+    <string name="shell_cmd_system_apps_desc">List all system apps</string>
+    <string name="shell_cmd_3rd_apps">Third-party Apps</string>
+    <string name="shell_cmd_3rd_apps_cmd">pm list packages -3</string>
+    <string name="shell_cmd_3rd_apps_desc">List all third-party apps</string>
+    <string name="shell_cmd_current_dir">Current Directory</string>
+    <string name="shell_cmd_current_dir_cmd">ls -la</string>
+    <string name="shell_cmd_current_dir_desc">List all files in current directory</string>
+    <string name="shell_cmd_root_dir">Root Directory</string>
+    <string name="shell_cmd_root_dir_cmd">ls -la /</string>
+    <string name="shell_cmd_root_dir_desc">List all files in root directory</string>
+    <string name="shell_cmd_storage">Storage Space</string>
+    <string name="shell_cmd_storage_cmd">ls -lh /sdcard</string>
+    <string name="shell_cmd_storage_desc">List external storage space files</string>
+    <string name="shell_cmd_process">Process List</string>
+    <string name="shell_cmd_process_cmd">ps</string>
+    <string name="shell_cmd_process_desc">Display system process list</string>
+    <string name="shell_cmd_properties">System Properties</string>
+    <string name="shell_cmd_properties_cmd">getprop</string>
+    <string name="shell_cmd_properties_desc">Display all system properties</string>
+
+    <!-- Workflow -->
+    <string name="workflow_load_failed">Failed to load workflow</string>
+    <string name="workflow_create_failed">Failed to create workflow</string>
+    <string name="workflow_update_condition_failed">Failed to update connection condition</string>
+    <string name="workflow_update_failed">Failed to update workflow</string>
+    <string name="workflow_delete_failed">Failed to delete workflow</string>
+    <string name="workflow_trigger_failed">Failed to trigger workflow</string>
+    <string name="workflow_execute_failed">Execution failed: %1$s</string>
+    <string name="workflow_add_node_failed">Failed to add node</string>
+    <string name="workflow_delete_node_failed">Failed to delete node</string>
+    <string name="workflow_update_node_failed">Failed to update node</string>
+    <string name="workflow_connection_exists">Connection already exists</string>
+    <string name="workflow_create_connection_failed">Failed to create connection</string>
+    <string name="workflow_delete_connection_failed">Failed to delete connection</string>
+    <string name="workflow_cannot_schedule">Cannot schedule workflow</string>
+    <string name="workflow_schedule_failed">Failed to schedule workflow</string>
+    <string name="workflow_cancel_schedule_failed">Failed to cancel schedule</string>
+    <string name="workflow_template_intent">Intent Chat Broadcast Template %1$s</string>
+    <string name="workflow_template_voice">Voice Trigger Template %1$s</string>
+    <string name="workflow_template_failure">Failure Branch Template %1$s</string>
+    <string name="workflow_template_chat">Chat Template %1$s</string>
+    <string name="workflow_template_judgment">Judgment Template %1$s</string>
+    <string name="workflow_template_logic_and">Logic AND Template %1$s</string>
+    <string name="workflow_template_logic_or">Logic OR Template %1$s</string>
+    <string name="workflow_template_calculate">Calculation Template %1$s</string>
+    <string name="workflow_trigger_intent">Intent Trigger</string>
+    <string name="workflow_trigger_floating">Start Floating Window</string>
+    <string name="workflow_trigger_create_chat">Create Chat</string>
+    <string name="workflow_action_extract_message">Extract Intent Message (message)</string>
+    <string name="workflow_action_send_intent">Send Message (from Intent)</string>
+    <string name="workflow_action_stop_floating">Stop Floating Window</string>
+    <string name="workflow_action_broadcast_result">Send Broadcast AI Result</string>
+    <string name="workflow_action_close_screens">Close All Virtual Screens</string>
+    <string name="workflow_trigger_manual">Manual Trigger</string>
+    <string name="workflow_action_visit_web">Visit Webpage</string>
+    <string name="workflow_action_calculate_visit_key">Calculate visit_key</string>
+    <string name="workflow_action_check_keyword">Check if Webpage Contains Keyword</string>
+    <string name="workflow_action_open_first_link">Match -> Open First Link</string>
+    <string name="workflow_action_visit_backup">No Match -> Visit Backup Page</string>
+    <string name="workflow_condition_a">Condition A: Contains Example Domain</string>
+    <string name="workflow_condition_b">Condition B: Contains More information</string>
+    <string name="workflow_action_logic_judgment">Logic Judgment</string>
+    <string name="workflow_action_logic_true">Logic True -> Open First Link</string>
+    <string name="workflow_action_logic_false">Logic False -> Visit Backup Page</string>
+    <string name="workflow_action_calculate_fixed">Calculate Fixed Number</string>
+    <string name="workflow_action_calculate_random">Calculate Random Number</string>
+    <string name="workflow_action_calculate_fixed_string">Calculate Fixed String</string>
+    <string name="workflow_action_calculate_random_string">Calculate Random String</string>
+    <string name="workflow_action_calculate_concat">Calculate Concatenate</string>
+    <string name="workflow_action_calculate_substring">Calculate Substring</string>
+    <string name="workflow_condition_random">Condition: Random Number > 50</string>
+    <string name="workflow_action_show_result">Show Result (Toast)</string>
+    <string name="workflow_action_main">Main Action (Please Configure)</string>
+    <string name="workflow_action_success_branch">Success -> Normal Branch</string>
+    <string name="workflow_action_error_branch">Failure -> Error Handling Branch</string>
+    <string name="workflow_trigger_voice">Voice Trigger</string>
+    <string name="workflow_param_message_hello">Hello</string>
+    <string name="workflow_action_start_chat">Start Floating Window</string>
+    <string name="workflow_action_create_chat">Create Chat</string>
+    <string name="workflow_action_extract_intent">Extract Intent Message (message)</string>
+    <string name="workflow_action_stop_chat">Stop Floating Window</string>
+    <string name="workflow_action_send_broadcast">Send Broadcast to Return AI Result</string>
+    <string name="workflow_action_close_displays">Close All Virtual Displays</string>
+    <string name="workflow_action_send">Send Message</string>
+    <string name="workflow_condition_check_keywords">Web Page Contains Keyword</string>
+    <string name="workflow_action_match_open_link">Match -> Open First Link</string>
+    <string name="workflow_action_no_match_backup">No Match -> Visit Backup Page</string>
+    <string name="workflow_action_visit_open_first_link">Open First Link</string>
+    <string name="workflow_error_execute_failed">Workflow execution failed: %1$s</string>
+    <string name="workflow_error_update_failed">Failed to update workflow</string>
+    <string name="workflow_error_delete_failed">Failed to delete workflow</string>
+    <string name="workflow_error_trigger_failed">Failed to trigger workflow</string>
+    <string name="workflow_error_add_node_failed">Failed to add node</string>
+    <string name="workflow_error_delete_node_failed">Failed to delete node</string>
+    <string name="workflow_error_update_node_failed">Failed to update node</string>
+    <string name="workflow_error_connection_exists">Connection already exists</string>
+    <string name="workflow_error_create_connection_failed">Failed to create connection</string>
+    <string name="workflow_error_delete_connection_failed">Failed to delete connection</string>
+    <string name="workflow_error_cannot_schedule">Cannot schedule workflow</string>
+    <string name="workflow_error_schedule_failed">Failed to schedule workflow</string>
+    <string name="workflow_error_cancel_schedule_failed">Failed to cancel schedule</string>
+
+    <!-- Plan Execution Task (UI error messages shown to users) -->
+    <string name="plan_error_graph_validation_failed">Execution graph validation failed</string>
+    <string name="plan_error_topological_sort_failed">Cannot perform topological sort on tasks, possible circular dependency</string>
+    <string name="plan_log_starting_execution">Starting plan execution, %1$d tasks in total</string>
+    <string name="plan_error_execution_failed">Error occurred while executing subtasks</string>
+    <string name="plan_error_no_executable_tasks">Cannot find executable tasks, possible dependency issue</string>
+    <string name="plan_error_task_cancelled">Task was cancelled</string>
+    <string name="plan_error_summary_failed">Summary execution failed</string>
+
+    <!-- Conversation Service (UI progress messages shown to users) -->
+    <string name="conversation_summary_preparing">Preparing summary...</string>
+    <string name="conversation_summary_writing_title">Writing title...</string>
+    <string name="conversation_summary_core_task">Core task status...</string>
+    <string name="conversation_summary_interaction">Interaction &amp; scenario...</string>
+    <string name="conversation_summary_progress">Conversation progress...</string>
+    <string name="conversation_summary_key_info">Key info &amp; context...</string>
+    <string name="conversation_summary_finishing">Finishing...</string>
+    <string name="conversation_summary_completed">Summary completed</string>
+
+    <!-- Plan Mode Manager (UI status messages shown to users) -->
+    <string name="plan_mode_executing_deep_search">Executing deep search mode...</string>
+    <string name="plan_mode_starting">Starting deep search mode...</string>
+    <string name="plan_mode_analyzing_request">Analyzing your request and generating execution plan...</string>
+    <string name="plan_mode_generating_plan">Generating execution plan...</string>
+    <string name="plan_mode_task_cancelled">Task cancelled.</string>
+    <string name="plan_mode_failed_to_generate_plan">Unable to generate valid execution plan, switching back to normal mode</string>
+    <string name="plan_mode_executing_subtasks">Executing subtasks...</string>
+    <string name="plan_mode_cancelling">Task cancelled, stopping...</string>
+    <string name="plan_mode_all_tasks_completed">All subtasks completed, summarizing results...</string>
+    <string name="plan_mode_summarizing_results">Summarizing execution results...</string>
+    <string name="plan_mode_cancelled">Deep search mode cancelled.</string>
+    <string name="plan_mode_execution_failed">Deep search mode execution failed</string>
+
+    <!-- Demo State Manager (UI default text and command descriptions) -->
+    <string name="demo_result_placeholder">Results will be displayed here</string>
+    <string name="demo_cmd_get_android_version">Get Android version</string>
+    <string name="demo_cmd_list_packages">List installed package names</string>
+    <string name="demo_cmd_check_battery">Check battery status</string>
+    <string name="demo_cmd_list_settings">List system settings</string>
+    <string name="demo_cmd_open_webpage">Open webpage</string>
+    <string name="demo_cmd_list_activities">List active Activities</string>
+    <string name="demo_cmd_list_services">List system services</string>
+    <string name="demo_cmd_check_resolution">Check screen resolution</string>
+    <string name="demo_cmd_echo_hello">Print Hello OperitTerminal</string>
+    <string name="demo_cmd_list_files">List files and directories</string>
+    <string name="demo_cmd_show_user">Show current user</string>
+    <string name="demo_cmd_update_package_manager">Update package manager (Ubuntu)</string>
+    <string name="demo_cmd_install_python">Install Python (Ubuntu)</string>
+    <string name="demo_cmd_show_network">Show network information</string>
+    <string name="demo_cmd_remount_system">Remount system partition as writable</string>
+    <string name="demo_cmd_check_kernel">Check kernel version</string>
+    <string name="demo_cmd_list_data_dir">List /data directory contents</string>
+    <string name="demo_cmd_check_selinux">Check SELinux status</string>
+    <string name="demo_cmd_list_processes">List all processes</string>
+    <string name="demo_cmd_check_memory">Check memory information</string>
+    <string name="demo_cmd_list_features">List system features</string>
+    <string name="demo_cmd_check_power">Check power management status</string>
+
+    <!-- File Types -->
+    <string name="file_type_pdf">PDF Document</string>
+    <string name="file_type_jpeg">JPEG Image</string>
+    <string name="file_type_png">PNG Image</string>
+    <string name="file_type_gif">GIF Image</string>
+    <string name="file_type_bmp">BMP Image</string>
+    <string name="file_type_mp3">MP3 Audio</string>
+    <string name="file_type_wav">WAV Audio</string>
+    <string name="file_type_ogg">OGG Audio</string>
+    <string name="file_type_mp4">MP4 Video</string>
+    <string name="file_type_avi">AVI Video</string>
+    <string name="file_type_mkv">MKV Video</string>
+    <string name="file_type_mov">MOV Video</string>
+    <string name="file_type_zip">ZIP Archive</string>
+    <string name="file_type_rar">RAR Archive</string>
+    <string name="file_type_7z">7Z Archive</string>
+    <string name="file_type_tar">TAR Archive</string>
+    <string name="file_type_txt">Text Document</string>
+    <string name="file_type_doc">Word Document</string>
+    <string name="file_type_xls">Excel Spreadsheet</string>
+    <string name="file_type_ppt">PowerPoint Presentation</string>
+    <string name="file_type_unknown">File</string>
+
+    <!-- Skill Market Error Messages -->
+    <string name="skillmarket_load_failed">Failed to load Skill market: %1$s</string>
+    <string name="skillmarket_network_error">Network error: %1$s</string>
+    <string name="skillmarket_load_more_failed">Failed to load more: %1$s</string>
+    <string name="skillmarket_github_login_required">Please login to GitHub first</string>
+    <string name="skillmarket_unable_get_user_info">Unable to get user info</string>
+    <string name="skillmarket_load_published_failed">Failed to load published Skills: %1$s</string>
+    <string name="skillmarket_load_comments_failed">Failed to load comments: %1$s</string>
+    <string name="skillmarket_post_comment_failed">Failed to post comment: %1$s</string>
+    <string name="skillmarket_invalid_repo_url">Invalid repository URL</string>
+    <string name="skillmarket_install_failed">Installation failed: %1$s</string>
+    <string name="skillmarket_like_failed">Failed to like: %1$s</string>
+    <string name="skillmarket_like_error">Error while liking: %1$s</string>
+
+    <!-- Character Card Error Messages -->
+    <string name="charactercard_import_file_empty">The imported file is empty</string>
+    <string name="charactercard_json_format_error">JSON format error: %1$s</string>
+    <string name="charactercard_parse_failed">Parse failed: %1$s</string>
+    <string name="charactercard_name_empty">Character card name cannot be empty</string>
+    <string name="charactercard_png_parse_failed">PNG parsing failed: %1$s</string>
+    <string name="charactercard_export_failed">Export failed: %1$s</string>
+    <string name="charactercard_invalid_png">Not a valid PNG file</string>
+    <string name="charactercard_no_data_in_png">Character card data not found in PNG file</string>
+    <string name="charactercard_base64_decode_failed">Base64 decoding failed: %1$s</string>
+
+    <!-- Attachment Error Messages -->
+    <string name="attachment_photo_added">Photo attachment added: %1$s</string>
+    <string name="attachment_photo_process_failed">Cannot process taken photo, please retry</string>
+    <string name="attachment_photo_add_failed">Failed to add photo attachment: %1$s</string>
+    <string name="attachment_added">Attachment added: %1$s</string>
+    <string name="attachment_media_process_failed">Cannot process media file, please try another method</string>
+    <string name="attachment_cannot_attach">Cannot attach file: %1$s</string>
+    <string name="attachment_file_not_exist">File does not exist</string>
+    <string name="attachment_add_failed">Failed to add attachment: %1$s</string>
+    <string name="attachment_screen_content_failed">Failed to get screen content: %1$s</string>
+    <string name="attachment_screenshot_failed">Screenshot failed</string>
+    <string name="attachment_no_screen_text">No screen text recognized</string>
+    <string name="attachment_screen_content_added">Screen content added</string>
+    <string name="attachment_notifications_added">Current notifications added</string>
+    <string name="attachment_notifications_failed">Failed to get notifications: %1$s</string>
+    <string name="attachment_unknown_error">Unknown error</string>
+    <string name="attachment_location_added">Current location added</string>
+    <string name="attachment_location_failed">Failed to get location: %1$s</string>
+    <string name="attachment_time_added">Current time added</string>
+    <string name="attachment_time_failed">Failed to get time: %1$s</string>
+    <string name="attachment_no_memory_folder">No memory folders selected</string>
+    <string name="attachment_memory_folder_added">Memory folder added: %1$s</string>
+    <string name="attachment_memory_folders_added">Added %1$d memory folders</string>
+    <string name="attachment_memory_folder_failed">Failed to add memory folder: %1$s</string>
+    <string name="attachment_unknown_file">Unknown file</string>
+
+    <!-- MCP Deployment Messages -->
+    <string name="mcp_deployment_start">Starting plugin deployment: %1$s</string>
+    <string name="mcp_deployment_output_prefix">Output: </string>
+    <string name="mcp_deployment_virtual_plugin_detected">Detected %1$s type plugin, executing minimal deployment</string>
+    <string name="mcp_deployment_cannot_create_terminal">Cannot create terminal session</string>
+    <string name="mcp_deployment_creating_directory">Creating plugin directory: %1$s</string>
+    <string name="mcp_deployment_create_directory_failed">Failed to create plugin directory</string>
+    <string name="mcp_deployment_minimal_complete">%1$s type plugin minimal deployment complete, ready to use</string>
+    <string name="mcp_deployment_plugin_not_exist">Plugin directory does not exist: %1$s</string>
+    <string name="mcp_deployment_using_market_config">Using market config to deploy plugin...</string>
+    <string name="mcp_deployment_analyzing_structure">Analyzing project structure...</string>
+    <string name="mcp_deployment_saving_config">Saving MCP config...</string>
+    <string name="mcp_deployment_save_config_failed">Failed to save MCP config</string>
+    <string name="mcp_deployment_error">Deployment error: %1$s</string>
+    <string name="mcp_deployment_cannot_determine">Cannot determine how to deploy this plugin: %1$s</string>
+    <string name="mcp_deployment_copying_files">Copying plugin files to target directory...</string>
+    <string name="mcp_deployment_copy_failed">Failed to copy files to target directory: %1$s</string>
+    <string name="mcp_deployment_switching_directory">Switching to plugin directory</string>
+    <string name="mcp_deployment_switch_failed">Failed to switch to plugin directory</string>
+    <string name="mcp_deployment_executing_command">Executing command (%1$d/%2$d): %3$s</string>
+    <string name="mcp_deployment_non_critical_failed">Non-critical command failed, continuing: %1$s</string>
+    <string name="mcp_deployment_command_failed">Command execution failed: %1$s</string>
+    <string name="mcp_deployment_success">Plugin deployed successfully: %1$s\nDeployment path: %2$s\nServer name: %3$s\nDeployment time: %4$s</string>
+
+    <!-- Web Visit Tool UI -->
+    <string name="webvisit_title">Web Browsing</string>
+    <string name="webvisit_url_label">Visiting URL:</string>
+    <string name="webvisit_status_loading_page">Loading page...</string>
+    <string name="webvisit_status_waiting_page">Waiting for page to fully load...</string>
+    <string name="webvisit_status_captcha">Please complete CAPTCHA verification within %1$d seconds...</string>
+    <string name="webvisit_status_extracting">Extracting content, will auto-continue in %1$d seconds...</string>
+    <string name="webvisit_status_extracted_waiting">Content extracted, waiting for manual continue...</string>
+    <string name="webvisit_status_waiting_extraction">Page loaded, waiting for content extraction...</string>
+    <string name="webvisit_page_title">Page title: %1$s</string>
+    <string name="webvisit_button_cancel_countdown">Cancel Countdown</string>
+    <string name="webvisit_button_cancel_auto">Cancel Auto</string>
+    <string name="webvisit_button_cancel">Cancel</string>
+    <string name="webvisit_button_minimize">Minimize</string>
+    <string name="webvisit_button_continue_now">Continue Now (%1$ds)</string>
+    <string name="webvisit_button_continue">Continue</string>
+    <string name="webvisit_button_manual_extract">Manual Extract</string>
+    <string name="webvisit_button_extract">Extract Content</string>
+    <string name="webvisit_cancelled">Operation cancelled</string>
+    <string name="webvisit_webview_unavailable">WebView unavailable, cannot extract content.</string>
+    <string name="webvisit_help_loading_page">Loading page, please wait...</string>
+    <string name="webvisit_help_countdown">Auto-countdown in progress, click \"Cancel Countdown\" to stop auto-processing</string>
+    <string name="webvisit_help_cancel_auto">Click \"Cancel Auto\" to switch to manual mode</string>
+    <string name="webvisit_help_manual_mode">Switched to manual mode, click \"Manual Extract\" to continue</string>
+    <string name="webvisit_help_extracted">Content extraction complete, click \"Continue\" to proceed</string>
+
+    <!-- SiliconFlow Voice Provider -->
+    <string name="siliconflow_voice_alex">Alex - Calm Male Voice</string>
+    <string name="siliconflow_voice_benjamin">Benjamin - Deep Male Voice</string>
+    <string name="siliconflow_voice_charles">Charles - Magnetic Male Voice</string>
+    <string name="siliconflow_voice_david">David - Cheerful Male Voice</string>
+    <string name="siliconflow_voice_anna">Anna - Calm Female Voice</string>
+    <string name="siliconflow_voice_bella">Bella - Passionate Female Voice</string>
+    <string name="siliconflow_voice_claire">Claire - Gentle Female Voice</string>
+    <string name="siliconflow_voice_diana">Diana - Cheerful Female Voice</string>
+    <string name="siliconflow_error_api_key_not_set">API key not set, please fill in settings.</string>
+    <string name="siliconflow_error_voice_id_not_set">Voice ID not set, please select a valid voice.</string>
+    <string name="siliconflow_error_init_failed">Unexpected error initializing SiliconFlow TTS service</string>
+
+    <!-- Model List Fetcher -->
+    <string name="modellist_error_cannot_connect">Cannot connect to server, please check network connection and API address</string>
+    <string name="modellist_error_fetch_failed">Failed to fetch model list</string>
+    <string name="modellist_error_missing_data">Response format error: missing (data) field</string>
+    <string name="modellist_error_missing_data_or_models">Response format error: missing (data) or (models) field</string>
+    <string name="modellist_error_missing_models">Response format error: (models) field not found</string>
+
+    <!-- Accessibility Provider Installer -->
+    <string name="accessibility_provider_unknown">Unknown</string>
+
+    <!-- Gemini Provider -->
+    <string name="gemini_error_request_cancelled">Request cancelled by user</string>
+    <string name="gemini_error_no_error_details">No error details</string>
+    <string name="gemini_error_api_request_failed">API request failed: %1$d, %2$s</string>
+    <string name="gemini_error_timeout_max_retries">Failed to get AI response, connection timeout and max retries reached: %1$s</string>
+    <string name="gemini_error_cannot_connect">Cannot connect to server, please check network connection and API address</string>
+    <string name="gemini_error_max_retries">Failed to get AI response, max retries reached: %1$s</string>
+    <string name="gemini_error_response_failed">Failed to get AI response: %1$s</string>
+    <string name="gemini_error_connection_timeout">Connection timeout or interrupted, retried %1$d times: %2$s</string>
+    <string name="gemini_connection_success">Connection successful!</string>
+    <string name="gemini_connection_test_failed">Connection test failed: %1$s</string>
 
 </resources>

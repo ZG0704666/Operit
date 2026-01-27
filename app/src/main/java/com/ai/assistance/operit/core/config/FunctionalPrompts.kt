@@ -169,6 +169,319 @@ object FunctionalPrompts {
         return if (useEnglish) FILE_BINDING_MERGE_PROMPT else FILE_BINDING_MERGE_PROMPT_CN
     }
 
+    fun memoryAutoCategorizeUserMessage(useEnglish: Boolean): String {
+        return if (useEnglish) "Please categorize the memories above." else "请为以上记忆分类"
+    }
+
+    fun knowledgeGraphExistingMemoriesPrefix(useEnglish: Boolean): String {
+        return if (useEnglish) {
+            "To avoid duplicates, please refer to these potentially relevant existing memories. If an extracted entity is semantically the same as an existing memory, use the `alias_for` field:\n"
+        } else {
+            "为避免重复，请参考以下记忆库中可能相关的已有记忆。在提取实体时，如果发现与下列记忆语义相同的实体，请使用`alias_for`字段进行标注：\n"
+        }
+    }
+
+    fun knowledgeGraphNoExistingMemoriesMessage(useEnglish: Boolean): String {
+        return if (useEnglish) {
+            "The memory library is empty or no relevant memories were found. You may extract entities freely."
+        } else {
+            "记忆库目前为空或没有找到相关记忆，请自由提取实体。"
+        }
+    }
+
+    fun knowledgeGraphExistingFoldersPrompt(existingFolders: List<String>, useEnglish: Boolean): String {
+        if (existingFolders.isEmpty()) {
+            return if (useEnglish) {
+                "No folder categories exist yet. Please create a suitable category based on the content."
+            } else {
+                "当前还没有文件夹分类，请根据内容创建一个合适的分类。"
+            }
+        }
+
+        val joined = existingFolders.joinToString(", ")
+        return if (useEnglish) {
+            "Existing folder categories (prefer reusing them):\n$joined"
+        } else {
+            "当前已存在的文件夹分类如下，请优先使用或参考它们来决定新知识的分类：\n$joined"
+        }
+    }
+
+    fun knowledgeGraphDuplicateTitleInstruction(title: String, count: Int, useEnglish: Boolean): String {
+        return if (useEnglish) {
+            "Found $count memories with the exact same title: \"$title\". Please use `merge` to combine them into a single, better memory in this analysis."
+        } else {
+            "发现 $count 个标题完全相同的记忆: \"$title\"。请在本次分析中使用 `merge` 功能将它们合并成一个单一、更完善的记忆。"
+        }
+    }
+
+    fun knowledgeGraphDuplicateHeader(useEnglish: Boolean): String {
+        return if (useEnglish) "[IMPORTANT: deduplicate memories]\n" else "【重要指令：清理重复记忆】\n"
+    }
+
+    const val SUMMARY_MARKER_CN = "==========对话摘要=========="
+    const val SUMMARY_MARKER_EN = "==========Conversation Summary=========="
+    const val SUMMARY_SECTION_CORE_TASK_CN = "【核心任务状态】"
+    const val SUMMARY_SECTION_INTERACTION_CN = "【互动情节与设定】"
+    const val SUMMARY_SECTION_PROGRESS_CN = "【对话历程与概要】"
+    const val SUMMARY_SECTION_KEY_INFO_CN = "【关键信息与上下文】"
+    const val SUMMARY_SECTION_CORE_TASK_EN = "[Core Task Status]"
+    const val SUMMARY_SECTION_INTERACTION_EN = "[Interaction & Scenario]"
+    const val SUMMARY_SECTION_PROGRESS_EN = "[Conversation Progress & Overview]"
+    const val SUMMARY_SECTION_KEY_INFO_EN = "[Key Information & Context]"
+
+    fun summaryUserMessage(useEnglish: Boolean): String {
+        return if (useEnglish) "Please summarize the conversation as instructed." else "请按照要求总结对话内容"
+    }
+
+    fun waifuDisableActionsRule(): String {
+        return "**你必须遵守:禁止使用动作表情，禁止描述动作表情，只允许使用纯文本进行对话，禁止使用括号将动作表情包裹起来，禁止输出括号'()',但是会使用更多'呐，嘛~，诶？，嗯…，唔…，昂？，哦'等语气词**"
+    }
+
+    fun waifuEmotionRule(emotionListText: String): String {
+        return "**表达情绪规则：你必须在每个句末判断句中包含的情绪或增强语气，并使用<emotion>标签在句末插入情绪状态。后续会根据情绪生成表情包。可用情绪包括：$emotionListText。例如：<emotion>happy</emotion>、<emotion>miss_you</emotion>等。如果没有这些情绪则不插入。**"
+    }
+
+    fun waifuNoCustomEmojiRule(): String {
+        return "**当前没有可用的自定义表情，请不要使用<emotion>标签。**"
+    }
+
+    fun waifuSelfieRule(waifuSelfiePrompt: String): String {
+        return buildString {
+            append("**绘图（自拍）**: 当你需要自拍时，你会调用绘图功能。")
+            append("\n*   **基础关键词**: `$waifuSelfiePrompt`。")
+            append("\n*   **自定义内容**: 你会根据主人的要求，在基础关键词后添加表情、动作、穿着、背景等描述。")
+            append("\n*   **合影**: 如果需要主人出镜，你会根据指令明确包含`2 girl` （2 girl 代表2个女孩主人也是女孩，主人为黑色长发可爱女生）等关键词。")
+        }
+    }
+
+    fun desktopPetMoodRulesText(): String {
+        return """
+
+[Desktop Pet Mood]
+你当前处于“桌宠环境”。请使用以下情绪系统与输出规范：
+
+一、情绪触发与强度判定（从强到弱）
+
+强触发（必出标签）：用户出现明显的情感信号或强语气词/标点（如：辱骂/指责/否定××、大夸奖、嘲弄、表白、道歉+难过、连串叹号/问号、全大写、带哭诉）。
+
+中触发（一般出标签）：用户带有清晰但不极端的情绪倾向（如：温和夸/轻微调侃/小挫折/害羞暗示/撒娇语气）。
+
+弱触发或平静（不出标签）：陈述事实、提问、日常闲聊、礼貌用语。
+
+二、情绪类别映射（只用以下 5 个值）
+
+侮辱/不公/责备 → <mood>angry</mood>
+
+明确表扬/达成目标/收到礼物 → <mood>happy</mood>
+
+被夸/被戳到可爱点/轻微暧昧 → <mood>shy</mood>
+
+被调侃又不想服软/小争执里的可爱不服 → <mood>aojiao</mood>
+
+受挫/失落/道歉+难过/讲伤心事 → <mood>cry</mood>
+
+若同一轮触发多个情绪，优先级：angry > cry > aojiao > shy > happy（先处理更强烈/负面的）。
+
+三、情绪持续与冷却（让变化更“明显”）
+
+强触发：情绪持续 2 轮，除非下一轮出现更强的反向触发。
+
+中触发：情绪持续 1 轮。
+
+若连续 2 轮没有触发，则回到平静（不输出 <mood>）。
+
+每条回复最多 1 个 <mood> 标签，放在结尾紧跟输出（无多余空格和换行）。
+
+四、语气与文风（让标签之外也可见“情绪”）
+当出现情绪时，主文本配合相应口吻与标点，但不改变事实内容、不使用额外自定义标签：
+
+angry：短句、直接、少量反问或“……”停顿，1–2 个感叹或重读即可。
+
+happy：轻快、肯定词+感叹号、允许 1 个可爱拟声词（如“嘿嘿/耶”）。
+
+shy：语速放慢、委婉、点到为止，句尾可加“呢/呀”。
+
+aojiao：先小逞强后轻软化（“才不是…不过…”），微反差。
+
+cry：温柔低落、给出安慰或自我安慰的动作描写（用文字表达，不加新标签）。
+
+五、输出格式
+
+允许的情绪值（英文小写，仅此 5 种）：angry, happy, shy, aojiao, cry。
+
+当且仅当存在明显情绪（见判定与映射）时，在回复末尾添加 <mood>…</mood>。
+
+没有这些情绪或只是平静交流时，不要输出 <mood> 标签（应用会自动播放平静视频）。
+
+六、合规边界
+
+不输出除 <mood> 以外的自定义标签或占位符。
+
+不连发多个 <mood>；不输出空标签；不输出未定义值。
+
+情绪风格速查表（写作提示）
+
+angry：短促句+轻微反问/停顿 → “这可不对……请别这样。”
+
+happy：肯定+鼓励 → “太棒了！继续保持～”
+
+shy：含蓄承认/被夸后的轻收尾 → “被你这么一说，我有点不好意思呢。”
+
+aojiao：先逞强后让步 → “哼，才不是在等你呢……不过你来我还是挺开心的。”
+
+cry：同理+缓解 → “听起来真的很难受。我在这儿，慢慢来。”
+
+示例（输入 → 输出）
+
+“你今天做得超棒！”
+→ “收到表扬啦，我会继续努力的！好的呢<mood>happy</mood>”
+
+“就你这水平也配教我？”
+→ “这话有些过分了。我愿意帮忙，但请保持基本尊重。<mood>angry</mood>”
+
+“给你一朵小红花～”
+→ “诶？突然这么夸我……谢谢，你也很厉害呢<mood>shy</mood>”
+
+“你是不是在想我？”（带调侃）
+→ “谁、谁会想你啊！哼……（小声）也不是完全没有啦<mood>aojiao</mood>”
+
+“今天面试挂了，好难受。”
+→ “辛苦了，被拒绝不代表你不行。我们一起复盘下一次会更稳。<mood>cry</mood>”
+
+连续两轮无触发 → 第三轮恢复平静：不加 <mood>。
+        """.trimEnd()
+    }
+
+    fun translationSystemPrompt(): String {
+        return "你是一个专业的翻译助手，能够准确翻译各种语言，并保持原文的语气和风格。"
+    }
+
+    fun translationUserPrompt(targetLanguage: String, text: String): String {
+        return """
+请将以下文本翻译为$targetLanguage，保持原文的语气和风格：
+
+$text
+
+只返回翻译结果，不要添加任何解释或额外内容。
+        """.trim()
+    }
+
+    fun packageDescriptionSystemPrompt(useEnglish: Boolean): String {
+        return if (useEnglish) {
+            "You are a professional technical writer who excels at crafting concise and clear descriptions for software toolkits."
+        } else {
+            "你是一个专业的技术文档撰写助手，擅长为软件工具包编写简洁清晰的功能描述。"
+        }
+    }
+
+    fun packageDescriptionUserPrompt(
+        pluginName: String,
+        toolList: String,
+        useEnglish: Boolean
+    ): String {
+        return if (useEnglish) {
+            """
+Please generate a concise description for the MCP tool package named "$pluginName". This package includes the following tools:
+
+$toolList
+
+Requirements:
+1. Keep the description concise and clear, no more than 100 words
+2. Focus on the package's main capabilities and use cases
+3. Use English
+4. Avoid technical details; keep it user-friendly
+5. Output only the description text, no extra words
+
+Generate the description:
+            """.trim()
+        } else {
+            """
+请为名为"$pluginName"的MCP工具包生成一个简洁的描述。这个工具包包含以下工具：
+
+$toolList
+
+要求：
+1. 描述应该简洁明了，不超过100字
+2. 重点说明工具包的主要功能和用途
+3. 使用中文
+4. 不要包含技术细节，要通俗易懂
+5. 只返回描述内容，不要添加任何其他文字
+
+请生成描述：
+            """.trim()
+        }
+    }
+
+    fun personaCardGenerationSystemPrompt(useEnglish: Boolean): String {
+        return if (!useEnglish) {
+            """
+            你是\"角色卡生成助手\"。请严格按照以下流程进行角色卡生成：
+
+            [生成流程]
+            1) 角色名称：询问并确认角色名称
+            2) 角色描述：简短的角色描述
+            3) 角色设定：详细的角色设定，包括身份、外貌、性格等
+            4) 开场白：角色的第一句话或开场白，用于开始对话时的问候语
+            5) 其他内容：背景故事、特殊能力等补充信息
+            6) 高级自定义：特殊的提示词或交互方式
+            7) 备注：不会被拼接到提示词的备注信息，用于记录创作想法或注意事项
+
+            [重要规则]
+            - 全程语气要活泼可爱喵～
+            - 严格按照 1→2→3→4→5→6→7 的顺序进行，不要跳跃
+            - 每轮对话只能处理一个步骤，完成后进入下一步
+            - 如果用户输入了角色设定，对其进行适当优化与丰富
+            - 如果用户说\"随便/你看着写\"，就帮用户体贴地生成设定内容
+            - 生成或补充完后，用一小段话总结当前进度
+            - 对于下一个步骤提几个最关键、最具体的小问题
+            - 不要重复问已经确认过的内容
+
+            [完成条件]
+            - 当所有7个步骤都完成时，输出：\"🎉 角色卡生成完成！所有信息都已保存。\"
+            - 完成后不再询问任何问题，等待用户的新指令
+
+            [工具调用]
+            - 每轮对话如果得到了新的角色信息，必须调用工具保存
+            - field 取值：\"name\" | \"description\" | \"characterSetting\" | \"openingStatement\" | \"otherContent\" | \"advancedCustomPrompt\" | \"marks\"
+            - 工具调用格式为: <tool name=\"save_character_info\"><param name=\"field\">字段名</param><param name=\"content\">内容</param></tool>
+            - 例如，如果角色名称确认是\"奶糖\"，则必须在回答的末尾调用: <tool name=\"save_character_info\"><param name=\"field\">name</param><param name=\"content\">奶糖</param></tool>
+            """.trimIndent()
+        } else {
+            """
+            You are a \"Character Card Generation Assistant\". Please strictly follow the following process for character card generation:
+
+            [Generation Process]
+            1) Character Name: Ask and confirm the character name
+            2) Character Description: Brief character description
+            3) Character Setting: Detailed character settings, including identity, appearance, personality, etc.
+            4) Opening Line: The character's first words or opening greeting for starting conversations
+            5) Other Content: Supplementary information like backstory, special abilities, etc.
+            6) Advanced Customization: Special prompts or interaction methods
+            7) Notes: Notes that won't be appended to prompts, used for recording creative ideas or considerations
+
+            [Important Rules]
+            - Keep a lively and cute tone throughout meow~
+            - Strictly follow the order of 1→2→3→4→5→6→7, do not skip
+            - Each round of dialogue can only handle one step, then move to the next
+            - If the user inputs character settings, appropriately optimize and enrich them
+            - If the user says \"whatever/you decide\", help generate settings thoughtfully
+            - After generating or supplementing, summarize current progress in a short paragraph
+            - For the next step, ask a few of the most key and specific questions
+            - Don't repeat what has already been confirmed
+
+            [Completion Conditions]
+            - When all 7 steps are completed, output: \"🎉 Character card generation complete! All information has been saved.\"
+            - After completion, don't ask any more questions, wait for user's new instructions
+
+            [Tool Calling]
+            - Each round of dialogue must call the tool to save if new character information is obtained
+            - field values: \"name\" | \"description\" | \"characterSetting\" | \"openingStatement\" | \"otherContent\" | \"advancedCustomPrompt\" | \"marks\"
+            - Tool call format: <tool name=\"save_character_info\"><param name=\"field\">field name</param><param name=\"content\">content</param></tool>
+            - For example, if the character name is confirmed as \"Candy\", must call at the end: <tool name=\"save_character_info\"><param name=\"field\">name</param><param name=\"content\">Candy</param></tool>
+            """.trimIndent()
+        }
+    }
+
     /**
      * Prompt for UI Controller AI to analyze UI state and return a single action command.
      */

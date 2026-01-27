@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +62,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.core.tools.VisitWebResultData
@@ -938,9 +940,11 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                         hasExtractedContent.value = true
                         pageContent.value = content
 
-                        autoCountdownActive.value = true
-                        autoScrollToBottom(webView) {
-                            AppLogger.d(TAG, "页面滚动完成")
+                        if (autoModeEnabled.value) {
+                            autoCountdownActive.value = true
+                            autoScrollToBottom(webView) {
+                                AppLogger.d(TAG, "页面滚动完成")
+                            }
                         }
                     }
                 }
@@ -967,7 +971,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                 verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                    text = "网页访问中",
+                                    text = context.getString(R.string.webvisit_title),
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f)
@@ -987,7 +991,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                         ) {
                             Column {
                                 Text(
-                                        text = "访问网址:",
+                                        text = context.getString(R.string.webvisit_url_label),
                                         fontSize = 16.sp
                                 )
 
@@ -1005,12 +1009,12 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                 // 状态文本根据当前状态动态变化
                                 val statusText =
                                         when {
-                                            !pageLoaded.value -> "正在加载页面..."
-                                            isLoading.value -> "等待页面完全加载..."
-                                            isCaptchaVerification.value -> "请在${autoCountdownSeconds.value}秒内完成人机验证..."
-                                            autoCountdownActive.value -> "正在提取内容，${autoCountdownSeconds.value}秒后自动继续..."
-                                            hasExtractedContent.value -> "内容已提取，等待手动继续..."
-                                            else -> "页面已加载，等待提取内容..."
+                                            !pageLoaded.value -> context.getString(R.string.webvisit_status_loading_page)
+                                            isLoading.value -> context.getString(R.string.webvisit_status_waiting_page)
+                                            isCaptchaVerification.value -> context.getString(R.string.webvisit_status_captcha, autoCountdownSeconds.value)
+                                            autoCountdownActive.value -> context.getString(R.string.webvisit_status_extracting, autoCountdownSeconds.value)
+                                            hasExtractedContent.value -> context.getString(R.string.webvisit_status_extracted_waiting)
+                                            else -> context.getString(R.string.webvisit_status_waiting_extraction)
                                         }
 
                                 Text(
@@ -1021,7 +1025,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                 if (pageTitle.value.isNotEmpty()) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                            text = "页面标题: ${pageTitle.value}",
+                                            text = context.getString(R.string.webvisit_page_title, pageTitle.value),
                                             fontSize = 14.sp
                                     )
                                 }
@@ -1216,7 +1220,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                             autoModeEnabled.value = false
                                         } else {
                                             // 其他情况为取消操作
-                                            onContentExtracted("操作已取消")
+                                            onContentExtracted(context.getString(R.string.webvisit_cancelled))
                                         }
                                     }
                             ,
@@ -1224,11 +1228,11 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                             ) {
                                 Text(
                                         when {
-                                            autoCountdownActive.value -> "取消倒计时"
+                                            autoCountdownActive.value -> context.getString(R.string.webvisit_button_cancel_countdown)
                                             pageLoaded.value &&
                                                     !hasExtractedContent.value &&
-                                                    autoModeEnabled.value -> "取消自动"
-                                            else -> "取消"
+                                                    autoModeEnabled.value -> context.getString(R.string.webvisit_button_cancel_auto)
+                                            else -> context.getString(R.string.webvisit_button_cancel)
                                         }
                                 )
                             }
@@ -1243,7 +1247,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                             contentDescription = null
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("缩小")
+                                    Text(context.getString(R.string.webvisit_button_minimize))
                                 }
                             }
 
@@ -1279,7 +1283,7 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                                     }
                                                 }
                                             }
-                                                    ?: onContentExtracted("WebView不可用，无法提取内容。")
+                                                    ?: onContentExtracted(context.getString(R.string.webvisit_webview_unavailable))
                                         }
                                     },
                                     enabled = pageLoaded.value,
@@ -1292,10 +1296,10 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                 Text(
                                         when {
                                             autoCountdownActive.value ->
-                                                    "立即继续 (${autoCountdownSeconds.value}s)"
-                                            hasExtractedContent.value -> "继续处理"
-                                            !autoModeEnabled.value -> "手动提取"
-                                            else -> "提取内容" // 移除"(自动)"后缀，因为这是默认行为
+                                                    context.getString(R.string.webvisit_button_continue_now, autoCountdownSeconds.value)
+                                            hasExtractedContent.value -> context.getString(R.string.webvisit_button_continue)
+                                            !autoModeEnabled.value -> context.getString(R.string.webvisit_button_manual_extract)
+                                            else -> context.getString(R.string.webvisit_button_extract)
                                         }
                                 )
                             }
@@ -1307,13 +1311,13 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                         Text(
                                 text =
                                         when {
-                                            !pageLoaded.value -> "正在加载页面，请稍候..."
-                                            autoCountdownActive.value -> "正在自动倒计时，点击\"取消倒计时\"可停止自动处理"
+                                            !pageLoaded.value -> stringResource(R.string.webvisit_help_loading_page)
+                                            autoCountdownActive.value -> stringResource(R.string.webvisit_help_countdown)
                                             !hasExtractedContent.value && autoModeEnabled.value ->
-                                                    "点击\"取消自动\"可切换到手动模式"
+                                                    stringResource(R.string.webvisit_help_cancel_auto)
                                             !hasExtractedContent.value && !autoModeEnabled.value ->
-                                                    "已切换到手动模式，点击\"手动提取\"继续"
-                                            else -> "内容已提取完成，点击\"继续处理\"继续"
+                                                    stringResource(R.string.webvisit_help_manual_mode)
+                                            else -> stringResource(R.string.webvisit_help_extracted)
                                         },
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,

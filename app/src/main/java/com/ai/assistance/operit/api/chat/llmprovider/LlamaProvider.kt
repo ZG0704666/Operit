@@ -80,11 +80,11 @@ class LlamaProvider(
         }
     }
 
-    override suspend fun getModelsList(): Result<List<ModelOption>> {
+    override suspend fun getModelsList(context: Context): Result<List<ModelOption>> {
         return ModelListFetcher.getLlamaLocalModels(context)
     }
 
-    override suspend fun testConnection(): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun testConnection(context: Context): Result<String> = withContext(Dispatchers.IO) {
         if (!LlamaSession.isAvailable()) {
             return@withContext Result.failure(Exception(LlamaSession.getUnavailableReason()))
         }
@@ -132,6 +132,7 @@ class LlamaProvider(
     }
 
     override suspend fun sendMessage(
+        context: Context,
         message: String,
         chatHistory: List<Pair<String, String>>,
         modelParameters: List<ModelParameter<*>>,

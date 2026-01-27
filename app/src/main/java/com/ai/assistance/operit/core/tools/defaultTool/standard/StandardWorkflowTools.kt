@@ -75,7 +75,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowListResultData.empty(),
-                    error = "获取工作流列表失败: ${result.exceptionOrNull()?.message}"
+                    error = "Failed to get workflow list: ${result.exceptionOrNull()?.message}"
                 )
             }
         } catch (e: Exception) {
@@ -84,7 +84,7 @@ class StandardWorkflowTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = WorkflowListResultData.empty(),
-                error = "获取工作流列表失败: ${e.message}"
+                error = "Failed to get workflow list: ${e.message}"
             )
         }
     }
@@ -100,7 +100,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "工作流名称不能为空"
+                    error = "Workflow name cannot be empty"
                 )
             }
 
@@ -159,7 +159,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "创建工作流失败: ${result.exceptionOrNull()?.message}"
+                    error = "Failed to create workflow: ${result.exceptionOrNull()?.message}"
                 )
             }
         } catch (e: Exception) {
@@ -168,7 +168,7 @@ class StandardWorkflowTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = WorkflowDetailResultData.empty(),
-                error = "创建工作流失败: ${e.message}"
+                error = "Failed to create workflow: ${e.message}"
             )
         }
     }
@@ -184,7 +184,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "工作流ID不能为空"
+                    error = "Workflow ID cannot be empty"
                 )
             }
 
@@ -197,7 +197,7 @@ class StandardWorkflowTools(private val context: Context) {
                         toolName = tool.name,
                         success = false,
                         result = WorkflowDetailResultData.empty(),
-                        error = "工作流不存在: $workflowId"
+                        error = "Workflow not found: $workflowId"
                     )
                 } else {
                     ToolResult(
@@ -225,7 +225,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "获取工作流失败: ${result.exceptionOrNull()?.message}"
+                    error = "Failed to get workflow: ${result.exceptionOrNull()?.message}"
                 )
             }
         } catch (e: Exception) {
@@ -234,7 +234,7 @@ class StandardWorkflowTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = WorkflowDetailResultData.empty(),
-                error = "获取工作流失败: ${e.message}"
+                error = "Failed to get workflow: ${e.message}"
             )
         }
     }
@@ -250,7 +250,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "工作流ID不能为空"
+                    error = "Workflow ID cannot be empty"
                 )
             }
 
@@ -261,7 +261,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "工作流不存在: $workflowId"
+                    error = "Workflow not found: $workflowId"
                 )
             }
 
@@ -325,7 +325,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "更新工作流失败: ${result.exceptionOrNull()?.message}"
+                    error = "Failed to update workflow: ${result.exceptionOrNull()?.message}"
                 )
             }
         } catch (e: Exception) {
@@ -334,7 +334,7 @@ class StandardWorkflowTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = WorkflowDetailResultData.empty(),
-                error = "更新工作流失败: ${e.message}"
+                error = "Failed to update workflow: ${e.message}"
             )
         }
     }
@@ -350,7 +350,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "工作流ID不能为空"
+                    error = "Workflow ID cannot be empty"
                 )
             }
 
@@ -361,7 +361,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "工作流不存在: $workflowId"
+                    error = "Workflow not found: $workflowId"
                 )
             }
 
@@ -436,7 +436,7 @@ class StandardWorkflowTools(private val context: Context) {
             fun ensureSameType(existingNode: WorkflowNode, patchObj: JSONObject) {
                 val patchType = patchObj.optString("type", "").trim()
                 if (patchType.isNotBlank() && patchType != existingNode.type) {
-                    throw IllegalArgumentException("节点类型不允许在 patch 中变更: ${existingNode.type} -> $patchType")
+                    throw IllegalArgumentException("Node type cannot be changed in patch: ${existingNode.type} -> $patchType")
                 }
             }
 
@@ -585,31 +585,31 @@ class StandardWorkflowTools(private val context: Context) {
 
                     when (op) {
                         "add" -> {
-                            if (nodeObj == null) throw IllegalArgumentException("node_patches[$i] 缺少 node")
+                            if (nodeObj == null) throw IllegalArgumentException("node_patches[$i] missing node")
                             if (patchId.isNotBlank()) nodeObj.put("id", patchId)
-                            val parsed = parseNode(nodeObj) ?: throw IllegalArgumentException("node_patches[$i] 节点解析失败")
+                            val parsed = parseNode(nodeObj) ?: throw IllegalArgumentException("node_patches[$i] failed to parse node")
                             if (nodes.any { it.id == parsed.id }) {
-                                throw IllegalArgumentException("节点已存在: ${parsed.id}")
+                                throw IllegalArgumentException("Node already exists: ${parsed.id}")
                             }
                             nodes.add(parsed)
                         }
                         "update" -> {
                             val id = patchId.ifBlank { nodeObj?.optString("id", "")?.trim().orEmpty() }
-                            if (id.isBlank()) throw IllegalArgumentException("node_patches[$i] update 缺少 id")
+                            if (id.isBlank()) throw IllegalArgumentException("node_patches[$i] update missing id")
                             val existingIndex = nodes.indexOfFirst { it.id == id }
-                            if (existingIndex < 0) throw IllegalArgumentException("节点不存在: $id")
-                            if (nodeObj == null) throw IllegalArgumentException("node_patches[$i] update 缺少 node")
+                            if (existingIndex < 0) throw IllegalArgumentException("Node not found: $id")
+                            if (nodeObj == null) throw IllegalArgumentException("node_patches[$i] update missing node")
                             val updated = mergeNode(nodes[existingIndex], nodeObj)
                             nodes[existingIndex] = updated
                         }
                         "remove" -> {
                             val id = patchId
-                            if (id.isBlank()) throw IllegalArgumentException("node_patches[$i] remove 缺少 id")
+                            if (id.isBlank()) throw IllegalArgumentException("node_patches[$i] remove missing id")
                             val removed = nodes.removeAll { it.id == id }
-                            if (!removed) throw IllegalArgumentException("节点不存在: $id")
+                            if (!removed) throw IllegalArgumentException("Node not found: $id")
                             connections.removeAll { it.sourceNodeId == id || it.targetNodeId == id }
                         }
-                        else -> throw IllegalArgumentException("node_patches[$i] op 仅支持 add/update/remove")
+                        else -> throw IllegalArgumentException("node_patches[$i] op only supports add/update/remove")
                     }
                 }
             }
@@ -629,20 +629,20 @@ class StandardWorkflowTools(private val context: Context) {
 
                     when (op) {
                         "add" -> {
-                            if (connObj == null) throw IllegalArgumentException("connection_patches[$i] 缺少 connection")
+                            if (connObj == null) throw IllegalArgumentException("connection_patches[$i] missing connection")
                             if (patchId.isNotBlank()) connObj.put("id", patchId)
                             val parsed = parseConnection(connObj, nodeIdList, nodeIdSet, nodeNameToIds)
-                                ?: throw IllegalArgumentException("connection_patches[$i] 连接解析失败")
+                                ?: throw IllegalArgumentException("connection_patches[$i] failed to parse connection")
                             if (connections.any { it.id == parsed.id }) {
-                                throw IllegalArgumentException("连接已存在: ${parsed.id}")
+                                throw IllegalArgumentException("Connection already exists: ${parsed.id}")
                             }
                             connections.add(parsed)
                         }
                         "update" -> {
                             val id = patchId.ifBlank { connObj?.optString("id", "")?.trim().orEmpty() }
-                            if (id.isBlank()) throw IllegalArgumentException("connection_patches[$i] update 缺少 id")
+                            if (id.isBlank()) throw IllegalArgumentException("connection_patches[$i] update missing id")
                             val existingIndex = connections.indexOfFirst { it.id == id }
-                            if (existingIndex < 0) throw IllegalArgumentException("连接不存在: $id")
+                            if (existingIndex < 0) throw IllegalArgumentException("Connection not found: $id")
 
                             val existingConn = connections[existingIndex]
                             val merged = JSONObject().apply {
@@ -654,7 +654,7 @@ class StandardWorkflowTools(private val context: Context) {
                                 }
                             }
 
-                            if (connObj == null) throw IllegalArgumentException("connection_patches[$i] update 缺少 connection")
+                            if (connObj == null) throw IllegalArgumentException("connection_patches[$i] update missing connection")
                             val keys = connObj.keys()
                             while (keys.hasNext()) {
                                 val k = keys.next()
@@ -662,16 +662,16 @@ class StandardWorkflowTools(private val context: Context) {
                             }
 
                             val parsed = parseConnection(merged, nodeIdList, nodeIdSet, nodeNameToIds)
-                                ?: throw IllegalArgumentException("connection_patches[$i] 连接解析失败")
+                                ?: throw IllegalArgumentException("connection_patches[$i] failed to parse connection")
                             connections[existingIndex] = parsed
                         }
                         "remove" -> {
                             val id = patchId
-                            if (id.isBlank()) throw IllegalArgumentException("connection_patches[$i] remove 缺少 id")
+                            if (id.isBlank()) throw IllegalArgumentException("connection_patches[$i] remove missing id")
                             val removed = connections.removeAll { it.id == id }
-                            if (!removed) throw IllegalArgumentException("连接不存在: $id")
+                            if (!removed) throw IllegalArgumentException("Connection not found: $id")
                         }
-                        else -> throw IllegalArgumentException("connection_patches[$i] op 仅支持 add/update/remove")
+                        else -> throw IllegalArgumentException("connection_patches[$i] op only supports add/update/remove")
                     }
                 }
             }
@@ -696,7 +696,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = WorkflowDetailResultData.empty(),
-                    error = "更新工作流失败: ${result.exceptionOrNull()?.message}"
+                    error = "Failed to update workflow: ${result.exceptionOrNull()?.message}"
                 )
             }
         } catch (e: Exception) {
@@ -705,7 +705,7 @@ class StandardWorkflowTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = WorkflowDetailResultData.empty(),
-                error = "更新工作流失败: ${e.message}"
+                error = "Failed to update workflow: ${e.message}"
             )
         }
     }
@@ -721,7 +721,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "工作流ID不能为空"
+                    error = "Workflow ID cannot be empty"
                 )
             }
 
@@ -733,14 +733,14 @@ class StandardWorkflowTools(private val context: Context) {
                     ToolResult(
                         toolName = tool.name,
                         success = true,
-                        result = StringResultData("工作流已删除: $workflowId")
+                        result = StringResultData("Workflow deleted: $workflowId")
                     )
                 } else {
                     ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "工作流不存在或删除失败: $workflowId"
+                        error = "Workflow not found or deletion failed: $workflowId"
                     )
                 }
             } else {
@@ -748,7 +748,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "删除工作流失败: ${result.exceptionOrNull()?.message}"
+                    error = "Failed to delete workflow: ${result.exceptionOrNull()?.message}"
                 )
             }
         } catch (e: Exception) {
@@ -757,7 +757,7 @@ class StandardWorkflowTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "删除工作流失败: ${e.message}"
+                error = "Failed to delete workflow: ${e.message}"
             )
         }
     }
@@ -773,7 +773,7 @@ class StandardWorkflowTools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "工作流ID不能为空"
+                    error = "Workflow ID cannot be empty"
                 )
             }
 
@@ -783,14 +783,14 @@ class StandardWorkflowTools(private val context: Context) {
                 ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = StringResultData(result.getOrNull() ?: "工作流执行成功")
+                    result = StringResultData(result.getOrNull() ?: "Workflow executed successfully")
                 )
             } else {
                 ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "触发工作流失败: ${result.exceptionOrNull()?.message}"
+                    error = "Failed to trigger workflow: ${result.exceptionOrNull()?.message}"
                 )
             }
         } catch (e: Exception) {
@@ -799,7 +799,7 @@ class StandardWorkflowTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "触发工作流失败: ${e.message}"
+                error = "Failed to trigger workflow: ${e.message}"
             )
         }
     }
@@ -821,13 +821,13 @@ class StandardWorkflowTools(private val context: Context) {
             }
 
             if (jsonArray.length() > 0 && nodes.isEmpty()) {
-                throw IllegalArgumentException("节点解析失败：请为每个节点提供 type=trigger/execute/condition/logic/extract（或提供 __type=...TriggerNode/...ExecuteNode 以便推断）")
+                throw IllegalArgumentException("Failed to parse nodes: Please provide type=trigger/execute/condition/logic/extract for each node (or provide __type=...TriggerNode/...ExecuteNode for inference)")
             }
 
             nodes
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to parse nodes JSON", e)
-            throw IllegalArgumentException("节点JSON格式错误: ${e.message}")
+            throw IllegalArgumentException("Invalid node JSON format: ${e.message}")
         }
     }
 
@@ -866,7 +866,7 @@ class StandardWorkflowTools(private val context: Context) {
 
                     TriggerNode(
                         id = id,
-                        name = name.ifBlank { "触发器" },
+                        name = name.ifBlank { "Trigger" },
                         description = description,
                         position = position,
                         triggerType = triggerType,
@@ -885,7 +885,7 @@ class StandardWorkflowTools(private val context: Context) {
 
                     ExecuteNode(
                         id = id,
-                        name = name.ifBlank { "执行动作" },
+                        name = name.ifBlank { "Action" },
                         description = description,
                         position = position,
                         actionType = actionType,
@@ -906,7 +906,7 @@ class StandardWorkflowTools(private val context: Context) {
 
                     ConditionNode(
                         id = id,
-                        name = name.ifBlank { "条件判断" },
+                        name = name.ifBlank { "Condition" },
                         description = description,
                         position = position,
                         left = left,
@@ -924,7 +924,7 @@ class StandardWorkflowTools(private val context: Context) {
 
                     LogicNode(
                         id = id,
-                        name = name.ifBlank { "逻辑判断" },
+                        name = name.ifBlank { "Logic" },
                         description = description,
                         position = position,
                         operator = operator
@@ -959,7 +959,7 @@ class StandardWorkflowTools(private val context: Context) {
 
                     ExtractNode(
                         id = id,
-                        name = name.ifBlank { "运算" },
+                        name = name.ifBlank { "Extract" },
                         description = description,
                         position = position,
                         source = source,
@@ -1031,13 +1031,13 @@ class StandardWorkflowTools(private val context: Context) {
             }
 
             if (jsonArray.length() > 0 && connections.isEmpty()) {
-                throw IllegalArgumentException("连接解析失败：请检查 source/target 字段（推荐 sourceNodeId/targetNodeId）以及节点 id 是否存在")
+                throw IllegalArgumentException("Failed to parse connections: Please check source/target fields (sourceNodeId/targetNodeId recommended) and node IDs existence")
             }
 
             connections
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to parse connections JSON", e)
-            throw IllegalArgumentException("连接JSON格式错误: ${e.message}")
+            throw IllegalArgumentException("Invalid connection JSON format: ${e.message}")
         }
     }
 

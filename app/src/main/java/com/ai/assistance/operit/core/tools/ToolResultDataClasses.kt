@@ -5,6 +5,7 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.util.Locale
 
 /**
  * This file contains all implementations of ToolResultData Centralized for easier maintenance and
@@ -83,10 +84,10 @@ data class ADBResultData(val command: String, val output: String, val exitCode: 
         ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("ADB命令执行结果:")
-        sb.appendLine("命令: $command")
-        sb.appendLine("退出码: $exitCode")
-        sb.appendLine("\n输出:")
+        sb.appendLine("ADB Command Execution Result:")
+        sb.appendLine("Command: $command")
+        sb.appendLine("Exit Code: $exitCode")
+        sb.appendLine("\nOutput:")
         sb.appendLine(output)
         return sb.toString()
     }
@@ -102,11 +103,11 @@ data class TerminalCommandResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("终端命令执行结果:")
-        sb.appendLine("命令: $command")
-        sb.appendLine("会话: $sessionId")
-        sb.appendLine("退出码: $exitCode")
-        sb.appendLine("\n输出:")
+        sb.appendLine("Terminal Command Execution Result:")
+        sb.appendLine("Command: $command")
+        sb.appendLine("Session: $sessionId")
+        sb.appendLine("Exit Code: $exitCode")
+        sb.appendLine("\nOutput:")
         sb.appendLine(output)
         return sb.toString()
     }
@@ -122,11 +123,11 @@ data class CalculationResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("表达式: $expression")
-        sb.appendLine("结果: $formattedResult")
+        sb.appendLine("Expression: $expression")
+        sb.appendLine("Result: $formattedResult")
 
         if (variables.isNotEmpty()) {
-            sb.appendLine("变量:")
+            sb.appendLine("Variables:")
             variables.forEach { (name, value) -> sb.appendLine("  $name = $value") }
         }
 
@@ -365,7 +366,7 @@ data class HttpResponseData(
 data class SystemSettingData(val namespace: String, val setting: String, val value: String) :
         ToolResultData() {
     override fun toString(): String {
-        return "$namespace.$setting 的当前值是: $value"
+        return "Current value of $namespace.$setting: $value"
     }
 }
 
@@ -379,10 +380,10 @@ data class AppOperationData(
 ) : ToolResultData() {
     override fun toString(): String {
         return when (operationType) {
-            "install" -> "成功安装应用: $packageName $details"
-            "uninstall" -> "成功卸载应用: $packageName $details"
-            "start" -> "成功启动应用: $packageName $details"
-            "stop" -> "成功停止应用: $packageName $details"
+            "install" -> "Successfully installed app: $packageName $details"
+            "uninstall" -> "Successfully uninstalled app: $packageName $details"
+            "start" -> "Successfully started app: $packageName $details"
+            "stop" -> "Successfully stopped app: $packageName $details"
             else -> details
         }
     }
@@ -393,8 +394,8 @@ data class AppOperationData(
 data class AppListData(val includesSystemApps: Boolean, val packages: List<String>) :
         ToolResultData() {
     override fun toString(): String {
-        val appType = if (includesSystemApps) "所有应用" else "第三方应用"
-        return "已安装${appType}列表:\n${packages.joinToString("\n")}"
+        val appType = if (includesSystemApps) "All Apps" else "Third-Party Apps"
+        return "Installed ${appType} List:\n${packages.joinToString("\n")}"
     }
 }
 
@@ -521,19 +522,19 @@ data class DeviceInfoResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("设备信息:")
-        sb.appendLine("设备型号: $manufacturer $model")
-        sb.appendLine("Android版本: $androidVersion (SDK $sdkVersion)")
-        sb.appendLine("设备ID: $deviceId")
-        sb.appendLine("屏幕: $screenResolution (${screenDensity}dp)")
-        sb.appendLine("内存: 可用 $availableMemory / 总计 $totalMemory")
-        sb.appendLine("存储: 可用 $availableStorage / 总计 $totalStorage")
-        sb.appendLine("电池: ${batteryLevel}% ${if (batteryCharging) "(充电中)" else ""}")
-        sb.appendLine("网络: $networkType")
-        sb.appendLine("处理器: $cpuInfo")
+        sb.appendLine("Device Information:")
+        sb.appendLine("Device Model: $manufacturer $model")
+        sb.appendLine("Android Version: $androidVersion (SDK $sdkVersion)")
+        sb.appendLine("Device ID: $deviceId")
+        sb.appendLine("Screen: $screenResolution (${screenDensity}dp)")
+        sb.appendLine("Memory: Available $availableMemory / Total $totalMemory")
+        sb.appendLine("Storage: Available $availableStorage / Total $totalStorage")
+        sb.appendLine("Battery: ${batteryLevel}% ${if (batteryCharging) "(Charging)" else ""}")
+        sb.appendLine("Network: $networkType")
+        sb.appendLine("Processor: $cpuInfo")
 
         if (additionalInfo.isNotEmpty()) {
-            sb.appendLine("\n其他信息:")
+            sb.appendLine("\nOther Information:")
             additionalInfo.forEach { (key, value) -> sb.appendLine("$key: $value") }
         }
 
@@ -596,14 +597,14 @@ data class IntentResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("Intent执行结果:")
+        sb.appendLine("Intent Execution Result:")
         sb.appendLine("Action: $action")
         if (uri != "null") sb.appendLine("URI: $uri")
-        if (package_name != "null") sb.appendLine("包名: $package_name")
-        if (component != "null") sb.appendLine("组件: $component")
+        if (package_name != "null") sb.appendLine("Package: $package_name")
+        if (component != "null") sb.appendLine("Component: $component")
         sb.appendLine("Flags: $flags")
-        sb.appendLine("附加数据数量: $extras_count")
-        sb.appendLine("\n执行结果: $result")
+        sb.appendLine("Extras Count: $extras_count")
+        sb.appendLine("\nExecution Result: $result")
         return sb.toString()
     }
 }
@@ -621,16 +622,16 @@ data class FindFilesResultData(
         ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("[$env] 文件查找结果:")
-        sb.appendLine("搜索路径: $path")
-        sb.appendLine("匹配模式: $pattern")
+        sb.appendLine("[$env] File Search Result:")
+        sb.appendLine("Search Path: $path")
+        sb.appendLine("Pattern: $pattern")
 
-        sb.appendLine("找到 ${files.size} 个文件:")
+        sb.appendLine("Found ${files.size} files:")
         files.forEachIndexed { index, file ->
             if (index < 10 || files.size <= 20) {
                 sb.appendLine("- $file")
             } else if (index == 10 && files.size > 20) {
-                sb.appendLine("... 以及 ${files.size - 10} 个其他文件")
+                sb.appendLine("... and ${files.size - 10} other files")
             }
         }
 
@@ -670,43 +671,43 @@ data class FFmpegResultData(
 
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("FFmpeg执行结果:")
-        sb.appendLine("命令: $command")
-        sb.appendLine("返回码: $returnCode")
-        sb.appendLine("执行时间: ${duration}ms")
+        sb.appendLine("FFmpeg Execution Result:")
+        sb.appendLine("Command: $command")
+        sb.appendLine("Return Code: $returnCode")
+        sb.appendLine("Execution Time: ${duration}ms")
 
-        outputFile?.let { sb.appendLine("输出文件: $it") }
+        outputFile?.let { sb.appendLine("Output File: $it") }
 
         mediaInfo?.let { info ->
-            sb.appendLine("\n媒体信息:")
-            sb.appendLine("格式: ${info.format}")
-            sb.appendLine("时长: ${info.duration}")
-            sb.appendLine("比特率: ${info.bitrate}")
+            sb.appendLine("\nMedia Information:")
+            sb.appendLine("Format: ${info.format}")
+            sb.appendLine("Duration: ${info.duration}")
+            sb.appendLine("Bitrate: ${info.bitrate}")
 
             if (info.videoStreams.isNotEmpty()) {
-                sb.appendLine("\n视频流:")
+                sb.appendLine("\nVideo Streams:")
                 info.videoStreams.forEach { stream ->
-                    sb.appendLine("  索引: ${stream.index}")
-                    sb.appendLine("  编解码器: ${stream.codecName}")
-                    stream.resolution?.let { sb.appendLine("  分辨率: $it") }
-                    stream.frameRate?.let { sb.appendLine("  帧率: $it") }
+                    sb.appendLine("  Index: ${stream.index}")
+                    sb.appendLine("  Codec: ${stream.codecName}")
+                    stream.resolution?.let { sb.appendLine("  Resolution: $it") }
+                    stream.frameRate?.let { sb.appendLine("  Frame Rate: $it") }
                     sb.appendLine()
                 }
             }
 
             if (info.audioStreams.isNotEmpty()) {
-                sb.appendLine("\n音频流:")
+                sb.appendLine("\nAudio Streams:")
                 info.audioStreams.forEach { stream ->
-                    sb.appendLine("  索引: ${stream.index}")
-                    sb.appendLine("  编解码器: ${stream.codecName}")
-                    stream.sampleRate?.let { sb.appendLine("  采样率: $it") }
-                    stream.channels?.let { sb.appendLine("  声道数: $it") }
+                    sb.appendLine("  Index: ${stream.index}")
+                    sb.appendLine("  Codec: ${stream.codecName}")
+                    stream.sampleRate?.let { sb.appendLine("  Sample Rate: $it") }
+                    stream.channels?.let { sb.appendLine("  Channels: $it") }
                     sb.appendLine()
                 }
             }
         }
 
-        sb.appendLine("\n输出日志:")
+        sb.appendLine("\nOutput Log:")
         sb.append(output)
 
         return sb.toString()
@@ -722,16 +723,16 @@ data class NotificationData(val notifications: List<Notification>, val timestamp
 
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("设备通知 (共 ${notifications.size} 条):")
+        sb.appendLine("Device Notifications (${notifications.size} total):")
 
         notifications.forEachIndexed { index, notification ->
-            sb.appendLine("${index + 1}. 应用包名: ${notification.packageName}")
-            sb.appendLine("   内容: ${notification.text}")
+            sb.appendLine("${index + 1}. Package: ${notification.packageName}")
+            sb.appendLine("   Content: ${notification.text}")
             sb.appendLine()
         }
 
         if (notifications.isEmpty()) {
-            sb.appendLine("当前没有通知")
+            sb.appendLine("No notifications")
         }
 
         return sb.toString()
@@ -754,26 +755,26 @@ data class LocationData(
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("设备位置信息:")
-        sb.appendLine("经度: $longitude")
-        sb.appendLine("纬度: $latitude")
-        sb.appendLine("精度: $accuracy 米")
-        sb.appendLine("提供者: $provider")
+        sb.appendLine("Device Location Information:")
+        sb.appendLine("Longitude: $longitude")
+        sb.appendLine("Latitude: $latitude")
+        sb.appendLine("Accuracy: $accuracy meters")
+        sb.appendLine("Provider: $provider")
         sb.appendLine(
-                "获取时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(timestamp))}"
+                "Timestamp: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(timestamp))}"
         )
 
         if (address.isNotEmpty()) {
-            sb.appendLine("地址: $address")
+            sb.appendLine("Address: $address")
         }
         if (city.isNotEmpty()) {
-            sb.appendLine("城市: $city")
+            sb.appendLine("City: $city")
         }
         if (province.isNotEmpty()) {
-            sb.appendLine("省/州: $province")
+            sb.appendLine("Province/State: $province")
         }
         if (country.isNotEmpty()) {
-            sb.appendLine("国家: $country")
+            sb.appendLine("Country: $country")
         }
 
         return sb.toString()
@@ -893,30 +894,30 @@ data class AutomationConfigSearchResult(
 
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("自动化配置搜索结果:")
-        
+        sb.appendLine("Automation Configuration Search Result:")
+
         if (!searchPackageName.isNullOrBlank()) {
-            sb.appendLine("搜索包名: $searchPackageName")
+            sb.appendLine("Search Package Name: $searchPackageName")
         }
         if (!searchAppName.isNullOrBlank()) {
-            sb.appendLine("搜索应用名: $searchAppName")
+            sb.appendLine("Search App Name: $searchAppName")
         }
-        
-        sb.appendLine("找到 $totalFound 个匹配的配置:")
-        
+
+        sb.appendLine("Found $totalFound matching configurations:")
+
         if (foundConfigs.isEmpty()) {
-            sb.appendLine("未找到匹配的自动化配置")
+            sb.appendLine("No matching automation configurations found")
         } else {
             foundConfigs.forEach { config ->
                 sb.appendLine()
-                sb.appendLine("应用名: ${config.appName}")
-                sb.appendLine("包名: ${config.packageName}")
-                sb.appendLine("描述: ${config.description}")
-                sb.appendLine("类型: ${if (config.isBuiltIn) "内置" else "用户导入"}")
-                sb.appendLine("匹配方式: ${if (config.matchType == "packageName") "包名匹配" else "应用名匹配"}")
+                sb.appendLine("App Name: ${config.appName}")
+                sb.appendLine("Package Name: ${config.packageName}")
+                sb.appendLine("Description: ${config.description}")
+                sb.appendLine("Type: ${if (config.isBuiltIn) "Built-in" else "User Imported"}")
+                sb.appendLine("Match Type: ${if (config.matchType == "packageName") "Package Name" else "App Name"}")
             }
         }
-        
+
         return sb.toString()
     }
 }
@@ -942,26 +943,26 @@ data class AutomationPlanParametersResult(
 
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("自动化计划参数信息:")
-        sb.appendLine("功能名称: $functionName")
-        targetPackageName?.let { sb.appendLine("目标应用: $it") }
-        sb.appendLine("计划描述: $planDescription")
+        sb.appendLine("Automation Plan Parameters Information:")
+        sb.appendLine("Function Name: $functionName")
+        targetPackageName?.let { sb.appendLine("Target App: $it") }
+        sb.appendLine("Plan Description: $planDescription")
         sb.appendLine()
-        
+
         if (requiredParameters.isEmpty()) {
-            sb.appendLine("此功能不需要额外参数，可以直接执行。")
+            sb.appendLine("This function does not require additional parameters and can be executed directly.")
         } else {
-            sb.appendLine("需要的参数 (${requiredParameters.size} 个):")
+            sb.appendLine("Required Parameters (${requiredParameters.size} total):")
             requiredParameters.forEach { param ->
                 sb.appendLine()
-                sb.appendLine("参数名: ${param.key}")
-                sb.appendLine("描述: ${param.description}")
-                sb.appendLine("类型: ${param.type}")
-                sb.appendLine("必需: ${if (param.isRequired) "是" else "否"}")
-                param.defaultValue?.let { sb.appendLine("默认值: $it") }
+                sb.appendLine("Parameter Name: ${param.key}")
+                sb.appendLine("Description: ${param.description}")
+                sb.appendLine("Type: ${param.type}")
+                sb.appendLine("Required: ${if (param.isRequired) "Yes" else "No"}")
+                param.defaultValue?.let { sb.appendLine("Default Value: $it") }
             }
         }
-        
+
         return sb.toString()
     }
 }
@@ -989,31 +990,31 @@ data class AutomationExecutionResult(
 
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("自动化执行结果:")
-        sb.appendLine("功能名称: $functionName")
+        sb.appendLine("Automation Execution Result:")
+        sb.appendLine("Function Name: $functionName")
         agentId?.let { sb.appendLine("AgentId: $it") }
-        sb.appendLine("执行状态: ${if (executionSuccess) "成功" else "失败"}")
-        sb.appendLine("执行步骤: $executionSteps")
-        sb.appendLine("结果消息: $executionMessage")
-        
+        sb.appendLine("Execution Status: ${if (executionSuccess) "Success" else "Failure"}")
+        sb.appendLine("Execution Steps: $executionSteps")
+        sb.appendLine("Result Message: $executionMessage")
+
         if (!executionError.isNullOrBlank()) {
-            sb.appendLine("错误信息: $executionError")
+            sb.appendLine("Error Message: $executionError")
         }
-        
+
         if (providedParameters.isNotEmpty()) {
-            sb.appendLine("\n使用的参数:")
+            sb.appendLine("\nUsed Parameters:")
             providedParameters.forEach { (key, value) ->
                 sb.appendLine("  $key: $value")
             }
         }
-        
+
         finalState?.let { state ->
-            sb.appendLine("\n最终状态:")
-            sb.appendLine("  节点ID: ${state.nodeId}")
-            sb.appendLine("  应用包名: ${state.packageName}")
+            sb.appendLine("\nFinal State:")
+            sb.appendLine("  Node ID: ${state.nodeId}")
+            sb.appendLine("  Package Name: ${state.packageName}")
             sb.appendLine("  Activity: ${state.activityName}")
         }
-        
+
         return sb.toString()
     }
 }
@@ -1035,22 +1036,22 @@ data class AutomationFunctionListResult(
 
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("可用的自动化功能:")
-        packageName?.let { sb.appendLine("应用包名: $it") }
-        sb.appendLine("功能数量: $totalCount")
+        sb.appendLine("Available Automation Functions:")
+        packageName?.let { sb.appendLine("Package Name: $it") }
+        sb.appendLine("Function Count: $totalCount")
         sb.appendLine()
-        
+
         if (functions.isEmpty()) {
-            sb.appendLine("当前没有可用的自动化功能")
+            sb.appendLine("No automation functions available")
         } else {
             functions.forEach { func ->
-                sb.appendLine("功能名: ${func.name}")
-                sb.appendLine("描述: ${func.description}")
-                sb.appendLine("目标页面: ${func.targetNodeName}")
+                sb.appendLine("Function Name: ${func.name}")
+                sb.appendLine("Description: ${func.description}")
+                sb.appendLine("Target Page: ${func.targetNodeName}")
                 sb.appendLine()
             }
         }
-        
+
         return sb.toString()
     }
 }
@@ -1064,9 +1065,9 @@ data class TerminalSessionCreationResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         return if (isNewSession) {
-            "成功创建新的终端会话。会话名称: '$sessionName', 会话ID: $sessionId"
+            "Successfully created new terminal session. Session Name: '$sessionName', Session ID: $sessionId"
         } else {
-            "成功获取现有的终端会话。会话名称: '$sessionName', 会话ID: $sessionId"
+            "Successfully retrieved existing terminal session. Session Name: '$sessionName', Session ID: $sessionId"
         }
     }
 }
@@ -1109,76 +1110,76 @@ data class GrepResultData(
     
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("[$env] Grep搜索结果:")
-        sb.appendLine("搜索路径: $searchPath")
-        sb.appendLine("搜索模式: $pattern")
-        sb.appendLine("匹配总数: $totalMatches (在 ${matches.size} 个文件中)")
-        sb.appendLine("搜索文件数: $filesSearched")
+        sb.appendLine("[$env] Grep Search Result:")
+        sb.appendLine("Search Path: $searchPath")
+        sb.appendLine("Pattern: $pattern")
+        sb.appendLine("Total Matches: $totalMatches (in ${matches.size} files)")
+        sb.appendLine("Files Searched: $filesSearched")
         sb.appendLine()
-        
+
         if (matches.isEmpty()) {
-            sb.appendLine("未找到匹配项")
+            sb.appendLine("No matches found")
         } else {
-            // 设置显示上限 - 最多显示30个匹配组
+            // Set display limit - show up to 30 match groups
             val maxDisplayMatches = 30
             var displayedMatches = 0
             var collapsedMatches = 0
-            
+
             for (fileMatch in matches) {
                 val remainingSlots = maxDisplayMatches - displayedMatches
                 if (remainingSlots <= 0) {
-                    // 统计剩余被折叠的匹配数
+                    // Count remaining collapsed matches
                     collapsedMatches += fileMatch.lineMatches.size
                     continue
                 }
-                
-                sb.appendLine("文件: ${fileMatch.filePath}")
-                
+
+                sb.appendLine("File: ${fileMatch.filePath}")
+
                 val matchesToShow = fileMatch.lineMatches.take(remainingSlots)
                 val matchesCollapsedInFile = fileMatch.lineMatches.size - matchesToShow.size
-                
+
                 matchesToShow.forEach { lineMatch ->
-                    // 如果有上下文，显示完整的上下文
+                    // If context is available, show full context
                     if (lineMatch.matchContext != null && lineMatch.matchContext.isNotBlank()) {
                         val contextLines = lineMatch.matchContext.lines()
                         val centerIndex = contextLines.size / 2
-                        
+
                         contextLines.forEachIndexed { idx, contextLine ->
-                            // 计算每行的实际行号
+                            // Calculate actual line number for each line
                             val actualLineNum = lineMatch.lineNumber - centerIndex + idx
                             val lineNumStr = String.format("%6d", actualLineNum)
-                            
-                            // 匹配行用 > 标记
+
+                            // Mark matching line with >
                             if (idx == centerIndex) {
                                 sb.appendLine("$lineNumStr|>${contextLine}")
                             } else {
                                 sb.appendLine("$lineNumStr| ${contextLine}")
                             }
                         }
-                        sb.appendLine() // 在每个匹配块后添加空行
+                        sb.appendLine() // Add blank line after each match block
                     } else {
-                        // 没有上下文，只显示匹配行
+                        // No context, show only matching line
                         val lineNumStr = String.format("%6d", lineMatch.lineNumber)
                         sb.appendLine("$lineNumStr| ${lineMatch.lineContent}")
                     }
                     displayedMatches++
                 }
-                
+
                 if (matchesCollapsedInFile > 0) {
-                    sb.appendLine("  ... (此文件中还有 $matchesCollapsedInFile 个匹配组被折叠)")
+                    sb.appendLine("  ... ($matchesCollapsedInFile more match groups collapsed in this file)")
                     collapsedMatches += matchesCollapsedInFile
                 }
-                
+
                 sb.appendLine()
             }
-            
+
             if (collapsedMatches > 0) {
                 sb.appendLine("=" .repeat(60))
-                sb.appendLine("为节省空间，共有 $collapsedMatches 个匹配组被折叠")
-                sb.appendLine("显示了 $displayedMatches 个匹配组，总共 $totalMatches 个匹配")
+                sb.appendLine("To save space, $collapsedMatches match groups were collapsed")
+                sb.appendLine("Displayed $displayedMatches match groups, total $totalMatches matches")
             }
         }
-        
+
         return sb.toString()
     }
 }
@@ -1203,17 +1204,17 @@ data class WorkflowResultData(
     override fun toString(): String {
         val sb = StringBuilder()
         sb.appendLine("ID: $id")
-        sb.appendLine("名称: $name")
-        sb.appendLine("描述: $description")
-        sb.appendLine("状态: ${if (enabled) "启用" else "禁用"}")
-        sb.appendLine("节点数: $nodeCount")
-        sb.appendLine("连接数: $connectionCount")
-        sb.appendLine("总执行次数: $totalExecutions")
-        sb.appendLine("成功次数: $successfulExecutions")
-        sb.appendLine("失败次数: $failedExecutions")
+        sb.appendLine("Name: $name")
+        sb.appendLine("Description: $description")
+        sb.appendLine("Status: ${if (enabled) "Enabled" else "Disabled"}")
+        sb.appendLine("Node Count: $nodeCount")
+        sb.appendLine("Connection Count: $connectionCount")
+        sb.appendLine("Total Executions: $totalExecutions")
+        sb.appendLine("Successful Executions: $successfulExecutions")
+        sb.appendLine("Failed Executions: $failedExecutions")
         if (lastExecutionTime != null) {
-            sb.appendLine("最后执行时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(lastExecutionTime))}")
-            sb.appendLine("最后执行状态: ${lastExecutionStatus ?: "未知"}")
+            sb.appendLine("Last Execution Time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(lastExecutionTime))}")
+            sb.appendLine("Last Execution Status: ${lastExecutionStatus ?: "Unknown"}")
         }
         return sb.toString().trim()
     }
@@ -1227,19 +1228,19 @@ data class WorkflowListResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         if (workflows.isEmpty()) {
-            return "暂无工作流"
+            return "No workflows"
         }
         val sb = StringBuilder()
-        sb.appendLine("工作流列表 (共 $totalCount 个):")
+        sb.appendLine("Workflow List ($totalCount total):")
         sb.appendLine()
         workflows.forEach { workflow ->
             sb.appendLine("ID: ${workflow.id}")
-            sb.appendLine("名称: ${workflow.name}")
-            sb.appendLine("描述: ${workflow.description}")
-            sb.appendLine("状态: ${if (workflow.enabled) "启用" else "禁用"}")
-            sb.appendLine("节点数: ${workflow.nodeCount}")
-            sb.appendLine("连接数: ${workflow.connectionCount}")
-            sb.appendLine("总执行次数: ${workflow.totalExecutions}")
+            sb.appendLine("Name: ${workflow.name}")
+            sb.appendLine("Description: ${workflow.description}")
+            sb.appendLine("Status: ${if (workflow.enabled) "Enabled" else "Disabled"}")
+            sb.appendLine("Node Count: ${workflow.nodeCount}")
+            sb.appendLine("Connection Count: ${workflow.connectionCount}")
+            sb.appendLine("Total Executions: ${workflow.totalExecutions}")
             sb.appendLine("---")
         }
         return sb.toString().trim()
@@ -1275,79 +1276,79 @@ data class WorkflowDetailResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("工作流详情:")
+        sb.appendLine("Workflow Details:")
         sb.appendLine("ID: $id")
-        sb.appendLine("名称: $name")
-        sb.appendLine("描述: $description")
-        sb.appendLine("状态: ${if (enabled) "启用" else "禁用"}")
+        sb.appendLine("Name: $name")
+        sb.appendLine("Description: $description")
+        sb.appendLine("Status: ${if (enabled) "Enabled" else "Disabled"}")
         sb.appendLine()
-        
-        sb.appendLine("节点 (${nodes.size}):")
+
+        sb.appendLine("Nodes (${nodes.size}):")
         nodes.forEach { node ->
             when (node) {
                 is com.ai.assistance.operit.data.model.TriggerNode -> {
-                    sb.appendLine("  - [触发] ${node.name} (${node.id})")
-                    sb.appendLine("    类型: ${node.triggerType}")
+                    sb.appendLine("  - [Trigger] ${node.name} (${node.id})")
+                    sb.appendLine("    Type: ${node.triggerType}")
                     if (node.description.isNotBlank()) {
-                        sb.appendLine("    描述: ${node.description}")
+                        sb.appendLine("    Description: ${node.description}")
                     }
                 }
                 is com.ai.assistance.operit.data.model.ExecuteNode -> {
-                    sb.appendLine("  - [执行] ${node.name} (${node.id})")
-                    sb.appendLine("    动作: ${node.actionType}")
+                    sb.appendLine("  - [Execute] ${node.name} (${node.id})")
+                    sb.appendLine("    Action: ${node.actionType}")
                     if (node.description.isNotBlank()) {
-                        sb.appendLine("    描述: ${node.description}")
+                        sb.appendLine("    Description: ${node.description}")
                     }
                 }
                 is com.ai.assistance.operit.data.model.ConditionNode -> {
-                    sb.appendLine("  - [条件] ${node.name} (${node.id})")
-                    sb.appendLine("    运算: ${node.operator}")
+                    sb.appendLine("  - [Condition] ${node.name} (${node.id})")
+                    sb.appendLine("    Operator: ${node.operator}")
                     if (node.description.isNotBlank()) {
-                        sb.appendLine("    描述: ${node.description}")
+                        sb.appendLine("    Description: ${node.description}")
                     }
                 }
                 is com.ai.assistance.operit.data.model.LogicNode -> {
-                    sb.appendLine("  - [逻辑] ${node.name} (${node.id})")
-                    sb.appendLine("    运算: ${node.operator}")
+                    sb.appendLine("  - [Logic] ${node.name} (${node.id})")
+                    sb.appendLine("    Operator: ${node.operator}")
                     if (node.description.isNotBlank()) {
-                        sb.appendLine("    描述: ${node.description}")
+                        sb.appendLine("    Description: ${node.description}")
                     }
                 }
                 is com.ai.assistance.operit.data.model.ExtractNode -> {
-                    sb.appendLine("  - [运算] ${node.name} (${node.id})")
-                    sb.appendLine("    模式: ${node.mode}")
+                    sb.appendLine("  - [Extract] ${node.name} (${node.id})")
+                    sb.appendLine("    Mode: ${node.mode}")
                     if (node.expression.isNotBlank()) {
-                        sb.appendLine("    表达式: ${node.expression}")
+                        sb.appendLine("    Expression: ${node.expression}")
                     }
                     if (node.description.isNotBlank()) {
-                        sb.appendLine("    描述: ${node.description}")
+                        sb.appendLine("    Description: ${node.description}")
                     }
                 }
             }
         }
         sb.appendLine()
-        
-        sb.appendLine("连接 (${connections.size}):")
+
+        sb.appendLine("Connections (${connections.size}):")
         connections.forEach { conn ->
             val sourceName = nodes.find { it.id == conn.sourceNodeId }?.name ?: conn.sourceNodeId
             val targetName = nodes.find { it.id == conn.targetNodeId }?.name ?: conn.targetNodeId
             sb.append("  - $sourceName → $targetName")
             if (conn.condition != null) {
-                sb.append(" (条件: ${conn.condition})")
+                sb.append(" (Condition: ${conn.condition})")
             }
             sb.appendLine()
         }
         sb.appendLine()
-        
-        sb.appendLine("执行统计:")
-        sb.appendLine("  总执行次数: $totalExecutions")
-        sb.appendLine("  成功次数: $successfulExecutions")
-        sb.appendLine("  失败次数: $failedExecutions")
+
+        sb.appendLine("Execution Statistics:")
+        sb.appendLine("  Total Executions: $totalExecutions")
+        sb.appendLine("  Successful Executions: $successfulExecutions")
+        sb.appendLine("  Failed Executions: $failedExecutions")
         if (lastExecutionTime != null) {
-            sb.appendLine("  最后执行时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(lastExecutionTime))}")
-            sb.appendLine("  最后执行状态: ${lastExecutionStatus ?: "未知"}")
+            sb.appendLine("  Last Execution Time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(lastExecutionTime))}")
+            sb.appendLine("  Last Execution Status: ${lastExecutionStatus ?: "Unknown"}")
         }
-        
+
         return sb.toString().trim()
     }
     
@@ -1381,9 +1382,9 @@ data class ChatServiceStartResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         return if (isConnected) {
-            "对话服务已启动并成功连接"
+            "Chat service started and connected successfully"
         } else {
-            "对话服务连接失败"
+            "Chat service connection failed"
         }
     }
 }
@@ -1395,7 +1396,7 @@ data class ChatCreationResultData(
     val createdAt: Long = System.currentTimeMillis()
 ) : ToolResultData() {
     override fun toString(): String {
-        return "已创建新对话\n对话ID: $chatId"
+        return "Created new chat\nChat ID: $chatId"
     }
 }
 
@@ -1421,27 +1422,27 @@ data class ChatListResultData(
     
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("对话列表 (共 $totalCount 个):")
+        sb.appendLine("Chat List ($totalCount total):")
         if (currentChatId != null) {
-            sb.appendLine("当前对话ID: $currentChatId")
+            sb.appendLine("Current Chat ID: $currentChatId")
         }
         sb.appendLine()
-        
+
         if (chats.isEmpty()) {
-            sb.appendLine("暂无对话")
+            sb.appendLine("No chats")
         } else {
             chats.forEach { chat ->
-                val currentMarker = if (chat.isCurrent) " [当前]" else ""
+                val currentMarker = if (chat.isCurrent) " [Current]" else ""
                 sb.appendLine("ID: ${chat.id}$currentMarker")
-                sb.appendLine("标题: ${chat.title}")
-                sb.appendLine("消息数: ${chat.messageCount}")
-                sb.appendLine("Token统计: 输入 ${chat.inputTokens} / 输出 ${chat.outputTokens}")
-                sb.appendLine("创建时间: ${chat.createdAt}")
-                sb.appendLine("更新时间: ${chat.updatedAt}")
+                sb.appendLine("Title: ${chat.title}")
+                sb.appendLine("Message Count: ${chat.messageCount}")
+                sb.appendLine("Token Statistics: Input ${chat.inputTokens} / Output ${chat.outputTokens}")
+                sb.appendLine("Created: ${chat.createdAt}")
+                sb.appendLine("Updated: ${chat.updatedAt}")
                 sb.appendLine("---")
             }
         }
-        
+
         return sb.toString().trim()
     }
 }
@@ -1455,9 +1456,9 @@ data class ChatSwitchResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         return if (chatTitle.isNotBlank()) {
-            "已切换到对话: $chatTitle\n对话ID: $chatId"
+            "Switched to chat: $chatTitle\nChat ID: $chatId"
         } else {
-            "已切换到对话: $chatId"
+            "Switched to chat: $chatId"
         }
     }
 }
@@ -1479,14 +1480,14 @@ data class MessageSendResultData(
         }
         val response = aiResponse
         return if (response.isNullOrBlank()) {
-            "消息已发送到对话: $chatId\n消息内容: $messagePreview"
+            "Message sent to chat: $chatId\nMessage content: $messagePreview"
         } else {
             val responsePreview = if (response.length > 200) {
                 "${response.take(200)}..."
             } else {
                 response
             }
-            "消息已发送到对话: $chatId\n消息内容: $messagePreview\nAI回复: $responsePreview"
+            "Message sent to chat: $chatId\nMessage content: $messagePreview\nAI Reply: $responsePreview"
         }
     }
 }
@@ -1501,6 +1502,6 @@ data class MemoryLinkResultData(
     val description: String
 ) : ToolResultData() {
     override fun toString(): String {
-        return "成功链接记忆: '$sourceTitle' -> '$targetTitle' (类型: $linkType, 强度: $weight)"
+        return "Successfully linked memory: '$sourceTitle' -> '$targetTitle' (Type: $linkType, Strength: $weight)"
     }
 }
