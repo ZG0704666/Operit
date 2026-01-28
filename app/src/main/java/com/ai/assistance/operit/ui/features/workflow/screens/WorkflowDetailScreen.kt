@@ -54,6 +54,7 @@ import com.ai.assistance.operit.ui.features.workflow.components.NodeActionMenuDi
 import com.ai.assistance.operit.ui.features.workflow.components.ScheduleConfigDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 @Composable
 private fun ConditionOperator.toDisplayText(): String {
@@ -641,8 +642,18 @@ fun NodeDialog(
                 }
             }
         } else {
+            val currentLocale: Locale =
+                context.resources.configuration.locales.get(0) ?: Locale.getDefault()
+            val isChinese = currentLocale.language.equals("zh", ignoreCase = true)
+
             val internalTool =
-                SystemToolPrompts.getAllCategoriesCn().flatMap { it.tools }.find { it.name == toolName }
+                (if (isChinese) {
+                    SystemToolPrompts.getAllCategoriesCn()
+                } else {
+                    SystemToolPrompts.getAllCategoriesEn()
+                })
+                    .flatMap { it.tools }
+                    .find { it.name == toolName }
             description = internalTool?.description
             schemas = internalTool?.parametersStructured ?: emptyList()
         }
@@ -1441,7 +1452,7 @@ fun NodeDialog(
                                             ) {
                                                 OutlinedTextField(
                                                     value = if (other.isReference) {
-                                                        workflow.nodes.find { it.id == other.value }?.name ?: "[未知节点]"
+                                                        workflow.nodes.find { it.id == other.value }?.name ?: stringResource(R.string.workflow_unknown_node)
                                                     } else {
                                                         other.value
                                                     },

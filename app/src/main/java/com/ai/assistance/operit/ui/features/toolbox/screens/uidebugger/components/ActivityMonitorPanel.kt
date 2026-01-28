@@ -139,7 +139,7 @@ fun ActivityMonitorPanel(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Activity监听",
+                        text = stringResource(R.string.uidebugger_activity_monitor),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
@@ -181,7 +181,8 @@ fun ActivityMonitorPanel(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isListening) "正在监听Activity事件" else "监听已停止",
+                            text = if (isListening) stringResource(R.string.uidebugger_activity_monitor_listening)
+                            else stringResource(R.string.uidebugger_activity_monitor_stopped),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = if (isListening)
@@ -258,7 +259,7 @@ fun ActivityMonitorPanel(
                             modifier = Modifier.padding(8.dp)
                         ) {
                             Text(
-                                text = "当前活动",
+                                text = stringResource(R.string.uidebugger_activity_monitor_current_activity),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -284,7 +285,8 @@ fun ActivityMonitorPanel(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (isListening) "监听中，等待Activity事件..." else "点击开始监听按钮开始监听Activity事件",
+                            text = if (isListening) stringResource(R.string.uidebugger_activity_monitor_waiting)
+                            else stringResource(R.string.uidebugger_activity_monitor_click_to_start),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -297,7 +299,7 @@ fun ActivityMonitorPanel(
                     }
                 } else {
                     Text(
-                        text = "事件记录 (${events.size})",
+                        text = stringResource(R.string.uidebugger_activity_monitor_event_log, events.size),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -333,6 +335,7 @@ fun ActivityMonitorPanel(
 private fun ActivityEventItem(
     event: ActionListener.ActionEvent
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -365,7 +368,7 @@ private fun ActivityEventItem(
                 // 显示活动名称
                 if (event.elementInfo.className != null) {
                     Text(
-                        text = "活动: ${event.elementInfo.className}",
+                        text = stringResource(R.string.uidebugger_activity_monitor_item_activity, event.elementInfo.className),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -376,9 +379,13 @@ private fun ActivityEventItem(
                 // 显示元素信息
                 Text(
                     text = buildString {
-                        event.elementInfo.text?.let { append("文本: $it ") }
+                        event.elementInfo.text?.let {
+                            append(context.getString(R.string.uidebugger_activity_monitor_item_text, it) + " ")
+                        }
                         event.elementInfo.resourceId?.let { append("ID: $it ") }
-                        event.elementInfo.packageName?.let { append("包: $it") }
+                        event.elementInfo.packageName?.let {
+                            append(context.getString(R.string.uidebugger_activity_monitor_item_package, it))
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2,
@@ -411,18 +418,19 @@ private fun getEventColor(actionType: ActionListener.ActionType): androidx.compo
     }
 }
 
+@Composable
 private fun getEventTypeName(actionType: ActionListener.ActionType): String {
     return when (actionType) {
-        ActionListener.ActionType.CLICK -> "点击"
-        ActionListener.ActionType.LONG_CLICK -> "长按"
-        ActionListener.ActionType.SWIPE -> "滑动"
-        ActionListener.ActionType.TEXT_INPUT -> "输入"
-        ActionListener.ActionType.KEY_PRESS -> "按键"
-        ActionListener.ActionType.SCROLL -> "滚动"
-        ActionListener.ActionType.GESTURE -> "手势"
-        ActionListener.ActionType.APP_SWITCH -> "应用切换"
-        ActionListener.ActionType.SCREEN_CHANGE -> "页面变化"
-        ActionListener.ActionType.SYSTEM_EVENT -> "系统事件"
+        ActionListener.ActionType.CLICK -> stringResource(R.string.uidebugger_activity_monitor_item_click)
+        ActionListener.ActionType.LONG_CLICK -> stringResource(R.string.uidebugger_activity_monitor_item_long_click)
+        ActionListener.ActionType.SWIPE -> stringResource(R.string.uidebugger_activity_monitor_item_swipe)
+        ActionListener.ActionType.TEXT_INPUT -> stringResource(R.string.uidebugger_activity_monitor_item_text_input)
+        ActionListener.ActionType.KEY_PRESS -> stringResource(R.string.uidebugger_activity_monitor_item_key_press)
+        ActionListener.ActionType.SCROLL -> stringResource(R.string.uidebugger_activity_monitor_item_scroll)
+        ActionListener.ActionType.GESTURE -> stringResource(R.string.uidebugger_activity_monitor_item_gesture)
+        ActionListener.ActionType.APP_SWITCH -> stringResource(R.string.uidebugger_activity_monitor_item_app_switch)
+        ActionListener.ActionType.SCREEN_CHANGE -> stringResource(R.string.uidebugger_activity_monitor_item_screen_change)
+        ActionListener.ActionType.SYSTEM_EVENT -> stringResource(R.string.uidebugger_activity_monitor_item_system_event)
     }
 }
 

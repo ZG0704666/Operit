@@ -39,7 +39,7 @@ fun WaifuModeSettingsScreen(
     val activeCharacterCard = characterCardManager.activeCharacterCardFlow.collectAsState(
         initial = CharacterCard(
             id = "default_character",
-            name = "默认角色卡",
+            name = stringResource(R.string.theme_default_character_card),
             description = "",
             characterSetting = "",
             otherContent = "",

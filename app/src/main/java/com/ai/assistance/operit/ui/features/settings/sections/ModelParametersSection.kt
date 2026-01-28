@@ -89,26 +89,15 @@ fun ModelParametersSection(
     // 初始化参数
     LaunchedEffect(config) {
         val context = configManager.appContext
-        val packageName = context.packageName
 
         val standardParams =
             StandardModelParameters.DEFINITIONS.map { definition ->
-                val nameResId =
-                    context.resources.getIdentifier(
-                        "${definition.id}_name",
-                        "string",
-                        packageName
-                    )
-                val descResId =
-                    context.resources.getIdentifier(
-                        "${definition.id}_description",
-                        "string",
-                        packageName
-                    )
-
-                val name = if (nameResId != 0) context.getString(nameResId) else definition.name
+                val name =
+                    if (definition.nameResId != 0) context.getString(definition.nameResId)
+                    else definition.name
                 val description =
-                    if (descResId != 0) context.getString(descResId) else definition.description
+                    if (definition.descriptionResId != 0) context.getString(definition.descriptionResId)
+                    else definition.description
 
                 val (currentValue, isEnabled) =
                     when (definition.id) {
@@ -479,7 +468,7 @@ fun ModelParametersSection(
                 Spacer(modifier = Modifier.weight(1f))
                 Icon(
                         imageVector = if (parametersExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = if (parametersExpanded) "收起" else "展开",
+                        contentDescription = if (parametersExpanded) stringResource(id = R.string.model_config_collapse) else stringResource(id = R.string.model_config_expand),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -580,8 +569,10 @@ fun ModelParametersSection(
                         if (displayedParams.isEmpty()) {
                             ParametersEmptyState(
                                     message =
-                                            if (currentTab.isCustom) "暂无自定义参数"
-                                            else "当前类别暂无可配置参数"
+                                            if (currentTab.isCustom)
+                                                stringResource(R.string.parameters_empty_custom)
+                                            else
+                                                stringResource(R.string.parameters_empty_category)
                             )
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

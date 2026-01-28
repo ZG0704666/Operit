@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.plugins.MCPDeployer
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +53,7 @@ class MCPDeployViewModel(private val context: Context, private val mcpRepository
         // 获取插件路径
         val pluginPath = mcpRepository.getInstalledPluginPath(pluginId)
         if (pluginPath == null) {
-            _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error("无法获取插件路径: $pluginId")
+            _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error(context.getString(R.string.mcp_deploy_error_cannot_get_path, pluginId))
             return false
         }
 
@@ -67,19 +68,19 @@ class MCPDeployViewModel(private val context: Context, private val mcpRepository
             try {
                 // 使用MCPDeployer的getDeployCommands方法
                 val deployCommands = mcpDeployer.getDeployCommands(pluginId, pluginPath)
-                
+
                 if (deployCommands.isEmpty()) {
                     _deploymentStatus.value =
-                            MCPDeployer.DeploymentStatus.Error("无法确定如何部署此插件，请查看README手动部署")
+                            MCPDeployer.DeploymentStatus.Error(context.getString(R.string.mcp_deploy_error_cannot_determine))
                 } else {
                     // 保存生成的命令
                     _generatedCommands.value = deployCommands
                 }
             } catch (e: Exception) {
-                _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error("分析插件时出错: ${e.message}")
+                _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error(context.getString(R.string.mcp_deploy_error_analysis_failed, e.message ?: ""))
             }
         }
-        
+
         return true
     }
 
@@ -129,31 +130,31 @@ class MCPDeployViewModel(private val context: Context, private val mcpRepository
         viewModelScope.launch {
             val pluginPath = mcpRepository.getInstalledPluginPath(pluginId)
             if (pluginPath == null) {
-                _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error("无法获取插件路径: $pluginId")
+                _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error(context.getString(R.string.mcp_deploy_error_cannot_get_path, pluginId))
                 return@launch
             }
-            
+
             // 对于 npx/uvx 类型的插件（虚拟路径），使用空命令列表直接部署
             if (pluginPath.startsWith("virtual://")) {
                 deployPluginWithCommands(pluginId, emptyList())
                 return@launch
             }
-            
+
             // 确保命令已生成（普通插件）
             if (_generatedCommands.value.isEmpty()) {
                 // 先获取命令
                 val deployCommands = try {
                     mcpDeployer.getDeployCommands(pluginId, pluginPath)
                 } catch (e: Exception) {
-                    _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error("分析插件时出错: ${e.message}")
+                    _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error(context.getString(R.string.mcp_deploy_error_analysis_failed, e.message ?: ""))
                     return@launch
                 }
-                
+
                 if (deployCommands.isEmpty()) {
-                    _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error("无法确定如何部署此插件，请查看README手动部署")
+                    _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error(context.getString(R.string.mcp_deploy_error_cannot_determine))
                     return@launch
                 }
-                
+
                 // 保存生成的命令
                 _generatedCommands.value = deployCommands
             }
@@ -173,7 +174,7 @@ class MCPDeployViewModel(private val context: Context, private val mcpRepository
         // 获取插件路径
         val pluginPath = mcpRepository.getInstalledPluginPath(pluginId)
         if (pluginPath == null) {
-            _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error("无法获取插件路径: $pluginId")
+            _deploymentStatus.value = MCPDeployer.DeploymentStatus.Error(context.getString(R.string.mcp_deploy_error_cannot_get_path, pluginId))
             return
         }
 
@@ -186,7 +187,7 @@ class MCPDeployViewModel(private val context: Context, private val mcpRepository
         // 开始部署
         viewModelScope.launch {
             // 更新状态
-            _deploymentStatus.value = MCPDeployer.DeploymentStatus.InProgress("正在准备部署插件")
+            _deploymentStatus.value = MCPDeployer.DeploymentStatus.InProgress(context.getString(R.string.mcp_deploy_status_preparing))
 
             // 执行部署，包含环境变量
             mcpDeployer.deployPluginWithCommands(
@@ -199,8 +200,8 @@ class MCPDeployViewModel(private val context: Context, private val mcpRepository
 
                         // 收集输出消息
                         if (status is MCPDeployer.DeploymentStatus.InProgress) {
-                            if (status.message.startsWith("输出:")) {
-                                val newMessage = status.message.removePrefix("输出:").trim()
+                            if (status.message.startsWith(context.getString(R.string.mcp_deploy_output_prefix))) {
+                                val newMessage = status.message.removePrefix(context.getString(R.string.mcp_deploy_output_prefix)).trim()
                                 if (newMessage.isNotEmpty()) {
                                     _outputMessages.value = _outputMessages.value + newMessage
                                 }

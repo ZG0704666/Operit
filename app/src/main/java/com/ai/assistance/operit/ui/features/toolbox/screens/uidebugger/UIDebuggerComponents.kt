@@ -485,6 +485,7 @@ fun ElementInfoPanel(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     
     Surface(
@@ -508,7 +509,7 @@ fun ElementInfoPanel(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "控件信息",
+                    text = stringResource(R.string.uidebugger_element_info_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -530,7 +531,7 @@ fun ElementInfoPanel(
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = element.typeDescription,
+                    text = element.getTypeDescription(context),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -555,7 +556,7 @@ fun ElementInfoPanel(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "当前Activity",
+                                text = stringResource(R.string.uidebugger_element_info_current_activity),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -584,7 +585,7 @@ fun ElementInfoPanel(
                         if (element.packageName != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "包名: ${element.packageName}",
+                                text = stringResource(R.string.uidebugger_element_info_package_name, element.packageName),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
@@ -601,7 +602,7 @@ fun ElementInfoPanel(
                     .weight(1f, fill = false)
             ) {
                 Text(
-                    text = element.getFullDetails(),
+                    text = element.getFullDetails(context),
                     style = MaterialTheme.typography.bodySmall,
                     fontSize = 12.sp,
                     modifier = Modifier.fillMaxWidth()
@@ -610,7 +611,7 @@ fun ElementInfoPanel(
                 if (element.bounds != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "尺寸: ${element.bounds.width()}×${element.bounds.height()}px",
+                        text = stringResource(R.string.uidebugger_element_info_size_px, element.bounds.width(), element.bounds.height()),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

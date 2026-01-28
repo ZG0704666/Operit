@@ -75,6 +75,7 @@ uiAndroid = "1.6.2"
 glance = "1.0.0"
 activityKtx = "1.7.1"
  ui = "1.10.1"
+ animation = "1.10.1"
 
  [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -248,6 +249,7 @@ glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", versi
 glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
  androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityKtx" }
  androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
+ androidx-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "animation" }
 
  [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

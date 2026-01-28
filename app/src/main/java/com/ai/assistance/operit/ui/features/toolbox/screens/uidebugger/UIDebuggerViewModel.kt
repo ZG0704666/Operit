@@ -9,6 +9,7 @@ import com.ai.assistance.operit.core.tools.UIPageResultData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.core.tools.system.action.ActionListener
 import com.ai.assistance.operit.core.tools.system.action.ActionListenerFactory
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.util.AppLogger
 import kotlinx.coroutines.Dispatchers
@@ -108,20 +109,23 @@ class UIDebuggerViewModel : ViewModel() {
                         val result = withContext(Dispatchers.IO) {
                             toolHandler.executeTool(clickTool)
                         }
-                        showActionFeedback(if (result.success) "点击成功" else "点击失败")
+                        showActionFeedback(
+                            if (result.success) context.getString(R.string.uidebugger_action_click_success)
+                            else context.getString(R.string.uidebugger_action_click_failed)
+                        )
                     }
                     UIElementAction.HIGHLIGHT -> {
                         selectElement(element.id)
-                        showActionFeedback("已高亮元素")
+                        showActionFeedback(context.getString(R.string.uidebugger_action_highlighted))
                     }
                     UIElementAction.INSPECT -> {
                         selectElement(element.id)
-                        showActionFeedback("已选择元素")
+                        showActionFeedback(context.getString(R.string.uidebugger_action_selected))
                     }
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "执行元素操作失败", e)
-                showActionFeedback("操作失败")
+                showActionFeedback(context.getString(R.string.uidebugger_action_failed))
             }
         }
     }
@@ -158,10 +162,10 @@ class UIDebuggerViewModel : ViewModel() {
                             val elements = convertToUIElements(resultData.uiElements, currentActivityName, currentPackageName)
                             Pair(elements, Pair(currentActivityName, currentPackageName))
                         } else {
-                            throw Exception("返回数据类型错误")
+                            throw Exception(context.getString(R.string.uidebugger_error_wrong_result_type))
                         }
                     } else {
-                        throw Exception("获取UI信息失败")
+                        throw Exception(context.getString(R.string.uidebugger_error_fetch_ui_failed))
                     }
                 }
 
@@ -175,7 +179,7 @@ class UIDebuggerViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "刷新UI元素失败", e)
-                _uiState.update { it.copy(errorMessage = "刷新失败") }
+                _uiState.update { it.copy(errorMessage = context.getString(R.string.uidebugger_error_refresh_failed)) }
             } finally {
                 windowInteractionController?.invoke(true)
             }
@@ -256,7 +260,7 @@ class UIDebuggerViewModel : ViewModel() {
                 if (currentActionListener?.isListening() == true) {
                     AppLogger.d(TAG, "监听器已在运行，同步UI状态")
                     _uiState.update { it.copy(isActivityListening = true) } // 同步UI状态
-                    showActionFeedback("监听已在运行中")
+                    showActionFeedback(context.getString(R.string.uidebugger_activity_monitor_already_running))
                     return@launch
                 }
 
@@ -273,7 +277,12 @@ class UIDebuggerViewModel : ViewModel() {
                 
                 if (!status.granted) {
                     AppLogger.w(TAG, "权限不足: ${status.reason}")
-                    showActionFeedback("权限不足: ${status.reason}")
+                    showActionFeedback(
+                        context.getString(
+                            R.string.uidebugger_activity_monitor_permission_insufficient,
+                            status.reason
+                        )
+                    )
                     return@launch
                 }
 
@@ -294,14 +303,24 @@ class UIDebuggerViewModel : ViewModel() {
                             activityEvents = emptyList() // 清空之前的事件
                         ) 
                     }
-                    showActionFeedback("Activity监听已启动")
+                    showActionFeedback(context.getString(R.string.uidebugger_activity_monitor_started))
                 } else {
                     AppLogger.e(TAG, "监听器启动失败: ${result.message}")
-                    showActionFeedback("启动监听失败: ${result.message}")
+                    showActionFeedback(
+                        context.getString(
+                            R.string.uidebugger_activity_monitor_start_failed_with_reason,
+                            result.message
+                        )
+                    )
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "启动Activity监听失败", e)
-                showActionFeedback("启动监听失败: ${e.message}")
+                showActionFeedback(
+                    context.getString(
+                        R.string.uidebugger_activity_monitor_start_failed_with_reason,
+                        e.message ?: ""
+                    )
+                )
             }
         }
     }
@@ -319,14 +338,19 @@ class UIDebuggerViewModel : ViewModel() {
                             isActivityListening = false
                         ) 
                     }
-                    showActionFeedback("Activity监听已停止")
+                    showActionFeedback(context.getString(R.string.uidebugger_activity_monitor_stopped))
                 } else {
-                    showActionFeedback("停止监听失败")
+                    showActionFeedback(context.getString(R.string.uidebugger_activity_monitor_stop_failed))
                 }
                 currentActionListener = null
             } catch (e: Exception) {
                 AppLogger.e(TAG, "停止Activity监听失败", e)
-                showActionFeedback("停止监听失败: ${e.message}")
+                showActionFeedback(
+                    context.getString(
+                        R.string.uidebugger_activity_monitor_stop_failed_with_reason,
+                        e.message ?: ""
+                    )
+                )
             }
         }
     }

@@ -195,6 +195,17 @@
     <string name="workflow_edit_dialog_title">Edit Workflow</string>
     <string name="workflow_enabled_label">Enable workflow</string>
 
+    <string name="url_tab_chat">Chat</string>
+    <string name="url_tab_projects">Projects</string>
+    <string name="url_tab_artifacts">Artifacts</string>
+    <string name="url_tab_settings">Settings</string>
+    <string name="url_tab_account">Account</string>
+    <string name="url_tab_history">History</string>
+    <string name="url_tab_help">Help</string>
+    <string name="url_tab_explore">Explore</string>
+    <string name="url_tab_create">Create</string>
+
+    <!-- Workflow Node Dialog -->
     <string name="workflow_node_dialog_title_add">Add Node</string>
     <string name="workflow_node_dialog_title_edit">Edit Node</string>
     <string name="workflow_node_type_label">Node type</string>
@@ -2652,8 +2663,75 @@
     <string name="uidebugger_close_panel">Close panel</string>
     <string name="uidebugger_minimize">Minimize</string>
     <string name="activity_monitor_close">Close</string>
-    <string name="theme_background_preview">Background image preview</string>
+    <string name="theme_background_preview">Background preview</string>
     <string name="theme_recrop">Recrop</string>
+    <string name="theme_default_character_card">Default character card</string>
+    <string name="theme_font_settings">Font settings</string>
+    <string name="app_content_navigate_back">Back</string>
+    <string name="app_content_collapse_sidebar">Collapse sidebar</string>
+    <string name="app_content_expand_sidebar">Expand sidebar</string>
+    <string name="app_content_loading">Loading...</string>
+    <string name="theme_font_default">Default Font</string>
+    <string name="theme_font_serif">Serif</string>
+    <string name="theme_font_sans_serif">Sans Serif</string>
+    <string name="theme_font_monospace">Monospace</string>
+    <string name="theme_font_cursive">Cursive</string>
+    <string name="theme_avatar_description">Note: The user avatar on the left is a character card exclusive setting. When empty, it will use the global user avatar on the right. The global user avatar is shared across all character cards.</string>
+    <string name="functional_config_model_count">%1$d models</string>
+    <string name="tool_permission_instruction_title">Instructions</string>
+    <string name="tool_permission_instruction_content">1. The \"Global Default Permission\" above controls the default behavior of all tools.\n2. Tools added to each group below set \"exception rules\" for that tool, which override the global default.\n3. Click the same tool in a group again, or uncheck it in the selection dialog to remove the tool\'s exception configuration and make it follow the global default again.</string>
+    <string name="token_price_description">Set the RMB price per API request</string>
+    <string name="floating_chat_cancel">Cancel</string>
+    <string name="floating_chat_send">Send</string>
+    <string name="file_list_folder">Folder</string>
+    <string name="folder_navigator_folder">Folder</string>
+    <string name="folder_navigator_all">All</string>
+    <string name="file_manager_main_directory">Main Directory</string>
+    <string name="file_manager_new_tab">New Tab</string>
+    <string name="file_manager_search_failed">Search failed</string>
+    <string name="file_manager_search_error">Search error: %1$s</string>
+    <string name="workflow_node">Node</string>
+    <string name="mcp_server">MCP Server</string>
+    <string name="mcp_install">Install</string>
+    <string name="mcp_uninstall">Uninstall</string>
+    <string name="script_error">Error: %1$s</string>
+    <string name="script_missing_params">Missing parameters: %1$s</string>
+    <string name="script_flow_error">Flow error: %1$s</string>
+    <string name="mcp_plugin_details">Plugin Details</string>
+    <string name="mcp_config_settings">Config Settings</string>
+    <string name="mcp_no_description">No description</string>
+    <string name="mcp_manage_env_vars">Manage Environment Variables</string>
+    <string name="package_default">Default</string>
+    <string name="package_no_tools">No tools available</string>
+    <string name="package_run">Run</string>
+    <string name="usage">Usage</string>
+    <string name="emoticon_happy">Happy</string>
+    <string name="emoticon_gladsome">Glad</string>
+    <string name="emoticon_not_bad">Not bad</string>
+    <string name="emoticon_great">Great</string>
+    <string name="emoticon_excellent">Excellent</string>
+    <string name="emoticon_praise">Praise</string>
+    <string name="emoticon_angry">Angry</string>
+    <string name="emoticon_furious">Furious</string>
+    <string name="emoticon_infuriated">Infuriated</string>
+    <string name="emoticon_hate">Hate</string>
+    <string name="emoticon_terrible">Terrible</string>
+    <string name="emoticon_fury">Fury</string>
+    <string name="emoticon_sad">Sad</string>
+    <string name="emoticon_sorrow">Sorrow</string>
+    <string name="emoticon_depressed">Depressed</string>
+    <string name="emoticon_gloomy">Gloomy</string>
+    <string name="emoticon_cry">Cry</string>
+    <string name="emoticon_shy">Shy</string>
+    <string name="emoticon_shyness">Shyness</string>
+    <string name="emoticon_blush">Blush</string>
+    <string name="emoticon_embarrassed">Embarrassed</string>
+    <string name="autoglm_task_complete">✅ Task completed: %1$s</string>
+    <string name="autoglm_thinking_process">💭 Thinking Process:</string>
+    <string name="autoglm_execute_action">🎯 Execute Action:</string>
+    <string name="version_update">Version Update</string>
+    <string name="mcp_no_zip_selected">No ZIP file selected</string>
+    <string name="mcp_uninstall_failed">Uninstall failed</string>
     <string name="filediff_tool_result">Tool execution result</string>
     <string name="ffmpeg_use_template">Use this template</string>
     <string name="filelist_go_back">Go back to parent directory</string>
@@ -4534,6 +4612,59 @@
     <string name="uidebugger_ui_analysis">UI analysis</string>
     <string name="uidebugger_collapse_panel">Collapse panel</string>
     <string name="uidebugger_activity_monitor">Activity monitor</string>
+    <string name="uidebugger_activity_monitor_listening">Listening for Activity events</string>
+    <string name="uidebugger_activity_monitor_stopped">Monitoring stopped</string>
+    <string name="uidebugger_activity_monitor_current_activity">Current activity</string>
+    <string name="uidebugger_activity_monitor_waiting">Listening... waiting for Activity events</string>
+    <string name="uidebugger_activity_monitor_click_to_start">Click Start Monitoring to begin listening for Activity events</string>
+    <string name="uidebugger_activity_monitor_event_log">Event log (%1$d)</string>
+    <string name="uidebugger_activity_monitor_item_activity">Activity: %1$s</string>
+    <string name="uidebugger_activity_monitor_item_text">Text: %1$s</string>
+    <string name="uidebugger_activity_monitor_item_package">Package: %1$s</string>
+    <string name="uidebugger_activity_monitor_item_click">Click</string>
+    <string name="uidebugger_activity_monitor_item_long_click">Long press</string>
+    <string name="uidebugger_activity_monitor_item_swipe">Swipe</string>
+    <string name="uidebugger_activity_monitor_item_text_input">Text input</string>
+    <string name="uidebugger_activity_monitor_item_key_press">Key press</string>
+    <string name="uidebugger_activity_monitor_item_scroll">Scroll</string>
+    <string name="uidebugger_activity_monitor_item_gesture">Gesture</string>
+    <string name="uidebugger_activity_monitor_item_app_switch">App switch</string>
+    <string name="uidebugger_activity_monitor_item_screen_change">Screen change</string>
+    <string name="uidebugger_activity_monitor_item_system_event">System event</string>
+
+    <string name="uidebugger_action_click_success">Click succeeded</string>
+    <string name="uidebugger_action_click_failed">Click failed</string>
+    <string name="uidebugger_action_highlighted">Element highlighted</string>
+    <string name="uidebugger_action_selected">Element selected</string>
+    <string name="uidebugger_action_failed">Action failed</string>
+    <string name="uidebugger_error_wrong_result_type">Wrong result type returned</string>
+    <string name="uidebugger_error_fetch_ui_failed">Failed to fetch UI info</string>
+    <string name="uidebugger_error_refresh_failed">Refresh failed</string>
+    <string name="uidebugger_activity_monitor_already_running">Monitoring is already running</string>
+    <string name="uidebugger_activity_monitor_permission_insufficient">Insufficient permission: %1$s</string>
+    <string name="uidebugger_activity_monitor_started">Activity monitor started</string>
+    <string name="uidebugger_activity_monitor_start_failed_with_reason">Failed to start monitoring: %1$s</string>
+    <string name="uidebugger_activity_monitor_stop_failed">Failed to stop monitoring</string>
+    <string name="uidebugger_activity_monitor_stop_failed_with_reason">Failed to stop monitoring: %1$s</string>
+
+    <string name="uidebugger_element_type_button">Button</string>
+    <string name="uidebugger_element_type_text">Text</string>
+    <string name="uidebugger_element_type_input">Input</string>
+    <string name="uidebugger_element_type_image">Image</string>
+    <string name="uidebugger_element_type_view">View</string>
+    <string name="uidebugger_element_type_generic">UI element</string>
+    <string name="uidebugger_element_detail_class_name">Class: %1$s</string>
+    <string name="uidebugger_element_detail_package_name">Package: %1$s</string>
+    <string name="uidebugger_element_detail_activity_name">Activity: %1$s</string>
+    <string name="uidebugger_element_detail_resource_id">Resource ID: %1$s</string>
+    <string name="uidebugger_element_detail_content_desc">Content description: %1$s</string>
+    <string name="uidebugger_element_detail_text">Text: %1$s</string>
+    <string name="uidebugger_element_detail_bounds">Bounds: [%1$d, %2$d, %3$d, %4$d]</string>
+    <string name="uidebugger_element_detail_clickable">Clickable: %1$s</string>
+    <string name="uidebugger_element_info_title">Element info</string>
+    <string name="uidebugger_element_info_current_activity">Current Activity</string>
+    <string name="uidebugger_element_info_package_name">Package: %1$s</string>
+    <string name="uidebugger_element_info_size_px">Size: %1$d×%2$dpx</string>
 
     <!-- Logcat -->
     <string name="logcat_no_logs_to_save">No logs to save</string>
@@ -4906,6 +5037,11 @@
     <string name="mcp_merge_failed">✗ Merge failed: %1$s</string>
     <string name="mcp_import_exception">✗ Import exception: %1$s</string>
     <string name="mcp_please_enter_config">Please enter config content</string>
+    <string name="mcp_server_plugin_install_path_label">Plugin install path:</string>
+    <string name="mcp_server_json_config_title">JSON config</string>
+    <string name="mcp_server_config_effective_hint">This config takes effect when the server starts</string>
+    <string name="mcp_server_save_config">Save config</string>
+    <string name="mcp_server_not_installed_cannot_configure">This plugin is not installed and cannot be configured</string>
 
     <!-- Package Manager Module -->
     <string name="pkg_manage_env_vars">Manage Environment Variables</string>
@@ -4930,6 +5066,40 @@
     <string name="mcp_market_clear_search">Clear search</string>
     <string name="mcp_market_refresh">Refresh</string>
 
+    <string name="skill_publish_body_section_skill_info">## 📋 Skill Info</string>
+    <string name="skill_publish_body_section_repo_info">## 🔗 Repository Info</string>
+    <string name="skill_publish_body_label_repo_url">**Repository URL:** %1$s</string>
+    <string name="skill_publish_body_section_install_method">## 📦 Installation</string>
+    <string name="skill_publish_body_install_step1">1. Open Operit → Package Manager → Skills</string>
+    <string name="skill_publish_body_install_step2">2. Tap "Import Skill" → "Import from Repository"</string>
+    <string name="skill_publish_body_install_step3">3. Enter repository URL: `%1$s`</string>
+    <string name="skill_publish_body_install_step4">4. Confirm import</string>
+    <string name="skill_publish_body_section_tech_info">## 🛠️ Technical Info</string>
+    <string name="skill_publish_body_table_header">| Item | Value |</string>
+    <string name="skill_publish_body_table_separator">|------|-------|</string>
+    <string name="skill_publish_body_table_row_platform">| Platform | Operit Skill Market |</string>
+    <string name="skill_publish_body_table_row_parser_version">| Parser version | 1.0 |</string>
+    <string name="skill_publish_body_table_row_publish_time">| Publish time | %1$s |</string>
+    <string name="skill_publish_body_table_row_status_pending">| Status | ⏳ Pending Review |</string>
+
+    <string name="model_param_max_tokens">Max tokens</string>
+    <string name="model_param_max_tokens_desc">Controls the maximum number of tokens the AI can generate per response</string>
+    <string name="model_param_temperature">Temperature</string>
+    <string name="model_param_temperature_desc">Controls output randomness. Lower values are more deterministic; higher values are more random</string>
+    <string name="model_param_top_p">Top-p sampling</string>
+    <string name="model_param_top_p_desc">An alternative to temperature; the model only considers tokens within the top-p probability mass</string>
+    <string name="model_param_top_k">Top-k sampling</string>
+    <string name="model_param_top_k_desc">The model only considers the top-k most probable tokens. 0 means disabled</string>
+    <string name="model_param_presence_penalty">Presence penalty</string>
+    <string name="model_param_presence_penalty_desc">Encourages the model to talk about new topics. Higher values apply stronger penalties</string>
+    <string name="model_param_frequency_penalty">Frequency penalty</string>
+    <string name="model_param_frequency_penalty_desc">Reduces the likelihood of repeating the same words. Higher values apply stronger penalties</string>
+    <string name="model_param_repetition_penalty">Repetition penalty</string>
+    <string name="model_param_repetition_penalty_desc">Further reduces repetition. 1.0 means no penalty; values greater than 1.0 reduce repetition</string>
+
+    <string name="parameters_empty_custom">No custom parameters</string>
+    <string name="parameters_empty_category">No configurable parameters in this category</string>
+
     <!-- Tag Market Screen -->
     <string name="tag_content">Tag content:</string>
     <string name="tag_add">Add Tag</string>
@@ -4937,9 +5107,21 @@
     <!-- Custom Headers Screen -->
     <string name="headers_load_preset">Load Preset</string>
     <string name="headers_saved">Headers saved</string>
+    <string name="headers_add_header">Add header</string>
+    <string name="headers_save_headers">Save headers</string>
+    <string name="headers_delete_header">Delete header</string>
+    <string name="headers_key_label">Key</string>
+    <string name="headers_value_label">Value</string>
+    <string name="headers_preset_android_browser">Pretend to be Android browser</string>
+    <string name="headers_preset_desktop_browser_win">Pretend to be desktop browser (Windows)</string>
+    <string name="headers_preset_lang_zh">Set language to Chinese</string>
+    <string name="headers_preset_lang_en">Set language to English</string>
+    <string name="headers_preset_cmcc_gateway">Simulate China Mobile gateway</string>
+    <string name="headers_preset_us_la">Simulate Los Angeles (requires additional setup)</string>
 
     <!-- Context Summary Settings Screen -->
     <string name="context_validation_failed">Validation Failed</string>
+    <string name="context_reset_completed">All settings reset</string>
 
     <!-- Global Display Settings Screen -->
     <string name="display_rainbow_border">Fullscreen Rainbow Border</string>
@@ -4995,6 +5177,16 @@
     <string name="autoglm_custom_endpoint">Custom Endpoint (OpenAI Compatible)</string>
     <string name="autoglm_model_name">Model Name</string>
     <string name="autoglm_restore_original">Restore Original Automation Logic</string>
+    <string name="autoglm_step1_title">step1 Configure Basic Conversation Model</string>
+    <string name="autoglm_step1_warning">Do not use the autoglm model as the main conversation model</string>
+    <string name="autoglm_step1_note">Note: If you have already configured it, you don\'t need to worry about it here. Do not change it to autoglm or other small models.</string>
+    <string name="autoglm_step2_title">step2 Visit Zhipu Official Website to Get API Key</string>
+    <string name="autoglm_step3_title">step3 Enter API Key and Click One-Click Configuration</string>
+    <string name="autoglm_hide_advanced">Hide Advanced Settings</string>
+    <string name="autoglm_show_advanced">Show Advanced Settings (Custom Endpoint / Model Name)</string>
+    <string name="autoglm_step4_title">step4 Restore Non-AutoGLM Automation (Optional)</string>
+    <string name="autoglm_step4_description">If you find automation operations difficult after using AutoGLM one-click configuration, you can click the button below to restore the software\'s original automation logic (enable base package, disable subagent package, other settings remain unchanged). If you want to enable AutoGLM again, just follow step3 to enter the key and click one-click configuration again.</string>
+    <string name="autoglm_restore_success">Restored to the software\'s original automation logic</string>
 
     <!-- UI Debugger Components -->
     <string name="uidebugger_create_new_package">Create New Config Package</string>
@@ -5402,5 +5594,102 @@
     <string name="gemini_error_connection_timeout">Connection timeout or interrupted, retried %1$d times: %2$s</string>
     <string name="gemini_connection_success">Connection successful!</string>
     <string name="gemini_connection_test_failed">Connection test failed: %1$s</string>
+
+    <string name="provider_error_response_empty">API response is empty</string>
+    <string name="provider_error_parsing_failed">Failed to parse response</string>
+    <string name="provider_error_retry_message">%1$s, retrying (%2$d)...</string>
+    <string name="provider_error_timeout">Connection timeout</string>
+    <string name="provider_error_unknown_host">Unknown host</string>
+    <string name="provider_error_network_interrupted">Network interrupted</string>
+
+    <!-- OpenAI Provider -->
+    <string name="openai_error_request_cancelled">Request cancelled by user</string>
+    <string name="openai_error_no_error_details">No error details</string>
+    <string name="openai_error_api_request_failed_with_status">API request failed, status code: %1$d, error: %2$s</string>
+    <string name="openai_error_timeout_max_retries">Failed to get AI response, connection timeout and max retries reached: %1$s</string>
+    <string name="openai_error_cannot_connect">Cannot connect to server, please check network connection and API address</string>
+    <string name="openai_error_max_retries">Failed to get AI response, max retries reached: %1$s</string>
+    <string name="openai_error_response_failed">Failed to get AI response: %1$s</string>
+    <string name="openai_error_connection_timeout">Connection timeout or interrupted, retried %1$d times: %2$s</string>
+    <string name="openai_error_response_empty">API response is empty</string>
+    <string name="openai_error_parse_response_failed">Failed to parse response: %1$s</string>
+    <string name="openai_connection_success">Connection successful!</string>
+    <string name="openai_connection_test_failed">Connection test failed: %1$s</string>
+
+    <!-- Phone Agent -->
+    <string name="phone_agent_need_debug_permission">Requires Debug/Admin/Root permission and experimental virtual screen enabled to use virtual screen automation.</string>
+    <string name="phone_agent_shizuku_unavailable">Shizuku is not available, cannot start virtual screen.</string>
+    <string name="phone_agent_virtual_screen_service_start_failed">Virtual screen service failed to start.</string>
+    <string name="phone_agent_virtual_screen_create_failed">Failed to create virtual screen.</string>
+    <string name="phone_agent_virtual_screen_prewarm_failed">Virtual screen prewarm failed: %1$s</string>
+    <string name="phone_agent_virtual_screen_not_started">Virtual screen failed to start, aborted to avoid operations on main screen.</string>
+    <string name="phone_agent_thinking">Thinking...</string>
+    <string name="phone_agent_completed">Completed</string>
+    <string name="phone_agent_executing_action">Executing %1$s...</string>
+    <string name="phone_agent_executing">Executing...</string>
+
+    <!-- Workflow Executor -->
+    <string name="workflow_skip">Skip</string>
+    <string name="workflow_condition_type_mismatch">Condition type mismatch: left=\'%1$s\', right=\'%2$s\'</string>
+    <string name="workflow_condition_not_met">Condition not met</string>
+    <string name="workflow_node_execute_exception">Node execution exception: %1$s</string>
+    <string name="workflow_non_execution_node">Non-execution node</string>
+    <string name="workflow_node_no_action_type">Node %1$s has no actionType configured</string>
+    <string name="workflow_unknown_error">Unknown error</string>
+
+    <!-- Skill Manager -->
+    <string name="skill_error_cannot_read_file">Cannot read file: %1$s</string>
+    <string name="skill_error_only_support_zip">Only .zip files are supported</string>
+    <string name="skill_error_cannot_access_dir">Cannot access skills directory: %1$s</string>
+    <string name="skill_error_create_tmp_dir_failed">Failed to create temp directory: %1$s</string>
+    <string name="skill_error_import_invalid_path">Import failed: invalid path</string>
+    <string name="skill_error_import_path_not_found">Import failed: path not found: %1$s</string>
+    <string name="skill_error_import_no_skill_md">Import failed: SKILL.md not found in zip</string>
+    <string name="skill_error_import_no_skill_md_in_path">Import failed: SKILL.md not found in specified path</string>
+    <string name="skill_error_import_skill_md_path_invalid">Import failed: SKILL.md path is invalid</string>
+    <string name="skill_error_import_duplicate_name">Import failed: Skill with same name already exists: %1$s</string>
+    <string name="skill_imported_with_desc">Imported Skill: %1$s (%2$s)</string>
+    <string name="skill_imported">Imported Skill: %1$s</string>
+    <string name="skill_error_import_failed">Import failed: %1$s</string>
+
+    <!-- Context Summary Settings -->
+    <string name="context_summary_note">Context window and conversation summary are now managed in model configuration. This page only adjusts system parameters related to file reading and result truncation.</string>
+    <string name="context_validation_error_positive_number">%1$s must be a valid number greater than 0</string>
+    <string name="context_validation_error_positive_integer">%1$s must be a valid integer greater than 0</string>
+    <string name="context_validation_error_non_negative_integer">%1$s must be a valid integer greater than or equal to 0</string>
+    <string name="context_field_max_file_size">Max File Size</string>
+    <string name="context_field_part_size">Part Size</string>
+    <string name="context_field_max_text_result_length">Max Text Result Length</string>
+    <string name="context_field_max_image_history_turns">Image History Turns</string>
+    <string name="context_field_max_media_history_turns">Media History Turns</string>
+    <string name="context_unit_lines">lines</string>
+    <string name="context_unit_times">times</string>
+    <string name="context_reset_all_settings">Reset All Settings</string>
+
+    <!-- MCP Deploy -->
+    <string name="mcp_deploy_error_cannot_get_path">Cannot get plugin path: %1$s</string>
+    <string name="mcp_deploy_error_cannot_determine">Cannot determine how to deploy this plugin, please check README for manual deployment</string>
+    <string name="mcp_deploy_error_analysis_failed">Error analyzing plugin: %1$s</string>
+    <string name="mcp_deploy_status_preparing">Preparing plugin deployment</string>
+    <string name="mcp_deploy_output_prefix">Output:</string>
+
+    <!-- Model Config Screen -->
+    <string name="model_config_error_valid_context_length">Please enter a valid context length</string>
+    <string name="model_config_error_valid_max_context_length">Please enter a valid max context length</string>
+    <string name="model_config_error_save_failed">Save failed</string>
+    <string name="model_config_error_summary_threshold_range">Please enter a summary trigger threshold between 0-1</string>
+    <string name="model_config_error_valid_message_count">Please enter a valid message count threshold</string>
+    <string name="model_config_collapse">Collapse</string>
+    <string name="model_config_expand">Expand</string>
+    <string name="model_config_unit_items">items</string>
+
+    <!-- Global Display Settings -->
+    <string name="global_display_automation_behavior">Automation Display &amp; Behavior</string>
+    <string name="global_display_virtual_screen_bitrate">Virtual Screen Bitrate</string>
+    <string name="global_display_status_indicator_style">Status Indicator Style</string>
+    <string name="global_display_screenshot_settings">Screenshot Settings</string>
+    <string name="global_display_image_format">Image Format</string>
+    <string name="global_display_image_quality">Quality (JPG only)</string>
+    <string name="global_display_resolution_scale">Resolution Scale (downscale before sending)</string>
 
 </resources>

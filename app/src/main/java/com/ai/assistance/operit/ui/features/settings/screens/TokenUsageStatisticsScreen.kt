@@ -443,7 +443,7 @@ fun TokenUsageStatisticsScreen(
                         )
                     } else {
                         Text(
-                            text = "设置每次API请求的人民币价格",
+                            text = stringResource(R.string.token_price_description),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.workflow.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,14 +77,15 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createIntentChatBroadcastTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createIntentChatBroadcastTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildIntentChatBroadcastTemplateWorkflow(
-                name = app.getString(R.string.workflow_template_intent, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_intent, time),
                 description = ""
             )
 
@@ -99,14 +101,15 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createSpeechTriggerTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createSpeechTriggerTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildSpeechTriggerTemplateWorkflow(
-                name = app.getString(R.string.workflow_template_voice, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_voice, time),
                 description = ""
             )
 
@@ -122,14 +125,15 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createErrorBranchTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createErrorBranchTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildErrorBranchTemplateWorkflow(
-                name = app.getString(R.string.workflow_template_failure, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_failure, time),
                 description = ""
             )
 
@@ -191,14 +195,15 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createChatTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createChatTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildChatTemplateWorkflow(
-                name = app.getString(R.string.workflow_template_chat, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_chat, time),
                 description = ""
             )
 
@@ -214,14 +219,15 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createConditionTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createConditionTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildConditionTemplateWorkflow(
-                name = app.getString(R.string.workflow_template_judgment, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_judgment, time),
                 description = ""
             )
 
@@ -237,7 +243,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createLogicAndTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createLogicAndTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
@@ -245,7 +251,8 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildLogicTemplateWorkflow(
                 operator = LogicOperator.AND,
-                name = app.getString(R.string.workflow_template_logic_and, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_logic_and, time),
                 description = ""
             )
 
@@ -261,7 +268,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createLogicOrTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createLogicOrTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
@@ -269,7 +276,8 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildLogicTemplateWorkflow(
                 operator = LogicOperator.OR,
-                name = app.getString(R.string.workflow_template_logic_or, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_logic_or, time),
                 description = ""
             )
 
@@ -285,14 +293,15 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createExtractTemplateWorkflow(onSuccess: (Workflow) -> Unit = {}) {
+    fun createExtractTemplateWorkflow(context: Context, onSuccess: (Workflow) -> Unit = {}) {
         viewModelScope.launch {
             isLoading = true
             error = null
 
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             val workflow = buildExtractTemplateWorkflow(
-                name = app.getString(R.string.workflow_template_calculate, time),
+                context = context,
+                name = context.getString(R.string.workflow_template_calculate, time),
                 description = ""
             )
 
@@ -322,7 +331,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private fun buildIntentChatBroadcastTemplateWorkflow(name: String, description: String): Workflow {
+    private fun buildIntentChatBroadcastTemplateWorkflow(context: Context, name: String, description: String): Workflow {
         val triggerId = UUID.randomUUID().toString()
         val startId = UUID.randomUUID().toString()
         val createChatId = UUID.randomUUID().toString()
@@ -334,7 +343,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = app.getString(R.string.workflow_trigger_intent),
+            name = context.getString(R.string.workflow_trigger_intent),
             triggerType = "intent",
             triggerConfig = mapOf(
                 "action" to "com.ai.assistance.operit.TRIGGER_WORKFLOW"
@@ -344,14 +353,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val startChat = ExecuteNode(
             id = startId,
-            name = app.getString(R.string.workflow_action_start_chat),
+            name = context.getString(R.string.workflow_action_start_chat),
             actionType = "start_chat_service",
             position = templateNodePosition(1)
         )
 
         val createChat = ExecuteNode(
             id = createChatId,
-            name = app.getString(R.string.workflow_action_create_chat),
+            name = context.getString(R.string.workflow_action_create_chat),
             actionType = "create_new_chat",
             actionConfig = mapOf(
                 "group" to ParameterValue.StaticValue("workflow")
@@ -361,7 +370,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val extractMessage = ExtractNode(
             id = extractMessageId,
-            name = app.getString(R.string.workflow_action_extract_intent),
+            name = context.getString(R.string.workflow_action_extract_intent),
             mode = ExtractMode.JSON,
             source = ParameterValue.NodeReference(triggerId),
             expression = "message",
@@ -371,7 +380,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val sendMessage = ExecuteNode(
             id = sendId,
-            name = app.getString(R.string.workflow_action_send_intent),
+            name = context.getString(R.string.workflow_action_send_intent),
             actionType = "send_message_to_ai",
             actionConfig = mapOf(
                 "message" to ParameterValue.NodeReference(extractMessageId)
@@ -381,14 +390,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val stopChat = ExecuteNode(
             id = stopId,
-            name = app.getString(R.string.workflow_action_stop_chat),
+            name = context.getString(R.string.workflow_action_stop_chat),
             actionType = "stop_chat_service",
             position = templateNodePosition(5)
         )
 
         val sendBroadcast = ExecuteNode(
             id = broadcastId,
-            name = app.getString(R.string.workflow_action_send_broadcast),
+            name = context.getString(R.string.workflow_action_send_broadcast),
             actionType = "send_broadcast",
             actionConfig = mapOf(
                 "action" to ParameterValue.StaticValue("com.ai.assistance.operit.WORKFLOW_RESULT"),
@@ -400,7 +409,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val closeAllDisplays = ExecuteNode(
             id = closeDisplaysId,
-            name = app.getString(R.string.workflow_action_close_displays),
+            name = context.getString(R.string.workflow_action_close_displays),
             actionType = "close_all_virtual_displays",
             position = templateNodePosition(7)
         )
@@ -423,7 +432,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private fun buildChatTemplateWorkflow(name: String, description: String): Workflow {
+    private fun buildChatTemplateWorkflow(context: Context, name: String, description: String): Workflow {
         val triggerId = UUID.randomUUID().toString()
         val startId = UUID.randomUUID().toString()
         val createChatId = UUID.randomUUID().toString()
@@ -433,21 +442,21 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = app.getString(R.string.workflow_trigger_manual),
+            name = context.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val startChat = ExecuteNode(
             id = startId,
-            name = app.getString(R.string.workflow_action_start_chat),
+            name = context.getString(R.string.workflow_action_start_chat),
             actionType = "start_chat_service",
             position = templateNodePosition(1)
         )
 
         val createChat = ExecuteNode(
             id = createChatId,
-            name = app.getString(R.string.workflow_action_create_chat),
+            name = context.getString(R.string.workflow_action_create_chat),
             actionType = "create_new_chat",
             actionConfig = mapOf(
                 "group" to ParameterValue.StaticValue("workflow")
@@ -457,24 +466,24 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val sendMessage = ExecuteNode(
             id = sendId,
-            name = app.getString(R.string.workflow_action_send),
+            name = context.getString(R.string.workflow_action_send),
             actionType = "send_message_to_ai",
             actionConfig = mapOf(
-                "message" to ParameterValue.StaticValue(app.getString(R.string.workflow_param_message_hello))
+                "message" to ParameterValue.StaticValue(context.getString(R.string.workflow_param_message_hello))
             ),
             position = templateNodePosition(3)
         )
 
         val stopChat = ExecuteNode(
             id = stopId,
-            name = app.getString(R.string.workflow_action_stop_chat),
+            name = context.getString(R.string.workflow_action_stop_chat),
             actionType = "stop_chat_service",
             position = templateNodePosition(4)
         )
 
         val closeAllDisplays = ExecuteNode(
             id = closeDisplaysId,
-            name = app.getString(R.string.workflow_action_close_displays),
+            name = context.getString(R.string.workflow_action_close_displays),
             actionType = "close_all_virtual_displays",
             position = templateNodePosition(5)
         )
@@ -495,7 +504,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private fun buildConditionTemplateWorkflow(name: String, description: String): Workflow {
+    private fun buildConditionTemplateWorkflow(context: Context, name: String, description: String): Workflow {
         val triggerId = UUID.randomUUID().toString()
         val visitId = UUID.randomUUID().toString()
         val extractVisitKeyId = UUID.randomUUID().toString()
@@ -505,14 +514,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = app.getString(R.string.workflow_trigger_manual),
+            name = context.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val visitWeb = ExecuteNode(
             id = visitId,
-            name = app.getString(R.string.workflow_action_visit_web),
+            name = context.getString(R.string.workflow_action_visit_web),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.com")
@@ -522,7 +531,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val extractVisitKey = ExtractNode(
             id = extractVisitKeyId,
-            name = app.getString(R.string.workflow_action_calculate_visit_key),
+            name = context.getString(R.string.workflow_action_calculate_visit_key),
             source = ParameterValue.NodeReference(visitId),
             mode = ExtractMode.REGEX,
             expression = "Visit key:\\s*([0-9a-fA-F-]+)",
@@ -533,7 +542,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val condition = ConditionNode(
             id = conditionId,
-            name = app.getString(R.string.workflow_condition_check_keywords),
+            name = context.getString(R.string.workflow_condition_check_keywords),
             left = ParameterValue.NodeReference(visitId),
             operator = ConditionOperator.CONTAINS,
             right = ParameterValue.StaticValue("Example Domain"),
@@ -542,7 +551,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val followFirstLink = ExecuteNode(
             id = followLinkId,
-            name = app.getString(R.string.workflow_action_match_open_link),
+            name = context.getString(R.string.workflow_action_match_open_link),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "visit_key" to ParameterValue.NodeReference(extractVisitKeyId),
@@ -553,7 +562,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val fallbackVisit = ExecuteNode(
             id = fallbackVisitId,
-            name = app.getString(R.string.workflow_action_no_match_backup),
+            name = context.getString(R.string.workflow_action_no_match_backup),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.org")
@@ -584,7 +593,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private fun buildLogicTemplateWorkflow(operator: LogicOperator, name: String, description: String): Workflow {
+    private fun buildLogicTemplateWorkflow(operator: LogicOperator, context: Context, name: String, description: String): Workflow {
         val triggerId = UUID.randomUUID().toString()
         val visitId = UUID.randomUUID().toString()
         val conditionAId = UUID.randomUUID().toString()
@@ -596,14 +605,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = app.getString(R.string.workflow_trigger_manual),
+            name = context.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val visitWeb = ExecuteNode(
             id = visitId,
-            name = app.getString(R.string.workflow_action_visit_web),
+            name = context.getString(R.string.workflow_action_visit_web),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.com")
@@ -613,32 +622,32 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val conditionA = ConditionNode(
             id = conditionAId,
-            name = app.getString(R.string.workflow_condition_a),
+            name = context.getString(R.string.workflow_condition_a),
             left = ParameterValue.NodeReference(visitId),
             operator = ConditionOperator.CONTAINS,
-            right = ParameterValue.StaticValue("Example Domain"),
+            right = ParameterValue.StaticValue("Example"),
             position = templateNodePosition(2)
         )
 
         val conditionB = ConditionNode(
             id = conditionBId,
-            name = app.getString(R.string.workflow_condition_b),
+            name = context.getString(R.string.workflow_condition_b),
             left = ParameterValue.NodeReference(visitId),
             operator = ConditionOperator.CONTAINS,
-            right = ParameterValue.StaticValue("More information"),
+            right = ParameterValue.StaticValue("Domain"),
             position = templateNodePosition(3)
         )
 
         val logic = LogicNode(
             id = logicId,
-            name = app.getString(R.string.workflow_action_logic_judgment),
+            name = context.getString(R.string.workflow_action_logic_judgment),
             operator = operator,
             position = templateNodePosition(4)
         )
 
         val extractVisitKey = ExtractNode(
             id = extractVisitKeyId,
-            name = app.getString(R.string.workflow_action_calculate_visit_key),
+            name = context.getString(R.string.workflow_action_calculate_visit_key),
             source = ParameterValue.NodeReference(visitId),
             mode = ExtractMode.REGEX,
             expression = "Visit key:\\s*([0-9a-fA-F-]+)",
@@ -649,7 +658,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val followFirstLink = ExecuteNode(
             id = followLinkId,
-            name = app.getString(R.string.workflow_action_logic_true),
+            name = context.getString(R.string.workflow_action_logic_true),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "visit_key" to ParameterValue.NodeReference(extractVisitKeyId),
@@ -660,7 +669,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val fallbackVisit = ExecuteNode(
             id = fallbackVisitId,
-            name = app.getString(R.string.workflow_action_logic_false),
+            name = context.getString(R.string.workflow_action_logic_false),
             actionType = "visit_web",
             actionConfig = mapOf(
                 "url" to ParameterValue.StaticValue("https://example.org")
@@ -697,7 +706,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private fun buildExtractTemplateWorkflow(name: String, description: String): Workflow {
+    private fun buildExtractTemplateWorkflow(context: Context, name: String, description: String): Workflow {
         val triggerId = UUID.randomUUID().toString()
         val fixedIntId = UUID.randomUUID().toString()
         val randomIntId = UUID.randomUUID().toString()
@@ -710,14 +719,14 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = app.getString(R.string.workflow_trigger_manual),
+            name = context.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val fixedInt = ExtractNode(
             id = fixedIntId,
-            name = app.getString(R.string.workflow_action_calculate_fixed),
+            name = context.getString(R.string.workflow_action_calculate_fixed),
             mode = ExtractMode.RANDOM_INT,
             useFixed = true,
             fixedValue = "42",
@@ -728,7 +737,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val randomInt = ExtractNode(
             id = randomIntId,
-            name = app.getString(R.string.workflow_action_calculate_random),
+            name = context.getString(R.string.workflow_action_calculate_random),
             mode = ExtractMode.RANDOM_INT,
             useFixed = false,
             randomMin = 1,
@@ -738,7 +747,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val fixedStr = ExtractNode(
             id = fixedStrId,
-            name = app.getString(R.string.workflow_action_calculate_fixed_string),
+            name = context.getString(R.string.workflow_action_calculate_fixed_string),
             mode = ExtractMode.RANDOM_STRING,
             useFixed = true,
             fixedValue = "hello",
@@ -749,7 +758,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val randomStr = ExtractNode(
             id = randomStrId,
-            name = app.getString(R.string.workflow_action_calculate_random_string),
+            name = context.getString(R.string.workflow_action_calculate_random_string),
             mode = ExtractMode.RANDOM_STRING,
             useFixed = false,
             randomStringLength = 8,
@@ -759,7 +768,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val concat = ExtractNode(
             id = concatId,
-            name = app.getString(R.string.workflow_action_calculate_concat),
+            name = context.getString(R.string.workflow_action_calculate_concat),
             mode = ExtractMode.CONCAT,
             source = ParameterValue.NodeReference(fixedStrId),
             others = listOf(
@@ -773,7 +782,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val sub = ExtractNode(
             id = subId,
-            name = app.getString(R.string.workflow_action_calculate_substring),
+            name = context.getString(R.string.workflow_action_calculate_substring),
             mode = ExtractMode.SUB,
             source = ParameterValue.NodeReference(concatId),
             startIndex = 0,
@@ -784,7 +793,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val compare = ConditionNode(
             id = compareId,
-            name = app.getString(R.string.workflow_condition_random),
+            name = context.getString(R.string.workflow_condition_random),
             left = ParameterValue.NodeReference(randomIntId),
             operator = ConditionOperator.GT,
             right = ParameterValue.StaticValue("50"),
@@ -793,7 +802,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val showResult = ExecuteNode(
             id = showId,
-            name = app.getString(R.string.workflow_action_show_result),
+            name = context.getString(R.string.workflow_action_show_result),
             actionType = "toast",
             actionConfig = mapOf(
                 "message" to ParameterValue.NodeReference(subId)
@@ -830,7 +839,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private fun buildErrorBranchTemplateWorkflow(name: String, description: String): Workflow {
+    private fun buildErrorBranchTemplateWorkflow(context: Context, name: String, description: String): Workflow {
         val triggerId = UUID.randomUUID().toString()
         val mainId = UUID.randomUUID().toString()
         val successId = UUID.randomUUID().toString()
@@ -838,21 +847,21 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = app.getString(R.string.workflow_trigger_manual),
+            name = context.getString(R.string.workflow_trigger_manual),
             triggerType = "manual",
             position = templateNodePosition(0)
         )
 
         val mainAction = ExecuteNode(
             id = mainId,
-            name = app.getString(R.string.workflow_action_main),
+            name = context.getString(R.string.workflow_action_main),
             actionType = "",
             position = templateNodePosition(1)
         )
 
         val onSuccess = ConditionNode(
             id = successId,
-            name = app.getString(R.string.workflow_action_success_branch),
+            name = context.getString(R.string.workflow_action_success_branch),
             left = ParameterValue.StaticValue("1"),
             operator = ConditionOperator.EQ,
             right = ParameterValue.StaticValue("1"),
@@ -861,7 +870,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val onError = ConditionNode(
             id = errorId,
-            name = app.getString(R.string.workflow_action_error_branch),
+            name = context.getString(R.string.workflow_action_error_branch),
             left = ParameterValue.StaticValue("1"),
             operator = ConditionOperator.EQ,
             right = ParameterValue.StaticValue("1"),
@@ -882,13 +891,13 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private fun buildSpeechTriggerTemplateWorkflow(name: String, description: String): Workflow {
+    private fun buildSpeechTriggerTemplateWorkflow(context: Context, name: String, description: String): Workflow {
         val triggerId = UUID.randomUUID().toString()
         val startChatId = UUID.randomUUID().toString()
 
         val trigger = TriggerNode(
             id = triggerId,
-            name = app.getString(R.string.workflow_trigger_voice),
+            name = context.getString(R.string.workflow_trigger_voice),
             triggerType = "speech",
             triggerConfig = mapOf(
                 "pattern" to ".*(打开|启动).*(对话|聊天|悬浮窗).*",
@@ -901,7 +910,7 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
 
         val startChat = ExecuteNode(
             id = startChatId,
-            name = app.getString(R.string.workflow_action_start_chat),
+            name = context.getString(R.string.workflow_action_start_chat),
             actionType = "start_chat_service",
             position = templateNodePosition(1)
         )

@@ -1866,7 +1866,34 @@ object SystemToolPromptsInternal {
                         ToolPrompt(
                             name = "start_chat_service",
                             description = "启动对话服务（悬浮窗）。",
-                            parametersStructured = listOf()
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "initial_mode",
+                                        type = "string",
+                                        description = "可选，初始悬浮模式：WINDOW, BALL, VOICE_BALL, FULLSCREEN, RESULT_DISPLAY, SCREEN_OCR",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "auto_enter_voice_chat",
+                                        type = "boolean",
+                                        description = "可选，为 true 时在打开 FULLSCREEN 时自动进入语音模式",
+                                        required = false,
+                                        default = "false"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "wake_launched",
+                                        type = "boolean",
+                                        description = "可选，若由唤醒词启动则为 true，以便 UI 调整行为",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "timeout_ms",
+                                        type = "integer",
+                                        description = "可选，超时后自动关闭悬浮窗（毫秒）。<=0 表示不自动关闭。",
+                                        required = false
+                                    )
+                                )
                         ),
                         ToolPrompt(
                             name = "stop_chat_service",

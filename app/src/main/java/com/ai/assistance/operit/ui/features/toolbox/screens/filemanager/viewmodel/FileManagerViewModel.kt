@@ -52,7 +52,7 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     var pendingScrollPosition by mutableStateOf<Pair<String, Int>?>(null)
 
     // 标签页状态
-    var tabs = mutableStateListOf(TabItem("/sdcard", "主目录"))
+    var tabs = mutableStateListOf(TabItem("/sdcard", "主目录")) // TODO: 国际化 - 这个需要context，暂时保留中文
     var activeTabIndex by mutableStateOf(0)
 
     // 上下文菜单状态
@@ -201,7 +201,7 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     }
 
     // 添加新标签
-    fun addTab(path: String = "/sdcard", title: String = "新标签") {
+    fun addTab(path: String = "/sdcard", title: String = "新标签") { // TODO: 国际化 - 这个需要context，暂时保留中文
         tabs.add(TabItem(path, title))
         activeTabIndex = tabs.size - 1
         currentPath = path
@@ -340,11 +340,15 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                             showSearchResultsDialog = true
                         }
                     } else {
-                        withContext(Dispatchers.Main) { error = result.error ?: "搜索失败" }
+                        withContext(Dispatchers.Main) {
+                            error = result.error ?: context.getString(R.string.file_manager_search_failed)
+                        }
                     }
                 } catch (e: Exception) {
                     AppLogger.e("FileManagerViewModel", "Error searching files", e)
-                    withContext(Dispatchers.Main) { error = "搜索错误: ${e.message}" }
+                    withContext(Dispatchers.Main) {
+                        error = context.getString(R.string.file_manager_search_error, e.message ?: "Unknown")
+                    }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }

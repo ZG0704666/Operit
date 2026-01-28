@@ -2,6 +2,7 @@ package com.ai.assistance.operit.api.chat.llmprovider
 
 import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
@@ -770,7 +771,7 @@ class ClaudeProvider(
         while (retryCount < maxRetries) {
             if (isManuallyCancelled) {
                 AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                throw UserCancellationException("Request cancelled by user")
+                throw UserCancellationException(context.getString(R.string.openai_error_request_cancelled))
             }
 
             val call = try {
@@ -815,15 +816,15 @@ class ClaudeProvider(
                     activeResponse = response
                     try {
                         if (!response.isSuccessful) {
-                            val errorBody = response.body?.string() ?: "No error details"
+                            val errorBody = response.body?.string() ?: context.getString(R.string.openai_error_no_error_details)
                             if (response.code in 400..499) {
-                                throw NonRetriableException("API request failed, status code: ${response.code}, error: $errorBody")
+                                throw NonRetriableException(context.getString(R.string.openai_error_api_request_failed_with_status, response.code, errorBody))
                             }
-                            throw IOException("API request failed, status code: ${response.code}, error: $errorBody")
+                            throw IOException(context.getString(R.string.openai_error_api_request_failed_with_status, response.code, errorBody))
                         }
 
                         AppLogger.d("AIService", "连接成功，等待响应...")
-                        val responseBody = response.body ?: throw IOException("Response body is empty")
+                        val responseBody = response.body ?: throw IOException(context.getString(R.string.provider_error_response_empty))
 
                         val contentType = response.header("Content-Type") ?: ""
                         AppLogger.d(
@@ -855,7 +856,7 @@ class ClaudeProvider(
                                     tokenCacheManager.outputTokenCount
                                 )
                             } else {
-                                throw IOException("Response parsing returned empty")
+                                throw IOException(context.getString(R.string.provider_error_parsing_failed))
                             }
                             return@withContext
                         }
@@ -1166,52 +1167,52 @@ class ClaudeProvider(
             } catch (e: SocketTimeoutException) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("Request cancelled by user", e)
+                    throw UserCancellationException(context.getString(R.string.openai_error_request_cancelled), e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     AppLogger.e("AIService", "【Claude】连接超时且达到最大重试次数", e)
-                    throw IOException("Failed to get AI response, connection timeout and max retries reached: ${e.message}")
+                    throw IOException(context.getString(R.string.openai_error_timeout_max_retries, e.message ?: ""))
                 }
                 AppLogger.w("AIService", "【Claude】连接超时，正在进行第 $retryCount 次重试...", e)
-                onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
+                onNonFatalError(context.getString(R.string.provider_error_retry_message, context.getString(R.string.provider_error_timeout), retryCount))
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("Request cancelled by user", e)
+                    throw UserCancellationException(context.getString(R.string.openai_error_request_cancelled), e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     AppLogger.e("AIService", "【Claude】无法解析主机且达到最大重试次数", e)
-                    throw IOException("Cannot connect to server, please check network connection and API address")
+                    throw IOException(context.getString(R.string.openai_error_cannot_connect))
                 }
                 AppLogger.w("AIService", "【Claude】无法解析主机，正在进行第 $retryCount 次重试...", e)
-                onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
+                onNonFatalError(context.getString(R.string.provider_error_retry_message, context.getString(R.string.provider_error_unknown_host), retryCount))
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: IOException) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("Request cancelled by user", e)
+                    throw UserCancellationException(context.getString(R.string.openai_error_request_cancelled), e)
                 }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     AppLogger.e("AIService", "【Claude】达到最大重试次数", e)
-                    throw IOException("Failed to get AI response, max retries reached: ${e.message}")
+                    throw IOException(context.getString(R.string.openai_error_max_retries, e.message ?: ""))
                 }
                 AppLogger.w("AIService", "【Claude】网络中断，正在进行第 $retryCount 次重试...", e)
-                onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
+                onNonFatalError(context.getString(R.string.provider_error_retry_message, context.getString(R.string.provider_error_network_interrupted), retryCount))
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: Exception) {
                 if (isManuallyCancelled) {
                     AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
-                    throw UserCancellationException("Request cancelled by user", e)
+                    throw UserCancellationException(context.getString(R.string.openai_error_request_cancelled), e)
                 }
                 AppLogger.e("AIService", "【Claude】发生未知异常，停止重试", e)
-                throw IOException("Failed to get AI response: ${e.message}", e)
+                throw IOException(context.getString(R.string.openai_error_response_failed, e.message ?: ""), e)
             } finally {
                 activeCall = null
                 activeResponse = null
@@ -1221,7 +1222,7 @@ class ClaudeProvider(
         lastException?.let { ex ->
             AppLogger.e("AIService", "【Claude】重试失败，请检查网络连接", ex)
         } ?: AppLogger.e("AIService", "【Claude】重试失败，请检查网络连接")
-        throw IOException("Connection timeout or interrupted, retried $maxRetries times: ${lastException?.message}")
+        throw IOException(context.getString(R.string.openai_error_connection_timeout, maxRetries, lastException?.message ?: ""))
     }
 
     /**
@@ -1250,10 +1251,10 @@ class ClaudeProvider(
             // 对 "Hi" 的响应应该很短，所以这会很快完成。
             stream.collect { _ -> }
 
-            Result.success("Connection successful!")
+            Result.success(context.getString(R.string.openai_connection_success))
         } catch (e: Exception) {
             AppLogger.e("AIService", "连接测试失败", e)
-            Result.failure(IOException("Connection test failed: ${e.message}", e))
+            Result.failure(IOException(context.getString(R.string.openai_connection_test_failed, e.message ?: ""), e))
         }
     }
 }

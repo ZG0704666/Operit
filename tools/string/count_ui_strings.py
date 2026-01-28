@@ -21,6 +21,7 @@ PATTERNS_TO_EXCLUDE = [
 
 LOG_CALL_PATTERNS = [
     re.compile(r'\bAppLogger\w*\.\w+\s*\('),
+    re.compile(r'\bStreamLogger\w*\.\w+\s*\('),
     re.compile(r'\bTimber\.\w+\s*\('),
     re.compile(r'\bandroid\.util\.Log\.\w+\s*\('),
     re.compile(r'\bLog\.\w+\s*\('),

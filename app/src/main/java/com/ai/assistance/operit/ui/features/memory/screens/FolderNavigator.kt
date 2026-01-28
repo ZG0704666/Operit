@@ -159,7 +159,7 @@ fun FolderNavigator(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "文件夹",
+                        text = stringResource(R.string.folder_navigator_folder),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -223,7 +223,7 @@ fun FolderNavigator(
 
                 // "全部"选项
                 FolderItem(
-                    name = "全部",
+                    name = stringResource(R.string.folder_navigator_all),
                     fullPath = "",
                     level = 0,
                     isSelected = selectedFolderPath.isEmpty(),

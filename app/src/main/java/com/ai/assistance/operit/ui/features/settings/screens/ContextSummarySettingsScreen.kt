@@ -46,6 +46,12 @@ fun ContextSummarySettingsScreen(
         val scope = rememberCoroutineScope()
         val scrollState = rememberScrollState()
 
+        val maxFileSizeLabel = stringResource(id = R.string.context_field_max_file_size)
+        val partSizeLabel = stringResource(id = R.string.context_field_part_size)
+        val maxTextResultLengthLabel = stringResource(id = R.string.context_field_max_text_result_length)
+        val maxImageHistoryTurnsLabel = stringResource(id = R.string.context_field_max_image_history_turns)
+        val maxMediaHistoryTurnsLabel = stringResource(id = R.string.context_field_max_media_history_turns)
+
         // State for UI components - using String to hold input
         var maxFileSizeBytesInput by remember { mutableStateOf("") }
         var partSizeInput by remember { mutableStateOf("") }
@@ -73,7 +79,7 @@ fun ContextSummarySettingsScreen(
             fun validateFloat(value: String, name: String): Boolean {
                 val floatVal = value.toFloatOrNull()
                 if (floatVal == null || floatVal <= 0f) {
-                    validationErrorMessage = "$name 必须是大于 0 的有效数字"
+                    validationErrorMessage = context.getString(R.string.context_validation_error_positive_number, name)
                     return false
                 }
                 return true
@@ -82,7 +88,7 @@ fun ContextSummarySettingsScreen(
             fun validateInt(value: String, name: String): Boolean {
                 val intVal = value.toIntOrNull()
                 if (intVal == null || intVal <= 0) {
-                    validationErrorMessage = "$name 必须是大于 0 的有效整数"
+                    validationErrorMessage = context.getString(R.string.context_validation_error_positive_integer, name)
                     return false
                 }
                 return true
@@ -91,17 +97,17 @@ fun ContextSummarySettingsScreen(
             fun validateNonNegativeInt(value: String, name: String): Boolean {
                 val intVal = value.toIntOrNull()
                 if (intVal == null || intVal < 0) {
-                    validationErrorMessage = "$name 必须是大于等于 0 的有效整数"
+                    validationErrorMessage = context.getString(R.string.context_validation_error_non_negative_integer, name)
                     return false
                 }
                 return true
             }
 
-            if (!validateInt(maxFileSizeBytesInput, "最大文件大小")) return false
-            if (!validateInt(partSizeInput, "分片大小")) return false
-            if (!validateInt(maxTextResultLengthInput, "最大文本结果长度")) return false
-            if (!validateNonNegativeInt(maxImageHistoryUserTurnsInput, "历史图片保留回合数")) return false
-            if (!validateNonNegativeInt(maxMediaHistoryUserTurnsInput, "历史音视频保留回合数")) return false
+            if (!validateInt(maxFileSizeBytesInput, maxFileSizeLabel)) return false
+            if (!validateInt(partSizeInput, partSizeLabel)) return false
+            if (!validateInt(maxTextResultLengthInput, maxTextResultLengthLabel)) return false
+            if (!validateNonNegativeInt(maxImageHistoryUserTurnsInput, maxImageHistoryTurnsLabel)) return false
+            if (!validateNonNegativeInt(maxMediaHistoryUserTurnsInput, maxMediaHistoryTurnsLabel)) return false
 
             showValidationError = false
             return true
@@ -141,7 +147,7 @@ fun ContextSummarySettingsScreen(
                 ) {
 
                         Text(
-                                text = "上下文窗口与对话总结现在在模型配置中管理。此处仅调节文件读取与结果截断相关的系统参数。",
+                                text = stringResource(id = R.string.context_summary_note),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
@@ -170,7 +176,7 @@ fun ContextSummarySettingsScreen(
                             subtitle = stringResource(id = R.string.settings_part_size_subtitle),
                             value = partSizeInput,
                             onValueChange = { partSizeInput = it },
-                            unitText = "行",
+                            unitText = stringResource(id = R.string.context_unit_lines),
                             backgroundColor = componentBackgroundColor
                         )
 
@@ -189,7 +195,7 @@ fun ContextSummarySettingsScreen(
                             subtitle = stringResource(id = R.string.settings_max_image_history_user_turns_subtitle),
                             value = maxImageHistoryUserTurnsInput,
                             onValueChange = { maxImageHistoryUserTurnsInput = it },
-                            unitText = "次",
+                            unitText = stringResource(id = R.string.context_unit_times),
                             backgroundColor = componentBackgroundColor
                         )
 
@@ -198,7 +204,7 @@ fun ContextSummarySettingsScreen(
                             subtitle = stringResource(id = R.string.settings_max_media_history_user_turns_subtitle),
                             value = maxMediaHistoryUserTurnsInput,
                             onValueChange = { maxMediaHistoryUserTurnsInput = it },
-                            unitText = "次",
+                            unitText = stringResource(id = R.string.context_unit_times),
                             backgroundColor = componentBackgroundColor
                         )
 
@@ -230,7 +236,7 @@ fun ContextSummarySettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                        text = "重置所有设置",
+                                        text = stringResource(id = R.string.context_reset_all_settings),
                                         style = MaterialTheme.typography.bodyLarge
                                 )
                         }

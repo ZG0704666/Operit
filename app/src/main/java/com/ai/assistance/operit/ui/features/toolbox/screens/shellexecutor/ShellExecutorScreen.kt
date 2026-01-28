@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,12 +35,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
-import com.google.android.gms.common.util.CollectionUtils.listOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,7 +78,7 @@ data class PresetCommand(
 /**
  * Shell命令执行器屏幕
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ShellExecutorScreen(navController: NavController? = null) {
     val context = LocalContext.current
@@ -186,7 +183,7 @@ fun ShellExecutorScreen(navController: NavController? = null) {
                             placeholder = { Text(stringResource(R.string.shell_executor_input_hint)) },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Rounded.Terminal,
+                                    imageVector = Icons.Filled.Terminal,
                                     contentDescription = stringResource(R.string.shell_executor_command),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -392,13 +389,16 @@ fun ShellExecutorScreen(navController: NavController? = null) {
                                 modifier = Modifier.padding(vertical = 8.dp)
                             )
                             
-                            Row(
+                            FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                maxItemsInEachRow = 2
                             ) {
                                 commands.forEach { presetCommand ->
                                     PresetCommandChip(
                                         presetCommand = presetCommand,
+                                        modifier = Modifier.weight(1f),
                                         onClick = {
                                             commandInput = presetCommand.command
                                             showPresets = false
@@ -506,9 +506,9 @@ fun ShellExecutorScreen(navController: NavController? = null) {
 
 /** 预设命令芯片 */
 @Composable
-fun PresetCommandChip(presetCommand: PresetCommand, onClick: () -> Unit) {
+fun PresetCommandChip(presetCommand: PresetCommand, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.clickable { onClick() },
+        modifier = modifier.clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
     ) {
@@ -528,7 +528,9 @@ fun PresetCommandChip(presetCommand: PresetCommand, onClick: () -> Unit) {
             Text(
                 text = presetCommand.name,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -572,7 +574,7 @@ fun CommandResultCard(record: CommandRecord, onReExecute: () -> Unit = {}) {
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Terminal,
+                        imageVector = Icons.Filled.Terminal,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)

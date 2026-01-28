@@ -55,7 +55,7 @@ sealed class WorkflowNode {
 data class TriggerNode(
     override val id: String = UUID.randomUUID().toString(),
     override val type: String = "trigger",
-    override var name: String = "触发器",
+    override var name: String = "",
     override var description: String = "",
     override var position: NodePosition = NodePosition(0f, 0f),
     var triggerType: String = "manual", // manual, schedule, event
@@ -70,7 +70,7 @@ data class TriggerNode(
 data class ExecuteNode(
     override val id: String = UUID.randomUUID().toString(),
     override val type: String = "execute",
-    override var name: String = "执行动作",
+    override var name: String = "",
     override var description: String = "",
     override var position: NodePosition = NodePosition(0f, 0f),
     var actionType: String = "", // 工具名称，如 "http_request", "list_files", "click_element"
@@ -96,7 +96,7 @@ enum class ConditionOperator {
 data class ConditionNode(
     override val id: String = UUID.randomUUID().toString(),
     override val type: String = "condition",
-    override var name: String = "条件判断",
+    override var name: String = "",
     override var description: String = "",
     override var position: NodePosition = NodePosition(0f, 0f),
     var left: ParameterValue = ParameterValue.StaticValue(""),
@@ -114,7 +114,7 @@ enum class LogicOperator {
 data class LogicNode(
     override val id: String = UUID.randomUUID().toString(),
     override val type: String = "logic",
-    override var name: String = "逻辑判断",
+    override var name: String = "",
     override var description: String = "",
     override var position: NodePosition = NodePosition(0f, 0f),
     var operator: LogicOperator = LogicOperator.AND
@@ -134,7 +134,7 @@ enum class ExtractMode {
 data class ExtractNode(
     override val id: String = UUID.randomUUID().toString(),
     override val type: String = "extract",
-    override var name: String = "运算",
+    override var name: String = "",
     override var description: String = "",
     override var position: NodePosition = NodePosition(0f, 0f),
     var source: ParameterValue = ParameterValue.StaticValue(""),

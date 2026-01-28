@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.features.token.model.TabConfig
 import com.ai.assistance.operit.ui.features.token.model.UrlConfig
 import kotlinx.coroutines.flow.Flow
@@ -75,10 +76,10 @@ class UrlConfigManager(private val context: Context) {
             try {
                 json.decodeFromString<UrlConfig>(configJson)
             } catch (e: Exception) {
-                UrlConfig() // 返回默认配置
+                UrlConfig().localizePresetTabNames(context)
             }
         } else {
-            UrlConfig() // 返回默认配置
+            UrlConfig().localizePresetTabNames(context)
         }
     }
 
@@ -91,6 +92,29 @@ class UrlConfigManager(private val context: Context) {
 
     // 重置为默认配置
     suspend fun resetToDefault() {
-        saveUrlConfig(UrlConfig())
+        saveUrlConfig(UrlConfig().localizePresetTabNames(context))
     }
-} 
+}
+
+private fun UrlConfig.localizePresetTabNames(context: Context): UrlConfig {
+    if (tabs.isEmpty()) return this
+
+    val mappedTabs = tabs.map { tab ->
+        val localizedTitle = when (tab.title) {
+            "聊天" -> context.getString(R.string.url_tab_chat)
+            "项目" -> context.getString(R.string.url_tab_projects)
+            "工件" -> context.getString(R.string.url_tab_artifacts)
+            "设置" -> context.getString(R.string.url_tab_settings)
+            "账户" -> context.getString(R.string.url_tab_account)
+            "历史" -> context.getString(R.string.url_tab_history)
+            "帮助" -> context.getString(R.string.url_tab_help)
+            "探索" -> context.getString(R.string.url_tab_explore)
+            "创建" -> context.getString(R.string.url_tab_create)
+            else -> tab.title
+        }
+
+        if (localizedTitle == tab.title) tab else TabConfig(title = localizedTitle, url = tab.url)
+    }
+
+    return copy(tabs = mappedTabs)
+}

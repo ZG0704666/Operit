@@ -33,7 +33,7 @@ fun LoadingOverlay(isLoading: Boolean) {
                     .padding(24.dp)
             ) {
                 Text(
-                    text = "正在加载文件...",
+                    text = stringResource(R.string.loading_files),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -201,6 +201,15 @@
     <string name="workflow_execution_result_title">执行结果</string>
     <string name="workflow_edit_dialog_title">编辑工作流</string>
     <string name="workflow_enabled_label">启用工作流</string>
+    <string name="url_tab_chat">聊天</string>
+    <string name="url_tab_projects">项目</string>
+    <string name="url_tab_artifacts">工件</string>
+    <string name="url_tab_settings">设置</string>
+    <string name="url_tab_account">账户</string>
+    <string name="url_tab_history">历史</string>
+    <string name="url_tab_help">帮助</string>
+    <string name="url_tab_explore">探索</string>
+    <string name="url_tab_create">创建</string>
     <string name="workflow_node_dialog_title_add">添加节点</string>
     <string name="workflow_node_dialog_title_edit">编辑节点</string>
     <string name="workflow_node_type_label">节点类型</string>
@@ -4534,6 +4543,60 @@
     <string name="uidebugger_collapse_panel">折叠面板</string>
     <string name="uidebugger_activity_monitor">Activity监听</string>
 
+    <string name="uidebugger_activity_monitor_listening">正在监听Activity事件</string>
+    <string name="uidebugger_activity_monitor_stopped">监听已停止</string>
+    <string name="uidebugger_activity_monitor_current_activity">当前活动</string>
+    <string name="uidebugger_activity_monitor_waiting">监听中，等待Activity事件...</string>
+    <string name="uidebugger_activity_monitor_click_to_start">点击开始监听按钮开始监听Activity事件</string>
+    <string name="uidebugger_activity_monitor_event_log">事件记录 (%1$d)</string>
+    <string name="uidebugger_activity_monitor_item_activity">活动: %1$s</string>
+    <string name="uidebugger_activity_monitor_item_text">文本: %1$s</string>
+    <string name="uidebugger_activity_monitor_item_package">包: %1$s</string>
+    <string name="uidebugger_activity_monitor_item_click">点击</string>
+    <string name="uidebugger_activity_monitor_item_long_click">长按</string>
+    <string name="uidebugger_activity_monitor_item_swipe">滑动</string>
+    <string name="uidebugger_activity_monitor_item_text_input">输入</string>
+    <string name="uidebugger_activity_monitor_item_key_press">按键</string>
+    <string name="uidebugger_activity_monitor_item_scroll">滚动</string>
+    <string name="uidebugger_activity_monitor_item_gesture">手势</string>
+    <string name="uidebugger_activity_monitor_item_app_switch">应用切换</string>
+    <string name="uidebugger_activity_monitor_item_screen_change">页面变化</string>
+    <string name="uidebugger_activity_monitor_item_system_event">系统事件</string>
+
+    <string name="uidebugger_action_click_success">点击成功</string>
+    <string name="uidebugger_action_click_failed">点击失败</string>
+    <string name="uidebugger_action_highlighted">已高亮元素</string>
+    <string name="uidebugger_action_selected">已选择元素</string>
+    <string name="uidebugger_action_failed">操作失败</string>
+    <string name="uidebugger_error_wrong_result_type">返回数据类型错误</string>
+    <string name="uidebugger_error_fetch_ui_failed">获取UI信息失败</string>
+    <string name="uidebugger_error_refresh_failed">刷新失败</string>
+    <string name="uidebugger_activity_monitor_already_running">监听已在运行中</string>
+    <string name="uidebugger_activity_monitor_permission_insufficient">权限不足: %1$s</string>
+    <string name="uidebugger_activity_monitor_started">Activity监听已启动</string>
+    <string name="uidebugger_activity_monitor_start_failed_with_reason">启动监听失败: %1$s</string>
+    <string name="uidebugger_activity_monitor_stop_failed">停止监听失败</string>
+    <string name="uidebugger_activity_monitor_stop_failed_with_reason">停止监听失败: %1$s</string>
+
+    <string name="uidebugger_element_type_button">按钮</string>
+    <string name="uidebugger_element_type_text">文本</string>
+    <string name="uidebugger_element_type_input">输入框</string>
+    <string name="uidebugger_element_type_image">图片</string>
+    <string name="uidebugger_element_type_view">视图</string>
+    <string name="uidebugger_element_type_generic">UI元素</string>
+    <string name="uidebugger_element_detail_class_name">类名: %1$s</string>
+    <string name="uidebugger_element_detail_package_name">包名: %1$s</string>
+    <string name="uidebugger_element_detail_activity_name">Activity: %1$s</string>
+    <string name="uidebugger_element_detail_resource_id">资源ID: %1$s</string>
+    <string name="uidebugger_element_detail_content_desc">内容描述: %1$s</string>
+    <string name="uidebugger_element_detail_text">文本: %1$s</string>
+    <string name="uidebugger_element_detail_bounds">边界: [%1$d, %2$d, %3$d, %4$d]</string>
+    <string name="uidebugger_element_detail_clickable">可点击: %1$s</string>
+    <string name="uidebugger_element_info_title">控件信息</string>
+    <string name="uidebugger_element_info_current_activity">当前Activity</string>
+    <string name="uidebugger_element_info_package_name">包名: %1$s</string>
+    <string name="uidebugger_element_info_size_px">尺寸: %1$d×%2$dpx</string>
+
     <!-- Logcat -->
     <string name="logcat_no_logs_to_save">没有日志可保存</string>
     <string name="logcat_header">=== Operit 日志 ===</string>
@@ -4857,6 +4920,12 @@
     <string name="mcp_import_exception">✗ 导入异常: %1$s</string>
     <string name="mcp_please_enter_config">请输入配置内容</string>
 
+    <string name="mcp_server_plugin_install_path_label">插件安装路径:</string>
+    <string name="mcp_server_json_config_title">JSON 配置</string>
+    <string name="mcp_server_config_effective_hint">此配置将在服务器启动时生效</string>
+    <string name="mcp_server_save_config">保存配置</string>
+    <string name="mcp_server_not_installed_cannot_configure">此插件尚未安装，无法配置</string>
+
     <!-- Package Manager Module -->
     <string name="pkg_manage_env_vars">管理环境变量</string>
     <string name="pkg_config_env_vars">配置环境变量</string>
@@ -4881,6 +4950,40 @@
     <string name="mcp_market_clear_search">清空搜索</string>
     <string name="mcp_market_refresh">刷新</string>
 
+    <string name="skill_publish_body_section_skill_info">## 📋 Skill 信息</string>
+    <string name="skill_publish_body_section_repo_info">## 🔗 仓库信息</string>
+    <string name="skill_publish_body_label_repo_url">**仓库地址:** %1$s</string>
+    <string name="skill_publish_body_section_install_method">## 📦 安装方式</string>
+    <string name="skill_publish_body_install_step1">1. 打开 Operit → 包管理 → Skills</string>
+    <string name="skill_publish_body_install_step2">2. 点击「导入 Skill」→ 「从仓库导入」</string>
+    <string name="skill_publish_body_install_step3">3. 输入仓库地址：`%1$s`</string>
+    <string name="skill_publish_body_install_step4">4. 确认导入</string>
+    <string name="skill_publish_body_section_tech_info">## 🛠️ 技术信息</string>
+    <string name="skill_publish_body_table_header">| 项目 | 值 |</string>
+    <string name="skill_publish_body_table_separator">|------|-----|</string>
+    <string name="skill_publish_body_table_row_platform">| 发布平台 | Operit Skill 市场 |</string>
+    <string name="skill_publish_body_table_row_parser_version">| 解析版本 | 1.0 |</string>
+    <string name="skill_publish_body_table_row_publish_time">| 发布时间 | %1$s |</string>
+    <string name="skill_publish_body_table_row_status_pending">| 状态 | ⏳ Pending Review |</string>
+
+    <string name="model_param_max_tokens">最大生成Token数</string>
+    <string name="model_param_max_tokens_desc">控制AI每次最多生成的Token数量</string>
+    <string name="model_param_temperature">温度</string>
+    <string name="model_param_temperature_desc">控制输出的随机性。较低的值更确定性，较高的值更随机</string>
+    <string name="model_param_top_p">Top-P 采样</string>
+    <string name="model_param_top_p_desc">作为温度的替代方案，模型仅考虑概率最高的Top-P比例的token</string>
+    <string name="model_param_top_k">Top-K 采样</string>
+    <string name="model_param_top_k_desc">模型仅考虑概率最高的K个token。0表示禁用</string>
+    <string name="model_param_presence_penalty">存在惩罚</string>
+    <string name="model_param_presence_penalty_desc">增强模型谈论新主题的倾向。值越高，惩罚越大</string>
+    <string name="model_param_frequency_penalty">频率惩罚</string>
+    <string name="model_param_frequency_penalty_desc">减少模型重复同一词语的可能性。值越高，惩罚越大</string>
+    <string name="model_param_repetition_penalty">重复惩罚</string>
+    <string name="model_param_repetition_penalty_desc">进一步减少重复。1.0表示不惩罚，大于1.0会降低重复可能性</string>
+
+    <string name="parameters_empty_custom">暂无自定义参数</string>
+    <string name="parameters_empty_category">当前类别暂无可配置参数</string>
+
     <!-- Tag Market Screen -->
     <string name="tag_content">标签内容:</string>
     <string name="tag_add">添加标签</string>
@@ -4888,9 +4991,21 @@
     <!-- Custom Headers Screen -->
     <string name="headers_load_preset">加载预设</string>
     <string name="headers_saved">请求头已保存</string>
+    <string name="headers_add_header">添加请求头</string>
+    <string name="headers_save_headers">保存请求头</string>
+    <string name="headers_delete_header">删除请求头</string>
+    <string name="headers_key_label">键</string>
+    <string name="headers_value_label">值</string>
+    <string name="headers_preset_android_browser">伪装成安卓浏览器</string>
+    <string name="headers_preset_desktop_browser_win">伪装成桌面浏览器 (Win)</string>
+    <string name="headers_preset_lang_zh">设置语言为中文</string>
+    <string name="headers_preset_lang_en">设置语言为英文</string>
+    <string name="headers_preset_cmcc_gateway">模拟中国移动网关</string>
+    <string name="headers_preset_us_la">模拟美国洛杉矶 (需配合)</string>
 
     <!-- Context Summary Settings Screen -->
     <string name="context_validation_failed">验证失败</string>
+    <string name="context_reset_completed">已重置所有设置</string>
 
     <!-- Global Display Settings Screen -->
     <string name="display_rainbow_border">全屏彩虹边框</string>
@@ -4946,6 +5061,16 @@
     <string name="autoglm_custom_endpoint">自定义 Endpoint（OpenAI 兼容）</string>
     <string name="autoglm_model_name">模型名称</string>
     <string name="autoglm_restore_original">恢复原本的自动化逻辑</string>
+    <string name="autoglm_step1_title">step1 配置基本对话模型</string>
+    <string name="autoglm_step1_warning">不要把autoglm模型作为对话主模型</string>
+    <string name="autoglm_step1_note">注意：如果已经配置过就不需要管了，这里切勿改成 autoglm 等小模型。</string>
+    <string name="autoglm_step2_title">step2 访问智谱官网，获取 API Key</string>
+    <string name="autoglm_step3_title">step3 填入 API Key，点击一键配置</string>
+    <string name="autoglm_hide_advanced">隐藏高级设置</string>
+    <string name="autoglm_show_advanced">显示高级设置（自定义 Endpoint / 模型名称）</string>
+    <string name="autoglm_step4_title">step4 恢复非 AutoGLM 自动化（可选）</string>
+    <string name="autoglm_step4_description">如果你觉得在使用 AutoGLM 一键配置后自动化操作变得困难，可以点击下方按钮恢复为软件原本的自动化逻辑（启用 base 包，关闭 subagent 包，其余设置保持不变）。如果你想再次启用 AutoGLM，只需要按照 step3 输入密钥并再次点击一键配置。</string>
+    <string name="autoglm_restore_success">已恢复为软件原本的自动化逻辑</string>
 
     <!-- UI Debugger Components -->
     <string name="uidebugger_create_new_package">创建新配置包</string>
@@ -5037,6 +5162,73 @@
     <string name="activity_monitor_close">关闭</string>
     <string name="theme_background_preview">背景图片预览</string>
     <string name="theme_recrop">重新裁剪</string>
+    <string name="theme_default_character_card">默认角色卡</string>
+    <string name="theme_font_settings">字体设置</string>
+    <string name="app_content_navigate_back">返回</string>
+    <string name="app_content_collapse_sidebar">收起侧边栏</string>
+    <string name="app_content_expand_sidebar">展开侧边栏</string>
+    <string name="app_content_loading">正在加载...</string>
+    <string name="theme_font_default">默认字体</string>
+    <string name="theme_font_serif">衬线体 (Serif)</string>
+    <string name="theme_font_sans_serif">无衬线体 (Sans Serif)</string>
+    <string name="theme_font_monospace">等宽字体 (Monospace)</string>
+    <string name="theme_font_cursive">手写体 (Cursive)</string>
+    <string name="theme_avatar_description">说明：左侧的用户头像是角色卡专属设置，为空时将使用右侧的全局用户头像。全局用户头像在所有角色卡中共享使用。</string>
+    <string name="functional_config_model_count">%1$d个模型</string>
+    <string name="tool_permission_instruction_title">使用说明</string>
+    <string name="tool_permission_instruction_content">1. 上面的\"全局默认权限\"控制所有工具的默认行为。\n2. 下面每个分组中添加的工具，是对该工具设置\"例外规则\"，会覆盖全局默认。\n3. 再次点击同一分组中的工具，或在选择对话框中取消勾选，即可移除该工具的例外配置，让它重新跟随全局默认。</string>
+    <string name="token_price_description">设置每次API请求的人民币价格</string>
+    <string name="floating_chat_cancel">取消</string>
+    <string name="floating_chat_send">发送</string>
+    <string name="file_list_folder">文件夹</string>
+    <string name="folder_navigator_folder">文件夹</string>
+    <string name="folder_navigator_all">全部</string>
+    <string name="file_manager_main_directory">主目录</string>
+    <string name="file_manager_new_tab">新标签</string>
+    <string name="file_manager_search_failed">搜索失败</string>
+    <string name="file_manager_search_error">搜索错误: %1$s</string>
+    <string name="workflow_node">节点</string>
+    <string name="mcp_server">MCP 服务器</string>
+    <string name="mcp_install">安装</string>
+    <string name="mcp_uninstall">卸载</string>
+    <string name="script_error">错误: %1$s</string>
+    <string name="script_missing_params">缺少参数: %1$s</string>
+    <string name="script_flow_error">执行流错误: %1$s</string>
+    <string name="mcp_plugin_details">插件详情</string>
+    <string name="mcp_config_settings">配置设置</string>
+    <string name="mcp_no_description">暂无描述</string>
+    <string name="mcp_manage_env_vars">管理环境变量</string>
+    <string name="package_default">默认</string>
+    <string name="package_no_tools">暂无可用工具</string>
+    <string name="package_run">运行</string>
+    <string name="usage">用量</string>
+    <string name="emoticon_happy">开心</string>
+    <string name="emoticon_gladsome">高兴</string>
+    <string name="emoticon_not_bad">不错</string>
+    <string name="emoticon_great">棒</string>
+    <string name="emoticon_excellent">太好了</string>
+    <string name="emoticon_praise">赞</string>
+    <string name="emoticon_angry">生气</string>
+    <string name="emoticon_furious">愤怒</string>
+    <string name="emoticon_infuriated">气死</string>
+    <string name="emoticon_hate">讨厌</string>
+    <string name="emoticon_terrible">糟糕</string>
+    <string name="emoticon_fury">怒</string>
+    <string name="emoticon_sad">难过</string>
+    <string name="emoticon_sorrow">伤心</string>
+    <string name="emoticon_depressed">沮丧</string>
+    <string name="emoticon_gloomy">忧伤</string>
+    <string name="emoticon_cry">哭</string>
+    <string name="emoticon_shy">害羞</string>
+    <string name="emoticon_shyness">羞</string>
+    <string name="emoticon_blush">脸红</string>
+    <string name="emoticon_embarrassed">不好意思</string>
+    <string name="autoglm_task_complete">✅ 任务完成: %1$s</string>
+    <string name="autoglm_thinking_process">💭 思考过程:</string>
+    <string name="autoglm_execute_action">🎯 执行动作:</string>
+    <string name="version_update">版本更新</string>
+    <string name="mcp_no_zip_selected">未选择ZIP文件</string>
+    <string name="mcp_uninstall_failed">卸载失败</string>
     <string name="filediff_tool_result">工具执行结果</string>
     <string name="ffmpeg_use_template">使用此模板</string>
     <string name="filelist_go_back">返回上级目录</string>
@@ -5389,5 +5581,102 @@
     <string name="gemini_error_connection_timeout">连接超时或中断，已重试 %1$d 次: %2$s</string>
     <string name="gemini_connection_success">连接成功！</string>
     <string name="gemini_connection_test_failed">连接测试失败: %1$s</string>
+
+    <string name="provider_error_response_empty">API响应为空</string>
+    <string name="provider_error_parsing_failed">解析响应失败</string>
+    <string name="provider_error_retry_message">%1$s，正在进行第 %2$d 次重试...</string>
+    <string name="provider_error_timeout">连接超时</string>
+    <string name="provider_error_unknown_host">无法解析主机</string>
+    <string name="provider_error_network_interrupted">网络中断</string>
+
+    <!-- OpenAI Provider -->
+    <string name="openai_error_request_cancelled">请求已被用户取消</string>
+    <string name="openai_error_no_error_details">无错误详情</string>
+    <string name="openai_error_api_request_failed_with_status">API请求失败，状态码: %1$d，错误信息: %2$s</string>
+    <string name="openai_error_timeout_max_retries">AI响应获取失败，连接超时且已达最大重试次数: %1$s</string>
+    <string name="openai_error_cannot_connect">无法连接到服务器，请检查网络连接或API地址是否正确</string>
+    <string name="openai_error_max_retries">AI响应获取失败，已达最大重试次数: %1$s</string>
+    <string name="openai_error_response_failed">AI响应获取失败: %1$s</string>
+    <string name="openai_error_connection_timeout">连接超时或中断，已重试 %1$d 次: %2$s</string>
+    <string name="openai_error_response_empty">API响应为空</string>
+    <string name="openai_error_parse_response_failed">解析响应失败: %1$s</string>
+    <string name="openai_connection_success">连接成功！</string>
+    <string name="openai_connection_test_failed">连接测试失败: %1$s</string>
+
+    <!-- Phone Agent -->
+    <string name="phone_agent_need_debug_permission">需要调试/管理员/Root 权限并启用实验虚拟屏幕，才能使用虚拟屏幕自动化。</string>
+    <string name="phone_agent_shizuku_unavailable">Shizuku 不可用，无法启动虚拟屏幕。</string>
+    <string name="phone_agent_virtual_screen_service_start_failed">虚拟屏幕服务启动失败。</string>
+    <string name="phone_agent_virtual_screen_create_failed">虚拟屏幕创建失败。</string>
+    <string name="phone_agent_virtual_screen_prewarm_failed">虚拟屏幕预启动失败：%1$s</string>
+    <string name="phone_agent_virtual_screen_not_started">虚拟屏幕未能启动，已中止以避免在主屏幕执行操作。</string>
+    <string name="phone_agent_thinking">思考中...</string>
+    <string name="phone_agent_completed">已完成</string>
+    <string name="phone_agent_executing_action">执行 %1$s 中...</string>
+    <string name="phone_agent_executing">执行操作中...</string>
+
+    <!-- Workflow Executor -->
+    <string name="workflow_skip">跳过</string>
+    <string name="workflow_condition_type_mismatch">条件比较类型不一致：left=\'%1$s\', right=\'%2$s\'</string>
+    <string name="workflow_condition_not_met">条件不满足</string>
+    <string name="workflow_node_execute_exception">节点执行异常: %1$s</string>
+    <string name="workflow_non_execution_node">非执行节点</string>
+    <string name="workflow_node_no_action_type">节点 %1$s 没有配置 actionType</string>
+    <string name="workflow_unknown_error">未知错误</string>
+
+    <!-- Skill Manager -->
+    <string name="skill_error_cannot_read_file">无法读取文件: %1$s</string>
+    <string name="skill_error_only_support_zip">仅支持 .zip 文件</string>
+    <string name="skill_error_cannot_access_dir">无法访问 skills 目录: %1$s</string>
+    <string name="skill_error_create_tmp_dir_failed">创建临时目录失败: %1$s</string>
+    <string name="skill_error_import_invalid_path">导入失败：路径异常</string>
+    <string name="skill_error_import_path_not_found">导入失败：未找到路径：%1$s</string>
+    <string name="skill_error_import_no_skill_md">导入失败：zip 内未找到 SKILL.md</string>
+    <string name="skill_error_import_no_skill_md_in_path">导入失败：指定路径下未找到 SKILL.md</string>
+    <string name="skill_error_import_skill_md_path_invalid">导入失败：SKILL.md 路径异常</string>
+    <string name="skill_error_import_duplicate_name">导入失败：已存在同名 Skill：%1$s</string>
+    <string name="skill_imported_with_desc">已导入 Skill: %1$s（%2$s）</string>
+    <string name="skill_imported">已导入 Skill: %1$s</string>
+    <string name="skill_error_import_failed">导入失败: %1$s</string>
+
+    <!-- Context Summary Settings -->
+    <string name="context_summary_note">上下文窗口与对话总结现在在模型配置中管理。此处仅调节文件读取与结果截断相关的系统参数。</string>
+    <string name="context_validation_error_positive_number">%1$s 必须是大于 0 的有效数字</string>
+    <string name="context_validation_error_positive_integer">%1$s 必须是大于 0 的有效整数</string>
+    <string name="context_validation_error_non_negative_integer">%1$s 必须是大于等于 0 的有效整数</string>
+    <string name="context_field_max_file_size">最大文件大小</string>
+    <string name="context_field_part_size">分片大小</string>
+    <string name="context_field_max_text_result_length">最大文本结果长度</string>
+    <string name="context_field_max_image_history_turns">历史图片保留回合数</string>
+    <string name="context_field_max_media_history_turns">历史音视频保留回合数</string>
+    <string name="context_unit_lines">行</string>
+    <string name="context_unit_times">次</string>
+    <string name="context_reset_all_settings">重置所有设置</string>
+
+    <!-- MCP Deploy -->
+    <string name="mcp_deploy_error_cannot_get_path">无法获取插件路径: %1$s</string>
+    <string name="mcp_deploy_error_cannot_determine">无法确定如何部署此插件，请查看README手动部署</string>
+    <string name="mcp_deploy_error_analysis_failed">分析插件时出错: %1$s</string>
+    <string name="mcp_deploy_status_preparing">正在准备部署插件</string>
+    <string name="mcp_deploy_output_prefix">输出:</string>
+
+    <!-- Model Config Screen -->
+    <string name="model_config_error_valid_context_length">请输入有效的上下文长度</string>
+    <string name="model_config_error_valid_max_context_length">请输入有效的最大上下文长度</string>
+    <string name="model_config_error_save_failed">保存失败</string>
+    <string name="model_config_error_summary_threshold_range">请输入0-1之间的总结触发阈值</string>
+    <string name="model_config_error_valid_message_count">请输入有效的消息数量阈值</string>
+    <string name="model_config_collapse">收起</string>
+    <string name="model_config_expand">展开</string>
+    <string name="model_config_unit_items">条</string>
+
+    <!-- Global Display Settings -->
+    <string name="global_display_automation_behavior">自动化显示与行为</string>
+    <string name="global_display_virtual_screen_bitrate">虚拟屏幕码率</string>
+    <string name="global_display_status_indicator_style">自动化状态指示样式</string>
+    <string name="global_display_screenshot_settings">自动化截图设置</string>
+    <string name="global_display_image_format">图片格式</string>
+    <string name="global_display_image_quality">画质（仅对 JPG 生效）</string>
+    <string name="global_display_resolution_scale">分辨率缩放（发送前缩小截图）</string>
 
 </resources>

@@ -135,17 +135,14 @@ fun ToolPermissionSettingsScreen(navigateBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "使用说明",
+                        text = stringResource(R.string.tool_permission_instruction_title),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text =
-                            "1. 上面的\"全局默认权限\"控制所有工具的默认行为。\n" +
-                                    "2. 下面每个分组中添加的工具，是对该工具设置\"例外规则\"，会覆盖全局默认。\n" +
-                                    "3. 再次点击同一分组中的工具，或在选择对话框中取消勾选，即可移除该工具的例外配置，让它重新跟随全局默认。",
+                        text = stringResource(R.string.tool_permission_instruction_content),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

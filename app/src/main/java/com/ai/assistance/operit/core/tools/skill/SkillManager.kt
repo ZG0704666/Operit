@@ -2,6 +2,7 @@ package com.ai.assistance.operit.core.tools.skill
 
 import android.content.Context
 import android.os.Environment
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import java.io.File
 import java.io.FileInputStream
@@ -242,22 +243,22 @@ class SkillManager private constructor(private val context: Context) {
 
     fun importSkillFromZip(zipFile: File, subDirPathInZip: String?): String {
         if (!zipFile.exists() || !zipFile.canRead()) {
-            return "无法读取文件: ${zipFile.absolutePath}"
+            return context.getString(R.string.skill_error_cannot_read_file, zipFile.absolutePath)
         }
         if (!zipFile.name.endsWith(".zip", ignoreCase = true)) {
-            return "仅支持 .zip 文件"
+            return context.getString(R.string.skill_error_only_support_zip)
         }
 
         val skillsRoot = try {
             getSkillsRootDir()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error getting skills directory", e)
-            return "无法访问 skills 目录: ${e.message}"
+            return context.getString(R.string.skill_error_cannot_access_dir, e.message ?: "")
         }
 
         val tmpDir = File(skillsRoot, ".import_tmp_${System.currentTimeMillis()}")
         if (!tmpDir.mkdirs()) {
-            return "创建临时目录失败: ${tmpDir.absolutePath}"
+            return context.getString(R.string.skill_error_create_tmp_dir_failed, tmpDir.absolutePath)
         }
 
         fun cleanupTmp() {
@@ -290,11 +291,11 @@ class SkillManager private constructor(private val context: Context) {
                 val resolvedCanonical = resolved.canonicalFile
                 if (!resolvedCanonical.path.startsWith(baseCanonical.path + File.separator)) {
                     cleanupTmp()
-                    return "导入失败：路径异常"
+                    return context.getString(R.string.skill_error_import_invalid_path)
                 }
                 if (!resolvedCanonical.exists()) {
                     cleanupTmp()
-                    return "导入失败：未找到路径：$normalizedSubDir"
+                    return context.getString(R.string.skill_error_import_path_not_found, normalizedSubDir)
                 }
                 resolvedCanonical
             }
@@ -319,16 +320,16 @@ class SkillManager private constructor(private val context: Context) {
             if (skillMdCandidates.isEmpty()) {
                 cleanupTmp()
                 return if (normalizedSubDir == null) {
-                    "导入失败：zip 内未找到 SKILL.md"
+                    context.getString(R.string.skill_error_import_no_skill_md)
                 } else {
-                    "导入失败：指定路径下未找到 SKILL.md"
+                    context.getString(R.string.skill_error_import_no_skill_md_in_path)
                 }
             }
 
             val selectedSkillFile = skillMdCandidates.first()
             val selectedSkillDir = selectedSkillFile.parentFile ?: run {
                 cleanupTmp()
-                return "导入失败：SKILL.md 路径异常"
+                return context.getString(R.string.skill_error_import_skill_md_path_invalid)
             }
 
             val (metaName, metaDesc) = parseSkillMetadata(selectedSkillFile)
@@ -348,7 +349,7 @@ class SkillManager private constructor(private val context: Context) {
 
             if (finalDir.exists()) {
                 cleanupTmp()
-                return "导入失败：已存在同名 Skill：${finalDir.name}"
+                return context.getString(R.string.skill_error_import_duplicate_name, finalDir.name)
             }
 
             // Copy the detected skill directory to final location
@@ -360,14 +361,14 @@ class SkillManager private constructor(private val context: Context) {
 
             val desc = metaDesc.ifBlank { "" }
             return if (desc.isNotBlank()) {
-                "已导入 Skill: ${finalDir.name}（$desc）"
+                context.getString(R.string.skill_imported_with_desc, finalDir.name, desc)
             } else {
-                "已导入 Skill: ${finalDir.name}"
+                context.getString(R.string.skill_imported, finalDir.name)
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to import skill from zip", e)
             cleanupTmp()
-            return "导入失败: ${e.message}"
+            return context.getString(R.string.skill_error_import_failed, e.message ?: "")
         }
     }
 

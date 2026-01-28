@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.view.KeyEvent
 import androidx.core.content.FileProvider
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.llmprovider.AIService
 import com.ai.assistance.operit.core.tools.AppListData
 import com.ai.assistance.operit.core.tools.defaultTool.ToolGetter
@@ -144,14 +145,14 @@ class PhoneAgent(
         }
 
         if (!isAdbOrHigher) {
-            return "需要调试/管理员/Root 权限并启用实验虚拟屏幕，才能使用虚拟屏幕自动化。"
+            return context.getString(R.string.phone_agent_need_debug_permission)
         }
 
         if (preferredLevel == AndroidPermissionLevel.DEBUGGER) {
             val isShizukuRunning = ShizukuAuthorizer.isShizukuServiceRunning()
             val hasShizukuPermission = if (isShizukuRunning) ShizukuAuthorizer.hasShizukuPermission() else false
             if (!isShizukuRunning || !hasShizukuPermission) {
-                return "Shizuku 不可用，无法启动虚拟屏幕。"
+                return context.getString(R.string.phone_agent_shizuku_unavailable)
             }
         }
 
@@ -163,7 +164,7 @@ class PhoneAgent(
         }
 
         if (!okServer) {
-            return "虚拟屏幕服务启动失败。"
+            return context.getString(R.string.phone_agent_virtual_screen_service_start_failed)
         }
 
         val metrics = context.resources.displayMetrics
@@ -190,7 +191,7 @@ class PhoneAgent(
         }
 
         if (!okDisplay || displayId == null) {
-            return "虚拟屏幕创建失败。"
+            return context.getString(R.string.phone_agent_virtual_screen_create_failed)
         }
 
         try {
@@ -235,7 +236,7 @@ class PhoneAgent(
             val isShizukuRunning = ShizukuAuthorizer.isShizukuServiceRunning()
             val hasShizukuPermission = if (isShizukuRunning) ShizukuAuthorizer.hasShizukuPermission() else false
             if (!isShizukuRunning || !hasShizukuPermission) {
-                return Pair(false, "Shizuku 不可用，无法启动虚拟屏幕。")
+                return Pair(false, context.getString(R.string.phone_agent_shizuku_unavailable))
             }
         }
 
@@ -256,12 +257,12 @@ class PhoneAgent(
             )
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            return Pair(false, "虚拟屏幕预启动失败：${e.message}")
+            return Pair(false, context.getString(R.string.phone_agent_virtual_screen_prewarm_failed, e.message ?: ""))
         }
 
         val hasShowerAfterPrewarm = hasShowerDisplay("Error checking Shower state after prewarm")
         if (!hasShowerAfterPrewarm) {
-            return Pair(false, prewarmResult.message ?: "虚拟屏幕未能启动，已中止以避免在主屏幕执行操作。")
+            return Pair(false, prewarmResult.message ?: context.getString(R.string.phone_agent_virtual_screen_not_started))
         }
 
         return Pair(true, null)
@@ -325,7 +326,7 @@ class PhoneAgent(
             if (useShowerUi) {
                 showerOverlay?.showAutomationControls(
                     totalSteps = config.maxSteps,
-                    initialStatus = "思考中...",
+                    initialStatus = context.getString(R.string.phone_agent_thinking),
                     onTogglePauseResume = { isPaused -> pausedMutable?.value = isPaused },
                     onExit = {
                         PhoneAgentJobRegistry.cancelAgent(agentId, "User cancelled UI automation")
@@ -335,7 +336,7 @@ class PhoneAgent(
             } else {
                 progressOverlay.show(
                     config.maxSteps,
-                    "Thinking...",
+                    context.getString(R.string.phone_agent_thinking),
                     onCancel = {
                         PhoneAgentJobRegistry.cancelAgent(agentId, "User cancelled UI automation")
                         job?.cancel(CancellationException("User cancelled UI automation"))
@@ -354,12 +355,12 @@ class PhoneAgent(
             var result = _executeStep(task, isFirst = true)
             val firstAction = result.action
             val firstStatusText = when {
-                result.finished -> result.message ?: "已完成"
+                result.finished -> result.message ?: context.getString(R.string.phone_agent_completed)
                 firstAction != null && firstAction.metadata == "do" -> {
                     val actionName = firstAction.actionName ?: ""
-                    if (actionName.isNotEmpty()) "执行 ${actionName} 中..." else "执行操作中..."
+                    if (actionName.isNotEmpty()) context.getString(R.string.phone_agent_executing_action, actionName) else context.getString(R.string.phone_agent_executing)
                 }
-                else -> "思考中..."
+                else -> context.getString(R.string.phone_agent_thinking)
             }
 
             if (!useShowerUi) {
@@ -428,12 +429,12 @@ class PhoneAgent(
                 result = _executeStep(null, isFirst = false)
                 val action = result.action
                 val statusText = when {
-                    result.finished -> result.message ?: "已完成"
+                    result.finished -> result.message ?: context.getString(R.string.phone_agent_completed)
                     action != null && action.metadata == "do" -> {
                         val actionName = action.actionName ?: ""
-                        if (actionName.isNotEmpty()) "执行 ${actionName} 中..." else "执行操作中..."
+                        if (actionName.isNotEmpty()) context.getString(R.string.phone_agent_executing_action, actionName) else context.getString(R.string.phone_agent_executing)
                     }
-                    else -> "思考中..."
+                    else -> context.getString(R.string.phone_agent_thinking)
                 }
 
                 if (!useShowerUi) {
@@ -896,7 +897,7 @@ class ActionHandler(
                         val isShizukuRunning = ShizukuAuthorizer.isShizukuServiceRunning()
                         val hasShizukuPermission = if (isShizukuRunning) ShizukuAuthorizer.hasShizukuPermission() else false
                         if (!isShizukuRunning || !hasShizukuPermission) {
-                            return fail(shouldFinish = true, message = "Shizuku 不可用，无法启动虚拟屏幕。")
+                            return fail(shouldFinish = true, message = context.getString(R.string.phone_agent_shizuku_unavailable))
                         }
                     }
 

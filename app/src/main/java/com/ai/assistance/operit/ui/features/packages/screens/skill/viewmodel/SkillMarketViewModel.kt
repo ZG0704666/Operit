@@ -627,36 +627,41 @@ class SkillMarketViewModel(
             appendLine("<!-- operit-parser-version: $version -->")
             appendLine()
 
-            appendLine("## 📋 Skill 信息")
+            appendLine(context.getString(R.string.skill_publish_body_section_skill_info))
             appendLine()
             appendLine(description)
             appendLine()
 
             if (repositoryUrl.isNotBlank()) {
-                appendLine("## 🔗 仓库信息")
+                appendLine(context.getString(R.string.skill_publish_body_section_repo_info))
                 appendLine()
-                appendLine("**仓库地址:** $repositoryUrl")
+                appendLine(context.getString(R.string.skill_publish_body_label_repo_url, repositoryUrl))
                 appendLine()
             }
 
             if (repositoryUrl.isNotBlank()) {
-                appendLine("## 📦 安装方式")
+                appendLine(context.getString(R.string.skill_publish_body_section_install_method))
                 appendLine()
-                appendLine("1. 打开 Operit → 包管理 → Skills")
-                appendLine("2. 点击「导入 Skill」→ 「从仓库导入」")
-                appendLine("3. 输入仓库地址：`$repositoryUrl`")
-                appendLine("4. 确认导入")
+                appendLine(context.getString(R.string.skill_publish_body_install_step1))
+                appendLine(context.getString(R.string.skill_publish_body_install_step2))
+                appendLine(context.getString(R.string.skill_publish_body_install_step3, repositoryUrl))
+                appendLine(context.getString(R.string.skill_publish_body_install_step4))
                 appendLine()
             }
 
-            appendLine("## 🛠️ 技术信息")
+            appendLine(context.getString(R.string.skill_publish_body_section_tech_info))
             appendLine()
-            appendLine("| 项目 | 值 |")
-            appendLine("|------|-----|")
-            appendLine("| 发布平台 | Operit Skill 市场 |")
-            appendLine("| 解析版本 | 1.0 |")
-            appendLine("| 发布时间 | ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))} |")
-            appendLine("| 状态 | ⏳ Pending Review |")
+            appendLine(context.getString(R.string.skill_publish_body_table_header))
+            appendLine(context.getString(R.string.skill_publish_body_table_separator))
+            appendLine(context.getString(R.string.skill_publish_body_table_row_platform))
+            appendLine(context.getString(R.string.skill_publish_body_table_row_parser_version))
+            appendLine(
+                context.getString(
+                    R.string.skill_publish_body_table_row_publish_time,
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                )
+            )
+            appendLine(context.getString(R.string.skill_publish_body_table_row_status_pending))
             appendLine()
         }
     }

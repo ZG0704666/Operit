@@ -306,7 +306,7 @@ fun FunctionConfigCard(
         if (functionType == FunctionType.CHAT) {
             Toast.makeText(
                 context,
-                "禁止使用autoglm作为对话主模型。对话模型和ui控制模型是分离的，请选择任意一个别的聪明的大模型。如有疑问，请仔细阅读文档学习软件的模型配置机制。",
+                context.getString(R.string.chat_autoglm_warning),
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -600,7 +600,7 @@ fun FunctionConfigCard(
 
                                             if (hasMultipleModels) {
                                                 Text(
-                                                        text = "${modelList.size}个模型",
+                                                        text = stringResource(R.string.functional_config_model_count, modelList.size),
                                                         style = MaterialTheme.typography.bodySmall,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )

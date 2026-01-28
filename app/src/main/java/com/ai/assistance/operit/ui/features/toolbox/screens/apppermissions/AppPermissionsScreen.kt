@@ -1415,11 +1415,23 @@ private suspend fun getAppPermissions(packageName: String, context: Context): Li
                     // 添加一个特殊权限来显示调试信息
                     permissions.add(
                             PermissionInfo(
-                                    name = "调试信息",
+                                    name = context.getString(R.string.debug_info),
                                     description =
-                                            "请求的权限: ${requestedPerms.size}个, 已授权: ${grantedPerms.size}个\n" +
-                                                    "请求的权限: ${requestedPerms.joinToString(", ")}\n" +
-                                                    "已授权的权限: ${grantedPerms.joinToString(", ")}",
+                                            context.getString(
+                                                    R.string.requested_permissions_count,
+                                                    requestedPerms.size,
+                                                    grantedPerms.size
+                                            ) +
+                                                    "\n" +
+                                                    context.getString(
+                                                            R.string.requested_permissions_list,
+                                                            requestedPerms.joinToString(", ")
+                                                    ) +
+                                                    "\n" +
+                                                    context.getString(
+                                                            R.string.granted_permissions_list,
+                                                            grantedPerms.joinToString(", ")
+                                                    ),
                                     granted = false,
                                     dangerous = false,
                                     group = "undefined",
@@ -1432,8 +1444,11 @@ private suspend fun getAppPermissions(packageName: String, context: Context): Li
                 // 添加错误信息作为权限显示
                 permissions.add(
                         PermissionInfo(
-                                name = "错误信息",
-                                description = "获取权限时出错: ${e.message}",
+                                name = context.getString(R.string.error_info),
+                                description = context.getString(
+                                        R.string.permission_error_desc,
+                                        e.message ?: ""
+                                ),
                                 granted = false,
                                 dangerous = false,
                                 group = "undefined",

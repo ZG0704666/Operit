@@ -264,10 +264,10 @@ fun AppContent(
                                 else Icons.Default.Menu,
                                 contentDescription =
                                 when {
-                                    canGoBack -> "返回"
+                                    canGoBack -> stringResource(R.string.app_content_navigate_back)
                                     useTabletLayout ->
-                                        if (isTabletSidebarExpanded) "收起侧边栏"
-                                        else "展开侧边栏"
+                                        if (isTabletSidebarExpanded) stringResource(R.string.app_content_collapse_sidebar)
+                                        else stringResource(R.string.app_content_expand_sidebar)
                                     else -> stringResource(id = R.string.menu)
                                 },
                                 tint = appBarContentColor
@@ -327,7 +327,7 @@ fun AppContent(
 
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "正在加载...",
+                                text = stringResource(R.string.app_content_loading),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )

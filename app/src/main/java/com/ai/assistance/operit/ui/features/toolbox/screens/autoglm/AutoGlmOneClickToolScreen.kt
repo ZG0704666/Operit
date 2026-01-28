@@ -220,7 +220,7 @@ private fun AutoGlmOneClickScreen(
                     packageManager.removePackage("Automatic_ui_subagent")
                 }
 
-                statusMessage = "已恢复为软件原本的自动化逻辑"
+                statusMessage = context.getString(R.string.autoglm_restore_success)
             } catch (e: Exception) {
                 AppLogger.e("AutoGlmOneClick", "Failed to restore base packages", e)
                 errorMessage = context.getString(
@@ -263,20 +263,20 @@ private fun AutoGlmOneClickScreen(
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "step1 配置基本对话模型",
+                    text = stringResource(R.string.autoglm_step1_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "不要把autoglm模型作为对话主模型",
+                    text = stringResource(R.string.autoglm_step1_warning),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "注意：如果已经配置过就不需要管了，这里切勿改成 autoglm 等小模型。",
+                    text = stringResource(R.string.autoglm_step1_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -289,8 +289,8 @@ private fun AutoGlmOneClickScreen(
 
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text( 
-                    text = "step2 访问智谱官网，获取 API Key",
+                Text(
+                    text = stringResource(R.string.autoglm_step2_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -321,7 +321,7 @@ private fun AutoGlmOneClickScreen(
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "step3 填入 API Key，点击一键配置",
+                    text = stringResource(R.string.autoglm_step3_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -346,9 +346,9 @@ private fun AutoGlmOneClickScreen(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (isAdvancedExpanded) {
-                            "隐藏高级设置"
+                            stringResource(R.string.autoglm_hide_advanced)
                         } else {
-                            "显示高级设置（自定义 Endpoint / 模型名称）"
+                            stringResource(R.string.autoglm_show_advanced)
                         }
                     )
                 }
@@ -395,13 +395,13 @@ private fun AutoGlmOneClickScreen(
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "step4 恢复非 AutoGLM 自动化（可选）",
+                    text = stringResource(R.string.autoglm_step4_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "如果你觉得在使用 AutoGLM 一键配置后自动化操作变得困难，可以点击下方按钮恢复为软件原本的自动化逻辑（启用 base 包，关闭 subagent 包，其余设置保持不变）。如果你想再次启用 AutoGLM，只需要按照 step3 输入密钥并再次点击一键配置。",
+                    text = stringResource(R.string.autoglm_step4_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

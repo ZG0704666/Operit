@@ -95,7 +95,7 @@ fun ThemeSettingsScreen() {
     val activeCharacterCard = characterCardManager.activeCharacterCardFlow.collectAsState(
         initial = CharacterCard(
             id = "default_character",
-            name = "默认角色卡",
+            name = stringResource(R.string.theme_default_character_card),
             description = "",
             characterSetting = "",
             otherContent = "",
@@ -1755,7 +1755,7 @@ fun ThemeSettingsScreen() {
 
         // ======= SECTION: FONT SETTINGS =======
         ThemeSectionTitle(
-            title = "字体设置",
+            title = stringResource(R.string.theme_font_settings),
             icon = Icons.Default.TextFields
         )
 
@@ -1850,11 +1850,11 @@ fun ThemeSettingsScreen() {
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 listOf(
-                                    UserPreferencesManager.SYSTEM_FONT_DEFAULT to "默认字体",
-                                    UserPreferencesManager.SYSTEM_FONT_SERIF to "衬线体 (Serif)",
-                                    UserPreferencesManager.SYSTEM_FONT_SANS_SERIF to "无衬线体 (Sans Serif)",
-                                    UserPreferencesManager.SYSTEM_FONT_MONOSPACE to "等宽字体 (Monospace)",
-                                    UserPreferencesManager.SYSTEM_FONT_CURSIVE to "手写体 (Cursive)"
+                                    UserPreferencesManager.SYSTEM_FONT_DEFAULT to stringResource(R.string.theme_font_default),
+                                    UserPreferencesManager.SYSTEM_FONT_SERIF to stringResource(R.string.theme_font_serif),
+                                    UserPreferencesManager.SYSTEM_FONT_SANS_SERIF to stringResource(R.string.theme_font_sans_serif),
+                                    UserPreferencesManager.SYSTEM_FONT_MONOSPACE to stringResource(R.string.theme_font_monospace),
+                                    UserPreferencesManager.SYSTEM_FONT_CURSIVE to stringResource(R.string.theme_font_cursive)
                                 ).forEach { (fontName, displayName) ->
                                     Row(
                                         modifier = Modifier
@@ -2022,7 +2022,7 @@ fun ThemeSettingsScreen() {
 
                 // 添加说明文字
                 Text(
-                    text = "说明：左侧的用户头像是角色卡专属设置，为空时将使用右侧的全局用户头像。全局用户头像在所有角色卡中共享使用。",
+                    text = stringResource(R.string.theme_avatar_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)

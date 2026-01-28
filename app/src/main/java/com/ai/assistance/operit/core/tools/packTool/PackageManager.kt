@@ -460,11 +460,11 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             if (toolPackage.env.isNotEmpty()) {
                 val missingRequiredEnv = mutableListOf<String>()
                 val missingOptionalEnv = mutableListOf<Pair<String, String>>() // env name, default value
-                
+
                 toolPackage.env.forEach { envVar ->
                     val envName = envVar.name.trim()
                     if (envName.isEmpty()) return@forEach
-                    
+
                     val value = try {
                         envPreferences.getEnv(envName)
                     } catch (e: Exception) {
@@ -475,7 +475,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                         )
                         null
                     }
-                    
+
                     if (envVar.required) {
                         // Check required environment variables
                         if (value.isNullOrEmpty()) {
@@ -517,7 +517,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                     AppLogger.w(TAG, msg)
                     return msg
                 }
-                
+
                 // Log info about optional env vars using defaults
                 if (missingOptionalEnv.isNotEmpty()) {
                     AppLogger.i(
@@ -541,7 +541,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         if (skillManager.getAvailableSkills().containsKey(packageName) &&
             !skillVisibilityPreferences.isSkillVisibleToAi(packageName)
         ) {
-            return "Skill '$packageName' 已设置为不展示给AI"
+            return "Skill '$packageName' is set to not show to AI"
         }
 
         val skillPrompt = skillManager.getSkillSystemPrompt(packageName)
@@ -571,7 +571,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 toolName = toolName,
                 success = false,
                 result = StringResultData(""),
-                error = "缺少必需参数: package_name"
+                error = "Missing required parameter: package_name"
             )
         }
 
@@ -582,7 +582,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 toolName = toolName,
                 success = false,
                 result = StringResultData(""),
-                error = "Skill '$packageName' 已设置为不展示给AI"
+                error = "Skill '$packageName' is set to not show to AI"
             )
         }
 
@@ -911,18 +911,18 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
     fun useMCPServer(serverName: String): String {
         // 检查服务器是否已注册
         if (!mcpManager.isServerRegistered(serverName)) {
-            return "MCP服务器 '$serverName' 不存在或未注册。"
+            return "MCP server '$serverName' does not exist or is not registered."
         }
 
         // 获取服务器配置
         val serverConfig =
             mcpManager.getRegisteredServers()[serverName]
-                ?: return "无法获取MCP服务器配置: $serverName"
+                ?: return "Cannot get MCP server configuration: $serverName"
 
         // 创建MCP包
         val mcpPackage =
             MCPPackage.fromServer(context, serverConfig)
-                ?: return "无法连接到MCP服务器: $serverName"
+                ?: return "Cannot connect to MCP server: $serverName"
 
         // 转换为标准工具包
         val toolPackage = mcpPackage.toToolPackage()
@@ -940,7 +940,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 executor = mcpToolExecutor
             )
 
-            AppLogger.d(TAG, "已注册MCP工具: $toolName")
+            AppLogger.d(TAG, "Registered MCP tool: $toolName")
         }
 
         return generateMCPSystemPrompt(toolPackage, serverName)

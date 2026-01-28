@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +48,8 @@ fun WorkflowListScreen(
     onNavigateToDetail: (String) -> Unit,
     viewModel: WorkflowViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+
     var showCreateDialog by remember { mutableStateOf(false) }
     var showTemplateDialog by remember { mutableStateOf(false) }
     var isFabMenuExpanded by remember { mutableStateOf(false) }
@@ -211,49 +214,49 @@ fun WorkflowListScreen(
                     onDismiss = { showTemplateDialog = false },
                     onSelectIntentChatBroadcastTemplate = {
                         showTemplateDialog = false
-                        viewModel.createIntentChatBroadcastTemplateWorkflow { workflow ->
+                        viewModel.createIntentChatBroadcastTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     },
                     onSelectChatTemplate = {
                         showTemplateDialog = false
-                        viewModel.createChatTemplateWorkflow { workflow ->
+                        viewModel.createChatTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     },
                     onSelectConditionTemplate = {
                         showTemplateDialog = false
-                        viewModel.createConditionTemplateWorkflow { workflow ->
+                        viewModel.createConditionTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     },
                     onSelectLogicAndTemplate = {
                         showTemplateDialog = false
-                        viewModel.createLogicAndTemplateWorkflow { workflow ->
+                        viewModel.createLogicAndTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     },
                     onSelectLogicOrTemplate = {
                         showTemplateDialog = false
-                        viewModel.createLogicOrTemplateWorkflow { workflow ->
+                        viewModel.createLogicOrTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     },
                     onSelectExtractTemplate = {
                         showTemplateDialog = false
-                        viewModel.createExtractTemplateWorkflow { workflow ->
+                        viewModel.createExtractTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     },
                     onSelectErrorBranchTemplate = {
                         showTemplateDialog = false
-                        viewModel.createErrorBranchTemplateWorkflow { workflow ->
+                        viewModel.createErrorBranchTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     },
                     onSelectSpeechTriggerTemplate = {
                         showTemplateDialog = false
-                        viewModel.createSpeechTriggerTemplateWorkflow { workflow ->
+                        viewModel.createSpeechTriggerTemplateWorkflow(context) { workflow ->
                             onNavigateToDetail(workflow.id)
                         }
                     }
@@ -509,7 +512,7 @@ fun WorkflowCard(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "节点",
+                            text = stringResource(R.string.workflow_node),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )

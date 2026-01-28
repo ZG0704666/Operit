@@ -13,38 +13,39 @@ import com.ai.assistance.operit.ui.components.CustomScaffold
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 // --- 预设数据结构 ---
-private data class HeaderPreset(val name: String, val headers: Map<String, String>)
+private data class HeaderPreset(@StringRes val nameResId: Int, val headers: Map<String, String>)
 
 // --- 预设列表 ---
 private val headerPresets = listOf(
     HeaderPreset(
-        name = "伪装成安卓浏览器",
+        nameResId = R.string.headers_preset_android_browser,
         headers = mapOf("User-Agent" to "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36")
     ),
     HeaderPreset(
-        name = "伪装成桌面浏览器 (Win)",
+        nameResId = R.string.headers_preset_desktop_browser_win,
         headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36")
     ),
     HeaderPreset(
-        name = "设置语言为中文",
+        nameResId = R.string.headers_preset_lang_zh,
         headers = mapOf("Accept-Language" to "zh-CN,zh;q=0.9")
     ),
     HeaderPreset(
-        name = "设置语言为英文",
+        nameResId = R.string.headers_preset_lang_en,
         headers = mapOf("Accept-Language" to "en-US,en;q=0.9")
     ),
     HeaderPreset(
-        name = "模拟中国移动网关",
+        nameResId = R.string.headers_preset_cmcc_gateway,
         headers = mapOf("X-Forwarded-For" to "211.136.1.10", "Via" to "CMNET")
     ),
     HeaderPreset(
-        name = "模拟美国洛杉矶 (需配合)",
+        nameResId = R.string.headers_preset_us_la,
         headers = mapOf(
             "Accept-Language" to "en-US,en;q=0.9",
             "X-Forwarded-For" to "38.107.226.5" // An example IP from LA
@@ -57,7 +58,7 @@ private val headerPresets = listOf(
 @Composable
 fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
     val context = LocalContext.current
-            val apiPreferences = remember { ApiPreferences.getInstance(context) }
+    val apiPreferences = remember { ApiPreferences.getInstance(context) }
     val scope = rememberCoroutineScope()
 
     var headers by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
@@ -86,7 +87,7 @@ fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
                     },
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Header")
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.headers_add_header))
                 }
                 FloatingActionButton(
                     onClick = {
@@ -102,7 +103,7 @@ fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
                         }
                     }
                 ) {
-                    Icon(Icons.Default.Save, contentDescription = "Save Headers")
+                    Icon(Icons.Default.Save, contentDescription = stringResource(R.string.headers_save_headers))
                 }
             }
         }
@@ -110,7 +111,7 @@ fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
         Column(modifier = Modifier.padding(padding).padding(16.dp)) {
             // --- 预设按钮 ---
             Box(modifier = Modifier.fillMaxWidth()) {
-                 Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                     OutlinedButton(onClick = { showPresetsMenu = true }) {
                         Icon(Icons.Default.List, contentDescription = stringResource(R.string.headers_load_preset), modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -122,12 +123,15 @@ fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
                     ) {
                         headerPresets.forEach { preset ->
                             DropdownMenuItem(
-                                text = { Text(preset.name) },
+                                text = {
+                                    Text(text = stringResource(preset.nameResId))
+                                },
                                 onClick = {
                                     // 合并预设，预设中的值会覆盖现有值
                                     val existingHeaders = headers.toMap().toMutableMap()
                                     existingHeaders.putAll(preset.headers)
                                     headers = existingHeaders.toList()
+
                                     showPresetsMenu = false
                                 }
                             )
@@ -135,7 +139,7 @@ fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
 
             LazyColumn(
@@ -154,23 +158,24 @@ fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
                                     it[index] = newValue to header.second
                                 }
                             },
-                            label = { Text("Key") },
+                            label = { Text(stringResource(R.string.headers_key_label)) },
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
                             value = header.second,
+
                             onValueChange = { newValue ->
                                 headers = headers.toMutableList().also {
                                     it[index] = header.first to newValue
                                 }
                             },
-                            label = { Text("Value") },
+                            label = { Text(stringResource(R.string.headers_value_label)) },
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = {
                             headers = headers.toMutableList().apply { removeAt(index) }
                         }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Header")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.headers_delete_header))
                         }
                     }
                 }
@@ -187,12 +192,13 @@ fun CustomHeadersSettingsScreen(onBackPressed: () -> Unit) {
             Snackbar(
                 action = {
                     TextButton(onClick = { showSaveSuccessMessage = false }) {
-                        Text("OK")
+                        Text(stringResource(R.string.ok))
                     }
                 }
             ) {
                 Text(stringResource(R.string.headers_saved))
+
             }
         }
     }
-} 
+}

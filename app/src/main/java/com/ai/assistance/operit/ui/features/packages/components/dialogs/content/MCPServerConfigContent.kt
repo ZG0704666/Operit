@@ -23,8 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 
 /**
  * Config content component for the MCP server details diaAppLogger.
@@ -60,7 +62,7 @@ fun MCPServerConfigContent(
                     modifier = Modifier.padding(8.dp)
                 ) {
                     Text(
-                        "插件安装路径:",
+                        stringResource(R.string.mcp_server_plugin_install_path_label),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -76,7 +78,7 @@ fun MCPServerConfigContent(
 
             // 配置标题
             Text(
-                "JSON 配置",
+                stringResource(R.string.mcp_server_json_config_title),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -115,7 +117,7 @@ fun MCPServerConfigContent(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        "此配置将在服务器启动时生效",
+                        stringResource(R.string.mcp_server_config_effective_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -138,7 +140,7 @@ fun MCPServerConfigContent(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    "保存配置",
+                    stringResource(R.string.mcp_server_save_config),
                     style = MaterialTheme.typography.labelMedium
                 )
             }
@@ -151,7 +153,7 @@ fun MCPServerConfigContent(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "此插件尚未安装，无法配置",
+                    stringResource(R.string.mcp_server_not_installed_cannot_configure),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )

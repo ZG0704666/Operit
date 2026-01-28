@@ -202,7 +202,7 @@ fun ScriptExecutionDialog(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = if (result.success) result.result.toString() else "错误: ${result.error}",
+                                            text = if (result.success) result.result.toString() else stringResource(R.string.script_error, result.error ?: ""),
                                             style = MaterialTheme.typography.bodyMedium,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -240,7 +240,7 @@ fun ScriptExecutionDialog(
                                             toolName = "${packageName}:${tool.name}",
                                             success = false,
                                             result = StringResultData(""),
-                                            error = "缺少参数: ${missingParams.joinToString(", ")}"
+                                            error = stringResource(R.string.script_missing_params, missingParams.joinToString(", "))
                                         )
                                         withContext(Dispatchers.Main) {
                                             executionResults = listOf(missingResult)
@@ -266,7 +266,7 @@ fun ScriptExecutionDialog(
                                                     toolName = "${packageName}:${tool.name}",
                                                     success = false,
                                                     result = StringResultData(""),
-                                                    error = "执行流错误: ${e.message}"
+                                                    error = stringResource(R.string.script_flow_error, e.message ?: "")
                                                 )
                                                 withContext(Dispatchers.Main) {
                                                     executionResults = executionResults + errorResult
@@ -292,7 +292,7 @@ fun ScriptExecutionDialog(
                                             toolName = "${packageName}:${tool.name}",
                                             success = false,
                                             result = StringResultData(""),
-                                            error = "执行错误: ${e.message}"
+                                            error = stringResource(R.string.script_execution_error, e.message ?: "")
                                         )
                                         executionResults = executionResults + finalError
                                         onExecuted(finalError)

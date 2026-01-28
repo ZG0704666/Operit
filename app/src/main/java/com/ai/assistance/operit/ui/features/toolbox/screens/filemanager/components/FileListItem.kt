@@ -126,7 +126,7 @@ fun FileListItem(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (file.isDirectory) "文件夹" else formatFileSize(file.size),
+                                text = if (file.isDirectory) stringResource(R.string.file_list_folder) else formatFileSize(file.size),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = baseTextSize * 0.85f * itemSize
                                 ),
@@ -206,7 +206,7 @@ fun FileListItem(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (file.isDirectory) "文件夹" else formatFileSize(file.size),
+                                text = if (file.isDirectory) stringResource(R.string.file_list_folder) else formatFileSize(file.size),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = baseTextSize * 0.85f * itemSize
                                 ),

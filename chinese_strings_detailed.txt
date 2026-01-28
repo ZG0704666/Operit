@@ -1,9 +1,9 @@
 [OVERALL]
-Total strings found: 2902
-Excluded logs: 1781
-Excluded long prompts(>100 chars): 68
-Remaining UI strings: 1053
-Files with Chinese strings: 233
+Total strings found: 2676
+Excluded logs: 1820
+Excluded long prompts(>100 chars): 67
+Remaining UI strings: 789
+Files with Chinese strings: 209
 
 [BY MODULE]
 
@@ -92,30 +92,32 @@ FILE: app\src\main\java\com\ai\assistance\operit\api\chat\library\ProblemLibrary
   L757:28 (50 chars) "(AI风格|期待的AI风格|偏好的AI风格)[:：\s]+([\u4e00-\u9fa5、，,]+)"
   L796:13 (54 chars) "<tool_result $attributes>[...工具结果已省略...]</tool_result>"
 
-FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\OpenAIProvider.kt
-  remaining=22 total=68 excluded_logs=46 excluded_long=0
-  L165:29 (5 chars) "连接成功！"
-  L168:41 (20 chars) "连接测试失败: ${e.message}"
-  L546:67 (5 chars) "请求体: "
-  L592:71 (23 chars) "[音视频内容已省略，当前模型不支持音视频处理]"
-  L593:44 (21 chars) "[图片内容已省略，当前模型不支持图片处理]"
-  L1113:45 (8 chars) "请求已被用户取消"
-  L1137:25 (40 chars) "【$errorType，正在进行第 $newRetryCount 次重试...】"
-  L1246:37 (25 chars) "请求头: \n${request.headers}"
-  L1544:55 (24 chars) "【发送消息】JSON解析失败时的原始data: "
-  L1560:49 (8 chars) "请求已被用户取消"
-  L1685:57 (46 chars) "API请求失败，状态码: ${response.code}，错误信息: $errorBody"
-  L1688:43 (46 chars) "API请求失败，状态码: ${response.code}，错误信息: $errorBody"
-  L1695:75 (7 chars) "API响应为空"
-  L1773:51 (20 chars) "解析响应失败: ${e.message}"
-  L1800:21 (4 chars) "连接超时"
-  L1801:21 (36 chars) "AI响应获取失败，连接超时且已达最大重试次数: ${e.message}"
-  L1808:21 (6 chars) "无法解析主机"
-  L1809:21 (26 chars) "无法连接到服务器，请检查网络连接或API地址是否正确"
-  L1816:21 (4 chars) "网络中断"
-  L1817:21 (31 chars) "AI响应获取失败，已达最大重试次数: ${e.message}"
-  L1824:35 (22 chars) "AI响应获取失败: ${e.message}"
-  L1839:27 (52 chars) "连接超时或中断，已重试 $maxRetries 次: ${lastException?.message}"
+FILE: app\src\main\java\com\ai\assistance\operit\ui\features\token\preferences\UrlConfigManager.kt
+  remaining=24 total=24 excluded_logs=0 excluded_long=0
+  L31:31 (2 chars) "聊天"
+  L32:31 (2 chars) "项目"
+  L33:31 (2 chars) "工件"
+  L34:31 (2 chars) "设置"
+  L41:31 (2 chars) "聊天"
+  L43:31 (2 chars) "设置"
+  L44:31 (2 chars) "账户"
+  L51:31 (2 chars) "聊天"
+  L52:31 (2 chars) "历史"
+  L53:31 (2 chars) "设置"
+  L54:31 (2 chars) "帮助"
+  L61:31 (2 chars) "聊天"
+  L62:31 (2 chars) "探索"
+  L63:31 (2 chars) "创建"
+  L64:31 (2 chars) "设置"
+  L104:13 (2 chars) "聊天"
+  L105:13 (2 chars) "项目"
+  L106:13 (2 chars) "工件"
+  L107:13 (2 chars) "设置"
+  L108:13 (2 chars) "账户"
+  L109:13 (2 chars) "历史"
+  L110:13 (2 chars) "帮助"
+  L111:13 (2 chars) "探索"
+  L112:13 (2 chars) "创建"
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\floating\ui\pet\AvatarEmotionManager.kt
   remaining=21 total=24 excluded_logs=3 excluded_long=0
@@ -141,29 +143,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\floating\ui\pet\AvatarEmotio
   L24:45 (2 chars) "脸红"
   L24:51 (4 chars) "不好意思"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\uidebugger\components\ActivityMonitorPanel.kt
-  remaining=20 total=27 excluded_logs=7 excluded_long=0
-  L142:32 (10 chars) "Activity监听"
-  L184:53 (14 chars) "正在监听Activity事件"
-  L184:75 (5 chars) "监听已停止"
-  L261:40 (4 chars) "当前活动"
-  L287:53 (19 chars) "监听中，等待Activity事件..."
-  L287:80 (22 chars) "点击开始监听按钮开始监听Activity事件"
-  L300:32 (21 chars) "事件记录 (${events.size})"
-  L368:32 (34 chars) "活动: ${event.elementInfo.className}"
-  L379:62 (8 chars) "文本: $it "
-  L381:69 (6 chars) "包: $it"
-  L416:44 (2 chars) "点击"
-  L417:49 (2 chars) "长按"
-  L418:44 (2 chars) "滑动"
-  L419:49 (2 chars) "输入"
-  L420:48 (2 chars) "按键"
-  L421:45 (2 chars) "滚动"
-  L422:46 (2 chars) "手势"
-  L423:49 (4 chars) "应用切换"
-  L424:52 (4 chars) "页面变化"
-  L425:51 (4 chars) "系统事件"
-
 FILE: app\src\main\java\com\ai\assistance\operit\core\chat\AIMessageManager.kt
   remaining=19 total=40 excluded_logs=21 excluded_long=0
   L104:86 (2 chars) "用户"
@@ -185,28 +164,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\core\chat\AIMessageManager.kt
   L632:32 (11 chars) "\n\n对话回顾：\n"
   L635:56 (2 chars) "用户"
   L644:21 (38 chars) "$summaryWithQuotes\n\n请你继续，如果任务完成，输出总结"
-
-FILE: app\src\main\java\com\ai\assistance\operit\util\stream\StreamBuilders.kt
-  remaining=19 total=19 excluded_logs=0 excluded_long=0
-  L11:39 (9 chars) "收集空Stream"
-  L27:36 (18 chars) "创建单值Stream: $value"
-  L46:36 (32 chars) "创建多值Stream, 元素数量: ${values.size}"
-  L49:40 (12 chars) "发射元素: $value"
-  L68:47 (40 chars) "从集合创建Stream, 元素数量: ${this@asStream.size}"
-  L72:51 (11 chars) "发射元素: $item"
-  L91:45 (11 chars) "从序列创建Stream"
-  L96:49 (19 chars) "发射元素[$count]: $item"
-  L101:45 (25 chars) "序列Stream收集完成, 共$count 个元素"
-  L129:42 (14 chars) "构建器Stream收集被取消"
-  L132:38 (13 chars) "构建器Stream收集出错"
-  L141:42 (21 chars) "流关闭时处于锁定状态，尝试解锁处理缓冲数据"
-  L145:46 (22 chars) "流关闭时解锁失败: ${e.message}"
-  L162:38 (44 chars) "创建间隔Stream, 周期: $period, 初始延迟: $initialDelay"
-  L165:42 (12 chars) "发射计数: $count"
-  L175:35 (34 chars) "创建范围Stream, 起始: $start, 数量: $count"
-  L177:39 (7 chars) "发射值: $i"
-  L180:35 (10 chars) "范围Stream完成"
-  L187:35 (36 chars) "创建错误Stream, 异常: ${exception.message}"
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\MNNProvider.kt
   remaining=17 total=42 excluded_logs=25 excluded_long=0
@@ -248,63 +205,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\core\subpack\ApkReverseEngineer
   L960:36 (27 chars) "ApkSigner执行失败: ${e.message}"
   L968:32 (31 chars) "使用KeyStore签名APK失败: ${e.message}"
 
-FILE: app\src\main\java\com\ai\assistance\operit\core\tools\agent\PhoneAgent.kt
-  remaining=17 total=17 excluded_logs=0 excluded_long=0
-  L147:20 (38 chars) "需要调试/管理员/Root 权限并启用实验虚拟屏幕，才能使用虚拟屏幕自动化。"
-  L154:24 (21 chars) "Shizuku 不可用，无法启动虚拟屏幕。"
-  L166:20 (11 chars) "虚拟屏幕服务启动失败。"
-  L193:20 (9 chars) "虚拟屏幕创建失败。"
-  L238:36 (21 chars) "Shizuku 不可用，无法启动虚拟屏幕。"
-  L259:32 (22 chars) "虚拟屏幕预启动失败：${e.message}"
-  L264:57 (24 chars) "虚拟屏幕未能启动，已中止以避免在主屏幕执行操作。"
-  L328:37 (6 chars) "思考中..."
-  L357:54 (3 chars) "已完成"
-  L360:50 (21 chars) "执行 ${actionName} 中..."
-  L360:79 (8 chars) "执行操作中..."
-  L362:25 (6 chars) "思考中..."
-  L431:58 (3 chars) "已完成"
-  L434:54 (21 chars) "执行 ${actionName} 中..."
-  L434:83 (8 chars) "执行操作中..."
-  L436:29 (6 chars) "思考中..."
-  L899:72 (21 chars) "Shizuku 不可用，无法启动虚拟屏幕。"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\uidebugger\UIDebuggerViewModel.kt
-  remaining=16 total=36 excluded_logs=20 excluded_long=0
-  L111:64 (4 chars) "点击成功"
-  L111:76 (4 chars) "点击失败"
-  L115:44 (5 chars) "已高亮元素"
-  L119:44 (5 chars) "已选择元素"
-  L124:36 (4 chars) "操作失败"
-  L161:45 (8 chars) "返回数据类型错误"
-  L164:41 (8 chars) "获取UI信息失败"
-  L178:58 (4 chars) "刷新失败"
-  L259:40 (7 chars) "监听已在运行中"
-  L276:40 (22 chars) "权限不足: ${status.reason}"
-  L297:40 (13 chars) "Activity监听已启动"
-  L300:40 (25 chars) "启动监听失败: ${result.message}"
-  L304:36 (20 chars) "启动监听失败: ${e.message}"
-  L322:40 (13 chars) "Activity监听已停止"
-  L324:40 (6 chars) "停止监听失败"
-  L329:36 (20 chars) "停止监听失败: ${e.message}"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\token\preferences\UrlConfigManager.kt
-  remaining=15 total=15 excluded_logs=0 excluded_long=0
-  L30:31 (2 chars) "聊天"
-  L31:31 (2 chars) "项目"
-  L32:31 (2 chars) "工件"
-  L33:31 (2 chars) "设置"
-  L40:31 (2 chars) "聊天"
-  L42:31 (2 chars) "设置"
-  L43:31 (2 chars) "账户"
-  L50:31 (2 chars) "聊天"
-  L51:31 (2 chars) "历史"
-  L52:31 (2 chars) "设置"
-  L53:31 (2 chars) "帮助"
-  L60:31 (2 chars) "聊天"
-  L61:31 (2 chars) "探索"
-  L62:31 (2 chars) "创建"
-  L63:31 (2 chars) "设置"
-
 FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\GeminiProvider.kt
   remaining=14 total=92 excluded_logs=78 excluded_long=0
   L682:30 (14 chars) "连接到Gemini服务..."
@@ -341,20 +241,20 @@ FILE: app\src\main\java\com\ai\assistance\operit\core\tools\mcp\MCPToolExecutor.
 
 FILE: app\src\main\java\com\ai\assistance\operit\data\model\StandardModelParameters.kt
   remaining=14 total=14 excluded_logs=0 excluded_long=0
-  L47:24 (10 chars) "最大生成Token数"
-  L49:31 (18 chars) "控制AI每次最多生成的Token数量"
-  L57:24 (2 chars) "温度"
-  L59:31 (25 chars) "控制输出的随机性。较低的值更确定性，较高的值更随机"
-  L68:24 (8 chars) "Top-P 采样"
-  L70:31 (33 chars) "作为温度的替代方案，模型仅考虑概率最高的Top-P比例的token"
-  L79:24 (8 chars) "Top-K 采样"
-  L81:31 (23 chars) "模型仅考虑概率最高的K个token。0表示禁用"
-  L90:24 (4 chars) "存在惩罚"
-  L92:31 (21 chars) "增强模型谈论新主题的倾向。值越高，惩罚越大"
-  L101:24 (4 chars) "频率惩罚"
-  L103:31 (23 chars) "减少模型重复同一词语的可能性。值越高，惩罚越大"
-  L112:24 (4 chars) "重复惩罚"
-  L114:31 (30 chars) "进一步减少重复。1.0表示不惩罚，大于1.0会降低重复可能性"
+  L54:24 (10 chars) "最大生成Token数"
+  L57:31 (18 chars) "控制AI每次最多生成的Token数量"
+  L66:24 (2 chars) "温度"
+  L69:31 (25 chars) "控制输出的随机性。较低的值更确定性，较高的值更随机"
+  L79:24 (8 chars) "Top-P 采样"
+  L82:31 (33 chars) "作为温度的替代方案，模型仅考虑概率最高的Top-P比例的token"
+  L92:24 (8 chars) "Top-K 采样"
+  L95:31 (23 chars) "模型仅考虑概率最高的K个token。0表示禁用"
+  L105:24 (4 chars) "存在惩罚"
+  L108:31 (21 chars) "增强模型谈论新主题的倾向。值越高，惩罚越大"
+  L118:24 (4 chars) "频率惩罚"
+  L121:31 (23 chars) "减少模型重复同一词语的可能性。值越高，惩罚越大"
+  L131:24 (4 chars) "重复惩罚"
+  L134:31 (30 chars) "进一步减少重复。1.0表示不惩罚，大于1.0会降低重复可能性"
 
 FILE: app\src\main\java\com\ai\assistance\operit\data\preferences\PromptPreferencesManager.kt
   remaining=14 total=16 excluded_logs=0 excluded_long=2
@@ -373,23 +273,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\preferences\PromptPreferen
   L193:56 (7 chars) "默认语音提示词"
   L194:62 (7 chars) "默认桌宠提示词"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\screens\skill\viewmodel\SkillMarketViewModel.kt
-  remaining=14 total=14 excluded_logs=0 excluded_long=0
-  L630:24 (13 chars) "## 📋 Skill 信息"
-  L636:28 (9 chars) "## 🔗 仓库信息"
-  L638:28 (24 chars) "**仓库地址:** $repositoryUrl"
-  L643:28 (9 chars) "## 📦 安装方式"
-  L645:28 (27 chars) "1. 打开 Operit → 包管理 → Skills"
-  L646:28 (24 chars) "2. 点击「导入 Skill」→ 「从仓库导入」"
-  L647:28 (26 chars) "3. 输入仓库地址：`$repositoryUrl`"
-  L648:28 (7 chars) "4. 确认导入"
-  L652:24 (10 chars) "## 🛠️ 技术信息"
-  L654:24 (10 chars) "| 项目 | 值 |"
-  L656:24 (26 chars) "| 发布平台 | Operit Skill 市场 |"
-  L657:24 (14 chars) "| 解析版本 | 1.0 |"
-  L658:24 (66 chars) "| 发布时间 | ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("
-  L659:24 (25 chars) "| 状态 | ⏳ Pending Review |"
-
 FILE: app\src\main\java\com\ai\assistance\operit\core\workflow\WorkflowExecutor.kt
   remaining=13 total=34 excluded_logs=21 excluded_long=0
   L36:45 (2 chars) "跳过"
@@ -406,38 +289,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\core\workflow\WorkflowExecutor.
   L1027:48 (4 chars) "未知错误"
   L1035:28 (20 chars) "节点执行异常: ${e.message}"
 
-FILE: app\src\main\java\com\ai\assistance\operit\core\tools\packTool\PackageManager.kt
-  remaining=13 total=14 excluded_logs=1 excluded_long=0
-  L544:20 (31 chars) "Skill '$packageName' 已设置为不展示给AI"
-  L574:25 (20 chars) "缺少必需参数: package_name"
-  L585:25 (31 chars) "Skill '$packageName' 已设置为不展示给AI"
-  L914:20 (29 chars) "MCP服务器 '$serverName' 不存在或未注册。"
-  L920:27 (25 chars) "无法获取MCP服务器配置: $serverName"
-  L925:27 (24 chars) "无法连接到MCP服务器: $serverName"
-  L953:23 (23 chars) "正在使用MCP服务器: $serverName"
-  L954:23 (38 chars) "使用时间: ${java.time.LocalDateTime.now()}"
-  L955:23 (47 chars) "描述: ${toolPackage.description.resolve(context)}"
-  L957:23 (7 chars) "可用工具列表:"
-  L963:31 (5 chars) "  参数:"
-  L965:60 (4 chars) "(必需)"
-  L965:72 (4 chars) "(可选)"
-
-FILE: app\src\main\java\com\ai\assistance\operit\core\tools\skill\SkillManager.kt
-  remaining=13 total=13 excluded_logs=0 excluded_long=0
-  L245:20 (31 chars) "无法读取文件: ${zipFile.absolutePath}"
-  L248:20 (11 chars) "仅支持 .zip 文件"
-  L255:20 (28 chars) "无法访问 skills 目录: ${e.message}"
-  L260:20 (32 chars) "创建临时目录失败: ${tmpDir.absolutePath}"
-  L293:28 (9 chars) "导入失败：路径异常"
-  L297:28 (28 chars) "导入失败：未找到路径：$normalizedSubDir"
-  L322:21 (22 chars) "导入失败：zip 内未找到 SKILL.md"
-  L324:21 (22 chars) "导入失败：指定路径下未找到 SKILL.md"
-  L331:24 (18 chars) "导入失败：SKILL.md 路径异常"
-  L351:24 (33 chars) "导入失败：已存在同名 Skill：${finalDir.name}"
-  L363:17 (34 chars) "已导入 Skill: ${finalDir.name}（$desc）"
-  L365:17 (27 chars) "已导入 Skill: ${finalDir.name}"
-  L370:20 (18 chars) "导入失败: ${e.message}"
-
 FILE: app\src\main\java\com\ai\assistance\operit\services\core\MessageCoordinationDelegate.kt
   remaining=13 total=26 excluded_logs=13 excluded_long=0
   L102:54 (11 chars) "无法创建新对话，请重试"
@@ -453,38 +304,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\services\core\MessageCoordinati
   L425:50 (14 chars) "AI服务不可用，无法进行总结"
   L469:50 (14 chars) "总结失败: 未能生成有效总结"
   L477:46 (23 chars) "总结生成失败: ${e.message ?: "
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\ContextSummarySettingsScreen.kt
-  remaining=13 total=13 excluded_logs=0 excluded_long=0
-  L76:46 (19 chars) "$name 必须是大于 0 的有效数字"
-  L85:46 (19 chars) "$name 必须是大于 0 的有效整数"
-  L94:46 (21 chars) "$name 必须是大于等于 0 的有效整数"
-  L100:53 (6 chars) "最大文件大小"
-  L101:45 (4 chars) "分片大小"
-  L102:56 (8 chars) "最大文本结果长度"
-  L103:72 (9 chars) "历史图片保留回合数"
-  L104:72 (10 chars) "历史音视频保留回合数"
-  L144:40 (43 chars) "上下文窗口与对话总结现在在模型配置中管理。此处仅调节文件读取与结果截断相关的系统参数。"
-  L173:40 (1 chars) "行"
-  L192:40 (1 chars) "次"
-  L201:40 (1 chars) "次"
-  L233:48 (6 chars) "重置所有设置"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\uidebugger\UIDebuggerState.kt
-  remaining=13 total=13 excluded_logs=0 excluded_long=0
-  L36:64 (2 chars) "按钮"
-  L37:62 (2 chars) "文本"
-  L38:62 (3 chars) "输入框"
-  L39:63 (2 chars) "图片"
-  L40:62 (2 chars) "视图"
-  L41:21 (4 chars) "UI元素"
-  L46:20 (16 chars) "类名: $className\n"
-  L47:45 (18 chars) "包名: $packageName\n"
-  L49:44 (19 chars) "资源ID: $resourceId\n"
-  L50:45 (20 chars) "内容描述: $contentDesc\n"
-  L51:43 (11 chars) "文本: $text\n"
-  L53:24 (72 chars) "边界: [${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}]\n"
-  L54:20 (24 chars) "可点击: ${if (isClickable) "
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\chat\AIForegroundService.kt
   remaining=12 total=51 excluded_logs=39 excluded_long=0
@@ -530,21 +349,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\exporter\TextExporter.kt
   L91:54 (2 chars) "用户"
   L91:64 (2 chars) "助手"
   L96:27 (26 chars) "(模型: ${message.modelName})"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\ModelConfigScreen.kt
-  remaining=12 total=12 excluded_logs=0 excluded_long=0
-  L723:40 (11 chars) "请输入有效的上下文长度"
-  L727:40 (13 chars) "请输入有效的最大上下文长度"
-  L749:57 (4 chars) "保存失败"
-  L782:57 (4 chars) "保存失败"
-  L793:40 (15 chars) "请输入0-1之间的总结触发阈值"
-  L797:40 (12 chars) "请输入有效的消息数量阈值"
-  L826:57 (4 chars) "保存失败"
-  L869:67 (2 chars) "收起"
-  L869:77 (2 chars) "展开"
-  L956:67 (2 chars) "收起"
-  L956:77 (2 chars) "展开"
-  L1005:40 (1 chars) "条"
 
 FILE: app\src\main\java\com\ai\assistance\operit\core\tools\defaultTool\standard\StandardHttpTools.kt
   remaining=11 total=19 excluded_logs=8 excluded_long=0
@@ -693,19 +497,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\mcp\plugins\MCPBridge.kt
   L542:68 (11 chars) "结果: $result"
   L546:79 (11 chars) " 错误: $error"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\screens\mcp\viewmodel\MCPDeployViewModel.kt
-  remaining=10 total=10 excluded_logs=0 excluded_long=0
-  L55:74 (19 chars) "无法获取插件路径: $pluginId"
-  L73:64 (25 chars) "无法确定如何部署此插件，请查看README手动部署"
-  L79:78 (21 chars) "分析插件时出错: ${e.message}"
-  L132:78 (19 chars) "无法获取插件路径: $pluginId"
-  L148:82 (21 chars) "分析插件时出错: ${e.message}"
-  L153:82 (25 chars) "无法确定如何部署此插件，请查看README手动部署"
-  L176:74 (19 chars) "无法获取插件路径: $pluginId"
-  L189:79 (8 chars) "正在准备部署插件"
-  L202:59 (3 chars) "输出:"
-  L203:78 (3 chars) "输出:"
-
 FILE: app\src\main\java\com\ai\assistance\operit\api\chat\EnhancedAIService.kt
   remaining=9 total=52 excluded_logs=43 excluded_long=0
   L420:71 (9 chars) "正在处理输入..."
@@ -730,6 +521,18 @@ FILE: app\src\main\java\com\ai\assistance\operit\api\chat\enhance\ToolExecutionM
   L361:21 (88 chars) "错误: '$toolName' 是一个工具包，不是工具。请先使用 'use_package' 工具并指定包名 '$toolName' 来激活这个工具包，然后才能使用其中的工具。"
   L363:21 (68 chars) "工具 '${toolName}' 不可用或不存在。如果这是一个工具包中的工具，请使用 'packName:toolName' 格式调用。"
 
+FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\OpenAIProvider.kt
+  remaining=9 total=55 excluded_logs=46 excluded_long=0
+  L547:67 (5 chars) "请求体: "
+  L593:71 (23 chars) "[音视频内容已省略，当前模型不支持音视频处理]"
+  L594:44 (21 chars) "[图片内容已省略，当前模型不支持图片处理]"
+  L1139:25 (40 chars) "【$errorType，正在进行第 $newRetryCount 次重试...】"
+  L1248:37 (25 chars) "请求头: \n${request.headers}"
+  L1547:55 (24 chars) "【发送消息】JSON解析失败时的原始data: "
+  L1804:21 (4 chars) "连接超时"
+  L1812:21 (6 chars) "无法解析主机"
+  L1820:21 (4 chars) "网络中断"
+
 FILE: app\src\main\java\com\ai\assistance\operit\core\tools\defaultTool\standard\StandardTerminalCommandExecutor.kt
   remaining=9 total=12 excluded_logs=3 excluded_long=0
   L33:33 (18 chars) "缺少参数: session_name"
@@ -741,30 +544,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\core\tools\defaultTool\standard
   L185:33 (16 chars) "缺少参数: session_id"
   L201:35 (24 chars) "终端会话 '$sessionId' 已成功关闭。"
   L210:29 (37 chars) "关闭终端会话 '$sessionId' 时出错: ${e.message}"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\autoglm\AutoGlmOneClickToolScreen.kt
-  remaining=9 total=10 excluded_logs=0 excluded_long=1
-  L223:33 (14 chars) "已恢复为软件原本的自动化逻辑"
-  L266:28 (14 chars) "step1 配置基本对话模型"
-  L272:28 (19 chars) "不要把autoglm模型作为对话主模型"
-  L279:28 (37 chars) "注意：如果已经配置过就不需要管了，这里切勿改成 autoglm 等小模型。"
-  L293:28 (23 chars) "step2 访问智谱官网，获取 API Key"
-  L324:28 (23 chars) "step3 填入 API Key，点击一键配置"
-  L349:29 (6 chars) "隐藏高级设置"
-  L351:29 (27 chars) "显示高级设置（自定义 Endpoint / 模型名称）"
-  L398:28 (25 chars) "step4 恢复非 AutoGLM 自动化（可选）"
-
-FILE: app\src\main\java\com\ai\assistance\operit\util\stream\HotStream.kt
-  remaining=9 total=9 excluded_logs=0 excluded_long=0
-  L78:37 (9 chars) "热流不支持锁定操作"
-  L83:37 (9 chars) "热流不支持解锁操作"
-  L88:37 (12 chars) "热流不支持清空缓冲区操作"
-  L139:37 (10 chars) "状态流不支持锁定操作"
-  L144:37 (10 chars) "状态流不支持解锁操作"
-  L149:37 (13 chars) "状态流不支持清空缓冲区操作"
-  L221:60 (19 chars) "上游流收集完成或取消，共享流协程结束。"
-  L240:76 (19 chars) "上游流(LAZILY)收集完成或取消。"
-  L249:60 (24 chars) "没有订阅者，已取消上游流(LAZILY)的收集。"
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\speech\OpenAISttProvider.kt
   remaining=8 total=8 excluded_logs=0 excluded_long=0
@@ -887,17 +666,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\utils\Skil
   L139:93 (5 chars) "无描述信息"
   L149:62 (5 chars) "无描述信息"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\ThemeSettingsScreen.kt
-  remaining=8 total=10 excluded_logs=2 excluded_long=0
-  L98:20 (5 chars) "默认角色卡"
-  L1758:21 (4 chars) "字体设置"
-  L1853:83 (4 chars) "默认字体"
-  L1854:81 (11 chars) "衬线体 (Serif)"
-  L1855:86 (17 chars) "无衬线体 (Sans Serif)"
-  L1856:85 (16 chars) "等宽字体 (Monospace)"
-  L1857:83 (13 chars) "手写体 (Cursive)"
-  L2025:28 (53 chars) "说明：左侧的用户头像是角色卡专属设置，为空时将使用右侧的全局用户头像。全局用户头像在所有角色卡中共享使用。"
-
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\logcat\LogModels.kt
   remaining=8 total=8 excluded_logs=0 excluded_long=0
   L20:13 (2 chars) "详细"
@@ -908,17 +676,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\log
   L25:11 (2 chars) "致命"
   L26:12 (2 chars) "静默"
   L27:13 (2 chars) "未知"
-
-FILE: app\src\main\java\com\ai\assistance\operit\util\stream\Stream.kt
-  remaining=8 total=8 excluded_logs=0 excluded_long=0
-  L95:46 (13 chars) "收集到元素: $value"
-  L145:54 (24 chars) "处理缓存项时发生异常: ${e.message}"
-  L159:34 (16 chars) "已清空缓冲区 ($size 项)"
-  L166:38 (8 chars) "锁定中，值已缓存"
-  L211:48 (21 chars) "流关闭时处于锁定状态，尝试解锁处理缓冲数据"
-  L215:52 (22 chars) "流关闭时解锁失败: ${e.message}"
-  L244:39 (17 chars) "在协程作用域中启动Stream收集"
-  L247:47 (13 chars) "收集到元素: $value"
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\speech\DeepgramSttProvider.kt
   remaining=7 total=7 excluded_logs=0 excluded_long=0
@@ -939,6 +696,16 @@ FILE: app\src\main\java\com\ai\assistance\operit\core\tools\ToolRegistration.kt
   L760:33 (2 chars) "购买"
   L761:33 (2 chars) "删除"
   L762:33 (2 chars) "移除"
+
+FILE: app\src\main\java\com\ai\assistance\operit\core\tools\packTool\PackageManager.kt
+  remaining=7 total=7 excluded_logs=0 excluded_long=0
+  L953:23 (23 chars) "正在使用MCP服务器: $serverName"
+  L954:23 (38 chars) "使用时间: ${java.time.LocalDateTime.now()}"
+  L955:23 (47 chars) "描述: ${toolPackage.description.resolve(context)}"
+  L957:23 (7 chars) "可用工具列表:"
+  L963:31 (5 chars) "  参数:"
+  L965:60 (4 chars) "(必需)"
+  L965:72 (4 chars) "(可选)"
 
 FILE: app\src\main\java\com\ai\assistance\operit\data\converter\GenericJsonConverter.kt
   remaining=7 total=7 excluded_logs=0 excluded_long=0
@@ -969,16 +736,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\preferences\WakeWordPrefer
   L89:32 (2 chars) "通知"
   L95:32 (4 chars) "哪个地方"
   L101:32 (5 chars) "时间|几点"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\GlobalDisplaySettingsScreen.kt
-  remaining=7 total=7 excluded_logs=0 excluded_long=0
-  L233:24 (8 chars) "自动化显示与行为"
-  L274:28 (6 chars) "虚拟屏幕码率"
-  L345:28 (9 chars) "自动化状态指示样式"
-  L394:28 (7 chars) "自动化截图设置"
-  L402:28 (4 chars) "图片格式"
-  L442:28 (13 chars) "画质（仅对 JPG 生效）"
-  L478:28 (14 chars) "分辨率缩放（发送前缩小截图）"
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\voice\HttpVoiceProvider.kt
   remaining=6 total=15 excluded_logs=9 excluded_long=0
@@ -1043,24 +800,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\repository\WorkflowReposit
   L263:61 (24 chars) "工作流已禁用: ${workflow.name}"
   L283:32 (27 chars) "工作流 '${workflow.name}' 执行成功"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\CustomHeadersSettingsScreen.kt
-  remaining=6 total=6 excluded_logs=0 excluded_long=0
-  L27:16 (8 chars) "伪装成安卓浏览器"
-  L31:16 (14 chars) "伪装成桌面浏览器 (Win)"
-  L35:16 (7 chars) "设置语言为中文"
-  L39:16 (7 chars) "设置语言为英文"
-  L43:16 (8 chars) "模拟中国移动网关"
-  L47:16 (13 chars) "模拟美国洛杉矶 (需配合)"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\apppermissions\AppPermissionsScreen.kt
-  remaining=6 total=6 excluded_logs=0 excluded_long=0
-  L1418:44 (4 chars) "调试信息"
-  L1420:45 (60 chars) "请求的权限: ${requestedPerms.size}个, 已授权: ${grantedPerms.size}个\n"
-  L1421:53 (37 chars) "请求的权限: ${requestedPerms.joinToString("
-  L1422:53 (36 chars) "已授权的权限: ${grantedPerms.joinToString("
-  L1435:40 (4 chars) "错误信息"
-  L1436:47 (21 chars) "获取权限时出错: ${e.message}"
-
 FILE: app\src\main\java\com\ai\assistance\operit\util\map\StatefulPathFinder.kt
   remaining=6 total=6 excluded_logs=0 excluded_long=0
   L34:47 (31 chars) "起始节点 '${startState.nodeId}' 不存在"
@@ -1069,15 +808,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\util\map\StatefulPathFinder.kt
   L88:17 (25 chars) "使用${if (enableBacktrack) "
   L88:62 (7 chars) "}算法找到路径"
   L94:17 (54 chars) "无法找到从 '${startState.nodeId}' 到 '$targetNodeId' 的有效状态路径"
-
-FILE: app\src\main\java\com\ai\assistance\operit\util\stream\StreamGroup.kt
-  remaining=6 total=7 excluded_logs=1 excluded_long=0
-  L66:39 (14 chars) "开始收集组[$tag]的元素"
-  L68:43 (20 chars) "组[$tag]收集到元素: $value"
-  L71:39 (12 chars) "完成组[$tag]的收集"
-  L79:39 (31 chars) "开始使用StreamCollector收集组[$tag]的元素"
-  L160:31 (6 chars) "标签必须设置"
-  L161:34 (7 chars) "数据流必须设置"
 
 FILE: app\src\main\java\com\ai\assistance\operit\core\tools\system\ShizukuAuthorizer.kt
   remaining=5 total=8 excluded_logs=3 excluded_long=0
@@ -1111,14 +841,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\mcp\MCPLocalServer.kt
   L441:65 (17 chars) "配置中 mcpServers 为空"
   L475:42 (20 chars) "合并配置失败: ${e.message}"
 
-FILE: app\src\main\java\com\ai\assistance\operit\data\model\Workflow.kt
-  remaining=5 total=5 excluded_logs=0 excluded_long=0
-  L58:33 (3 chars) "触发器"
-  L73:33 (4 chars) "执行动作"
-  L99:33 (4 chars) "条件判断"
-  L117:33 (4 chars) "逻辑判断"
-  L137:33 (2 chars) "运算"
-
 FILE: app\src\main\java\com\ai\assistance\operit\data\repository\ChatHistoryManager.kt
   remaining=5 total=38 excluded_logs=33 excluded_long=0
   L728:55 (21 chars) "父对话不存在: $parentChatId"
@@ -1134,22 +856,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\skill\SkillRepository.kt
   L109:44 (13 chars) "下载仓库 ZIP 文件失败"
   L121:39 (10 chars) "已导入 Skill:"
   L140:17 (18 chars) "导入失败: ${e.message}"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\components\dialogs\content\MCPServerConfigContent.kt
-  remaining=5 total=5 excluded_logs=0 excluded_long=0
-  L63:25 (7 chars) "插件安装路径:"
-  L79:17 (7 chars) "JSON 配置"
-  L118:25 (13 chars) "此配置将在服务器启动时生效"
-  L141:21 (4 chars) "保存配置"
-  L154:21 (12 chars) "此插件尚未安装，无法配置"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\sections\ModelParametersSection.kt
-  remaining=5 total=5 excluded_logs=0 excluded_long=0
-  L482:70 (2 chars) "收起"
-  L482:80 (2 chars) "展开"
-  L583:70 (7 chars) "暂无自定义参数"
-  L584:50 (11 chars) "当前类别暂无可配置参数"
-  L1223:40 (5 chars) "自定义参数"
 
 FILE: app\src\main\java\com\ai\assistance\operit\util\map\PathFinder.kt
   remaining=5 total=5 excluded_logs=0 excluded_long=0
@@ -1201,54 +907,12 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\features\demo\wizards\Access
   L373:17 (27 chars) "已安装: ${installedVersion ?: "
   L373:49 (24 chars) "} -> 内置: $bundledVersion"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\components\MCPInstallProgressDialog.kt
-  remaining=4 total=4 excluded_logs=0 excluded_long=0
-  L44:30 (7 chars) "MCP 服务器"
-  L45:33 (2 chars) "安装"
-  L74:58 (2 chars) "卸载"
-  L154:75 (2 chars) "卸载"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\dialogs\ScriptExecutionDialog.kt
-  remaining=4 total=4 excluded_logs=0 excluded_long=0
-  L205:102 (19 chars) "错误: ${result.error}"
-  L243:53 (35 chars) "缺少参数: ${missingParams.joinToString("
-  L269:61 (19 chars) "执行流错误: ${e.message}"
-  L295:53 (18 chars) "执行错误: ${e.message}"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\ToolPermissionSettingsScreen.kt
-  remaining=4 total=4 excluded_logs=0 excluded_long=0
-  L138:32 (4 chars) "使用说明"
-  L146:29 (30 chars) "1. 上面的\"全局默认权限\"控制所有工具的默认行为。\n"
-  L147:37 (42 chars) "2. 下面每个分组中添加的工具，是对该工具设置\"例外规则\"，会覆盖全局默认。\n"
-  L148:37 (53 chars) "3. 再次点击同一分组中的工具，或在选择对话框中取消勾选，即可移除该工具的例外配置，让它重新跟随全局默认。"
-
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\token\model\UrlConfig.kt
   remaining=4 total=4 excluded_logs=0 excluded_long=0
   L22:19 (6 chars) "API 密钥"
   L23:19 (2 chars) "用量"
   L24:19 (2 chars) "充值"
   L25:19 (4 chars) "个人资料"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\uidebugger\UIDebuggerComponents.kt
-  remaining=4 total=4 excluded_logs=0 excluded_long=0
-  L511:28 (4 chars) "控件信息"
-  L558:40 (10 chars) "当前Activity"
-  L587:40 (26 chars) "包名: ${element.packageName}"
-  L613:32 (58 chars) "尺寸: ${element.bounds.width()}×${element.bounds.height()}px"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\filemanager\viewmodel\FileManagerViewModel.kt
-  remaining=4 total=4 excluded_logs=0 excluded_long=0
-  L55:54 (3 chars) "主目录"
-  L204:58 (3 chars) "新标签"
-  L343:81 (4 chars) "搜索失败"
-  L347:61 (18 chars) "搜索错误: ${e.message}"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\main\components\AppContent.kt
-  remaining=4 total=4 excluded_logs=0 excluded_long=0
-  L267:50 (2 chars) "返回"
-  L269:70 (5 chars) "收起侧边栏"
-  L270:46 (5 chars) "展开侧边栏"
-  L330:40 (7 chars) "正在加载..."
 
 FILE: app\src\main\java\com\ai\assistance\operit\services\FloatingChatService.kt
   remaining=3 total=24 excluded_logs=21 excluded_long=0
@@ -1261,12 +925,6 @@ FILE: app\src\main\java\com\ai\assistance\operit\util\OCRUtils.kt
   L189:33 (22 chars) "无法读取图像文件: ${e.message}"
   L206:41 (14 chars) "无法从URI解码Bitmap"
   L209:44 (11 chars) "无法打开URI的输入流"
-
-FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\ClaudeProvider.kt
-  remaining=3 total=45 excluded_logs=42 excluded_long=0
-  L1178:33 (31 chars) "【网络超时，正在进行第 $retryCount 次重试...】"
-  L1192:33 (32 chars) "【网络不稳定，正在进行第 $retryCount 次重试...】"
-  L1206:33 (31 chars) "【网络中断，正在进行第 $retryCount 次重试...】"
 
 FILE: app\src\main\java\com\ai\assistance\operit\core\tools\system\action\DebuggerActionListener.kt
   remaining=3 total=16 excluded_logs=13 excluded_long=0
@@ -1386,10 +1044,10 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\features\demo\components\Per
   L49:39 (3 chars) "已授权"
   L49:50 (3 chars) "未授权"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\memory\screens\FolderNavigator.kt
+FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\components\MCPInstallProgressDialog.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0
-  L162:32 (3 chars) "文件夹"
-  L226:28 (2 chars) "全部"
+  L44:30 (7 chars) "MCP 服务器"
+  L45:33 (2 chars) "安装"
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\viewmodel\MCPViewModel.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0
@@ -1401,40 +1059,25 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\features\packages\components
   L84:33 (4 chars) "插件详情"
   L130:33 (4 chars) "配置设置"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\FunctionalConfigScreen.kt
-  remaining=2 total=2 excluded_logs=0 excluded_long=0
-  L309:17 (75 chars) "禁止使用autoglm作为对话主模型。对话模型和ui控制模型是分离的，请选择任意一个别的聪明的大模型。如有疑问，请仔细阅读文档学习软件的模型配置机制。"
-  L603:64 (20 chars) "${modelList.size}个模型"
-
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\MnnModelDownloadScreen.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0
   L69:65 (4 chars) "加载失败"
   L126:93 (4 chars) "加载失败"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\WaifuModeSettingsScreen.kt
-  remaining=2 total=2 excluded_logs=0 excluded_long=0
-  L42:20 (5 chars) "默认角色卡"
-  L151:36 (9 chars) "配置已绑定到角色卡"
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\StreamMarkdownDemo.kt
   remaining=2 total=8 excluded_logs=5 excluded_long=1
   L100:9 (62 chars) "好的，如果您有任何问题或需要帮助时，随时可以联系我。\n\n\n<status type="complete"></status>"
   L169:36 (16 chars) "流式渲染 (Streaming)"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\filemanager\components\FileListItem.kt
+FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\filemanager\viewmodel\FileManagerViewModel.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0
-  L129:62 (3 chars) "文件夹"
-  L209:62 (3 chars) "文件夹"
+  L55:54 (3 chars) "主目录"
+  L204:58 (3 chars) "新标签"
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\update\screens\UpdateViewModel.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0
   L52:75 (4 chars) "未知错误"
   L75:65 (4 chars) "版本更新"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\floating\ui\window\screen\FloatingChatWindowScreen.kt
-  remaining=2 total=3 excluded_logs=1 excluded_long=0
-  L742:56 (2 chars) "取消"
-  L742:66 (2 chars) "发送"
 
 FILE: app\src\main\java\com\ai\assistance\operit\util\map\Graph.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0
@@ -1445,6 +1088,11 @@ FILE: app\src\main\java\com\ai\assistance\operit\util\map\StatefulGraph.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0
   L24:39 (23 chars) "起始节点 '${edge.from}' 不存在"
   L25:37 (21 chars) "目标节点 '${edge.to}' 不存在"
+
+FILE: app\src\main\java\com\ai\assistance\operit\util\stream\StreamGroup.kt
+  remaining=2 total=7 excluded_logs=5 excluded_long=0
+  L160:31 (6 chars) "标签必须设置"
+  L161:34 (7 chars) "数据流必须设置"
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\DeepseekProvider.kt
   remaining=1 total=3 excluded_logs=2 excluded_long=0
@@ -1514,31 +1162,23 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\components
   remaining=1 total=1 excluded_logs=0 excluded_long=0
   L167:71 (1 chars) "角"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\TokenUsageStatisticsScreen.kt
-  remaining=1 total=1 excluded_logs=0 excluded_long=0
-  L446:36 (15 chars) "设置每次API请求的人民币价格"
-
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\UserPreferencesGuideScreen.kt
   remaining=1 total=1 excluded_logs=0 excluded_long=0
   L167:42 (11 chars) "yyyy年MM月dd日"
+
+FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\screens\WaifuModeSettingsScreen.kt
+  remaining=1 total=1 excluded_logs=0 excluded_long=0
+  L151:36 (9 chars) "配置已绑定到角色卡"
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\sections\AdvancedSettingsSection.kt
   remaining=1 total=1 excluded_logs=0 excluded_long=0
   L103:36 (23 chars) "导入密钥 ${key.takeLast(4)}"
 
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\filemanager\components\LoadingOverlay.kt
+FILE: app\src\main\java\com\ai\assistance\operit\ui\features\settings\sections\ModelParametersSection.kt
   remaining=1 total=1 excluded_logs=0 excluded_long=0
-  L36:28 (9 chars) "正在加载文件..."
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\workflow\screens\WorkflowDetailScreen.kt
-  remaining=1 total=1 excluded_logs=0 excluded_long=0
-  L1444:111 (6 chars) "[未知节点]"
-
-FILE: app\src\main\java\com\ai\assistance\operit\ui\features\workflow\screens\WorkflowListScreen.kt
-  remaining=1 total=1 excluded_logs=0 excluded_long=0
-  L512:36 (2 chars) "节点"
+  L1214:40 (5 chars) "自定义参数"
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\workflow\viewmodel\WorkflowViewModel.kt
   remaining=1 total=1 excluded_logs=0 excluded_long=0
-  L894:30 (24 chars) ".*(打开|启动).*(对话|聊天|悬浮窗).*"
+  L903:30 (24 chars) ".*(打开|启动).*(对话|聊天|悬浮窗).*"
 

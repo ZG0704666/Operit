@@ -71,7 +71,7 @@ fun MCPInstallProgressDialog(
                         result != null -> {
                             when (result) {
                                 is InstallResult.Success -> {
-                                    if (operationType == "卸载") {
+                                    if (operationType == stringResource(R.string.mcp_uninstall)) {
                                         Text(
                                                 stringResource(R.string.mcp_uninstall_success),
                                                 style = MaterialTheme.typography.bodyLarge,
@@ -151,7 +151,7 @@ fun MCPInstallProgressDialog(
                                     }
                                 }
                                 is InstallProgress.Extracting -> {
-                                    val actionText = if (operationType == "卸载") stringResource(R.string.mcp_deleting_files) else stringResource(R.string.mcp_extracting_files)
+                                    val actionText = if (operationType == stringResource(R.string.mcp_uninstall)) stringResource(R.string.mcp_deleting_files) else stringResource(R.string.mcp_extracting_files)
                                     Text(
                                             actionText,
                                             style = MaterialTheme.typography.bodyLarge,

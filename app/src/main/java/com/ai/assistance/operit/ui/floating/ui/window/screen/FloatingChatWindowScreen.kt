@@ -739,7 +739,7 @@ private fun ColumnScope.InputTextField(
         ) {
             Icon(
                 imageVector = if (isProcessing) Icons.Default.Close else Icons.AutoMirrored.Filled.Send,
-                contentDescription = if (isProcessing) "取消" else "发送",
+                contentDescription = if (isProcessing) stringResource(R.string.floating_chat_cancel) else stringResource(R.string.floating_chat_send),
                 tint = if (isProcessing)
                     MaterialTheme.colorScheme.onError
                 else
