@@ -127,6 +127,8 @@ class UserPreferencesManager private constructor(private val context: Context) {
         // Chat style preference
         private val CHAT_STYLE = stringPreferencesKey("chat_style")
 
+        private val BUBBLE_SHOW_AVATAR = booleanPreferencesKey("bubble_show_avatar")
+
         // 默认配置文件ID
         private const val DEFAULT_PROFILE_ID = "default"
 
@@ -418,6 +420,11 @@ class UserPreferencesManager private constructor(private val context: Context) {
                 preferences[CHAT_STYLE] ?: CHAT_STYLE_CURSOR
             }
 
+    val bubbleShowAvatar: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[BUBBLE_SHOW_AVATAR] ?: true
+            }
+
     val showThinkingProcess: Flow<Boolean> =
             context.userPreferencesDataStore.data.map { preferences ->
                 preferences[KEY_SHOW_THINKING_PROCESS] ?: true
@@ -639,6 +646,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
             useBackgroundBlur: Boolean? = null,
             backgroundBlurRadius: Float? = null,
             chatStyle: String? = null,
+            bubbleShowAvatar: Boolean? = null,
             showThinkingProcess: Boolean? = null,
             showStatusTags: Boolean? = null,
             customUserAvatarUri: String? = null,
@@ -687,6 +695,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
             useBackgroundBlur?.let { preferences[USE_BACKGROUND_BLUR] = it }
             backgroundBlurRadius?.let { preferences[BACKGROUND_BLUR_RADIUS] = it }
             chatStyle?.let { preferences[CHAT_STYLE] = it }
+            bubbleShowAvatar?.let { preferences[BUBBLE_SHOW_AVATAR] = it }
             showThinkingProcess?.let { preferences[KEY_SHOW_THINKING_PROCESS] = it }
             showStatusTags?.let { preferences[KEY_SHOW_STATUS_TAGS] = it }
             customUserAvatarUri?.let { preferences[KEY_CUSTOM_USER_AVATAR_URI] = it }
@@ -735,6 +744,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
             preferences.remove(USE_BACKGROUND_BLUR)
             preferences.remove(BACKGROUND_BLUR_RADIUS)
             preferences.remove(CHAT_STYLE)
+            preferences.remove(BUBBLE_SHOW_AVATAR)
             preferences.remove(KEY_SHOW_THINKING_PROCESS)
             preferences.remove(KEY_SHOW_STATUS_TAGS)
             preferences.remove(KEY_CUSTOM_USER_AVATAR_URI)
@@ -1008,7 +1018,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
             VIDEO_BACKGROUND_LOOP, TOOLBAR_TRANSPARENT, USE_CUSTOM_APP_BAR_COLOR, USE_CUSTOM_STATUS_BAR_COLOR,
             STATUS_BAR_TRANSPARENT, STATUS_BAR_HIDDEN, CHAT_HEADER_TRANSPARENT, CHAT_INPUT_TRANSPARENT,
             FORCE_APP_BAR_CONTENT_COLOR_ENABLED, CHAT_HEADER_OVERLAY_MODE, USE_BACKGROUND_BLUR,
-            KEY_SHOW_THINKING_PROCESS, KEY_SHOW_STATUS_TAGS, KEY_SHOW_INPUT_PROCESSING_STATUS, USE_CUSTOM_FONT
+            BUBBLE_SHOW_AVATAR, KEY_SHOW_THINKING_PROCESS, KEY_SHOW_STATUS_TAGS, KEY_SHOW_INPUT_PROCESSING_STATUS, USE_CUSTOM_FONT
             // 注意：消息显示设置已移至 DisplayPreferencesManager，不跟随角色卡主题切换
         )
     }

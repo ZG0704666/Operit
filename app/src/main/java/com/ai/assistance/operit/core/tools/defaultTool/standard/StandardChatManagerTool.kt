@@ -7,9 +7,11 @@ import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.util.ChatMarkupRegex
 import com.ai.assistance.operit.util.stream.SharedStream
 import com.ai.assistance.operit.core.tools.ChatCreationResultData
 import com.ai.assistance.operit.core.tools.ChatListResultData
+import com.ai.assistance.operit.core.tools.ChatMessagesResultData
 import com.ai.assistance.operit.core.tools.ChatServiceStartResultData
 import com.ai.assistance.operit.core.tools.ChatSwitchResultData
 import com.ai.assistance.operit.core.tools.MessageSendResultData
@@ -19,6 +21,7 @@ import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.services.ChatServiceCore
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.FloatingMode
@@ -41,6 +44,104 @@ class StandardChatManagerTool(private val context: Context) {
         private const val SERVICE_CONNECTION_TIMEOUT = 15000L // 15秒超时
         private const val RESPONSE_STREAM_ACQUIRE_TIMEOUT = 5000L
         private const val AI_RESPONSE_TIMEOUT = 300000L
+    }
+
+    private fun simplifyXmlBlocksForHistory(text: String): String {
+        if (text.isEmpty()) return text
+        return text
+            .replace(ChatMarkupRegex.toolTag, "")
+            .replace(ChatMarkupRegex.toolSelfClosingTag, "")
+            .replace(ChatMarkupRegex.toolResultTag, "")
+            .replace(ChatMarkupRegex.toolResultSelfClosingTag, "")
+            .replace(ChatMarkupRegex.statusTag, "")
+            .replace(ChatMarkupRegex.statusSelfClosingTag, "")
+            .trim()
+    }
+
+    suspend fun getChatMessages(tool: AITool): ToolResult {
+        return try {
+            val chatId = tool.parameters.find { it.name == "chat_id" }?.value?.trim()
+            if (chatId.isNullOrBlank()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Invalid parameter: missing chat_id"
+                )
+            }
+
+            val rawOrder = tool.parameters.find { it.name == "order" }?.value?.trim()
+            val order = rawOrder?.lowercase()?.takeIf { it == "asc" || it == "desc" }
+            if (rawOrder != null && rawOrder.isNotBlank() && order == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Invalid parameter: order must be asc/desc"
+                )
+            }
+
+            val rawLimit = tool.parameters.find { it.name == "limit" }?.value?.trim()
+            val parsedLimit = rawLimit?.takeIf { it.isNotBlank() }?.toIntOrNull()
+            if (rawLimit != null && rawLimit.isNotBlank() && parsedLimit == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Invalid parameter: limit must be an integer"
+                )
+            }
+
+            val effectiveOrder = order ?: "desc"
+            val effectiveLimit = (parsedLimit ?: 20).coerceIn(1, 200)
+
+            val chatHistoryManager = ChatHistoryManager.getInstance(appContext)
+            val title = chatHistoryManager.getChatTitle(chatId)
+            if (title == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Chat does not exist: $chatId"
+                )
+            }
+
+            val messages = chatHistoryManager.loadChatMessages(
+                chatId = chatId,
+                order = effectiveOrder,
+                limit = effectiveLimit
+            )
+
+            val filteredMessages = messages.filterNot { msg -> msg.sender == "summary" }
+
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = ChatMessagesResultData(
+                    chatId = chatId,
+                    order = effectiveOrder,
+                    limit = effectiveLimit,
+                    messages = filteredMessages.map { msg ->
+                        ChatMessagesResultData.ChatMessageInfo(
+                            sender = msg.sender,
+                            content = simplifyXmlBlocksForHistory(msg.content),
+                            timestamp = msg.timestamp,
+                            roleName = msg.roleName,
+                            provider = msg.provider,
+                            modelName = msg.modelName
+                        )
+                    }
+                )
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to get chat messages", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Error getting chat messages: ${e.message}"
+            )
+        }
     }
 
     private val appContext = context.applicationContext
@@ -422,47 +523,24 @@ class StandardChatManagerTool(private val context: Context) {
      */
     suspend fun listChats(tool: AITool): ToolResult {
         return try {
-            if (!ensureServiceConnected()) {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = ChatListResultData(
-                        totalCount = 0,
-                        currentChatId = null,
-                        chats = emptyList()
-                    ),
-                    error = "Service not connected"
-                )
-            }
+            val chatHistoryManager = ChatHistoryManager.getInstance(appContext)
+            val chatHistories = chatHistoryManager.chatHistoriesFlow.first()
+            val currentChatId = chatHistoryManager.currentChatIdFlow.first()
+            val messageCounts = chatHistoryManager.getMessageCountsByChatId()
 
-            val core = chatCore ?: return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = ChatListResultData(
-                    totalCount = 0,
-                    currentChatId = null,
-                    chats = emptyList()
-                ),
-                error = "ChatServiceCore not initialized"
-            )
-
-            val chatHistories = core.chatHistories.value
-            val currentChatId = core.currentChatId.value
-            
-            // 构建对话信息列表
             val chatInfoList = chatHistories.map { chat ->
                 ChatListResultData.ChatInfo(
                     id = chat.id,
                     title = chat.title,
-                    messageCount = chat.messages.size,
+                    messageCount = messageCounts[chat.id] ?: 0,
                     createdAt = chat.createdAt.toString(),
                     updatedAt = chat.updatedAt.toString(),
-                    isCurrent = chat.id == currentChatId,
+                    isCurrent = currentChatId != null && chat.id == currentChatId,
                     inputTokens = chat.inputTokens,
                     outputTokens = chat.outputTokens
                 )
             }
-            
+
             ToolResult(
                 toolName = tool.name,
                 success = true,

@@ -147,6 +147,25 @@ class ChatHistoryManager private constructor(private val context: Context) {
             emptyList()
         )
 
+    suspend fun getTotalChatCount(): Int {
+        return withContext(Dispatchers.IO) { chatDao.getTotalChatCount() }
+    }
+
+    suspend fun getTotalMessageCount(): Int {
+        return withContext(Dispatchers.IO) { messageDao.getTotalMessageCount() }
+    }
+
+    suspend fun getMessageCountsByChatId(): Map<String, Int> {
+        return withContext(Dispatchers.IO) {
+            try {
+                messageDao.getMessageCountsByChatId().associate { it.chatId to it.count }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to get message counts by chatId", e)
+                emptyMap()
+            }
+        }
+    }
+
     // 角色卡聊天统计
     val characterCardStatsFlow: Flow<List<CharacterCardChatStats>> =
         chatDao.getCharacterCardChatStats()
@@ -673,6 +692,17 @@ class ChatHistoryManager private constructor(private val context: Context) {
         }
     }
 
+    suspend fun getChatTitle(chatId: String): String? {
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                chatDao.getChatById(chatId)?.title
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to get chat title for chat $chatId", e)
+                null
+            }
+        }
+    }
+
     // 直接加载聊天消息
     suspend fun loadChatMessages(chatId: String): List<ChatMessage> {
         return kotlinx.coroutines.withContext(Dispatchers.IO) {
@@ -680,6 +710,42 @@ class ChatHistoryManager private constructor(private val context: Context) {
                 // AppLogger.d(TAG, "直接从数据库加载聊天 $chatId 的消息")
                 val messages = messageDao.getMessagesForChat(chatId)
                 // AppLogger.d(TAG, "聊天 $chatId 共加载 ${messages.size} 条消息")
+                messages.map { it.toChatMessage() }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "加载聊天消息失败", e)
+                emptyList()
+            }
+        }
+    }
+
+    suspend fun loadChatMessages(
+        chatId: String,
+        order: String? = null,
+        limit: Int? = null
+    ): List<ChatMessage> {
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                val normalizedOrder = order?.trim()?.lowercase()
+                val effectiveLimit = limit?.coerceAtLeast(1)
+
+                val messages = when (normalizedOrder) {
+                    "desc" -> {
+                        if (effectiveLimit != null) {
+                            messageDao.getMessagesForChatDesc(chatId, effectiveLimit)
+                        } else {
+                            messageDao.getMessagesForChat(chatId).asReversed()
+                        }
+                    }
+
+                    else -> {
+                        if (effectiveLimit != null) {
+                            messageDao.getMessagesForChatAsc(chatId, effectiveLimit)
+                        } else {
+                            messageDao.getMessagesForChat(chatId)
+                        }
+                    }
+                }
+
                 messages.map { it.toChatMessage() }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "加载聊天消息失败", e)

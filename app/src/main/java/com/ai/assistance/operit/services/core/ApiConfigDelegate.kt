@@ -54,6 +54,10 @@ class ApiConfigDelegate(
             MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_GUIDANCE)
     val enableThinkingGuidance: StateFlow<Boolean> = _enableThinkingGuidance.asStateFlow()
 
+    private val _thinkingQualityLevel =
+            MutableStateFlow(ApiPreferences.DEFAULT_THINKING_QUALITY_LEVEL)
+    val thinkingQualityLevel: StateFlow<Int> = _thinkingQualityLevel.asStateFlow()
+
     private val _enableMemoryQuery =
             MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_MEMORY_QUERY)
     val enableMemoryQuery: StateFlow<Boolean> = _enableMemoryQuery.asStateFlow()
@@ -209,6 +213,12 @@ class ApiConfigDelegate(
             }
         }
 
+        coroutineScope.launch {
+            apiPreferences.thinkingQualityLevelFlow.collect { level ->
+                _thinkingQualityLevel.value = level
+            }
+        }
+
         // Collect memory attachment setting
         coroutineScope.launch {
             apiPreferences.enableMemoryQueryFlow.collect { enabled ->
@@ -328,8 +338,10 @@ class ApiConfigDelegate(
     fun toggleThinkingMode() {
         coroutineScope.launch {
             val newValue = !_enableThinkingMode.value
-            apiPreferences.saveEnableThinkingMode(newValue)
-            _enableThinkingMode.value = newValue
+            apiPreferences.updateThinkingSettings(
+                enableThinkingMode = newValue,
+                enableThinkingGuidance = if (newValue) false else null
+            )
         }
     }
 
@@ -337,8 +349,17 @@ class ApiConfigDelegate(
     fun toggleThinkingGuidance() {
         coroutineScope.launch {
             val newValue = !_enableThinkingGuidance.value
-            apiPreferences.saveEnableThinkingGuidance(newValue)
-            _enableThinkingGuidance.value = newValue
+            apiPreferences.updateThinkingSettings(
+                enableThinkingGuidance = newValue,
+                enableThinkingMode = if (newValue) false else null
+            )
+        }
+    }
+
+    fun updateThinkingQualityLevel(level: Int) {
+        coroutineScope.launch {
+            apiPreferences.saveThinkingQualityLevel(level)
+            _thinkingQualityLevel.value = level
         }
     }
 

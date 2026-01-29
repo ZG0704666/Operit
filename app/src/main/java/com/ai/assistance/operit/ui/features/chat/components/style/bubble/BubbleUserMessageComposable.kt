@@ -66,6 +66,7 @@ fun BubbleUserMessageComposable(
     val context = LocalContext.current
     val preferencesManager = remember { UserPreferencesManager.getInstance(context) }
     val displayPreferencesManager = remember { DisplayPreferencesManager.getInstance(context) }
+    val bubbleShowAvatar by preferencesManager.bubbleShowAvatar.collectAsState(initial = true)
     val customUserAvatarUri by preferencesManager.customUserAvatarUri.collectAsState(initial = null)
     val globalUserAvatarUri by displayPreferencesManager.globalUserAvatarUri.collectAsState(initial = null)
     val globalUserName by displayPreferencesManager.globalUserName.collectAsState(initial = null)
@@ -155,7 +156,10 @@ fun BubbleUserMessageComposable(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 4.dp, start = 32.dp),
+                    .padding(
+                        bottom = 4.dp,
+                        start = 32.dp
+                    ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.End
             ) {
@@ -202,7 +206,9 @@ fun BubbleUserMessageComposable(
         if (trailingAttachments.isNotEmpty()) {
             // Display attachment row above the bubble
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -240,7 +246,10 @@ fun BubbleUserMessageComposable(
             Column(
                 modifier = Modifier
                     .weight(1f, fill = false)
-                    .padding(start = 32.dp),
+                    .padding(
+                        start = 32.dp,
+                        end = if (bubbleShowAvatar) 0.dp else 8.dp
+                    ),
                 horizontalAlignment = Alignment.End
             ) {
                 // 显示用户名（如果开启了显示选项并且设置了用户名）
@@ -258,40 +267,47 @@ fun BubbleUserMessageComposable(
                 }
                 
                 // Message bubble
-                Surface(
-                    modifier = Modifier.defaultMinSize(minHeight = 44.dp),
-                    shape = RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp),
-                    color = backgroundColor,
-                    tonalElevation = 2.dp
-                ) {
-                    Text(
-                        text = textContent,
-                        modifier = Modifier.padding(12.dp),
-                        color = textColor,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                BoxWithConstraints {
+                    val maxBubbleWidth = maxWidth * 0.85f
+                    Surface(
+                        modifier = Modifier
+                            .widthIn(max = maxBubbleWidth)
+                            .defaultMinSize(minHeight = 44.dp),
+                        shape = RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp),
+                        color = backgroundColor,
+                        tonalElevation = 2.dp
+                    ) {
+                        Text(
+                            text = textContent,
+                            modifier = Modifier.padding(12.dp),
+                            color = textColor,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            // Avatar
-            if (!avatarUri.isNullOrEmpty()) {
-                Image(
-                    painter = rememberAsyncImagePainter(model = Uri.parse(avatarUri)),
-                    contentDescription = "User Avatar",
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(avatarShape),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "User Avatar",
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(avatarShape),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+            if (bubbleShowAvatar) {
+                Spacer(modifier = Modifier.width(8.dp))
+                // Avatar
+                if (!avatarUri.isNullOrEmpty()) {
+                    Image(
+                        painter = rememberAsyncImagePainter(model = Uri.parse(avatarUri)),
+                        contentDescription = "User Avatar",
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(avatarShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "User Avatar",
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(avatarShape),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }

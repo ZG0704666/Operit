@@ -15,10 +15,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+
 import kotlinx.coroutines.launch
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.model.BillingMode
+import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.ui.components.CustomScaffold
 
 private const val DEFAULT_INPUT_PRICE = 2.0
@@ -34,7 +36,11 @@ fun TokenUsageStatisticsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val apiPreferences = remember { ApiPreferences.getInstance(context) }
-    
+    val chatHistoryManager = remember { ChatHistoryManager.getInstance(context) }
+
+    var totalChats by remember { mutableStateOf(0) }
+    var totalMessages by remember { mutableStateOf(0) }
+
     // State to hold token data for all provider models
     val providerModelTokenUsage = remember { mutableStateMapOf<String, Triple<Int, Int, Int>>() }
     // State to hold request counts for all provider models
@@ -50,14 +56,14 @@ fun TokenUsageStatisticsScreen(
     var showResetDialog by remember { mutableStateOf(false) }
     var showResetModelDialog by remember { mutableStateOf(false) }
     var resetModel by remember { mutableStateOf("") }
-    
+
     // Collect tokens for ALL provider models from ApiPreferences
     LaunchedEffect(Unit) {
         scope.launch {
             apiPreferences.allProviderModelTokensFlow.collect { tokensMap ->
                 providerModelTokenUsage.clear()
                 providerModelTokenUsage.putAll(tokensMap)
-                
+
                 // Initialize pricing and billing mode for new models with default values
                 tokensMap.keys.forEach { model ->
                     if (!modelPricing.containsKey(model)) {
@@ -73,7 +79,7 @@ fun TokenUsageStatisticsScreen(
             }
         }
     }
-    
+
     // Load request counts
     LaunchedEffect(Unit) {
         scope.launch {
@@ -82,7 +88,16 @@ fun TokenUsageStatisticsScreen(
             providerModelRequestCounts.putAll(requestCounts)
         }
     }
-    
+
+    LaunchedEffect(Unit) {
+        scope.launch {
+            runCatching {
+                totalChats = chatHistoryManager.getTotalChatCount()
+                totalMessages = chatHistoryManager.getTotalMessageCount()
+            }
+        }
+    }
+
     // Load custom pricing, billing mode, and price per request from preferences
     LaunchedEffect(Unit) {
         scope.launch {
@@ -94,11 +109,11 @@ fun TokenUsageStatisticsScreen(
                 if (inputPrice > 0.0 || outputPrice > 0.0 || cachedInputPrice > 0.0) {
                     modelPricing[model] = Triple(inputPrice, outputPrice, cachedInputPrice)
                 }
-                
+
                 // Load billing mode
                 val billingMode = apiPreferences.getBillingModeForProviderModel(model)
                 modelBillingMode[model] = billingMode
-                
+
                 // Load price per request
                 val pricePerRequest = apiPreferences.getPricePerRequestForProviderModel(model)
                 modelPricePerRequest[model] = pricePerRequest
@@ -109,15 +124,15 @@ fun TokenUsageStatisticsScreen(
     // Calculate costs for each provider model based on billing mode
     val providerModelCosts = providerModelTokenUsage.mapValues { (model, tokens) ->
         val billingMode = modelBillingMode[model] ?: BillingMode.TOKEN
-        
+
         when (billingMode) {
             BillingMode.TOKEN -> {
                 val pricing = modelPricing[model] ?: Triple(DEFAULT_INPUT_PRICE, DEFAULT_OUTPUT_PRICE, DEFAULT_CACHED_INPUT_PRICE)
                 // tokens.first = total input, tokens.second = output, tokens.third = cached input
                 val nonCachedInput = tokens.first - tokens.third
-                (nonCachedInput / 1_000_000.0 * pricing.first) + 
-                (tokens.second / 1_000_000.0 * pricing.second) + 
-                (tokens.third / 1_000_000.0 * pricing.third)
+                (nonCachedInput / 1_000_000.0 * pricing.first) +
+                        (tokens.second / 1_000_000.0 * pricing.second) +
+                        (tokens.third / 1_000_000.0 * pricing.third)
             }
             BillingMode.COUNT -> {
                 val pricePerRequest = modelPricePerRequest[model] ?: DEFAULT_PRICE_PER_REQUEST
@@ -135,6 +150,15 @@ fun TokenUsageStatisticsScreen(
 
     // Calculate total cost across all models (mixed billing modes)
     val totalCost = providerModelCosts.values.sum()
+
+    val modelUsageDistribution by remember {
+        derivedStateOf {
+            providerModelTokenUsage.entries
+                .map { it.key to (it.value.first + it.value.second) }
+                .filter { it.second > 0 }
+                .sortedByDescending { it.second }
+        }
+    }
 
     CustomScaffold(
         floatingActionButton = {
@@ -157,127 +181,22 @@ fun TokenUsageStatisticsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Summary Card
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.settings_usage_summary),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = stringResource(id = R.string.settings_total_tokens),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "$totalTokens",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = stringResource(id = R.string.settings_total_requests),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "$totalRequests",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = stringResource(id = R.string.settings_total_cost),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "¥${String.format("%.2f", totalCost)}",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // Token breakdown by type
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = stringResource(id = R.string.settings_input_tokens),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "$totalInputTokens",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = stringResource(id = R.string.settings_output_tokens),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "$totalOutputTokens",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            if (totalCachedInputTokens > 0) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.settings_cached_tokens_label),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.tertiary
-                                    )
-                                    Text(
-                                        text = "$totalCachedInputTokens",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.tertiary
-                                    )
-                                }
-                            }
-                        }
-                    }
+                TokenUsageSummarySection(
+                    totalChats = totalChats,
+                    totalMessages = totalMessages,
+                    totalTokens = totalTokens,
+                    totalInputTokens = totalInputTokens,
+                    totalOutputTokens = totalOutputTokens,
+                    totalCachedInputTokens = totalCachedInputTokens,
+                    totalRequests = totalRequests,
+                    totalCost = totalCost
+                )
+            }
+
+            if (modelUsageDistribution.isNotEmpty()) {
+                item {
+                    ModelUsageDistributionSection(items = modelUsageDistribution)
                 }
             }
 
@@ -360,6 +279,9 @@ fun TokenUsageStatisticsScreen(
                         }
                     )
                 }
+            }
+            item {
+                Spacer(modifier = Modifier.height(96.dp))
             }
         }
     }

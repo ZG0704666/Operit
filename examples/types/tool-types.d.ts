@@ -14,7 +14,8 @@ import {
     CalculationResultData, FFmpegResultData, ADBResultData, IntentResultData, TerminalCommandResultData,
     FilePartContentData, FileApplyResultData, WorkflowListResultData, WorkflowResultData, WorkflowDetailResultData,
     StringResultData, ChatServiceStartResultData, ChatCreationResultData, ChatListResultData,
-    ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, GrepResultData
+    ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, GrepResultData,
+    ChatMessagesResultData
 } from './results';
 
 /**
@@ -114,6 +115,7 @@ export interface ToolResultMap {
     'list_chats': ChatListResultData;
     'switch_chat': ChatSwitchResultData;
     'send_message_to_ai': MessageSendResultData;
+    'get_chat_messages': ChatMessagesResultData;
 
     // Memory operations
     'link_memories': MemoryLinkResultData;

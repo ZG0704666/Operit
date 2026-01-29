@@ -56,15 +56,35 @@ class DeepseekProvider(
         availableTools: List<ToolPrompt>?,
         preserveThinkInHistory: Boolean
     ): RequestBody {
+        fun applyThinkingParamsIfNeeded(jsonObject: JSONObject) {
+            if (!enableThinking) return
+
+            // DeepSeek Thinking Mode: thinking: { type: enabled }
+            jsonObject.put(
+                "thinking",
+                JSONObject().apply {
+                    put("type", "enabled")
+                }
+            )
+        }
+
         // 如果未启用推理模式，直接使用父类的实现
         if (!enableReasoning) {
-            return super.createRequestBody(context, message, chatHistory, modelParameters, enableThinking, stream, availableTools, preserveThinkInHistory)
+            val baseRequestBodyJson =
+                super.createRequestBodyInternal(context, message, chatHistory, modelParameters, stream, availableTools, preserveThinkInHistory)
+            val jsonObject = JSONObject(baseRequestBodyJson)
+            applyThinkingParamsIfNeeded(jsonObject)
+            return jsonObject.toString().toRequestBody(JSON)
         }
 
         // 启用推理模式时，需要特殊处理
         val jsonObject = JSONObject()
         jsonObject.put("model", modelName)
         jsonObject.put("stream", stream)
+
+        // DeepSeek Thinking Mode (官方字段为 thinking: { enabled/disabled })
+        // 这里仅在 enableThinking=true 时开启。
+        applyThinkingParamsIfNeeded(jsonObject)
 
         // 添加已启用的模型参数
         for (param in modelParameters) {

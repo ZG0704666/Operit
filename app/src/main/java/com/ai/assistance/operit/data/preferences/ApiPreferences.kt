@@ -79,6 +79,7 @@ class ApiPreferences private constructor(private val context: Context) {
         // Keys for Thinking Mode and Thinking Guidance
         val ENABLE_THINKING_MODE = booleanPreferencesKey("enable_thinking_mode")
         val ENABLE_THINKING_GUIDANCE = booleanPreferencesKey("enable_thinking_guidance")
+        val THINKING_QUALITY_LEVEL = intPreferencesKey("thinking_quality_level")
 
         // Key for Memory Attachment
         val ENABLE_MEMORY_QUERY = booleanPreferencesKey("enable_memory_query")
@@ -105,6 +106,7 @@ class ApiPreferences private constructor(private val context: Context) {
         // Default values for Thinking Mode and Thinking Guidance
         const val DEFAULT_ENABLE_THINKING_MODE = false
         const val DEFAULT_ENABLE_THINKING_GUIDANCE = false
+        const val DEFAULT_THINKING_QUALITY_LEVEL = 2
 
         // Default value for Memory Attachment
         const val DEFAULT_ENABLE_MEMORY_QUERY = true
@@ -177,6 +179,11 @@ class ApiPreferences private constructor(private val context: Context) {
         context.apiDataStore.data.map { preferences ->
             preferences[ENABLE_THINKING_GUIDANCE] ?: DEFAULT_ENABLE_THINKING_GUIDANCE
             }
+
+    val thinkingQualityLevelFlow: Flow<Int> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[THINKING_QUALITY_LEVEL] ?: DEFAULT_THINKING_QUALITY_LEVEL
+        }
 
     // Flow for Memory Attachment
     val enableMemoryQueryFlow: Flow<Boolean> =
@@ -258,6 +265,40 @@ class ApiPreferences private constructor(private val context: Context) {
     // Save Thinking Guidance setting
     suspend fun saveEnableThinkingGuidance(isEnabled: Boolean) {
         context.apiDataStore.edit { preferences -> preferences[ENABLE_THINKING_GUIDANCE] = isEnabled }
+    }
+
+    suspend fun saveThinkingQualityLevel(level: Int) {
+        context.apiDataStore.edit { preferences ->
+            preferences[THINKING_QUALITY_LEVEL] = level
+        }
+    }
+
+    suspend fun updateThinkingSettings(
+        enableThinkingMode: Boolean? = null,
+        enableThinkingGuidance: Boolean? = null,
+        thinkingQualityLevel: Int? = null
+    ) {
+        context.apiDataStore.edit { preferences ->
+            val prevMode = preferences[ENABLE_THINKING_MODE] ?: DEFAULT_ENABLE_THINKING_MODE
+            val prevGuidance = preferences[ENABLE_THINKING_GUIDANCE] ?: DEFAULT_ENABLE_THINKING_GUIDANCE
+
+            var newMode = enableThinkingMode ?: prevMode
+            var newGuidance = enableThinkingGuidance ?: prevGuidance
+
+            // Enforce mutual exclusivity.
+            if (enableThinkingMode == true) {
+                newGuidance = false
+            } else if (enableThinkingGuidance == true) {
+                newMode = false
+            } else if (newMode && newGuidance) {
+                newGuidance = false
+            }
+
+            preferences[ENABLE_THINKING_MODE] = newMode
+            preferences[ENABLE_THINKING_GUIDANCE] = newGuidance
+
+            thinkingQualityLevel?.let { preferences[THINKING_QUALITY_LEVEL] = it.coerceIn(1, 3) }
+        }
     }
 
     // Save Memory Attachment setting

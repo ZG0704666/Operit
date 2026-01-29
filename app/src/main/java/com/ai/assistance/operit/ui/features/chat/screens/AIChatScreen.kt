@@ -198,6 +198,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val enableThinkingMode by actualViewModel.enableThinkingMode.collectAsState() // 收集思考模式状态
     val enableThinkingGuidance by
             actualViewModel.enableThinkingGuidance.collectAsState() // 收集思考引导状态
+    val thinkingQualityLevel by actualViewModel.thinkingQualityLevel.collectAsState()
     val enableMemoryQuery by actualViewModel.enableMemoryQuery.collectAsState()
     val enableMaxContextMode by actualViewModel.enableMaxContextMode.collectAsState()
     val enableTools by actualViewModel.enableTools.collectAsState()
@@ -673,6 +674,10 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                 enableThinkingGuidance = enableThinkingGuidance,
                                 onToggleThinkingGuidance = {
                                     actualViewModel.toggleThinkingGuidance()
+                                },
+                                thinkingQualityLevel = thinkingQualityLevel,
+                                onThinkingQualityLevelChange = {
+                                    actualViewModel.updateThinkingQualityLevel(it)
                                 },
                                 maxWindowSizeInK =
                                         actualViewModel.maxWindowSizeInK.collectAsState().value,

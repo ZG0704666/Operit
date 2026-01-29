@@ -653,6 +653,31 @@ object SystemToolPromptsInternal {
                                         required = false
                                     )
                                 )
+                        ),
+                        ToolPrompt(
+                            name = "get_chat_messages",
+                            description = "Get messages from a specific chat (cross-chat history read).",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "target chat id",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "order",
+                                        type = "string",
+                                        description = "optional, asc/desc (default desc)",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "limit",
+                                        type = "integer",
+                                        description = "optional, number of messages to return (default 20, max 200)",
+                                        required = false
+                                    )
+                                )
                         )
                     )
             ),
@@ -1946,6 +1971,31 @@ object SystemToolPromptsInternal {
                                         name = "chat_id",
                                         type = "string",
                                         description = "可选，目标对话 ID",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "get_chat_messages",
+                            description = "读取指定对话的消息内容（跨话题读取）。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "目标对话 ID",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "order",
+                                        type = "string",
+                                        description = "可选，asc/desc（默认 desc）",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "limit",
+                                        type = "integer",
+                                        description = "可选，返回消息条数（默认20，最大200）",
                                         required = false
                                     )
                                 )

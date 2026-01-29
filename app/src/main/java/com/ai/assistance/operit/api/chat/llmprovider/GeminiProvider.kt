@@ -53,7 +53,7 @@ class GeminiProvider(
     // HTTP客户端
     // private val client: OkHttpClient = HttpClientFactory.instance
 
-    private val JSON = "application/json; charset=utf-8".toMediaType()
+    private val JSON = "application/json".toMediaType()
 
     // 活跃请求，用于取消流式请求
     private var activeCall: Call? = null

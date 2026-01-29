@@ -190,6 +190,8 @@ fun ThemeSettingsScreen() {
     // Collect chat style setting
     val chatStyle = preferencesManager.chatStyle.collectAsState(initial = UserPreferencesManager.CHAT_STYLE_CURSOR).value
 
+    val bubbleShowAvatar = preferencesManager.bubbleShowAvatar.collectAsState(initial = true).value
+
     // Collect new display settings
     val showThinkingProcess = preferencesManager.showThinkingProcess.collectAsState(initial = true).value
     val showStatusTags = preferencesManager.showStatusTags.collectAsState(initial = true).value
@@ -283,6 +285,8 @@ fun ThemeSettingsScreen() {
 
     // Chat style state
     var chatStyleInput by remember { mutableStateOf(chatStyle) }
+
+    var bubbleShowAvatarInput by remember { mutableStateOf(bubbleShowAvatar) }
 
     // New display settings state
     var showThinkingProcessInput by remember { mutableStateOf(showThinkingProcess) }
@@ -661,6 +665,7 @@ fun ThemeSettingsScreen() {
             useBackgroundBlur,
             backgroundBlurRadius,
             chatStyle,
+            bubbleShowAvatar,
             showThinkingProcess,
             showStatusTags,
             showInputProcessingStatus,
@@ -707,6 +712,7 @@ fun ThemeSettingsScreen() {
         useBackgroundBlurInput = useBackgroundBlur
         backgroundBlurRadiusInput = backgroundBlurRadius
         chatStyleInput = chatStyle
+        bubbleShowAvatarInput = bubbleShowAvatar
         showThinkingProcessInput = showThinkingProcess
         showStatusTagsInput = showStatusTags
         showInputProcessingStatusInput = showInputProcessingStatus
@@ -1660,6 +1666,37 @@ fun ThemeSettingsScreen() {
                         saveThemeSettingsWithCharacterCard {
                             preferencesManager.saveThemeSettings(chatStyle = UserPreferencesManager.CHAT_STYLE_BUBBLE)
                         }
+                    }
+                }
+
+                if (chatStyleInput == UserPreferencesManager.CHAT_STYLE_BUBBLE) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(id = R.string.chat_style_bubble_show_avatar),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = stringResource(id = R.string.chat_style_bubble_show_avatar_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = bubbleShowAvatarInput,
+                            onCheckedChange = {
+                                bubbleShowAvatarInput = it
+                                saveThemeSettingsWithCharacterCard {
+                                    preferencesManager.saveThemeSettings(bubbleShowAvatar = it)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -2741,6 +2778,7 @@ fun ThemeSettingsScreen() {
                         useBackgroundBlurInput = false
                         backgroundBlurRadiusInput = 10f
                         chatStyleInput = UserPreferencesManager.CHAT_STYLE_CURSOR
+                        bubbleShowAvatarInput = true
                         showThinkingProcessInput = true
                         showStatusTagsInput = true
                         showInputProcessingStatusInput = true

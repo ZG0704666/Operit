@@ -12,7 +12,9 @@ ffmpeg.js
 file_converter.js
 google_search.js
 github.js
+history_chat.js
 nanobanana_draw.js
+qwen_draw.js
 super_admin.js
 system_tools.js
 tasker.js

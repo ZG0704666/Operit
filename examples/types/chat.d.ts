@@ -10,7 +10,8 @@ import {
     ChatCreationResultData,
     ChatListResultData,
     ChatSwitchResultData,
-    MessageSendResultData
+    MessageSendResultData,
+    ChatMessagesResultData
 } from './results';
 
 /**
@@ -50,5 +51,12 @@ export namespace Chat {
      * @returns Promise resolving to the message send result
      */
     function sendMessage(message: string, chatId?: string): Promise<MessageSendResultData>;
+
+    /**
+     * Get messages from a specific chat
+     * @param chatId - The ID of the chat to read
+     * @param options - Optional order/limit
+     */
+    function getMessages(chatId: string, options?: { order?: 'asc' | 'desc'; limit?: number }): Promise<ChatMessagesResultData>;
 }
 

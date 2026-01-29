@@ -2684,6 +2684,14 @@
     <string name="ai_planning_active">深度搜索已激活</string>
     <string name="auto_approve_active">自动批准已激活</string>
     <string name="settings_options">设置选项</string>
+    <string name="thinking_settings">思考</string>
+    <string name="thinking_settings_desc">管理思考模式与思考引导</string>
+    <string name="thinking_settings_active_count">已启用 %1$d 项</string>
+    <string name="thinking_type_off">off</string>
+    <string name="thinking_type_mode">mode</string>
+    <string name="thinking_type_guidance">guidance</string>
+    <string name="thinking_quality">思考质量</string>
+    <string name="thinking_quality_desc">仅在思考模式下生效</string>
     <string name="model_config">模型配置</string>
     <string name="model_config_desc">在这里选择一个已经配置好的模型，或者点击下方的管理配置去新建或修改模型</string>
     <string name="prompt">提示词</string>
@@ -2971,9 +2979,12 @@
     <string name="settings_reset_all_counts">重置所有计数</string>
     <string name="settings_token_usage_subtitle">查看详细的Token使用统计和自定义定价</string>
     <string name="settings_usage_summary">使用统计</string>
+    <string name="settings_total_chats">对话</string>
+    <string name="settings_total_messages">消息</string>
     <string name="settings_total_tokens">总Token数</string>
     <string name="settings_total_cost">总费用</string>
     <string name="settings_total_requests">总请求次数</string>
+    <string name="settings_model_usage_distribution">模型使用分布</string>
     <string name="settings_model_details">模型详情</string>
     <string name="settings_click_to_edit_pricing">点击编辑定价和计费方式</string>
     <string name="settings_edit_model_pricing">编辑模型定价 - %1$s</string>
@@ -3171,6 +3182,8 @@
     <string name="chat_style_desc">选择聊天界面风格</string>
     <string name="chat_style_cursor">命令框</string>
     <string name="chat_style_bubble">对话框</string>
+    <string name="chat_style_bubble_show_avatar">显示头像</string>
+    <string name="chat_style_bubble_show_avatar_desc">在气泡式聊天中显示用户和 AI 的头像</string>
     <string name="display_options_title">显示选项</string>
     <string name="show_thinking_process">显示思考过程</string>
     <string name="show_thinking_process_desc">切换AI响应中 &lt;think&gt; 标签的可见性</string>
@@ -4770,6 +4783,7 @@
     <string name="toolreg_list_chats_desc">列出所有对话</string>
     <string name="toolreg_switch_chat_desc">切换到对话: %1$s</string>
     <string name="toolreg_send_message_to_ai_desc">发送消息给AI: %1$s</string>
+    <string name="toolreg_get_chat_messages_desc">获取对话消息: %1$s%2$s%3$s</string>
     <string name="toolreg_list_files_desc">列出目录内容: %1$s%2$s</string>
     <string name="toolreg_read_file_desc">读取文件: %1$s%2$s</string>
     <string name="toolreg_read_file_part_range_lines">行 %1$s-%2$s</string>

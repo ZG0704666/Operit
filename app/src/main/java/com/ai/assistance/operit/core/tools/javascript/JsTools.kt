@@ -475,6 +475,12 @@ fun getJsToolsDefinition(): String {
                 listAll: () => toolCall("list_chats", {}),
                 // 切换对话
                 switchTo: (chatId) => toolCall("switch_chat", { chat_id: chatId }),
+                getMessages: (chatId, order, limit) => {
+                    const params = { chat_id: chatId };
+                    if (order !== undefined && order !== null && String(order).trim() !== "") params.order = String(order);
+                    if (limit !== undefined && limit !== null && !isNaN(Number(limit))) params.limit = String(limit);
+                    return toolCall("get_chat_messages", params);
+                },
                 // 发送消息给AI
                 sendMessage: (message, chatId) => {
                     const params = { message };

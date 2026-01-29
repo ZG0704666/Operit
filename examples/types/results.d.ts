@@ -1036,6 +1036,29 @@ export interface MessageSendResultData {
 }
 
 /**
+ * Chat message entry
+ */
+export interface ChatMessageInfo {
+    sender: string;
+    content: string;
+    timestamp: number;
+    roleName?: string;
+    provider?: string;
+    modelName?: string;
+}
+
+/**
+ * Chat messages query result data
+ */
+export interface ChatMessagesResultData {
+    chatId: string;
+    order: string;
+    limit: number;
+    messages: ChatMessageInfo[];
+    toString(): string;
+}
+
+/**
  * Result type wrappers for Chat Manager operations
  */
 export interface ChatServiceStartResult extends BaseResult {
@@ -1056,6 +1079,10 @@ export interface ChatSwitchResult extends BaseResult {
 
 export interface MessageSendResult extends BaseResult {
     data: MessageSendResultData;
+}
+
+export interface ChatMessagesResult extends BaseResult {
+    data: ChatMessagesResultData;
 }
 
 // ============================================================================

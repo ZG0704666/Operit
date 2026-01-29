@@ -57,6 +57,7 @@ fun BubbleAiMessageComposable(
     val preferencesManager = remember { UserPreferencesManager.getInstance(context) }
     val displayPreferencesManager = remember { DisplayPreferencesManager.getInstance(context) }
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val bubbleShowAvatar by preferencesManager.bubbleShowAvatar.collectAsState(initial = true)
     val showThinkingProcess by preferencesManager.showThinkingProcess.collectAsState(initial = true)
     val showStatusTags by preferencesManager.showStatusTags.collectAsState(initial = true)
     val avatarShapePref by preferencesManager.avatarShape.collectAsState(initial = UserPreferencesManager.AVATAR_SHAPE_CIRCLE)
@@ -153,32 +154,37 @@ fun BubbleAiMessageComposable(
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
-        // Avatar
-        if (!aiAvatarUri.isNullOrEmpty()) {
-            Image(
-                painter = rememberAsyncImagePainter(model = Uri.parse(aiAvatarUri)),
-                contentDescription = "AI Avatar",
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(avatarShape),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.Assistant,
-                contentDescription = "AI Avatar",
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(avatarShape),
-                tint = MaterialTheme.colorScheme.secondary
-            )
+        if (bubbleShowAvatar) {
+            // Avatar
+            if (!aiAvatarUri.isNullOrEmpty()) {
+                Image(
+                    painter = rememberAsyncImagePainter(model = Uri.parse(aiAvatarUri)),
+                    contentDescription = "AI Avatar",
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(avatarShape),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Assistant,
+                    contentDescription = "AI Avatar",
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(avatarShape),
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
         }
-        Spacer(modifier = Modifier.width(8.dp))
 
         // 使用Column来垂直排列名称和消息气泡
         Column(
             modifier = Modifier
-                .padding(end = 32.dp)
+                .padding(
+                    start = if (bubbleShowAvatar) 0.dp else 8.dp,
+                    end = 0.dp
+                )
                 .weight(1f, fill = false)
         ) {
             // 根据用户设置显示角色名称、模型名称和供应商信息
@@ -214,57 +220,62 @@ fun BubbleAiMessageComposable(
                 )
             }
             
-            if (imageUrl != null) {
-                AsyncImage(
-                    model = Uri.parse(imageUrl),
-                    contentDescription = "Image from AI",
-                    modifier = Modifier
-                        .heightIn(max = 80.dp)
-                        .clip(RoundedCornerShape(16.dp)),
-                    contentScale = ContentScale.Fit
-                )
-            } else {
-                // Message bubble
-                Surface(
-                    modifier = Modifier
-                        .defaultMinSize(minHeight = 44.dp),
-                    shape = RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp),
-                    color = backgroundColor,
-                    tonalElevation = 2.dp
-                ) {
-                // 使用 message.timestamp 作为 key，确保在重组期间，
-                // 只要是同一条消息，StreamMarkdownRenderer就不会被销毁和重建。
-                key(message.timestamp) {
-                    val stream = message.contentStream
-                    if (stream != null) {
-                        val charStream = remember(stream) { stream.toCharStream() }
-                        StreamMarkdownRenderer(
-                            markdownStream = charStream,
-                            textColor = textColor,
-                            backgroundColor = backgroundColor,
-                            onLinkClick = rememberedOnLinkClick,
-                            xmlRenderer = xmlRenderer,
-                            nodeGrouper = nodeGrouper,
-                            modifier = Modifier.padding(12.dp),
-                            state = rendererState,
-                            fillMaxWidth = false  // bubble模式：横向缩紧
-                        )
-                    } else {
-                        // 对于已完成的静态消息，使用 content 参数的渲染器以支持Markdown
-                        // 共享相同的state，避免重新计算nodes等状态
-                        StreamMarkdownRenderer(
-                            content = message.content,
-                            textColor = textColor,
-                            backgroundColor = backgroundColor,
-                            onLinkClick = rememberedOnLinkClick,
-                            xmlRenderer = xmlRenderer,
-                            nodeGrouper = nodeGrouper,
-                            modifier = Modifier.padding(12.dp),
-                            state = rendererState,
-                            fillMaxWidth = false  // bubble模式：横向缩紧
-                        )
+            BoxWithConstraints {
+                val maxBubbleWidth = maxWidth * 0.85f
+                if (imageUrl != null) {
+                    AsyncImage(
+                        model = Uri.parse(imageUrl),
+                        contentDescription = "Image from AI",
+                        modifier = Modifier
+                            .widthIn(max = maxBubbleWidth)
+                            .heightIn(max = 80.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    // Message bubble
+                    Surface(
+                        modifier = Modifier
+                            .widthIn(max = maxBubbleWidth)
+                            .defaultMinSize(minHeight = 44.dp),
+                        shape = RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp),
+                        color = backgroundColor,
+                        tonalElevation = 2.dp
+                    ) {
+                    // 使用 message.timestamp 作为 key，确保在重组期间，
+                    // 只要是同一条消息，StreamMarkdownRenderer就不会被销毁和重建。
+                    key(message.timestamp) {
+                        val stream = message.contentStream
+                        if (stream != null) {
+                            val charStream = remember(stream) { stream.toCharStream() }
+                            StreamMarkdownRenderer(
+                                markdownStream = charStream,
+                                textColor = textColor,
+                                backgroundColor = backgroundColor,
+                                onLinkClick = rememberedOnLinkClick,
+                                xmlRenderer = xmlRenderer,
+                                nodeGrouper = nodeGrouper,
+                                modifier = Modifier.padding(12.dp),
+                                state = rendererState,
+                                fillMaxWidth = false  // bubble模式：横向缩紧
+                            )
+                        } else {
+                            // 对于已完成的静态消息，使用 content 参数的渲染器以支持Markdown
+                            // 共享相同的state，避免重新计算nodes等状态
+                            StreamMarkdownRenderer(
+                                content = message.content,
+                                textColor = textColor,
+                                backgroundColor = backgroundColor,
+                                onLinkClick = rememberedOnLinkClick,
+                                xmlRenderer = xmlRenderer,
+                                nodeGrouper = nodeGrouper,
+                                modifier = Modifier.padding(12.dp),
+                                state = rendererState,
+                                fillMaxWidth = false  // bubble模式：横向缩紧
+                            )
+                        }
                     }
-                }
+                    }
                 }
             }
         }

@@ -90,7 +90,7 @@ open class OpenAIProvider(
 ) : AIService {
     // private val client: OkHttpClient = HttpClientFactory.instance
 
-    protected val JSON = "application/json; charset=utf-8".toMediaType()
+    protected val JSON = "application/json".toMediaType()
 
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null

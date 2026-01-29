@@ -40,7 +40,7 @@ class ClaudeProvider(
 ) : AIService {
     // private val client: OkHttpClient = HttpClientFactory.instance
 
-    private val JSON = "application/json; charset=utf-8".toMediaType()
+    private val JSON = "application/json".toMediaType()
     private val ANTHROPIC_VERSION = "2023-06-01" // Claude API版本
 
      private val DEFAULT_MAX_TOKENS = 4096

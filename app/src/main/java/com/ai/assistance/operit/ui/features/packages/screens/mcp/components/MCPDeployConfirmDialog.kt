@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.packages.screens.mcp.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
@@ -73,7 +74,12 @@ fun MCPDeployConfirmDialog(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // 底部按钮
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)
+                ) {
                     // 取消按钮
                     TextButton(
                             onClick = onDismissRequest,

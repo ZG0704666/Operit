@@ -1311,6 +1311,15 @@
     <string name="status_info_block">Información de Estado</string>
     <string name="html_content_block">Contenido HTML</string>
     <string name="mood_tag_block">Etiqueta de Ánimo</string>
+
+    <string name="thinking_settings">Pensamiento</string>
+    <string name="thinking_settings_desc">Gestionar modo de pensamiento y guía de pensamiento</string>
+    <string name="thinking_settings_active_count">%1$d activados</string>
+    <string name="thinking_type_off">off</string>
+    <string name="thinking_type_mode">mode</string>
+    <string name="thinking_type_guidance">guidance</string>
+    <string name="thinking_quality">Calidad de pensamiento</string>
+    <string name="thinking_quality_desc">Solo efectivo en modo de pensamiento</string>
     
     <string name="provider_doubao">Doubao (Modelo Volcano)</string>
 

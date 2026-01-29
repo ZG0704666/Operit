@@ -193,7 +193,9 @@ class MessageCoordinationDelegate(
             chatId = chatId,
             workspacePath = workspacePath,
             promptFunctionType = promptFunctionType,
-            enableThinking = apiConfigDelegate.enableThinkingMode.value,
+            // Safety: thinking guidance and thinking mode are mutually exclusive.
+            // When guidance is enabled, we avoid enabling provider-level thinking simultaneously.
+            enableThinking = apiConfigDelegate.enableThinkingMode.value && !apiConfigDelegate.enableThinkingGuidance.value,
             thinkingGuidance = apiConfigDelegate.enableThinkingGuidance.value,
             enableMemoryQuery = shouldEnableMemoryQuery,
             enableWorkspaceAttachment = !workspacePath.isNullOrBlank(),

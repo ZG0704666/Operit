@@ -72,6 +72,17 @@ private fun AudioRecordingConfiguration.tryGetClientUid(): Int? {
     }
 }
 
+private fun AudioRecordingConfiguration.tryGetClientPackageName(): String? {
+    return try {
+        val method =
+            javaClass.methods.firstOrNull { it.name == "getClientPackageName" && it.parameterTypes.isEmpty() }
+        val value = method?.invoke(this)
+        value as? String
+    } catch (_: Exception) {
+        null
+    }
+}
+
 /** 前台服务，用于在AI进行长时间处理时保持应用活跃，防止被系统杀死。 该服务不执行实际工作，仅通过显示一个持久通知来提升应用的进程优先级。 */
 class AIForegroundService : Service() {
 
@@ -231,18 +242,61 @@ class AIForegroundService : Service() {
             object : AudioManager.AudioRecordingCallback() {
                 override fun onRecordingConfigChanged(configs: List<AudioRecordingConfiguration>) {
                     val isWakeListeningRunning =
-                        wakeListeningJob?.isActive == true || personalWakeJob?.isActive == true
+                        wakeListeningMicActiveForRecordingDetection ||
+                            wakeListeningJob?.isActive == true ||
+                            personalWakeJob?.isActive == true
                     val myUid = Process.myUid()
-                    val hasExternal =
-                        if (isWakeListeningRunning) {
-                            configs.size > 1 ||
-                                configs.any { cfg ->
-                                    val uid = cfg.tryGetClientUid()?.takeIf { it > 0 } ?: return@any false
-                                    uid != myUid
-                                }
-                        } else {
-                            configs.isNotEmpty()
+                    val myPackageName = packageName
+
+                    fun isExternalConfig(cfg: AudioRecordingConfiguration): Boolean {
+                        val uid = cfg.tryGetClientUid()
+                        if (uid != null && uid > 0) {
+                            if (uid == myUid) return false
+                            if (uid < Process.FIRST_APPLICATION_UID) {
+                                return false
+                            }
+
+                            val pkg = cfg.tryGetClientPackageName()?.takeIf { it.isNotBlank() }
+                            if (pkg != null) {
+                                return pkg != myPackageName
+                            }
+
+                            return true
                         }
+
+                        val pkg = cfg.tryGetClientPackageName()?.takeIf { it.isNotBlank() }
+                        if (uid == null || uid <= 0) {
+                            if (isWakeListeningRunning) return false
+                            if (pkg != null) return pkg != myPackageName
+                            return true
+                        }
+
+                        return false
+                    }
+
+                    val hasExternal = configs.any(::isExternalConfig)
+
+                    if (hasExternal != wakeListeningSuspendedForExternalRecording) {
+                        val summary =
+                            configs.mapIndexed { idx, cfg ->
+                                val uid = cfg.tryGetClientUid()
+                                val pkg = cfg.tryGetClientPackageName()
+                                val hasUidMethod = cfg.javaClass.methods.any { it.name == "getClientUid" && it.parameterTypes.isEmpty() }
+                                val hasPkgMethod = cfg.javaClass.methods.any { it.name == "getClientPackageName" && it.parameterTypes.isEmpty() }
+                                val raw = try {
+                                    cfg.toString().replace('\n', ' ').replace('\r', ' ')
+                                } catch (_: Exception) {
+                                    ""
+                                }
+                                val rawShort = if (raw.length > 220) raw.substring(0, 220) else raw
+                                "#$idx uid=${uid ?: "?"},pkg=${pkg ?: "?"},mUid=$hasUidMethod,mPkg=$hasPkgMethod cfg=$rawShort"
+                            }.joinToString(" | ")
+                        AppLogger.d(
+                            TAG,
+                            "Recording configs changed: wakeRunning=$isWakeListeningRunning micFlag=$wakeListeningMicActiveForRecordingDetection external=$hasExternal count=${configs.size} configs=[$summary]"
+                        )
+                    }
+
                     updateWakeListeningSuspendedForExternalRecording(hasExternal)
                 }
             }
@@ -260,18 +314,39 @@ class AIForegroundService : Service() {
         try {
             val configs = am.activeRecordingConfigurations
             val isWakeListeningRunning =
-                wakeListeningJob?.isActive == true || personalWakeJob?.isActive == true
+                wakeListeningMicActiveForRecordingDetection ||
+                    wakeListeningJob?.isActive == true ||
+                    personalWakeJob?.isActive == true
             val myUid = Process.myUid()
-            val hasExternal =
-                if (isWakeListeningRunning) {
-                    configs.size > 1 ||
-                        configs.any { cfg ->
-                            val uid = cfg.tryGetClientUid()?.takeIf { it > 0 } ?: return@any false
-                            uid != myUid
-                        }
-                } else {
-                    configs.isNotEmpty()
+            val myPackageName = packageName
+
+            fun isExternalConfig(cfg: AudioRecordingConfiguration): Boolean {
+                val uid = cfg.tryGetClientUid()
+                if (uid != null && uid > 0) {
+                    if (uid == myUid) return false
+                    if (uid < Process.FIRST_APPLICATION_UID) {
+                        return false
+                    }
+
+                    val pkg = cfg.tryGetClientPackageName()?.takeIf { it.isNotBlank() }
+                    if (pkg != null) {
+                        return pkg != myPackageName
+                    }
+
+                    return true
                 }
+
+                val pkg = cfg.tryGetClientPackageName()?.takeIf { it.isNotBlank() }
+                if (uid == null || uid <= 0) {
+                    if (isWakeListeningRunning) return false
+                    if (pkg != null) return pkg != myPackageName
+                    return true
+                }
+
+                return false
+            }
+
+            val hasExternal = configs.any(::isExternalConfig)
             updateWakeListeningSuspendedForExternalRecording(hasExternal)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to read active recording configs: ${e.message}", e)
@@ -337,6 +412,9 @@ class AIForegroundService : Service() {
 
     @Volatile
     private var wakeListeningEnabled: Boolean = false
+
+    @Volatile
+    private var wakeListeningMicActiveForRecordingDetection: Boolean = false
 
     @Volatile
     private var wakeListeningSuspendedForIme: Boolean = false
@@ -873,6 +951,7 @@ class AIForegroundService : Service() {
             val provider = ensureWakeSpeechProvider()
             val initOk = provider.initialize()
             AppLogger.d(TAG, "唤醒识别器 initialize: ok=$initOk")
+            wakeListeningMicActiveForRecordingDetection = true
             val startOk = provider.startRecognition(
                 languageCode = "zh-CN",
                 continuousMode = true,
@@ -887,6 +966,7 @@ class AIForegroundService : Service() {
                         provider.currentState == SpeechService.RecognitionState.RECOGNIZING
                 if (!alreadyRunning) {
                     AppLogger.w(TAG, "唤醒识别器 startRecognition failed (will retry)")
+                    wakeListeningMicActiveForRecordingDetection = false
                     wakeStateRetryJob?.cancel()
                     wakeStateRetryJob =
                         serviceScope.launch {
@@ -899,6 +979,7 @@ class AIForegroundService : Service() {
                 }
             }
         } catch (e: Exception) {
+            wakeListeningMicActiveForRecordingDetection = false
             AppLogger.e(TAG, "启动唤醒监听失败: ${e.message}", e)
             return
         }
@@ -976,6 +1057,8 @@ class AIForegroundService : Service() {
             return
         }
 
+        wakeListeningMicActiveForRecordingDetection = true
+
         val listener =
             PersonalWakeListener(
                 context = applicationContext,
@@ -1005,6 +1088,8 @@ class AIForegroundService : Service() {
                     listener.runLoop()
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Personal wake loop failed: ${e.message}", e)
+                } finally {
+                    wakeListeningMicActiveForRecordingDetection = false
                 }
             }
     }
@@ -1017,6 +1102,7 @@ class AIForegroundService : Service() {
 
     private suspend fun stopWakeListeningLocked(releaseProvider: Boolean = false) {
         AppLogger.d(TAG, "stopWakeListening")
+        wakeListeningMicActiveForRecordingDetection = false
         wakeResumeJob?.cancel()
         wakeResumeJob = null
 

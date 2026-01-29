@@ -16,6 +16,10 @@ interface ChatDao {
     @Query("SELECT * FROM chats ORDER BY displayOrder ASC")
     fun getAllChats(): Flow<List<ChatEntity>>
 
+    /** 获取聊天总数 */
+    @Query("SELECT COUNT(*) FROM chats")
+    suspend fun getTotalChatCount(): Int
+
     /** 获取所有聊天（挂起函数版本） */
     @Query("SELECT * FROM chats ORDER BY displayOrder ASC")
     suspend fun getAllChatsDirectly(): List<ChatEntity>

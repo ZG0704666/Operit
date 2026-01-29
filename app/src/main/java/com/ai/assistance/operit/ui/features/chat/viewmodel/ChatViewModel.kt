@@ -176,6 +176,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 思考模式和思考引导状态现在由ApiConfigDelegate管理
     val enableThinkingMode: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingMode }
     val enableThinkingGuidance: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingGuidance }
+    val thinkingQualityLevel: StateFlow<Int> by lazy { apiConfigDelegate.thinkingQualityLevel }
     val enableMemoryQuery: StateFlow<Boolean> by lazy { apiConfigDelegate.enableMemoryQuery }
     val enableTools: StateFlow<Boolean> by lazy { apiConfigDelegate.enableTools }
     val disableStreamOutput: StateFlow<Boolean> by lazy { apiConfigDelegate.disableStreamOutput }
@@ -634,6 +635,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 切换思考引导的方法现在委托给ApiConfigDelegate
     fun toggleThinkingGuidance() {
         apiConfigDelegate.toggleThinkingGuidance()
+    }
+
+    fun updateThinkingQualityLevel(level: Int) {
+        apiConfigDelegate.updateThinkingQualityLevel(level)
     }
 
     // 切换记忆附着的方法现在委托给ApiConfigDelegate

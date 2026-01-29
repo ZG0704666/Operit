@@ -29,6 +29,8 @@
     <string name="chat_starting_export">Starting export...</string>
     <string name="chat_reply_instruction">User is replying to your previous message:</string>
     <string name="chat_workspace_status">Workspace Status</string>
+    <string name="chat_style_bubble_show_avatar">Show avatars</string>
+    <string name="chat_style_bubble_show_avatar_desc">Show user and AI avatars in bubble chat style</string>
 
     <!-- Floating Window Module -->
     <string name="floating_screen_content">Screen Content</string>
@@ -2767,6 +2769,14 @@
     <string name="ai_planning_active">AI planning mode activated</string>
     <string name="auto_approve_active">Auto approve activated</string>
     <string name="settings_options">Settings options</string>
+    <string name="thinking_settings">Thinking</string>
+    <string name="thinking_settings_desc">Manage thinking mode and thinking guidance</string>
+    <string name="thinking_settings_active_count">%1$d enabled</string>
+    <string name="thinking_type_off">off</string>
+    <string name="thinking_type_mode">mode</string>
+    <string name="thinking_type_guidance">guidance</string>
+    <string name="thinking_quality">Thinking quality</string>
+    <string name="thinking_quality_desc">Only effective in thinking mode</string>
     <string name="model_config">Model Configuration</string>
     <string name="model_config_desc">Select a configured model here, or click Manage Configuration below to create or modify models</string>
     <string name="prompt">Prompt</string>
@@ -3054,9 +3064,12 @@
     <string name="settings_reset_all_counts">Reset All Counts</string>
     <string name="settings_token_usage_subtitle">View detailed token usage statistics and custom pricing</string>
     <string name="settings_usage_summary">Usage Summary</string>
+    <string name="settings_total_chats">Chats</string>
+    <string name="settings_total_messages">Messages</string>
     <string name="settings_total_tokens">Total Tokens</string>
     <string name="settings_total_cost">Total Cost</string>
     <string name="settings_total_requests">Total Requests</string>
+    <string name="settings_model_usage_distribution">Model Usage Distribution</string>
     <string name="settings_request_count">Request Count</string>
     <string name="settings_request_count_label">Requests: %1$d</string>
     <string name="settings_billing_mode">Billing Mode</string>
@@ -4808,6 +4821,7 @@
     <string name="toolreg_list_chats_desc">List all chats</string>
     <string name="toolreg_switch_chat_desc">Switch to chat: %1$s</string>
     <string name="toolreg_send_message_to_ai_desc">Send message to AI: %1$s</string>
+    <string name="toolreg_get_chat_messages_desc">Get chat messages: %1$s%2$s%3$s</string>
     <string name="toolreg_list_files_desc">List directory: %1$s%2$s</string>
     <string name="toolreg_read_file_desc">Read file: %1$s%2$s</string>
     <string name="toolreg_read_file_part_range_lines">lines %1$s-%2$s</string>

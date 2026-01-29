@@ -602,6 +602,19 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.sendMessageToAI(tool) } }
     )
 
+    handler.registerTool(
+            name = "get_chat_messages",
+            descriptionGenerator = { tool ->
+                val chatId = tool.parameters.find { it.name == "chat_id" }?.value ?: ""
+                val order = tool.parameters.find { it.name == "order" }?.value
+                val limit = tool.parameters.find { it.name == "limit" }?.value
+                val orderInfo = if (!order.isNullOrBlank()) " ($order)" else ""
+                val limitInfo = if (!limit.isNullOrBlank()) " ($limit)" else ""
+                s(R.string.toolreg_get_chat_messages_desc, chatId, orderInfo, limitInfo)
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.getChatMessages(tool) } }
+    )
+
     // 文件系统工具
     val fileSystemTools = ToolGetter.getFileSystemTools(context)
 

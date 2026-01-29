@@ -5,6 +5,9 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import com.ai.assistance.operit.util.AppLogger
 import com.k2fsa.sherpa.mnn.*
 import com.ai.assistance.operit.api.speech.SpeechPrerollStore
@@ -41,6 +44,55 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Default)
+
+    private var aec: AcousticEchoCanceler? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
+    private var agc: AutomaticGainControl? = null
+
+    private fun setupAudioEffects(audioSessionId: Int) {
+        releaseAudioEffects()
+
+        if (audioSessionId <= 0) return
+
+        if (AcousticEchoCanceler.isAvailable()) {
+            try {
+                aec = AcousticEchoCanceler.create(audioSessionId)?.also { it.enabled = true }
+            } catch (_: Exception) {
+            }
+        }
+        if (NoiseSuppressor.isAvailable()) {
+            try {
+                noiseSuppressor = NoiseSuppressor.create(audioSessionId)?.also { it.enabled = true }
+            } catch (_: Exception) {
+            }
+        }
+        if (AutomaticGainControl.isAvailable()) {
+            try {
+                agc = AutomaticGainControl.create(audioSessionId)?.also { it.enabled = true }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun releaseAudioEffects() {
+        try {
+            aec?.release()
+        } catch (_: Exception) {
+        }
+        aec = null
+
+        try {
+            noiseSuppressor?.release()
+        } catch (_: Exception) {
+        }
+        noiseSuppressor = null
+
+        try {
+            agc?.release()
+        } catch (_: Exception) {
+        }
+        agc = null
+    }
 
     private val _recognitionState = MutableStateFlow(SpeechService.RecognitionState.UNINITIALIZED)
     override val currentState: SpeechService.RecognitionState
@@ -371,6 +423,13 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
         val minBufferSize = AudioRecord.getMinBufferSize(sampleRateInHz, channelConfig, audioFormat)
 
+        if (minBufferSize <= 0) {
+            AppLogger.e(TAG, "AudioRecord.getMinBufferSize returned invalid size: $minBufferSize")
+            _recognitionState.value = SpeechService.RecognitionState.ERROR
+            _recognitionError.value = SpeechService.RecognitionError(-2, "Invalid AudioRecord buffer size")
+            return false
+        }
+
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.VOICE_COMMUNICATION,
             sampleRateInHz,
@@ -378,7 +437,40 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             audioFormat,
             minBufferSize * 2
         )
-        audioRecord?.startRecording()
+
+        val recordInstance = audioRecord
+        if (recordInstance == null || recordInstance.state != AudioRecord.STATE_INITIALIZED) {
+            AppLogger.e(TAG, "AudioRecord is not initialized (state=${recordInstance?.state})")
+            try {
+                recordInstance?.release()
+            } catch (_: Exception) {
+            }
+            audioRecord = null
+            releaseAudioEffects()
+            _recognitionState.value = SpeechService.RecognitionState.ERROR
+            _recognitionError.value = SpeechService.RecognitionError(-3, "AudioRecord not initialized")
+            return false
+        }
+
+        try {
+            setupAudioEffects(recordInstance.audioSessionId)
+        } catch (_: Exception) {
+        }
+
+        try {
+            recordInstance.startRecording()
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "AudioRecord.startRecording failed", e)
+            try {
+                recordInstance.release()
+            } catch (_: Exception) {
+            }
+            audioRecord = null
+            releaseAudioEffects()
+            _recognitionState.value = SpeechService.RecognitionState.ERROR
+            _recognitionError.value = SpeechService.RecognitionError(-4, e.message ?: "AudioRecord start failed")
+            return false
+        }
         _recognitionState.value = SpeechService.RecognitionState.RECOGNIZING
         currentVolume = 0f
         _volumeLevelFlow.value = 0f
@@ -571,6 +663,7 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
                 AppLogger.w(TAG, "Error releasing AudioRecord", e)
             }
             audioRecord = null
+            releaseAudioEffects()
             _recognitionState.value = SpeechService.RecognitionState.IDLE
             _volumeLevelFlow.value = 0f
             return true
@@ -605,6 +698,7 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             AppLogger.w(TAG, "Error releasing AudioRecord", e)
         }
         audioRecord = null
+        releaseAudioEffects()
         
         // 注意：不要在这里释放 stream，因为它可能被 recordingJob 使用
         // stream 会在下次 startRecognition 时重新创建
@@ -650,6 +744,8 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             _volumeLevelFlow.value = 0f
             _recognitionResult.value = SpeechService.RecognitionResult(text = "", isFinal = false, confidence = 0f)
         }
+
+        releaseAudioEffects()
     }
 
     override suspend fun getSupportedLanguages(): List<String> =

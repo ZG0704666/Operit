@@ -1463,6 +1463,29 @@ data class ChatSwitchResultData(
     }
 }
 
+@Serializable
+data class ChatMessagesResultData(
+    val chatId: String,
+    val order: String,
+    val limit: Int,
+    val messages: List<ChatMessageInfo>
+) : ToolResultData() {
+
+    @Serializable
+    data class ChatMessageInfo(
+        val sender: String,
+        val content: String,
+        val timestamp: Long,
+        val roleName: String = "",
+        val provider: String = "",
+        val modelName: String = ""
+    )
+
+    override fun toString(): String {
+        return "Chat messages: $chatId (order=$order, limit=$limit)\nTotal: ${messages.size}"
+    }
+}
+
 /** 发送消息结果数据 */
 @Serializable
 data class MessageSendResultData(

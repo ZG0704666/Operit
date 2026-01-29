@@ -114,6 +114,19 @@
 - 如果这些文件是由构建脚本生成：应该**重新构建**生成它们（优先）
 - 如果当前仓库是直接提交产物：就需要手动同步修改这些产物中的调用签名
 
+补充说明（packages 同步约定）：
+
+- `examples/*.ts` 通常作为脚本包的**源代码**
+- `examples/*.js` 作为**编译产物/分发产物**（不建议手改）
+- `app/src/main/assets/packages/*.js` 作为 App 运行时加载的包文件
+- 仓库提供 `sync_example_packages.py`：会按 `packages_whitelist.txt` 将 `examples/*.js` 复制到 `app/src/main/assets/packages/*.js`
+
+因此：
+
+- 修改脚本包功能时，优先改 `examples/<package>.ts`，然后通过构建/编译生成对应的 `examples/<package>.js`
+- 最后再用 `sync_example_packages.py` 同步到 `assets/packages/`
+- **不建议直接手动修改** `examples/*.js` 或 `assets/packages/*.js`（避免被后续构建覆盖或造成源/产物不一致）
+
 为什么必须改：
 - App 实际运行时可能直接加载 assets 里的 JS 包；你只改了 TS 不改 assets，会导致运行仍调用旧参数。
 
