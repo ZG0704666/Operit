@@ -121,6 +121,11 @@ object ChatMarkupRegex {
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
 
+    val proxySenderTag = Regex(
+        "<proxy_sender\\s+name=\"([^\"]+)\"\\s*/>",
+        RegexOption.IGNORE_CASE
+    )
+
     val anyXmlTag = Regex("<[^>]*>")
 
     val pruneToolResultContentPattern = Regex(

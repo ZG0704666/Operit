@@ -87,6 +87,7 @@ object AIMessageManager {
      */
     suspend fun buildUserMessageContent(
         messageText: String,
+        proxySenderName: String? = null,
         attachments: List<AttachmentInfo>,
         enableMemoryQuery: Boolean,
         enableWorkspaceAttachment: Boolean = false,
@@ -97,6 +98,16 @@ object AIMessageManager {
         enableDirectAudioProcessing: Boolean = false,
         enableDirectVideoProcessing: Boolean = false
     ): String {
+        val proxySenderTag =
+            if (!proxySenderName.isNullOrBlank() &&
+                !messageText.contains("<proxy_sender", ignoreCase = true)
+            ) {
+                val safeProxySenderName = proxySenderName.replace("\"", "'")
+                "<proxy_sender name=\"$safeProxySenderName\"/>"
+            } else {
+                ""
+            }
+
         // 1. 构建回复标签（如果有回复消息）
         val replyTag = replyToMessage?.let { message ->
             val cleanContent = message.content
@@ -199,7 +210,7 @@ object AIMessageManager {
         } else ""
 
         // 5. 组合最终消息
-        return listOf(messageText, attachmentTags, workspaceTag, replyTag)
+        return listOf(proxySenderTag, messageText, attachmentTags, workspaceTag, replyTag)
             .filter { it.isNotBlank() }
             .joinToString(" ")
     }
@@ -241,7 +252,8 @@ object AIMessageManager {
         onTokenLimitExceeded: (suspend () -> Unit)? = null,
         characterName: String? = null,
         avatarUri: String? = null,
-        roleCardId: String
+        roleCardId: String,
+        proxySenderName: String? = null
     ): SharedStream<String> {
         val chatKey = chatId ?: DEFAULT_CHAT_KEY
         lastActiveChatKey = chatKey
@@ -335,6 +347,7 @@ object AIMessageManager {
                 characterName = characterName,
                 avatarUri = avatarUri,
                 roleCardId = roleCardId,
+                proxySenderName = proxySenderName,
                 stream = enableStream
             ).share(
                 scope = scope,

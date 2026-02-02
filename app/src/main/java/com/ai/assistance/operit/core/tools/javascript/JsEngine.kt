@@ -465,6 +465,18 @@ class JsEngine(private val context: Context) {
                 }
             }
 
+            function getCallerName() {
+                try {
+                    var v = window['__operit_package_caller_name'];
+                    if (v === null || v === undefined || v === "") {
+                        return undefined;
+                    }
+                    return String(v);
+                } catch (e) {
+                    return undefined;
+                }
+            }
+
             // Operit standard directories (injected from native)
             var OPERIT_DOWNLOAD_DIR = ${JSONObject.quote(operitDownloadDir)};
             var OPERIT_CLEAN_ON_EXIT_DIR = ${JSONObject.quote(operitCleanOnExitDir)};
@@ -765,6 +777,13 @@ class JsEngine(private val context: Context) {
                     ? String(params.__operit_package_lang)
                     : undefined;
                 window['__operit_package_lang'] = __operitLang;
+            } catch (e) {
+            }
+            try {
+                var __operitCallerName = (params && params.__operit_package_caller_name !== undefined && params.__operit_package_caller_name !== null && String(params.__operit_package_caller_name).length > 0)
+                    ? String(params.__operit_package_caller_name)
+                    : undefined;
+                window['__operit_package_caller_name'] = __operitCallerName;
             } catch (e) {
             }
             

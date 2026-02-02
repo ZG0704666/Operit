@@ -442,6 +442,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         characterName: String? = null,
         avatarUri: String? = null,
         roleCardId: String? = null,
+        proxySenderName: String? = null,
         onToolInvocation: (suspend (String) -> Unit)? = null,
         stream: Boolean = true
     ): Stream<String> {
@@ -489,6 +490,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                                     customSystemPromptTemplate,
                                     enableMemoryQuery,
                                     roleCardId,
+                                    proxySenderName,
                                     isSubTask,
                                     functionType
                             )
@@ -1012,7 +1014,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                 invocations = toolInvocations,
                 toolHandler = toolHandler,
                 packageManager = packageManager,
-                collector = collector
+                collector = collector,
+                callerName = characterName
             )
 
             if (allToolResults.isNotEmpty()) {
@@ -1308,6 +1311,7 @@ class EnhancedAIService private constructor(private val context: Context) {
             customSystemPromptTemplate: String? = null,
             enableMemoryQuery: Boolean,
             roleCardId: String?,
+            proxySenderName: String? = null,
             isSubTask: Boolean = false,
             functionType: FunctionType = FunctionType.CHAT
     ): List<Pair<String, String>> {
@@ -1335,6 +1339,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 customSystemPromptTemplate,
                 enableMemoryQuery,
                 roleCardId,
+                proxySenderName,
                 hasImageRecognition,
                 hasAudioRecognition,
                 hasVideoRecognition,

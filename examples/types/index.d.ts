@@ -183,6 +183,8 @@ declare global {
 
     function getLang(): string;
 
+    function getCallerName(): string | undefined;
+
     const OPERIT_DOWNLOAD_DIR: string;
     const OPERIT_CLEAN_ON_EXIT_DIR: string;
 

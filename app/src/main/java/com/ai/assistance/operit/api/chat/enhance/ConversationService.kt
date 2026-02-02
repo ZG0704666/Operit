@@ -235,6 +235,7 @@ class ConversationService(
             customSystemPromptTemplate: String? = null,
             enableMemoryQuery: Boolean = true,
             roleCardId: String? = null,
+            proxySenderName: String? = null,
             hasImageRecognition: Boolean = false,
             hasAudioRecognition: Boolean = false,
             hasVideoRecognition: Boolean = false,
@@ -247,8 +248,19 @@ class ConversationService(
         conversationMutex.withLock {
             // Add system prompt if not already present
             if (!chatHistory.any { it.first == "system" }) {
-                val activeProfile = preferencesManager.getUserPreferencesFlow().first()
-                val preferencesText = buildPreferencesText(activeProfile)
+                val safeProxySenderName = proxySenderName?.takeIf { it.isNotBlank() }
+
+                val preferencesText = if (safeProxySenderName == null) {
+                    val activeProfile = preferencesManager.getUserPreferencesFlow().first()
+                    buildPreferencesText(activeProfile)
+                } else {
+                    val proxyCard = characterCardManager.findCharacterCardByName(safeProxySenderName)
+                    if (proxyCard == null) {
+                        ""
+                    } else {
+                        characterCardManager.combinePrompts(proxyCard.id)
+                    }
+                }
 
                 // 根据功能类型获取对应的提示词
                 val effectiveRoleCardId = roleCardId?.takeIf { it.isNotBlank() }

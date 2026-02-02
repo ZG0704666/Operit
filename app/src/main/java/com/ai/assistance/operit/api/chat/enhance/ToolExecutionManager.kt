@@ -191,7 +191,8 @@ object ToolExecutionManager {
         invocations: List<ToolInvocation>,
         toolHandler: AIToolHandler,
         packageManager: PackageManager,
-        collector: StreamCollector<String>
+        collector: StreamCollector<String>,
+        callerName: String? = null
     ): List<ToolResult> = coroutineScope {
         // 默认工具注册现在可能在启动阶段被延后；这里确保在真正执行工具前已完成注册
         // registerDefaultTools() 是幂等且线程安全的，可安全重复调用
@@ -216,12 +217,35 @@ object ToolExecutionManager {
             }
         }
 
+        val injectedInvocations = if (callerName.isNullOrBlank()) {
+            permittedInvocations
+        } else {
+            permittedInvocations.map { invocation ->
+                val isPackageTool = invocation.tool.name.contains(':')
+                if (!isPackageTool) {
+                    invocation
+                } else {
+                    val hasCallerParam = invocation.tool.parameters.any { it.name == "__operit_package_caller_name" }
+                    if (hasCallerParam) {
+                        invocation
+                    } else {
+                        invocation.copy(
+                            tool = invocation.tool.copy(
+                                parameters = invocation.tool.parameters +
+                                    ToolParameter("__operit_package_caller_name", callerName)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
         // 2. 按并行/串行对工具进行分组
         val parallelizableToolNames = setOf(
             "list_files", "read_file", "read_file_part", "read_file_full", "file_exists",
             "find_files", "file_info", "grep_code", "query_memory", "calculate", "ffmpeg_info"
         )
-        val (parallelInvocations, serialInvocations) = permittedInvocations.partition {
+        val (parallelInvocations, serialInvocations) = injectedInvocations.partition {
             parallelizableToolNames.contains(
                 it.tool.name
             )
@@ -248,7 +272,7 @@ object ToolExecutionManager {
         parallelJobs.awaitAll()
 
         // 4. 按原始顺序重新排序结果
-        val orderedAggregated = permittedInvocations.mapNotNull { executionResults[it] }
+        val orderedAggregated = injectedInvocations.mapNotNull { executionResults[it] }
 
         // 5. 组合所有结果并返回
         permissionDeniedResults + orderedAggregated

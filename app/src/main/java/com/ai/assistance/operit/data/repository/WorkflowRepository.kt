@@ -18,6 +18,7 @@ import java.io.File
 import android.content.Intent
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -47,6 +48,14 @@ class WorkflowRepository(private val context: Context) {
 
         @Volatile
         private var speechTriggerCachedAtMs: Long = 0L
+
+        val workflowUpdateEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+        fun notifyWorkflowsChanged() {
+            speechTriggerCachedWorkflows = null
+            speechTriggerCachedAtMs = 0L
+            workflowUpdateEvents.tryEmit(Unit)
+        }
     }
     
     /**
@@ -131,6 +140,8 @@ class WorkflowRepository(private val context: Context) {
             if (workflow.enabled && hasScheduleTrigger(workflow)) {
                 scheduleWorkflow(workflow.id)
             }
+
+            notifyWorkflowsChanged()
             
             Result.success(workflow)
         } catch (e: Exception) {
@@ -155,6 +166,8 @@ class WorkflowRepository(private val context: Context) {
             if (updatedWorkflow.enabled && hasScheduleTrigger(updatedWorkflow)) {
                 rescheduleWorkflow(updatedWorkflow.id)
             }
+
+            notifyWorkflowsChanged()
             
             Result.success(updatedWorkflow)
         } catch (e: Exception) {
@@ -179,6 +192,9 @@ class WorkflowRepository(private val context: Context) {
             }
             
             AppLogger.d(TAG, "Workflow deleted: $id, success: $deleted")
+            if (deleted) {
+                notifyWorkflowsChanged()
+            }
             Result.success(deleted)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to delete workflow", e)
@@ -315,6 +331,7 @@ class WorkflowRepository(private val context: Context) {
             file.writeText(content)
             
             AppLogger.d(TAG, "Workflow execution status updated: $id -> $status")
+            notifyWorkflowsChanged()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to update execution status", e)
         }
@@ -348,6 +365,7 @@ class WorkflowRepository(private val context: Context) {
             file.writeText(content)
             
             AppLogger.d(TAG, "Workflow execution statistics updated: $id (total: ${updatedWorkflow.totalExecutions}, success: ${updatedWorkflow.successfulExecutions})")
+            notifyWorkflowsChanged()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to update execution statistics", e)
         }

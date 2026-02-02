@@ -228,6 +228,7 @@ class MessageProcessingDelegate(
             attachments: List<AttachmentInfo> = emptyList(),
             chatId: String,
             messageTextOverride: String? = null,
+            proxySenderNameOverride: String? = null,
             workspacePath: String? = null,
             workspaceEnv: String? = null,
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
@@ -286,6 +287,7 @@ class MessageProcessingDelegate(
             // 1. 使用 AIMessageManager 构建最终消息
             val finalMessageContent = AIMessageManager.buildUserMessageContent(
                 messageText,
+                proxySenderNameOverride,
                 attachments,
                 enableMemoryQuery,
                 enableWorkspaceAttachment,
@@ -439,7 +441,8 @@ class MessageProcessingDelegate(
                     onTokenLimitExceeded = effectiveOnTokenLimitExceeded,
                     characterName = characterName,
                     avatarUri = avatarUri,
-                    roleCardId = effectiveRoleCardId
+                    roleCardId = effectiveRoleCardId,
+                    proxySenderName = proxySenderNameOverride
                 )
 
                 // 将字符串流共享，以便多个收集器可以使用

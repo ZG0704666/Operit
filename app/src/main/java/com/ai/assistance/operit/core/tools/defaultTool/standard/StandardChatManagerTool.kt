@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.ChatMarkupRegex
 import com.ai.assistance.operit.util.stream.SharedStream
@@ -1048,6 +1049,9 @@ class StandardChatManagerTool(private val context: Context) {
                 }
             }
 
+            val senderNameParam = tool.parameters.find { it.name == "sender_name" }?.value?.trim()
+            val proxySenderName = senderNameParam?.takeIf { it.isNotBlank() }
+
             try {
                 // 可选的 chat_id 参数
                 val targetChatId = tool.parameters.find { it.name == "chat_id" }?.value?.trim()
@@ -1090,14 +1094,16 @@ class StandardChatManagerTool(private val context: Context) {
                         promptFunctionType = PromptFunctionType.CHAT,
                         roleCardIdOverride = roleCardId,
                         chatIdOverride = preflightChatId,
-                        messageTextOverride = message
+                        messageTextOverride = message,
+                        proxySenderNameOverride = proxySenderName
                     )
                 } else {
                     // 发送消息（包含总结逻辑），由 Coordination 处理 chatId 默认
                     core.sendUserMessage(
                         promptFunctionType = PromptFunctionType.CHAT,
                         roleCardIdOverride = roleCardId,
-                        messageTextOverride = message
+                        messageTextOverride = message,
+                        proxySenderNameOverride = proxySenderName
                     )
                 }
 

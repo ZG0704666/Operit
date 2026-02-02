@@ -408,6 +408,7 @@ const HistoryChat = (function () {
             message,
             chat_id: chatId,
             role_card_id: characterCardId,
+            sender_name: getCallerName() || characterCardName,
         });
 
         const timeoutPromise = new Promise<null>((resolve) => {

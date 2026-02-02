@@ -470,8 +470,26 @@ class ChatHistoryManager private constructor(private val context: Context) {
                         }
                     }
                 } else {
-                    // 如果找不到现有消息，则添加新消息
-                    addMessage(chatId, message)
+                    // 如果找不到现有消息，则插入新消息（避免在同一互斥锁下递归调用 addMessage）
+                    val messageEntity = MessageEntity.fromChatMessage(
+                        chatId = chatId,
+                        message = message,
+                        orderIndex = 0
+                    )
+                    messageDao.insertMessage(messageEntity)
+
+                    // 更新聊天元数据
+                    val chat = chatDao.getChatById(chatId)
+                    if (chat != null) {
+                        chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 throw e

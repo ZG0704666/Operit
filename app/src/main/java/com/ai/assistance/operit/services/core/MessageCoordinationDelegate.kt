@@ -18,7 +18,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 
@@ -66,6 +68,7 @@ class MessageCoordinationDelegate(
     private var currentPromptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
 
     private var nonFatalErrorCollectorJob: Job? = null
+    private val characterCardManager = CharacterCardManager.getInstance(context)
 
     init {
         ensureNonFatalErrorCollectorStarted()
@@ -88,7 +91,8 @@ class MessageCoordinationDelegate(
         promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
         roleCardIdOverride: String? = null,
         chatIdOverride: String? = null,
-        messageTextOverride: String? = null
+        messageTextOverride: String? = null,
+        proxySenderNameOverride: String? = null
     ) {
         // 仅在没有指定 chatId 的情况下，才需要确保有当前对话
         if (chatIdOverride.isNullOrBlank() && chatHistoryDelegate.currentChatId.value == null) {
@@ -122,7 +126,8 @@ class MessageCoordinationDelegate(
                     promptFunctionType,
                     roleCardIdOverride = roleCardIdOverride,
                     chatIdOverride = chatIdOverride,
-                    messageTextOverride = messageTextOverride
+                    messageTextOverride = messageTextOverride,
+                    proxySenderNameOverride = proxySenderNameOverride
                 )
             }
         } else {
@@ -131,7 +136,8 @@ class MessageCoordinationDelegate(
                 promptFunctionType,
                 roleCardIdOverride = roleCardIdOverride,
                 chatIdOverride = chatIdOverride,
-                messageTextOverride = messageTextOverride
+                messageTextOverride = messageTextOverride,
+                proxySenderNameOverride = proxySenderNameOverride
             )
         }
     }
@@ -146,7 +152,8 @@ class MessageCoordinationDelegate(
         isAutoContinuation: Boolean = false,
         roleCardIdOverride: String? = null,
         chatIdOverride: String? = null,
-        messageTextOverride: String? = null
+        messageTextOverride: String? = null,
+        proxySenderNameOverride: String? = null
     ) {
         // 如果不是自动续写，更新当前的 promptFunctionType
         if (!isAutoContinuation) {
@@ -202,23 +209,29 @@ class MessageCoordinationDelegate(
             }
         }
 
+        val proxySenderName = proxySenderNameOverride?.takeIf { it.isNotBlank() }
+
         // 检测是否附着了记忆文件夹
         val hasMemoryFolder = currentAttachments.any {
             it.fileName == "memory_context.xml" && it.mimeType == "application/xml"
         }
 
-        // 如果附着了记忆文件夹，临时启用记忆查询功能
-        val shouldEnableMemoryQuery = apiConfigDelegate.enableMemoryQuery.value || hasMemoryFolder
+        // 如果是proxy sender，视为关闭记忆附着
+        val shouldEnableMemoryQuery = if (proxySenderName.isNullOrBlank()) {
+            apiConfigDelegate.enableMemoryQuery.value || hasMemoryFolder
+        } else {
+            false
+        }
 
-        val roleCardId =
-            roleCardIdOverride?.takeIf { it.isNotBlank() }
-                ?: CharacterCardManager.DEFAULT_CHARACTER_CARD_ID
+        val roleCardId = roleCardIdOverride?.takeIf { it.isNotBlank() }
+            ?: runBlocking { characterCardManager.activeCharacterCardIdFlow.first() }
 
         // 调用messageProcessingDelegate发送消息，并传递附件信息和工作区路径
         messageProcessingDelegate.sendUserMessage(
             attachments = currentAttachments,
             chatId = chatId,
             messageTextOverride = messageTextOverride,
+            proxySenderNameOverride = proxySenderName,
             workspacePath = workspacePath,
             workspaceEnv = workspaceEnv,
             promptFunctionType = promptFunctionType,

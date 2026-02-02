@@ -745,6 +745,12 @@ object SystemToolPromptsInternal {
                                         type = "string",
                                         description = "optional, role card id to use for this send",
                                         required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "sender_name",
+                                        type = "string",
+                                        description = "optional, display name of the sender when AI sends as user",
+                                        required = false
                                     )
                                 )
                         ),
@@ -2164,6 +2170,12 @@ object SystemToolPromptsInternal {
                                         name = "role_card_id",
                                         type = "string",
                                         description = "可选，本次发送使用的角色卡 ID",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "sender_name",
+                                        type = "string",
+                                        description = "可选，当以用户身份发送时的显示名称",
                                         required = false
                                     )
                                 )

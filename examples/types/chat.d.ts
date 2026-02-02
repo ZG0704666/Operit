@@ -80,9 +80,10 @@ export namespace Chat {
      * @param message - The message content to send
      * @param chatId - Optional chat ID to send the message to (defaults to current chat)
      * @param roleCardId - Optional role card ID to use for this send
+     * @param senderName - Optional display name when AI sends as user
      * @returns Promise resolving to the message send result
      */
-    function sendMessage(message: string, chatId?: string, roleCardId?: string): Promise<MessageSendResultData>;
+    function sendMessage(message: string, chatId?: string, roleCardId?: string, senderName?: string): Promise<MessageSendResultData>;
 
     /**
      * List all character cards

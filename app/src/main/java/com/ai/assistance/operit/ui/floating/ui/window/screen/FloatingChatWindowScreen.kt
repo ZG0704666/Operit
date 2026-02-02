@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Person
@@ -51,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
 import com.ai.assistance.operit.ui.features.chat.components.ScrollToBottomButton
 import com.ai.assistance.operit.ui.floating.ui.window.components.*
@@ -67,6 +70,13 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.rememberAsyncImagePainter
+import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import kotlinx.coroutines.flow.first
 
 /** 渲染悬浮窗的窗口模式界面 - 简化版 */
 @Composable
@@ -96,6 +106,8 @@ private fun FloatingChatWindowContent(
     val edgeHighlightColor = MaterialTheme.colorScheme.primary
     val backgroundColor = MaterialTheme.colorScheme.background
 
+    var showRecentChatSelector by remember { mutableStateOf(false) }
+
     Layout(
         content = {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -105,7 +117,9 @@ private fun FloatingChatWindowContent(
                     cornerRadius = cornerRadius,
                     borderThickness = borderThickness,
                     edgeHighlightColor = edgeHighlightColor,
-                    backgroundColor = backgroundColor
+                    backgroundColor = backgroundColor,
+                    showRecentChatSelector = showRecentChatSelector,
+                    onToggleRecentChatSelector = { showRecentChatSelector = !showRecentChatSelector }
                 )
             }
         },
@@ -136,6 +150,140 @@ private fun FloatingChatWindowContent(
     }
 }
 
+@Composable
+private fun RecentChatSelectorOverlay(
+    floatContext: FloatContext,
+    visible: Boolean,
+    onDismiss: () -> Unit
+) {
+    if (!visible) return
+
+    val chatCore = remember(floatContext.chatService) {
+        floatContext.chatService?.getChatCore()
+    }
+    val chatHistoriesState = chatCore?.chatHistories?.collectAsState(initial = emptyList())
+    val currentChatIdState = chatCore?.currentChatId?.collectAsState(initial = null)
+    val chatHistories = chatHistoriesState?.value ?: emptyList()
+    val currentChatId = currentChatIdState?.value
+    val context = floatContext.chatService ?: return
+    val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
+    val coroutineScope = rememberCoroutineScope()
+    val ungroupedText = stringResource(R.string.ungrouped)
+    val items = remember(chatHistories) {
+        chatHistories.sortedByDescending { it.updatedAt }.take(20)
+    }
+
+    val avatarUriMap = remember { mutableStateMapOf<String, String?>() }
+    LaunchedEffect(items) {
+        items.forEach { history ->
+            val characterName = history.characterCardName?.takeIf { it.isNotBlank() }
+            if (characterName != null && !avatarUriMap.containsKey(history.id)) {
+                coroutineScope.launch {
+                    val card = characterCardManager.findCharacterCardByName(characterName)
+                    val uri = card?.id?.let { id ->
+                        userPreferencesManager.getAiAvatarForCharacterCardFlow(id).first()
+                    }
+                    avatarUriMap[history.id] = uri
+                }
+            } else if (!avatarUriMap.containsKey(history.id)) {
+                avatarUriMap[history.id] = null
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.35f))
+            .pointerInput(Unit) {
+                detectTapGestures { onDismiss() }
+            }
+    ) {
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth()
+                .align(Alignment.TopCenter),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = stringResource(R.string.chat_history),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(items) { history ->
+                        val isActive = history.id == currentChatId
+                        val avatarUri = avatarUriMap[history.id]
+                        val groupText = history.group?.takeIf { it.isNotBlank() } ?: ungroupedText
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isActive)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    else
+                                        Color.Transparent
+                                )
+                                .clickable {
+                                    chatCore?.switchChat(history.id)
+                                    onDismiss()
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (avatarUri != null) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(model = Uri.parse(avatarUri)),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = history.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = groupText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** 主窗口盒子 */
 @Composable
 private fun MainWindowBox(
@@ -144,7 +292,9 @@ private fun MainWindowBox(
     cornerRadius: Dp,
     borderThickness: Dp,
     edgeHighlightColor: Color,
-    backgroundColor: Color
+    backgroundColor: Color,
+    showRecentChatSelector: Boolean,
+    onToggleRecentChatSelector: () -> Unit
 ) {
     var isResizingHeight by remember { mutableStateOf(false) }
     var isScaling by remember { mutableStateOf(false) }
@@ -163,11 +313,17 @@ private fun MainWindowBox(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             CloseButtonEffect(floatContext, viewModel)
-            TitleBar(floatContext, viewModel)
+            TitleBar(floatContext, viewModel, onToggleRecentChatSelector)
             ChatContentArea(floatContext, viewModel)
             ProcessingStatusIndicator(floatContext)
             FloatingChatWindowInputControls(floatContext, viewModel)
         }
+
+        RecentChatSelectorOverlay(
+            floatContext = floatContext,
+            visible = showRecentChatSelector,
+            onDismiss = onToggleRecentChatSelector
+        )
 
         // 底部高度调整分隔线
         BottomResizeHandle(
@@ -216,7 +372,8 @@ private fun CloseButtonEffect(
 @Composable
 private fun TitleBar(
     floatContext: FloatContext,
-    viewModel: FloatingChatWindowModeViewModel
+    viewModel: FloatingChatWindowModeViewModel,
+    onToggleRecentChatSelector: () -> Unit
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val errorColor = MaterialTheme.colorScheme.error
@@ -249,6 +406,11 @@ private fun TitleBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                TitleBarButton(
+                    icon = Icons.Default.History,
+                    description = stringResource(R.string.chat_history),
+                    onClick = onToggleRecentChatSelector
+                )
                 TitleBarButton(
                     icon = Icons.Default.Fullscreen,
                     description = stringResource(R.string.floating_fullscreen),

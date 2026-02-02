@@ -197,13 +197,15 @@ class ChatServiceCore(
         promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
         roleCardIdOverride: String? = null,
         chatIdOverride: String? = null,
-        messageTextOverride: String? = null
+        messageTextOverride: String? = null,
+        proxySenderNameOverride: String? = null
     ) {
         messageCoordinationDelegate.sendUserMessage(
             promptFunctionType = promptFunctionType,
             roleCardIdOverride = roleCardIdOverride,
             chatIdOverride = chatIdOverride,
-            messageTextOverride = messageTextOverride
+            messageTextOverride = messageTextOverride,
+            proxySenderNameOverride = proxySenderNameOverride
         )
     }
 

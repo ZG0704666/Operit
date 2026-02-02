@@ -100,6 +100,11 @@ private constructor(private val context: Context, private val packageManager: Pa
             } else {
                 injectedParams.remove("__operit_package_lang")
             }
+            if (params["__operit_package_caller_name"] != null) {
+                injectedParams["__operit_package_caller_name"] = params["__operit_package_caller_name"].toString()
+            } else {
+                injectedParams.remove("__operit_package_caller_name")
+            }
             val result = engine.executeScriptFunction(script, functionName, injectedParams)
 
             return result?.toString() ?: "null"
@@ -177,6 +182,11 @@ private constructor(private val context: Context, private val packageManager: Pa
                 injectedParams["__operit_package_lang"] = language
             } else {
                 injectedParams.remove("__operit_package_lang")
+            }
+            if (params["__operit_package_caller_name"] != null) {
+                injectedParams["__operit_package_caller_name"] = params["__operit_package_caller_name"].toString()
+            } else {
+                injectedParams.remove("__operit_package_caller_name")
             }
 
             // Execute the script with timeout

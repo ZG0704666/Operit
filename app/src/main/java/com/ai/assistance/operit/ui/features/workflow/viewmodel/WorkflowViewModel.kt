@@ -25,6 +25,7 @@ import com.ai.assistance.operit.data.repository.WorkflowRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -58,14 +59,23 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
     
     init {
         loadWorkflows()
+
+        viewModelScope.launch {
+            WorkflowRepository.workflowUpdateEvents.collectLatest {
+                loadWorkflows(showLoading = false)
+                currentWorkflow?.id?.let { loadWorkflow(it, showLoading = false) }
+            }
+        }
     }
     
     /**
      * 加载所有工作流
      */
-    fun loadWorkflows() {
+    fun loadWorkflows(showLoading: Boolean = true) {
         viewModelScope.launch {
-            isLoading = true
+            if (showLoading) {
+                isLoading = true
+            }
             error = null
             
             repository.getAllWorkflows().fold(
@@ -73,7 +83,9 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                 onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
-            isLoading = false
+            if (showLoading) {
+                isLoading = false
+            }
         }
     }
 
@@ -930,9 +942,11 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
     /**
      * 根据ID加载工作流
      */
-    fun loadWorkflow(id: String) {
+    fun loadWorkflow(id: String, showLoading: Boolean = true) {
         viewModelScope.launch {
-            isLoading = true
+            if (showLoading) {
+                isLoading = true
+            }
             error = null
             
             repository.getWorkflowById(id).fold(
@@ -940,7 +954,9 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
                 onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
             )
             
-            isLoading = false
+            if (showLoading) {
+                isLoading = false
+            }
         }
     }
     
