@@ -470,9 +470,24 @@ fun getJsToolsDefinition(): String {
                 // 启动对话服务
                 startService: () => toolCall("start_chat_service", {}),
                 // 创建新对话
-                createNew: () => toolCall("create_new_chat", {}),
+                createNew: (group, setAsCurrentChat, characterCardId) => {
+                    const params = {};
+                    if (group !== undefined && group !== null && String(group).trim() !== "") {
+                        params.group = String(group);
+                    }
+                    if (setAsCurrentChat !== undefined && setAsCurrentChat !== null) {
+                        params.set_as_current_chat = String(setAsCurrentChat);
+                    }
+                    if (characterCardId !== undefined && characterCardId !== null && String(characterCardId).trim() !== "") {
+                        params.character_card_id = String(characterCardId);
+                    }
+                    return toolCall("create_new_chat", params);
+                },
                 // 列出所有对话
                 listAll: () => toolCall("list_chats", {}),
+                listChats: (params = {}) => toolCall("list_chats", params),
+                findChat: (params = {}) => toolCall("find_chat", params),
+                agentStatus: (chatId) => toolCall("agent_status", { chat_id: chatId }),
                 // 切换对话
                 switchTo: (chatId) => toolCall("switch_chat", { chat_id: chatId }),
                 getMessages: (chatId, order, limit) => {
@@ -482,11 +497,14 @@ fun getJsToolsDefinition(): String {
                     return toolCall("get_chat_messages", params);
                 },
                 // 发送消息给AI
-                sendMessage: (message, chatId) => {
+                sendMessage: (message, chatId, roleCardId) => {
                     const params = { message };
                     if (chatId) params.chat_id = chatId;
+                    if (roleCardId) params.role_card_id = roleCardId;
                     return toolCall("send_message_to_ai", params);
-                }
+                },
+                // 列出所有角色卡
+                listCharacterCards: () => toolCall("list_character_cards", {})
             }
         };
     """.trimIndent()

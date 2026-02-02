@@ -13,9 +13,9 @@ import {
     UIPageResultData, UIActionResultData, CombinedOperationResultData, AutomationExecutionResultData,
     CalculationResultData, FFmpegResultData, ADBResultData, IntentResultData, TerminalCommandResultData,
     FilePartContentData, FileApplyResultData, WorkflowListResultData, WorkflowResultData, WorkflowDetailResultData,
-    StringResultData, ChatServiceStartResultData, ChatCreationResultData, ChatListResultData,
+    StringResultData, ChatServiceStartResultData, ChatCreationResultData, ChatListResultData, ChatFindResultData, AgentStatusResultData,
     ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, GrepResultData,
-    ChatMessagesResultData
+    ChatMessagesResultData, CharacterCardListResultData
 } from './results';
 
 /**
@@ -113,8 +113,12 @@ export interface ToolResultMap {
     'start_chat_service': ChatServiceStartResultData;
     'create_new_chat': ChatCreationResultData;
     'list_chats': ChatListResultData;
+    'find_chat': ChatFindResultData;
+    'agent_status': AgentStatusResultData;
     'switch_chat': ChatSwitchResultData;
+
     'send_message_to_ai': MessageSendResultData;
+    'list_character_cards': CharacterCardListResultData;
     'get_chat_messages': ChatMessagesResultData;
 
     // Memory operations

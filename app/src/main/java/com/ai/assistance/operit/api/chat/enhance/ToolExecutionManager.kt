@@ -340,11 +340,14 @@ object ToolExecutionManager {
                     // 包存在，检查是否已激活（通过检查该包的任何工具是否已注册）
                     val packageTools =
                         packageManager.getPackageTools(packName)?.tools ?: emptyList()
-                    val isPackageActivated = packageTools.any {
-                        toolHandler.getToolExecutor("$packName:${it.name}") != null
-                    }
+                    val isAdviceTool = packageTools.any { it.advice && it.name == toolNamePart }
+                    val isPackageActivated = packageTools
+                        .filter { !it.advice }
+                        .any { toolHandler.getToolExecutor("$packName:${it.name}") != null }
 
-                    if (isPackageActivated) {
+                    if (isAdviceTool) {
+                        "Tool '$toolNamePart' is an advice-only entry in package '$packName' and is not executable."
+                    } else if (isPackageActivated) {
                         // 包已激活但工具不存在
                         "Tool '$toolNamePart' does not exist in tool package '$packName'. Please use the 'use_package' tool and specify package name '$packName' to list all available tools in this package."
                     } else {

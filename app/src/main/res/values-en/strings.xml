@@ -4824,8 +4824,11 @@
     <string name="toolreg_create_new_chat_desc">Create new chat</string>
     <string name="toolreg_create_new_chat_in_group_desc">Create new chat (group: %1$s)</string>
     <string name="toolreg_list_chats_desc">List all chats</string>
+    <string name="toolreg_find_chat_desc">Find chat: %1$s</string>
+    <string name="toolreg_agent_status_desc">Check chat status: %1$s</string>
     <string name="toolreg_switch_chat_desc">Switch to chat: %1$s</string>
     <string name="toolreg_send_message_to_ai_desc">Send message to AI: %1$s</string>
+    <string name="toolreg_list_character_cards_desc">List all character cards</string>
     <string name="toolreg_get_chat_messages_desc">Get chat messages: %1$s%2$s%3$s</string>
     <string name="toolreg_list_files_desc">List directory: %1$s%2$s</string>
     <string name="toolreg_read_file_desc">Read file: %1$s%2$s</string>

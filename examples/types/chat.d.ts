@@ -9,9 +9,12 @@ import {
     ChatServiceStartResultData,
     ChatCreationResultData,
     ChatListResultData,
+    ChatFindResultData,
+    AgentStatusResultData,
     ChatSwitchResultData,
     MessageSendResultData,
-    ChatMessagesResultData
+    ChatMessagesResultData,
+    CharacterCardListResultData
 } from './results';
 
 /**
@@ -27,15 +30,43 @@ export namespace Chat {
 
     /**
      * Create a new chat conversation
+     * @param group - Optional group name for the new chat
+     * @param setAsCurrentChat - Optional, whether to switch to the new chat (default true)
+     * @param characterCardId - Optional character card id to bind for the new chat
      * @returns Promise resolving to the new chat creation result
      */
-    function createNew(): Promise<ChatCreationResultData>;
+    function createNew(group?: string, setAsCurrentChat?: boolean, characterCardId?: string): Promise<ChatCreationResultData>;
 
     /**
      * List all chat conversations
      * @returns Promise resolving to the list of all chats
      */
     function listAll(): Promise<ChatListResultData>;
+
+    /**
+     * List chat conversations with filters
+     */
+    function listChats(params?: {
+        query?: string;
+        match?: 'contains' | 'exact' | 'regex';
+        limit?: number;
+        sort_by?: 'updatedAt' | 'createdAt' | 'messageCount';
+        sort_order?: 'asc' | 'desc';
+    }): Promise<ChatListResultData>;
+
+    /**
+     * Find a chat by title or id
+     */
+    function findChat(params: {
+        query: string;
+        match?: 'contains' | 'exact' | 'regex';
+        index?: number;
+    }): Promise<ChatFindResultData>;
+
+    /**
+     * Check chat input processing status
+     */
+    function agentStatus(chatId: string): Promise<AgentStatusResultData>;
 
     /**
      * Switch to a specific chat conversation
@@ -48,9 +79,15 @@ export namespace Chat {
      * Send a message to the AI
      * @param message - The message content to send
      * @param chatId - Optional chat ID to send the message to (defaults to current chat)
+     * @param roleCardId - Optional role card ID to use for this send
      * @returns Promise resolving to the message send result
      */
-    function sendMessage(message: string, chatId?: string): Promise<MessageSendResultData>;
+    function sendMessage(message: string, chatId?: string, roleCardId?: string): Promise<MessageSendResultData>;
+
+    /**
+     * List all character cards
+     */
+    function listCharacterCards(): Promise<CharacterCardListResultData>;
 
     /**
      * Get messages from a specific chat
@@ -59,4 +96,3 @@ export namespace Chat {
      */
     function getMessages(chatId: string, options?: { order?: 'asc' | 'desc'; limit?: number }): Promise<ChatMessagesResultData>;
 }
-

@@ -12,7 +12,7 @@ ffmpeg.js
 file_converter.js
 google_search.js
 github.js
-history_chat.js
+extended_chat.js
 nanobanana_draw.js
 qwen_draw.js
 super_admin.js
@@ -25,3 +25,4 @@ various_search.js
 workflow.js
 xai_draw.js
 openai_draw.js
+all_about_myself.js

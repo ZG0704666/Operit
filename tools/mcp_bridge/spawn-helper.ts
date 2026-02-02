@@ -3,23 +3,21 @@ import * as path from 'path';
 import * as os from 'os';
 import { McpServiceInfo } from './index'; // Assuming McpServiceInfo is exported from index.ts
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
 
 // 扩展 MCPClient 以支持自定义 headers
 class MCPClientWithHeaders extends MCPClient {
     async connectWithHeaders(options: {
         url: string;
         headers?: Record<string, string>;
+        connectionType?: 'httpStream' | 'sse';
     }): Promise<void> {
-        // 创建带有自定义 headers 的 transport
-        const transport = new StreamableHTTPClientTransport(
-            new URL(options.url),
-            {
-                requestInit: options.headers ? {
-                    headers: options.headers
-                } : undefined
-            }
-        );
+        const requestInit = options.headers ? { headers: options.headers } : undefined;
+        const transport = options.connectionType === 'sse'
+            ? new SSEClientTransport(new URL(options.url), { requestInit })
+            : new StreamableHTTPClientTransport(new URL(options.url), { requestInit });
 
         // 访问私有的 client 和 transports (使用 any 绕过类型检查)
         const clientInstance = (this as any).client as Client;
@@ -102,7 +100,8 @@ const handlers = {
                 // 使用扩展的 connectWithHeaders 方法传递 headers
                 await client.connectWithHeaders({
                     url: serviceInfo.endpoint!,
-                    headers: Object.keys(headers).length > 0 ? headers : undefined
+                    headers: Object.keys(headers).length > 0 ? headers : undefined,
+                    connectionType: serviceInfo.connectionType
                 });
             }
 

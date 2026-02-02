@@ -1371,12 +1371,16 @@ class AIForegroundService : Service() {
                 return
             }
             
+            val rawReplyContent = replyContent
+            if (rawReplyContent.isNullOrBlank()) {
+                AppLogger.d(TAG, "回复内容为空，跳过发送回复通知")
+                return
+            }
+
             AppLogger.d(TAG, "准备发送AI回复通知...")
             
             // 清理回复内容，移除思考内容等
-            val cleanedReplyContent = replyContent?.let { 
-                WaifuMessageProcessor.cleanContentForWaifu(it) 
-            } ?: ""
+            val cleanedReplyContent = WaifuMessageProcessor.cleanContentForWaifu(rawReplyContent)
             
             // 创建点击通知后打开应用的Intent
             val intent = packageManager.getLaunchIntentForPackage(packageName)

@@ -312,7 +312,8 @@ package com.ai.assistance.operit.core.tools
      val name: String,
      val description: LocalizedText,
      val parameters: List<PackageToolParameter>,
-     val script: String // JavaScript or compatible script that defines this tool's behavior (formerly operScript)
+     val script: String, // JavaScript or compatible script that defines this tool's behavior (formerly operScript)
+     val advice: Boolean = false
  )
  
  /**

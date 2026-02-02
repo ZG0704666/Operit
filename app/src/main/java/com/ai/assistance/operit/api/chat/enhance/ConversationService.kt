@@ -234,6 +234,7 @@ class ConversationService(
             thinkingGuidance: Boolean = false,
             customSystemPromptTemplate: String? = null,
             enableMemoryQuery: Boolean = true,
+            roleCardId: String? = null,
             hasImageRecognition: Boolean = false,
             hasAudioRecognition: Boolean = false,
             hasVideoRecognition: Boolean = false,
@@ -250,7 +251,10 @@ class ConversationService(
                 val preferencesText = buildPreferencesText(activeProfile)
 
                 // 根据功能类型获取对应的提示词
-                val activeCard = characterCardManager.activeCharacterCardFlow.first()
+                val effectiveRoleCardId = roleCardId?.takeIf { it.isNotBlank() }
+                val activeCard = effectiveRoleCardId?.let {
+                    characterCardManager.getCharacterCardFlow(it).first()
+                }
                 val systemTagId =
                         when (promptFunctionType) {
                             PromptFunctionType.VOICE -> PromptTagManager.SYSTEM_VOICE_TAG_ID
@@ -259,11 +263,12 @@ class ConversationService(
                             else -> PromptTagManager.SYSTEM_CHAT_TAG_ID
                         }
                 
-                val introPrompt =
-                        characterCardManager.combinePrompts(
-                                activeCard.id,
-                                listOf(systemTagId)
-                        )
+                val introPrompt = activeCard?.let {
+                    characterCardManager.combinePrompts(
+                        it.id,
+                        listOf(systemTagId)
+                    )
+                }.orEmpty()
 
                 // 获取自定义系统提示模板
                 val finalCustomSystemPromptTemplate = customSystemPromptTemplate ?: apiPreferences.customSystemPromptTemplateFlow.first()
@@ -316,9 +321,10 @@ class ConversationService(
                 }
 
                 // 替换提示词中的占位符
+                val aiName = activeCard?.name ?: context.getString(R.string.app_name)
                 val finalSystemPromptWithReplacements = replacePromptPlaceholders(
                     finalSystemPrompt,
-                    activeCard.name
+                    aiName
                 )
                 preparedHistory.add(0, Pair("system", finalSystemPromptWithReplacements))
             }

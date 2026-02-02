@@ -222,6 +222,7 @@ object AIMessageManager {
      * @param onTokenLimitExceeded token限制超出回调。
      * @param characterName 角色名称，用于通知。
      * @param avatarUri 角色头像URI，用于通知。
+     * @param roleCardId 角色卡片ID。
      * @return 包含AI响应流的ChatMessage对象。
      */
     suspend fun sendMessage(
@@ -239,7 +240,8 @@ object AIMessageManager {
         onNonFatalError: suspend (error: String) -> Unit,
         onTokenLimitExceeded: (suspend () -> Unit)? = null,
         characterName: String? = null,
-        avatarUri: String? = null
+        avatarUri: String? = null,
+        roleCardId: String
     ): SharedStream<String> {
         val chatKey = chatId ?: DEFAULT_CHAT_KEY
         lastActiveChatKey = chatKey
@@ -332,6 +334,7 @@ object AIMessageManager {
                 onTokenLimitExceeded = onTokenLimitExceeded, // 传递回调
                 characterName = characterName,
                 avatarUri = avatarUri,
+                roleCardId = roleCardId,
                 stream = enableStream
             ).share(
                 scope = scope,

@@ -53,6 +53,14 @@ class ChatHistoryDelegate(
     private val _chatHistory = MutableStateFlow<List<ChatMessage>>(emptyList())
     val chatHistory: StateFlow<List<ChatMessage>> = _chatHistory.asStateFlow()
 
+    suspend fun getChatHistory(chatId: String): List<ChatMessage> {
+        return if (chatId == _currentChatId.value) {
+            _chatHistory.value
+        } else {
+            chatHistoryManager.loadChatMessages(chatId)
+        }
+    }
+
     private val _showChatHistorySelector = MutableStateFlow(false)
     val showChatHistorySelector: StateFlow<Boolean> = _showChatHistorySelector.asStateFlow()
 
@@ -268,7 +276,9 @@ class ChatHistoryDelegate(
     fun createNewChat(
         characterCardName: String? = null,
         group: String? = null,
-        inheritGroupFromCurrent: Boolean = true
+        inheritGroupFromCurrent: Boolean = true,
+        setAsCurrentChat: Boolean = true,
+        characterCardId: String? = null
     ) {
         coroutineScope.launch {
             val (inputTokens, outputTokens, windowSize) = getChatStatistics()
@@ -280,24 +290,30 @@ class ChatHistoryDelegate(
             
             // 获取当前活跃的角色卡
             val activeCard = characterCardManager.activeCharacterCardFlow.first()
+            val resolvedCard =
+                characterCardId
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { characterCardManager.getCharacterCard(it) }
+                    ?: activeCard
             
-            // 确定角色卡名称：如果参数指定了则使用参数，否则使用当前活跃的角色卡
-            val effectiveCharacterCardName = characterCardName ?: activeCard.name
+            // 确定角色卡名称：如果参数指定了则使用参数，否则使用目标角色卡
+            val effectiveCharacterCardName = characterCardName ?: resolvedCard.name
             
             // 创建新对话，如果有当前对话则继承其分组，并绑定角色卡
             val newChat = chatHistoryManager.createNewChat(
                 group = group,
                 inheritGroupFromChatId = inheritGroupFromChatId,
-                characterCardName = effectiveCharacterCardName
+                characterCardName = effectiveCharacterCardName,
+                setAsCurrentChat = setAsCurrentChat
             )
             
             // --- 新增：检查并添加开场白（只在使用活跃角色卡时添加） ---
-            if (characterCardName == null && activeCard.openingStatement.isNotBlank()) {
+            if (characterCardName == null && resolvedCard.openingStatement.isNotBlank()) {
                 val openingMessage = ChatMessage(
                     sender = "ai",
-                    content = activeCard.openingStatement,
+                    content = resolvedCard.openingStatement,
                     timestamp = System.currentTimeMillis(),
-                    roleName = activeCard.name, // 使用角色卡的名称
+                    roleName = resolvedCard.name, // 使用角色卡的名称
                     provider = "", // 开场白不是AI生成，使用空值
                     modelName = "" // 开场白不是AI生成，使用空值
                 )
@@ -315,11 +331,13 @@ class ChatHistoryDelegate(
             
             // 现在通过标准流程切换到新对话，让collector处理消息加载
             // 这样可以避免竞态条件
-            chatHistoryManager.setCurrentChatId(newChat.id)
-            // _currentChatId.value will be updated by the collector
-            // loadChatMessages will also be called by the collector
+            if (setAsCurrentChat) {
+                chatHistoryManager.setCurrentChatId(newChat.id)
+                // _currentChatId.value will be updated by the collector
+                // loadChatMessages will also be called by the collector
 
-            onTokenStatisticsLoaded(newChat.id, 0, 0, 0)
+                onTokenStatisticsLoaded(newChat.id, 0, 0, 0)
+            }
         }
     }
 

@@ -4786,8 +4786,11 @@
     <string name="toolreg_create_new_chat_desc">创建新的对话</string>
     <string name="toolreg_create_new_chat_in_group_desc">创建新的对话 (分组: %1$s)</string>
     <string name="toolreg_list_chats_desc">列出所有对话</string>
+    <string name="toolreg_find_chat_desc">查找对话: %1$s</string>
+    <string name="toolreg_agent_status_desc">查询对话状态: %1$s</string>
     <string name="toolreg_switch_chat_desc">切换到对话: %1$s</string>
     <string name="toolreg_send_message_to_ai_desc">发送消息给AI: %1$s</string>
+    <string name="toolreg_list_character_cards_desc">列出所有角色卡</string>
     <string name="toolreg_get_chat_messages_desc">获取对话消息: %1$s%2$s%3$s</string>
     <string name="toolreg_list_files_desc">列出目录内容: %1$s%2$s</string>
     <string name="toolreg_read_file_desc">读取文件: %1$s%2$s</string>
@@ -5914,7 +5917,7 @@
     <string name="ai_message_result_omitted">[结果: %1$s 已省略]</string>
     <string name="ai_message_result_omitted_with_status">[结果: %1$s %2$s 已省略]</string>
     <string name="ai_message_dialogue_review">\n\n对话回顾：\n</string>
-    <string name="ai_message_continue_task_if_complete">$summaryWithQuotes\n\n请你继续，如果任务完成，输出总结</string>
+    <string name="ai_message_continue_task_if_complete">%1$s\n\n请你继续，如果任务完成，输出总结</string>
     <string name="ai_message_user_label">用户</string>
 
     <!-- MNN Provider -->

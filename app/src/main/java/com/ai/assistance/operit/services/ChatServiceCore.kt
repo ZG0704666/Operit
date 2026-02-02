@@ -134,7 +134,7 @@ class ChatServiceCore(
             context = context,
             coroutineScope = coroutineScope,
             getEnhancedAiService = { enhancedAiService },
-            getChatHistory = { chatHistoryDelegate.chatHistory.value },
+            getChatHistory = { chatId -> chatHistoryDelegate.getChatHistory(chatId) },
             addMessageToChat = { chatId, message ->
                 chatHistoryDelegate.addMessageToChat(message, chatId)
             },
@@ -193,8 +193,18 @@ class ChatServiceCore(
     // ========== 消息处理相关 ==========
 
     /** 发送用户消息（使用 MessageCoordinationDelegate，包含总结逻辑） */
-    fun sendUserMessage(promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT) {
-        messageCoordinationDelegate.sendUserMessage(promptFunctionType)
+    fun sendUserMessage(
+        promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
+        roleCardIdOverride: String? = null,
+        chatIdOverride: String? = null,
+        messageTextOverride: String? = null
+    ) {
+        messageCoordinationDelegate.sendUserMessage(
+            promptFunctionType = promptFunctionType,
+            roleCardIdOverride = roleCardIdOverride,
+            chatIdOverride = chatIdOverride,
+            messageTextOverride = messageTextOverride
+        )
     }
 
     /** 取消当前消息 */
@@ -228,12 +238,16 @@ class ChatServiceCore(
     fun createNewChat(
         characterCardName: String? = null,
         group: String? = null,
-        inheritGroupFromCurrent: Boolean = true
+        inheritGroupFromCurrent: Boolean = true,
+        setAsCurrentChat: Boolean = true,
+        characterCardId: String? = null
     ) {
         chatHistoryDelegate.createNewChat(
             characterCardName = characterCardName,
             group = group,
-            inheritGroupFromCurrent = inheritGroupFromCurrent
+            inheritGroupFromCurrent = inheritGroupFromCurrent,
+            setAsCurrentChat = setAsCurrentChat,
+            characterCardId = characterCardId
         )
     }
 

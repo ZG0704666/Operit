@@ -118,6 +118,7 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
  - Failure vs done (important): partial success is not done; keep correcting and progressing. Only stop after 2-3 consecutive failures with a clear reason and alternatives.
 '''
                     }
+                    advice: true
                     parameters: []
                 }
 
@@ -443,6 +444,7 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
  - Failure vs done (important): partial success is not done; keep progressing. Only stop after 2-3 consecutive failures with a clear reason and alternatives.
 '''
                     }
+                    advice: true
                     parameters: []
                 }
 

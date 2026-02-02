@@ -258,7 +258,7 @@ class JsEngine(private val context: Context) {
                         }).join(' ');
                         
                         // 调用原始方法
-                        originalConsole.AppLogger.apply(console, arguments);
+                        originalConsole.log.apply(console, arguments);
                         
                         // 向Android报告日志
                         if (typeof NativeInterface !== 'undefined' && NativeInterface.logInfo) {
@@ -450,6 +450,18 @@ class JsEngine(private val context: Context) {
                     return String(v);
                 } catch (e) {
                     return undefined;
+                }
+            }
+
+            function getLang() {
+                try {
+                    var v = window['__operit_package_lang'];
+                    if (v === null || v === undefined || v === "") {
+                        return "en";
+                    }
+                    return String(v);
+                } catch (e) {
+                    return "en";
                 }
             }
 
@@ -746,6 +758,13 @@ class JsEngine(private val context: Context) {
                     ? String(params.__operit_package_state)
                     : undefined;
                 window['__operit_package_state'] = __operitState;
+            } catch (e) {
+            }
+            try {
+                var __operitLang = (params && params.__operit_package_lang !== undefined && params.__operit_package_lang !== null && String(params.__operit_package_lang).length > 0)
+                    ? String(params.__operit_package_lang)
+                    : undefined;
+                window['__operit_package_lang'] = __operitLang;
             } catch (e) {
             }
             

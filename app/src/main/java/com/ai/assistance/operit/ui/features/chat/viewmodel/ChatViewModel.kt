@@ -445,7 +445,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         context = context,
                         coroutineScope = viewModelScope,  // 改用 coroutineScope 参数
                         getEnhancedAiService = { enhancedAiService },
-                        getChatHistory = { chatHistoryDelegate.chatHistory.value },
+                        getChatHistory = { chatId -> chatHistoryDelegate.getChatHistory(chatId) },
                         addMessageToChat = { targetChatId, message ->
                             // 将消息固定写入指定聊天，避免在切换会话后串流到新会话
                             // 这是suspend函数，在suspend上下文中会等待完成

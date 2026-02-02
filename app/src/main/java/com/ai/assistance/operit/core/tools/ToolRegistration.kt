@@ -581,6 +581,26 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.listChats(tool) } }
     )
 
+    // 查找对话
+    handler.registerTool(
+            name = "find_chat",
+            descriptionGenerator = { tool ->
+                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
+                s(R.string.toolreg_find_chat_desc, query)
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.findChat(tool) } }
+    )
+
+    // 查询对话输入状态
+    handler.registerTool(
+            name = "agent_status",
+            descriptionGenerator = { tool ->
+                val chatId = tool.parameters.find { it.name == "chat_id" }?.value ?: ""
+                s(R.string.toolreg_agent_status_desc, chatId)
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.agentStatus(tool) } }
+    )
+
     // 切换对话
     handler.registerTool(
             name = "switch_chat",
@@ -600,6 +620,13 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 s(R.string.toolreg_send_message_to_ai_desc, preview)
             },
             executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.sendMessageToAI(tool) } }
+    )
+
+    // 列出所有角色卡
+    handler.registerTool(
+            name = "list_character_cards",
+            descriptionGenerator = { _ -> s(R.string. toolreg_list_character_cards_desc) },
+            executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.listCharacterCards(tool) } }
     )
 
     handler.registerTool(

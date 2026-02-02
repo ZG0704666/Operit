@@ -305,6 +305,9 @@ METADATA
     -   `name`: 工具的函数名。
     -   `description`: 工具功能的描述。
     -   `parameters`: 工具接受的参数列表，每个参数都应定义 `name`, `description`, `type`, 和 `required`。
+    -   `advice`: （可选）标记“仅提示/说明”的工具（如 usage_advice / workflow_guide）。
+        -   `advice: true` 时，该工具不要求在脚本中有同名函数实现。
+        -   应用于纯提示/规则说明场景，运行时会跳过“工具不存在”的校验。
 
 ### 3.1.1. 动态工具集：`states`
 
@@ -350,8 +353,11 @@ METADATA
 
 #### 脚本侧获取当前 state
 
-运行时会向脚本环境提供全局函数 `getState(): string | undefined`，返回当前激活的 state 的 `id`。
-当当前包未使用 states 或未命中任何 state 时，返回 `undefined`。
+运行时会向脚本环境提供全局函数 `getState(): string`，返回当前激活的 state 的 `id`。
+
+#### 脚本侧获取当前语言
+
+运行时会向脚本环境提供全局函数 `getLang(): string`，返回当前使用的语言代码（如 `zh` / `en`）。若语言不可用则返回 `en`。
 
 ### 3.1.2. 文本字段的双语/多语（LocalizedText）
 

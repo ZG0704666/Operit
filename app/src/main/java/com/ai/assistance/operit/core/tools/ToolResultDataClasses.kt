@@ -1417,7 +1417,8 @@ data class ChatListResultData(
         val updatedAt: String,
         val isCurrent: Boolean,
         val inputTokens: Int,
-        val outputTokens: Int
+        val outputTokens: Int,
+        val characterCardName: String? = null
     )
     
     override fun toString(): String {
@@ -1436,6 +1437,9 @@ data class ChatListResultData(
                 sb.appendLine("ID: ${chat.id}$currentMarker")
                 sb.appendLine("Title: ${chat.title}")
                 sb.appendLine("Message Count: ${chat.messageCount}")
+                if (!chat.characterCardName.isNullOrBlank()) {
+                    sb.appendLine("Character Card: ${chat.characterCardName}")
+                }
                 sb.appendLine("Token Statistics: Input ${chat.inputTokens} / Output ${chat.outputTokens}")
                 sb.appendLine("Created: ${chat.createdAt}")
                 sb.appendLine("Updated: ${chat.updatedAt}")
@@ -1444,6 +1448,36 @@ data class ChatListResultData(
         }
 
         return sb.toString().trim()
+    }
+}
+
+/** 查找对话结果数据 */
+@Serializable
+data class ChatFindResultData(
+    val matchedCount: Int,
+    val chat: ChatListResultData.ChatInfo?
+) : ToolResultData() {
+    override fun toString(): String {
+        return if (chat != null) {
+            "Found chat (${chat.id}) (matched=$matchedCount)"
+        } else {
+            "No chat found (matched=$matchedCount)"
+        }
+    }
+}
+
+/** 对话输入状态结果数据 */
+@Serializable
+data class AgentStatusResultData(
+    val chatId: String,
+    val state: String,
+    val message: String? = null,
+    val isIdle: Boolean = false,
+    val isProcessing: Boolean = false
+) : ToolResultData() {
+    override fun toString(): String {
+        val detail = message?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""
+        return "Chat $chatId status: $state$detail"
     }
 }
 
@@ -1483,6 +1517,45 @@ data class ChatMessagesResultData(
 
     override fun toString(): String {
         return "Chat messages: $chatId (order=$order, limit=$limit)\nTotal: ${messages.size}"
+    }
+}
+
+/** 角色卡列表结果数据 */
+@Serializable
+data class CharacterCardListResultData(
+    val totalCount: Int,
+    val cards: List<CharacterCardInfo>
+) : ToolResultData() {
+
+    @Serializable
+    data class CharacterCardInfo(
+        val id: String,
+        val name: String,
+        val description: String,
+        val isDefault: Boolean,
+        val createdAt: Long,
+        val updatedAt: Long
+    )
+
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("Character Cards ($totalCount total):")
+        if (cards.isEmpty()) {
+            sb.appendLine("No cards")
+        } else {
+            cards.forEach { card ->
+                val defaultMarker = if (card.isDefault) " [Default]" else ""
+                sb.appendLine("ID: ${card.id}$defaultMarker")
+                sb.appendLine("Name: ${card.name}")
+                if (card.description.isNotBlank()) {
+                    sb.appendLine("Description: ${card.description}")
+                }
+                sb.appendLine("Created: ${card.createdAt}")
+                sb.appendLine("Updated: ${card.updatedAt}")
+                sb.appendLine("---")
+            }
+        }
+        return sb.toString().trim()
     }
 }
 

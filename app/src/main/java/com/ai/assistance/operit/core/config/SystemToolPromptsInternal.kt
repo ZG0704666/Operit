@@ -596,6 +596,12 @@ object SystemToolPromptsInternal {
                                         type = "integer",
                                         description = "optional, auto close the floating window after this timeout (milliseconds). <=0 disables auto-exit.",
                                         required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "keep_if_exists",
+                                        type = "boolean",
+                                        description = "optional, if true and service already running, do not force floating window mode change",
+                                        required = false
                                     )
                                 )
                         ),
@@ -614,13 +620,95 @@ object SystemToolPromptsInternal {
                                         type = "string",
                                         description = "optional group name for the new chat",
                                         required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "set_as_current_chat",
+                                        type = "boolean",
+                                        description = "optional, whether to switch to the new chat (default true)",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "character_card_id",
+                                        type = "string",
+                                        description = "optional, character card id to bind for the new chat",
+                                        required = false
                                     )
                                 )
                         ),
                         ToolPrompt(
                             name = "list_chats",
-                            description = "List chats.",
-                            parametersStructured = listOf()
+                            description = "List chats (supports filtering and sorting).",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "query",
+                                        type = "string",
+                                        description = "optional, title keyword filter",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "match",
+                                        type = "string",
+                                        description = "optional, contains | exact | regex (default contains)",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "limit",
+                                        type = "integer",
+                                        description = "optional, max results (default 50)",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "sort_by",
+                                        type = "string",
+                                        description = "optional, updatedAt | createdAt | messageCount (default updatedAt)",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "sort_order",
+                                        type = "string",
+                                        description = "optional, asc | desc (default desc)",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "find_chat",
+                            description = "Find a chat by title and return its info.",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "query",
+                                        type = "string",
+                                        description = "title keyword/regex",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "match",
+                                        type = "string",
+                                        description = "optional, contains | exact | regex (default contains)",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "index",
+                                        type = "integer",
+                                        description = "optional, pick Nth match (default 0)",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "agent_status",
+                            description = "Check a chat's input processing status.",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "target chat id",
+                                        required = true
+                                    )
+                                )
                         ),
                         ToolPrompt(
                             name = "switch_chat",
@@ -651,8 +739,19 @@ object SystemToolPromptsInternal {
                                         type = "string",
                                         description = "optional, target chat id",
                                         required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "role_card_id",
+                                        type = "string",
+                                        description = "optional, role card id to use for this send",
+                                        required = false
                                     )
                                 )
+                        ),
+                        ToolPrompt(
+                            name = "list_character_cards",
+                            description = "List all role cards.",
+                            parametersStructured = listOf()
                         ),
                         ToolPrompt(
                             name = "get_chat_messages",
@@ -1915,7 +2014,13 @@ object SystemToolPromptsInternal {
                                     ToolParameterSchema(
                                         name = "timeout_ms",
                                         type = "integer",
-                                        description = "可选，超时后自动关闭悬浮窗（毫秒）。<=0 表示不自动关闭。",
+                                        description = "可选，超时后自动关闭悬浮窗（毫秒），<=0 禁用自动关闭",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "keep_if_exists",
+                                        type = "boolean",
+                                        description = "可选，若服务已在运行则不强制切换悬浮窗模式",
                                         required = false
                                     )
                                 )
@@ -1935,13 +2040,95 @@ object SystemToolPromptsInternal {
                                         type = "string",
                                         description = "新对话分组名（可选）",
                                         required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "set_as_current_chat",
+                                        type = "boolean",
+                                        description = "可选，是否切换到新对话（默认 true）",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "character_card_id",
+                                        type = "string",
+                                        description = "可选，创建对话时绑定的角色卡 ID",
+                                        required = false
                                     )
                                 )
                         ),
                         ToolPrompt(
                             name = "list_chats",
-                            description = "列出所有对话。",
-                            parametersStructured = listOf()
+                            description = "列出所有对话（支持筛选与排序）。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "query",
+                                        type = "string",
+                                        description = "可选，标题关键字筛选",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "match",
+                                        type = "string",
+                                        description = "可选，contains | exact | regex（默认 contains）",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "limit",
+                                        type = "integer",
+                                        description = "可选，最多返回条数（默认 50）",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "sort_by",
+                                        type = "string",
+                                        description = "可选，updatedAt | createdAt | messageCount（默认 updatedAt）",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "sort_order",
+                                        type = "string",
+                                        description = "可选，asc | desc（默认 desc）",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "find_chat",
+                            description = "按标题查找对话并返回其信息。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "query",
+                                        type = "string",
+                                        description = "标题关键字/正则",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "match",
+                                        type = "string",
+                                        description = "可选，contains | exact | regex（默认 contains）",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "index",
+                                        type = "integer",
+                                        description = "可选，选择第 N 个匹配（默认 0）",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "agent_status",
+                            description = "查询对话的输入处理状态。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "目标对话 ID",
+                                        required = true
+                                    )
+                                )
                         ),
                         ToolPrompt(
                             name = "switch_chat",
@@ -1972,8 +2159,19 @@ object SystemToolPromptsInternal {
                                         type = "string",
                                         description = "可选，目标对话 ID",
                                         required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "role_card_id",
+                                        type = "string",
+                                        description = "可选，本次发送使用的角色卡 ID",
+                                        required = false
                                     )
                                 )
+                        ),
+                        ToolPrompt(
+                            name = "list_character_cards",
+                            description = "列出所有角色卡。",
+                            parametersStructured = listOf()
                         ),
                         ToolPrompt(
                             name = "get_chat_messages",

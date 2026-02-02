@@ -9,22 +9,28 @@ import android.os.IBinder
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.ChatMarkupRegex
 import com.ai.assistance.operit.util.stream.SharedStream
+import com.ai.assistance.operit.core.tools.AgentStatusResultData
 import com.ai.assistance.operit.core.tools.ChatCreationResultData
+import com.ai.assistance.operit.core.tools.ChatFindResultData
 import com.ai.assistance.operit.core.tools.ChatListResultData
 import com.ai.assistance.operit.core.tools.ChatMessagesResultData
+import com.ai.assistance.operit.core.tools.CharacterCardListResultData
 import com.ai.assistance.operit.core.tools.ChatServiceStartResultData
 import com.ai.assistance.operit.core.tools.ChatSwitchResultData
 import com.ai.assistance.operit.core.tools.MessageSendResultData
 import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.services.ChatServiceCore
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.FloatingMode
+import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -42,7 +48,7 @@ class StandardChatManagerTool(private val context: Context) {
     companion object {
         private const val TAG = "StandardChatManagerTool"
         private const val SERVICE_CONNECTION_TIMEOUT = 15000L // 15秒超时
-        private const val RESPONSE_STREAM_ACQUIRE_TIMEOUT = 5000L
+        private const val RESPONSE_STREAM_ACQUIRE_TIMEOUT = 15000L
         private const val AI_RESPONSE_TIMEOUT = 300000L
     }
 
@@ -56,6 +62,48 @@ class StandardChatManagerTool(private val context: Context) {
             .replace(ChatMarkupRegex.statusTag, "")
             .replace(ChatMarkupRegex.statusSelfClosingTag, "")
             .trim()
+    }
+
+    private fun isMatchTitle(title: String, query: String, matchMode: String): Boolean {
+        if (query.isBlank()) return true
+        return when (matchMode) {
+            "exact" -> title == query
+            "regex" -> {
+                try {
+                    Regex(query).containsMatchIn(title)
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            else -> title.contains(query)
+        }
+    }
+
+    private fun toSortableNumber(value: String): Long {
+        return runCatching { value.toLong() }
+            .getOrElse { 0L }
+    }
+
+    private fun toEpochMillis(dateTime: java.time.LocalDateTime): Long {
+        return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+
+    private fun buildChatInfo(
+        chat: ChatHistory,
+        messageCounts: Map<String, Int>,
+        currentChatId: String?
+    ): ChatListResultData.ChatInfo {
+        return ChatListResultData.ChatInfo(
+            id = chat.id,
+            title = chat.title,
+            messageCount = messageCounts[chat.id] ?: 0,
+            createdAt = chat.createdAt.toString(),
+            updatedAt = chat.updatedAt.toString(),
+            isCurrent = currentChatId != null && chat.id == currentChatId,
+            inputTokens = chat.inputTokens,
+            outputTokens = chat.outputTokens,
+            characterCardName = chat.characterCardName
+        )
     }
 
     suspend fun getChatMessages(tool: AITool): ToolResult {
@@ -144,6 +192,215 @@ class StandardChatManagerTool(private val context: Context) {
         }
     }
 
+    /**
+     * 查询对话输入状态
+     */
+    suspend fun agentStatus(tool: AITool): ToolResult {
+        return try {
+            val chatId = tool.parameters.find { it.name == "chat_id" }?.value?.trim()
+            if (chatId.isNullOrBlank()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = AgentStatusResultData(chatId = "", state = "unknown"),
+                    error = "Invalid parameter: missing chat_id"
+                )
+            }
+
+            val chatHistoryManager = ChatHistoryManager.getInstance(appContext)
+            val title = chatHistoryManager.getChatTitle(chatId)
+            if (title == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = AgentStatusResultData(chatId = chatId, state = "unknown"),
+                    error = "Chat does not exist: $chatId"
+                )
+            }
+
+            val connected = ensureServiceConnected()
+            val chatService = chatCore
+            if (!connected || chatService == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = AgentStatusResultData(chatId = chatId, state = "unknown"),
+                    error = "Chat service not connected"
+                )
+            }
+
+            val state = chatService.inputProcessingStateByChatId.value[chatId] ?: InputProcessingState.Idle
+            var stateKey = "idle"
+            var message: String? = null
+            var isIdle = false
+            var isProcessing = false
+            when (state) {
+                is InputProcessingState.Idle -> {
+                    stateKey = "idle"
+                    isIdle = true
+                }
+                is InputProcessingState.Completed -> {
+                    stateKey = "completed"
+                    isIdle = true
+                }
+                is InputProcessingState.Processing -> {
+                    stateKey = "processing"
+                    message = state.message
+                    isProcessing = true
+                }
+                is InputProcessingState.Connecting -> {
+                    stateKey = "connecting"
+                    message = state.message
+                    isProcessing = true
+                }
+                is InputProcessingState.Receiving -> {
+                    stateKey = "receiving"
+                    message = state.message
+                    isProcessing = true
+                }
+                is InputProcessingState.ExecutingTool -> {
+                    stateKey = "executing_tool"
+                    message = state.toolName
+                    isProcessing = true
+                }
+                is InputProcessingState.ToolProgress -> {
+                    stateKey = "tool_progress"
+                    message = if (state.message.isNotBlank()) {
+                        "${state.toolName}: ${state.message}"
+                    } else {
+                        "${state.toolName}: ${(state.progress * 100).toInt()}%"
+                    }
+                    isProcessing = true
+                }
+                is InputProcessingState.ProcessingToolResult -> {
+                    stateKey = "processing_tool_result"
+                    message = state.toolName
+                    isProcessing = true
+                }
+                is InputProcessingState.Summarizing -> {
+                    stateKey = "summarizing"
+                    message = state.message
+                    isProcessing = true
+                }
+                is InputProcessingState.ExecutingPlan -> {
+                    stateKey = "executing_plan"
+                    message = state.message
+                    isProcessing = true
+                }
+                is InputProcessingState.Error -> {
+                    stateKey = "error"
+                    message = state.message
+                }
+            }
+
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = AgentStatusResultData(
+                    chatId = chatId,
+                    state = stateKey,
+                    message = message,
+                    isIdle = isIdle,
+                    isProcessing = isProcessing
+                )
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to get agent status", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = AgentStatusResultData(chatId = "", state = "unknown"),
+                error = "Error getting agent status: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * 查找对话
+     */
+    suspend fun findChat(tool: AITool): ToolResult {
+        return try {
+            val query = tool.parameters.find { it.name == "query" }?.value?.trim().orEmpty()
+            if (query.isBlank()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatFindResultData(matchedCount = 0, chat = null),
+                    error = "Invalid parameter: missing query"
+                )
+            }
+
+            val matchRaw = tool.parameters.find { it.name == "match" }?.value?.trim()?.lowercase()
+            val matchMode = when (matchRaw) {
+                null, "", "contains" -> "contains"
+                "exact", "regex" -> matchRaw
+                else ->
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = ChatFindResultData(matchedCount = 0, chat = null),
+                        error = "Invalid parameter: match must be contains/exact/regex"
+                    )
+            }
+
+            val rawIndex = tool.parameters.find { it.name == "index" }?.value?.trim()
+            val index = rawIndex?.takeIf { it.isNotBlank() }?.toIntOrNull()
+            if (rawIndex != null && rawIndex.isNotBlank() && index == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatFindResultData(matchedCount = 0, chat = null),
+                    error = "Invalid parameter: index must be an integer"
+                )
+            }
+
+            val targetIndex = index ?: 0
+            val chatHistoryManager = ChatHistoryManager.getInstance(appContext)
+            val chatHistories = chatHistoryManager.chatHistoriesFlow.first()
+            val currentChatId = chatHistoryManager.currentChatIdFlow.first()
+            val messageCounts = chatHistoryManager.getMessageCountsByChatId()
+
+            val idMatches = chatHistories.filter { chat -> chat.id == query }
+            val matched = if (idMatches.isNotEmpty()) {
+                idMatches
+            } else {
+                chatHistories.filter { chat -> isMatchTitle(chat.title, query, matchMode) }
+            }
+            if (matched.isEmpty()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatFindResultData(matchedCount = 0, chat = null),
+                    error = "Chat not found by query: $query"
+                )
+            }
+
+            if (targetIndex !in matched.indices) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatFindResultData(matchedCount = matched.size, chat = null),
+                    error = "Chat index out of range: index=$targetIndex, matched=${matched.size}"
+                )
+            }
+
+            val chatInfo = buildChatInfo(matched[targetIndex], messageCounts, currentChatId)
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = ChatFindResultData(matchedCount = matched.size, chat = chatInfo)
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to find chat", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = ChatFindResultData(matchedCount = 0, chat = null),
+                error = "Error finding chat: ${e.message}"
+            )
+        }
+    }
+
     private val appContext = context.applicationContext
 
     // Service 连接状态
@@ -207,6 +464,14 @@ class StandardChatManagerTool(private val context: Context) {
             return true
         }
 
+        if (startIntent == null && FloatingChatService.getInstance() == null) {
+            AppLogger.w(TAG, "FloatingChatService not running; skip auto-start in ensureServiceConnected")
+            if (!connectionDeferred.isCompleted) {
+                connectionDeferred.complete(false)
+            }
+            return false
+        }
+
         val prefs = appContext.getSharedPreferences("floating_chat_prefs", Context.MODE_PRIVATE)
         if (prefs.getBoolean("service_disabled_due_to_crashes", false)) {
             AppLogger.w(TAG, "FloatingChatService is disabled due to frequent crashes")
@@ -240,11 +505,13 @@ class StandardChatManagerTool(private val context: Context) {
 
             val bound =
                 withContext(Dispatchers.Main) {
-                    // 启动服务
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        appContext.startForegroundService(intent)
-                    } else {
-                        appContext.startService(intent)
+                    if (startIntent != null) {
+                        // 启动服务
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            appContext.startForegroundService(intent)
+                        } else {
+                            appContext.startService(intent)
+                        }
                     }
 
                     // 绑定服务
@@ -301,6 +568,7 @@ class StandardChatManagerTool(private val context: Context) {
                 tool.parameters.find { it.name == "auto_enter_voice_chat" }?.value?.trim()
             val wakeLaunchedParam = tool.parameters.find { it.name == "wake_launched" }?.value?.trim()
             val timeoutMsParam = tool.parameters.find { it.name == "timeout_ms" }?.value?.trim()
+            val keepIfExistsParam = tool.parameters.find { it.name == "keep_if_exists" }?.value?.trim()
 
             val initialMode =
                 initialModeParam
@@ -355,6 +623,16 @@ class StandardChatManagerTool(private val context: Context) {
                 )
             }
 
+            val keepIfExists = parseBooleanOrNull(keepIfExistsParam)
+            if (keepIfExistsParam != null && keepIfExists == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatServiceStartResultData(isConnected = false),
+                    error = "Invalid parameter: keep_if_exists must be true/false"
+                )
+            }
+
             val intent = Intent(appContext, FloatingChatService::class.java)
             if (initialMode != null) {
                 intent.putExtra("INITIAL_MODE", initialMode.name)
@@ -367,6 +645,9 @@ class StandardChatManagerTool(private val context: Context) {
             }
             if (timeoutMs != null) {
                 intent.putExtra(FloatingChatService.EXTRA_AUTO_EXIT_AFTER_MS, timeoutMs)
+            }
+            if (keepIfExists == true) {
+                intent.putExtra(FloatingChatService.EXTRA_KEEP_IF_EXISTS, true)
             }
 
             val connected = ensureServiceConnected(intent)
@@ -450,50 +731,68 @@ class StandardChatManagerTool(private val context: Context) {
                 error = "ChatServiceCore not initialized"
             )
 
-            // 获取创建前的 chatId
-            val oldChatId = core.currentChatId.value
+            // 获取创建前的 chat list
+            val previousChatIds = core.chatHistories.value.map { it.id }.toSet()
 
             val group = tool.parameters.find { it.name == "group" }?.value?.trim()
             val effectiveGroup = group?.takeIf { it.isNotBlank() }
+
+            val rawSetAsCurrent = tool.parameters.find { it.name == "set_as_current_chat" }?.value?.trim()
+            val setAsCurrentChat =
+                when (rawSetAsCurrent?.lowercase()) {
+                    null, "" -> true
+                    "true" -> true
+                    "false" -> false
+                    else -> null
+                }
+            if (setAsCurrentChat == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatCreationResultData(chatId = ""),
+                    error = "Invalid parameter: set_as_current_chat must be true/false"
+                )
+            }
+
+            val characterCardId =
+                tool.parameters.find { it.name == "character_card_id" }?.value?.trim()
+            if (!characterCardId.isNullOrBlank()) {
+                val roleCardManager = CharacterCardManager.getInstance(appContext)
+                val targetCard = roleCardManager.getCharacterCard(characterCardId)
+                if (targetCard == null) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = ChatCreationResultData(chatId = ""),
+                        error = "Invalid parameter: character_card_id not found"
+                    )
+                }
+            }
             
-            // 创建新对话
-            core.createNewChat(group = effectiveGroup)
+            // 创建新对话（不切换当前对话）
+            core.createNewChat(
+                group = effectiveGroup,
+                setAsCurrentChat = setAsCurrentChat,
+                characterCardId = characterCardId
+            )
 
             val newChatId = try {
                 withTimeout(5000L) {
-                    var id = core.currentChatId.value
-                    while (id == null || id == oldChatId) {
-                        delay(50)
-                        id = core.currentChatId.value
+                    var newId: String? = null
+                    while (newId == null) {
+                        val newChat = core.chatHistories.value.firstOrNull { it.id !in previousChatIds }
+                        newId = newChat?.id
+                        if (newId == null) {
+                            delay(50)
+                        }
                     }
-                    id
+                    newId
                 }
             } catch (_: TimeoutCancellationException) {
                 null
             }
 
             if (newChatId != null) {
-                // 等待新对话出现在列表中（尽量保证后续节点能在新对话上下文中运行）
-                try {
-                    withTimeout(2000L) {
-                        core.chatHistories.first { histories ->
-                            histories.any { it.id == newChatId }
-                        }
-                    }
-                } catch (_: TimeoutCancellationException) {
-                }
-
-                // 兜底：如果当前对话ID仍然不是新对话，则强制切换一次
-                if (core.currentChatId.value != newChatId) {
-                    core.switchChat(newChatId)
-                    try {
-                        withTimeout(2000L) {
-                            core.currentChatId.first { it == newChatId }
-                        }
-                    } catch (_: TimeoutCancellationException) {
-                    }
-                }
-
                 ToolResult(
                     toolName = tool.name,
                     success = true,
@@ -528,24 +827,83 @@ class StandardChatManagerTool(private val context: Context) {
             val currentChatId = chatHistoryManager.currentChatIdFlow.first()
             val messageCounts = chatHistoryManager.getMessageCountsByChatId()
 
-            val chatInfoList = chatHistories.map { chat ->
-                ChatListResultData.ChatInfo(
-                    id = chat.id,
-                    title = chat.title,
-                    messageCount = messageCounts[chat.id] ?: 0,
-                    createdAt = chat.createdAt.toString(),
-                    updatedAt = chat.updatedAt.toString(),
-                    isCurrent = currentChatId != null && chat.id == currentChatId,
-                    inputTokens = chat.inputTokens,
-                    outputTokens = chat.outputTokens
+            val query = tool.parameters.find { it.name == "query" }?.value?.trim().orEmpty()
+            val matchRaw = tool.parameters.find { it.name == "match" }?.value?.trim()?.lowercase()
+            val matchMode = when (matchRaw) {
+                null, "", "contains" -> "contains"
+                "exact", "regex" -> matchRaw
+                else ->
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = ChatListResultData(totalCount = 0, currentChatId = currentChatId, chats = emptyList()),
+                        error = "Invalid parameter: match must be contains/exact/regex"
+                    )
+            }
+
+            val rawLimit = tool.parameters.find { it.name == "limit" }?.value?.trim()
+            val parsedLimit = rawLimit?.takeIf { it.isNotBlank() }?.toIntOrNull()
+            if (rawLimit != null && rawLimit.isNotBlank() && parsedLimit == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatListResultData(totalCount = 0, currentChatId = currentChatId, chats = emptyList()),
+                    error = "Invalid parameter: limit must be an integer"
                 )
+            }
+            val limit = (parsedLimit ?: 50).coerceIn(1, 200)
+
+            val sortByRaw = tool.parameters.find { it.name == "sort_by" }?.value?.trim()
+            val sortBy = when (sortByRaw) {
+                null, "", "updatedAt" -> "updatedAt"
+                "createdAt", "messageCount" -> sortByRaw
+                else ->
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = ChatListResultData(totalCount = 0, currentChatId = currentChatId, chats = emptyList()),
+                        error = "Invalid parameter: sort_by must be updatedAt/createdAt/messageCount"
+                    )
+            }
+
+            val sortOrderRaw = tool.parameters.find { it.name == "sort_order" }?.value?.trim()?.lowercase()
+            val sortOrder = when (sortOrderRaw) {
+                null, "", "desc" -> "desc"
+                "asc" -> "asc"
+                else ->
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = ChatListResultData(totalCount = 0, currentChatId = currentChatId, chats = emptyList()),
+                        error = "Invalid parameter: sort_order must be asc/desc"
+                    )
+            }
+
+            val matched = chatHistories
+                .filter { chat -> isMatchTitle(chat.title, query, matchMode) }
+                .sortedWith { a, b ->
+                    val av = when (sortBy) {
+                        "messageCount" -> toSortableNumber((messageCounts[a.id] ?: 0).toString())
+                        "createdAt" -> toEpochMillis(a.createdAt)
+                        else -> toEpochMillis(a.updatedAt)
+                    }
+                    val bv = when (sortBy) {
+                        "messageCount" -> toSortableNumber((messageCounts[b.id] ?: 0).toString())
+                        "createdAt" -> toEpochMillis(b.createdAt)
+                        else -> toEpochMillis(b.updatedAt)
+                    }
+                    if (sortOrder == "asc") av.compareTo(bv) else bv.compareTo(av)
+                }
+
+            val chatInfoList = matched.take(limit).map { chat ->
+                buildChatInfo(chat, messageCounts, currentChatId)
             }
 
             ToolResult(
                 toolName = tool.name,
                 success = true,
                 result = ChatListResultData(
-                    totalCount = chatHistories.size,
+                    totalCount = matched.size,
                     currentChatId = currentChatId,
                     chats = chatInfoList
                 )
@@ -676,151 +1034,165 @@ class StandardChatManagerTool(private val context: Context) {
                 )
             }
 
-            // 可选的 chat_id 参数
-            val targetChatId = tool.parameters.find { it.name == "chat_id" }?.value
-            
-            // 如果指定了 chat_id，先切换到该对话
-            if (!targetChatId.isNullOrBlank()) {
-                val chatExists = core.chatHistories.value.any { it.id == targetChatId }
-                if (!chatExists) {
+            val roleCardManager = CharacterCardManager.getInstance(appContext)
+            val roleCardId = tool.parameters.find { it.name == "role_card_id" }?.value?.trim()
+            if (!roleCardId.isNullOrBlank()) {
+                val cardExists = runCatching { roleCardManager.getCharacterCard(roleCardId) }.isSuccess
+                if (!cardExists) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = MessageSendResultData(chatId = targetChatId, message = message),
-                        error = "Specified chat does not exist: $targetChatId"
+                        result = MessageSendResultData(chatId = "", message = message),
+                        error = "Invalid parameter: role_card_id not found"
                     )
                 }
-                
-                // 切换到目标对话
-                if (core.currentChatId.value != targetChatId) {
-                    core.switchChat(targetChatId)
-                    var attempts = 0
-                    while (attempts < 20 && core.currentChatId.value != targetChatId) {
-                        delay(100)
-                        attempts++
-                    }
-                }
-            } else {
-                // 如果没有当前对话，创建一个新对话
-                if (core.currentChatId.value == null) {
-                    core.createNewChat()
-                    var attempts = 0
-                    while (attempts < 20 && core.currentChatId.value == null) {
-                        delay(100)
-                        attempts++
-                    }
-                }
-            }
-
-            val currentChatId = core.currentChatId.value
-            if (currentChatId == null) {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = MessageSendResultData(chatId = "", message = message),
-                    error = "Unable to get current chat ID"
-                )
             }
 
             try {
-                withTimeout(300000L) {
-                    core.activeStreamingChatIds.first { activeChatIds ->
-                        !activeChatIds.contains(currentChatId)
+                // 可选的 chat_id 参数
+                val targetChatId = tool.parameters.find { it.name == "chat_id" }?.value?.trim()
+                val hasTargetChat = !targetChatId.isNullOrBlank()
+
+                if (hasTargetChat) {
+                    val chatExists = core.chatHistories.value.any { it.id == targetChatId }
+                    if (!chatExists) {
+                        return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = MessageSendResultData(chatId = targetChatId!!, message = message),
+                            error = "Specified chat does not exist: $targetChatId"
+                        )
                     }
                 }
-            } catch (e: TimeoutCancellationException) {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = MessageSendResultData(chatId = currentChatId, message = message),
-                    error = "Previous message is still being processed"
-                )
-            }
 
-            // 设置消息文本
-            core.updateUserMessage(message)
+                val preflightChatId = targetChatId ?: core.currentChatId.value
 
-            // 发送消息（包含总结逻辑）
-            core.sendUserMessage(PromptFunctionType.CHAT)
-
-            val chatId = core.currentChatId.value
-
-            if (chatId == null) {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = MessageSendResultData(chatId = currentChatId, message = message),
-                    error = "Unable to get current chat ID"
-                )
-            }
-
-            val responseStream: SharedStream<String> = try {
-                var stream: SharedStream<String>? = core.getResponseStream(chatId)
-                withTimeout(RESPONSE_STREAM_ACQUIRE_TIMEOUT) {
-                    while (stream == null) {
-                        val state = core.inputProcessingStateByChatId.value[chatId] ?: InputProcessingState.Idle
-                        if (state is InputProcessingState.Error) {
-                            throw IllegalStateException(state.message)
+                try {
+                    preflightChatId?.let { chatId ->
+                        withTimeout(300000L) {
+                            core.activeStreamingChatIds.first { activeChatIds ->
+                                !activeChatIds.contains(chatId)
+                            }
                         }
-                        delay(50)
-                        stream = core.getResponseStream(chatId)
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = MessageSendResultData(chatId = preflightChatId ?: "", message = message),
+                        error = "Previous message is still being processed"
+                    )
+                }
+
+                if (hasTargetChat) {
+                    // 后台发送到指定对话，不切换 UI
+                    core.sendUserMessage(
+                        promptFunctionType = PromptFunctionType.CHAT,
+                        roleCardIdOverride = roleCardId,
+                        chatIdOverride = preflightChatId,
+                        messageTextOverride = message
+                    )
+                } else {
+                    // 发送消息（包含总结逻辑），由 Coordination 处理 chatId 默认
+                    core.sendUserMessage(
+                        promptFunctionType = PromptFunctionType.CHAT,
+                        roleCardIdOverride = roleCardId,
+                        messageTextOverride = message
+                    )
+                }
+
+                val resolvedChatId = if (hasTargetChat) {
+                    preflightChatId
+                } else {
+                    withTimeout(RESPONSE_STREAM_ACQUIRE_TIMEOUT) {
+                        var id = core.currentChatId.value
+                        while (id == null) {
+                            delay(50)
+                            id = core.currentChatId.value
+                        }
+                        id
                     }
                 }
-                requireNotNull(stream)
-            } catch (e: TimeoutCancellationException) {
-                runCatching { core.cancelMessage(chatId) }
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = MessageSendResultData(chatId = currentChatId, message = message),
-                    error = "Timeout waiting for AI response"
-                )
-            }
 
-            val aiResponse = try {
-                withTimeout(AI_RESPONSE_TIMEOUT) {
-                    val sb = StringBuilder()
-                    responseStream.collect { chunk: String ->
-                        sb.append(chunk)
-                    }
-                    sb.toString()
+                if (resolvedChatId == null) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = MessageSendResultData(chatId = preflightChatId ?: "", message = message),
+                        error = "Unable to get current chat ID"
+                    )
                 }
-            } catch (e: TimeoutCancellationException) {
-                runCatching { core.cancelMessage(chatId) }
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = MessageSendResultData(chatId = currentChatId, message = message),
-                    error = "Timeout waiting for AI reply"
-                )
-            }
 
-            val finalState =
-                core.inputProcessingStateByChatId.value[chatId] ?: InputProcessingState.Idle
-            if (finalState is InputProcessingState.Error) {
-                return ToolResult(
+                val responseStream: SharedStream<String> = try {
+                    var stream: SharedStream<String>? = core.getResponseStream(resolvedChatId)
+                    withTimeout(RESPONSE_STREAM_ACQUIRE_TIMEOUT) {
+                        while (stream == null) {
+                            val state = core.inputProcessingStateByChatId.value[resolvedChatId]
+                                ?: InputProcessingState.Idle
+                            if (state is InputProcessingState.Error) {
+                                throw IllegalStateException(state.message)
+                            }
+                            delay(50)
+                            stream = core.getResponseStream(resolvedChatId)
+                        }
+                    }
+                    requireNotNull(stream)
+                } catch (e: TimeoutCancellationException) {
+                    runCatching { core.cancelMessage(resolvedChatId) }
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = MessageSendResultData(chatId = resolvedChatId, message = message),
+                        error = "Timeout waiting for AI response"
+                    )
+                }
+
+                val aiResponse = try {
+                    withTimeout(AI_RESPONSE_TIMEOUT) {
+                        val sb = StringBuilder()
+                        responseStream.collect { chunk: String ->
+                            sb.append(chunk)
+                        }
+                        sb.toString()
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    runCatching { core.cancelMessage(resolvedChatId) }
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = MessageSendResultData(chatId = resolvedChatId, message = message),
+                        error = "Timeout waiting for AI reply"
+                    )
+                }
+
+                val finalState =
+                    core.inputProcessingStateByChatId.value[resolvedChatId] ?: InputProcessingState.Idle
+                if (finalState is InputProcessingState.Error) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = MessageSendResultData(
+                            chatId = resolvedChatId,
+                            message = message,
+                            aiResponse = aiResponse,
+                            receivedAt = System.currentTimeMillis()
+                        ),
+                        error = finalState.message
+                    )
+                }
+
+                ToolResult(
                     toolName = tool.name,
-                    success = false,
+                    success = true,
                     result = MessageSendResultData(
-                        chatId = currentChatId,
+                        chatId = resolvedChatId,
                         message = message,
                         aiResponse = aiResponse,
                         receivedAt = System.currentTimeMillis()
-                    ),
-                    error = finalState.message
+                    )
                 )
+            } finally {
             }
-
-            ToolResult(
-                toolName = tool.name,
-                success = true,
-                result = MessageSendResultData(
-                    chatId = currentChatId,
-                    message = message,
-                    aiResponse = aiResponse,
-                    receivedAt = System.currentTimeMillis()
-                )
-            )
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to send message", e)
             ToolResult(
@@ -828,6 +1200,42 @@ class StandardChatManagerTool(private val context: Context) {
                 success = false,
                 result = MessageSendResultData(chatId = "", message = ""),
                 error = "Error sending message: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * 列出所有角色卡
+     */
+    suspend fun listCharacterCards(tool: AITool): ToolResult {
+        return try {
+            val characterCardManager = CharacterCardManager.getInstance(appContext)
+            val cards = characterCardManager.getAllCharacterCards()
+            val result = CharacterCardListResultData(
+                totalCount = cards.size,
+                cards = cards.map { card ->
+                    CharacterCardListResultData.CharacterCardInfo(
+                        id = card.id,
+                        name = card.name,
+                        description = card.description,
+                        isDefault = card.isDefault,
+                        createdAt = card.createdAt,
+                        updatedAt = card.updatedAt
+                    )
+                }
+            )
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = result
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to list character cards", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = CharacterCardListResultData(totalCount = 0, cards = emptyList()),
+                error = "Error listing character cards: ${e.message}"
             )
         }
     }

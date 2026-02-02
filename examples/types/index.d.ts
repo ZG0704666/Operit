@@ -181,6 +181,8 @@ declare global {
 
     function getState(): string | undefined;
 
+    function getLang(): string;
+
     const OPERIT_DOWNLOAD_DIR: string;
     const OPERIT_CLEAN_ON_EXIT_DIR: string;
 

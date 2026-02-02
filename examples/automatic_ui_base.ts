@@ -7,7 +7,8 @@
         {
             "name": "usage_advice",
             "description": { "zh": "UI自动化建议：\\n- 元素定位选项：\\n  • 列表：使用index参数（例如，“点击索引为2的列表项”）\\n  • 文本：使用bounds或partialMatch进行模糊匹配（例如，“点击包含‘登录’文字的按钮”）\\n- 操作链：组合多个操作以完成复杂任务（例如，“获取页面信息，然后点击元素”）\\n- 错误处理：如果操作失败，分析页面信息找出原因，并尝试其他方法。\\n- **组合调用（推荐）**：强烈建议在一次响应中组合调用2~3个真实存在的工具，例如依次调用tap → get_page_info，或 click_element → sleep → get_page_info，一次性输出完整的操作序列。软件会自动按顺序依次执行这些工具调用。", "en": "UI automation advice:\\n- Element targeting options:\\n  • Lists: use the index parameter (e.g., tap list item at index 2).\\n  • Text: use bounds or partialMatch for fuzzy matching (e.g., tap a button containing the text 'Login').\\n- Action chains: combine multiple actions to complete complex tasks (e.g., get page info, then click an element).\\n- Error handling: if an action fails, inspect the page info to find the cause and try alternative methods.\\n- **Combined calls (recommended)**: strongly recommend combining 2~3 real tools in a single response, e.g. tap → get_page_info, or click_element → sleep → get_page_info. The system will execute these tool calls sequentially." },
-            "parameters": []
+            "parameters": [],
+            "advice": true
         },
         {
             "name": "app_launch",

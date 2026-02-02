@@ -47,6 +47,7 @@ import kotlinx.serialization.json.Json
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -92,7 +93,12 @@ class ChatHistoryManager private constructor(private val context: Context) {
     }
 
     // 互斥锁用于同步操作
-    private val mutex = Mutex()
+    private val globalMutex = Mutex()
+    private val chatMutexes = ConcurrentHashMap<String, Mutex>()
+
+    private fun chatMutex(chatId: String): Mutex {
+        return chatMutexes.getOrPut(chatId) { Mutex() }
+    }
 
     // DataStore键
     private object PreferencesKeys {
@@ -218,7 +224,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     // 保存聊天历史
     suspend fun saveChatHistory(history: ChatHistory) {
-        mutex.withLock {
+        chatMutex(history.id).withLock {
             try {
                 // 创建聊天实体
                 val chatEntity = ChatEntity.fromChatHistory(history)
@@ -243,7 +249,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     /** 更新聊天锁定状态 */
     suspend fun updateChatLocked(chatId: String, locked: Boolean) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 chatDao.updateChatLocked(chatId, locked)
             } catch (e: Exception) {
@@ -255,7 +261,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     // 添加单条消息
     suspend fun addMessage(chatId: String, message: ChatMessage, position: Int? = null) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 val messageToPersist =
                     if (position != null) {
@@ -319,7 +325,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
      * @param updatedHistories 包含更新信息的ChatHistory列表
      */
     suspend fun updateChatOrderAndGroup(updatedHistories: List<ChatHistory>) {
-        mutex.withLock {
+        globalMutex.withLock {
             try {
                 val timestamp = System.currentTimeMillis()
                 val entitiesToUpdate = updatedHistories.map { history ->
@@ -346,7 +352,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
      * @param characterCardName 角色卡名称，如果为null则更新所有同名分组
      */
     suspend fun updateGroupName(oldName: String, newName: String, characterCardName: String?) {
-        mutex.withLock {
+        globalMutex.withLock {
             try {
                 if (characterCardName != null) {
                     // 只更新指定角色卡下的分组（使用 SQL 批量操作）
@@ -373,7 +379,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
      * @param characterCardName 角色卡名称，如果为null则删除所有同名分组
      */
     suspend fun deleteGroup(groupName: String, deleteChats: Boolean, characterCardName: String?) {
-        mutex.withLock {
+        globalMutex.withLock {
             try {
                 if (characterCardName != null) {
                     // 只删除指定角色卡下的分组（使用 SQL 批量操作）
@@ -411,7 +417,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
      * @param timestamp 消息时间戳
      */
     suspend fun deleteMessage(chatId: String, timestamp: Long) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 AppLogger.d(TAG, "正在从数据库删除消息. ChatId: $chatId, Timestamp: $timestamp")
                 messageDao.deleteMessageByTimestamp(chatId, timestamp)
@@ -437,7 +443,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     // 更新现有消息
     suspend fun updateMessage(chatId: String, message: ChatMessage) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 // 找到相应的消息实体
                 val existingMessage = messageDao.getMessageByTimestamp(chatId, message.timestamp)
@@ -483,7 +489,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
      * ```
      */
     suspend fun deleteMessagesFrom(chatId: String, timestamp: Long) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 AppLogger.d(TAG, "正在从数据库删除消息. ChatId: $chatId, Timestamp >=: $timestamp")
                 messageDao.deleteMessagesFrom(chatId, timestamp)
@@ -516,7 +522,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
      * ```
      */
     suspend fun clearChatMessages(chatId: String) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 messageDao.deleteAllMessagesForChat(chatId)
                 // 更新聊天元数据
@@ -539,7 +545,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     // 更新聊天标题
     suspend fun updateChatTitle(chatId: String, title: String) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 chatDao.updateChatTitle(chatId, title)
             } catch (e: Exception) {
@@ -551,7 +557,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     // 更新聊天绑定的角色卡
     suspend fun updateChatCharacterCardName(chatId: String, characterCardName: String?) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 chatDao.updateChatCharacterCardName(chatId, characterCardName)
             } catch (e: Exception) {
@@ -568,7 +574,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
         outputTokens: Int,
         currentWindowSize: Int
     ) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 val chat = chatDao.getChatById(chatId)
                 if (chat != null) {
@@ -596,7 +602,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     // 删除聊天历史
     suspend fun deleteChatHistory(chatId: String): Boolean {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 val chat = chatDao.getChatById(chatId)
                 if (chat?.locked == true) {
@@ -627,7 +633,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
     suspend fun createNewChat(
         group: String? = null,
         inheritGroupFromChatId: String? = null,
-        characterCardName: String? = null
+        characterCardName: String? = null,
+        setAsCurrentChat: Boolean = true
     ): ChatHistory {
         val dateTime = LocalDateTime.now()
         val formattedTime =
@@ -664,14 +671,16 @@ class ChatHistoryManager private constructor(private val context: Context) {
         chatDao.insertChat(chatEntity)
 
         // 设置为当前聊天
-        setCurrentChatId(newHistory.id)
+        if (setAsCurrentChat) {
+            setCurrentChatId(newHistory.id)
+        }
 
         return newHistory
     }
 
     /** 更新聊天工作区 */
     suspend fun updateChatWorkspace(chatId: String, workspace: String?, workspaceEnv: String?) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 chatDao.updateChatWorkspace(chatId, workspace, workspaceEnv)
             } catch (e: Exception) {
@@ -683,7 +692,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
 
     // 更新聊天分组
     suspend fun updateChatGroup(chatId: String, group: String?) {
-        mutex.withLock {
+        chatMutex(chatId).withLock {
             try {
                 chatDao.updateChatGroup(chatId, group)
             } catch (e: Exception) {
@@ -788,7 +797,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
         parentChatId: String,
         upToMessageTimestamp: Long? = null
     ): ChatHistory {
-        return mutex.withLock {
+        return globalMutex.withLock {
             try {
                 // 获取父对话
                 val parentChat = chatDao.getChatById(parentChatId)

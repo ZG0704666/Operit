@@ -44,7 +44,7 @@ class MessageProcessingDelegate(
         private val context: Context,
         private val coroutineScope: CoroutineScope,
         private val getEnhancedAiService: () -> EnhancedAIService?,
-        private val getChatHistory: () -> List<ChatMessage>,
+        private val getChatHistory: suspend (String) -> List<ChatMessage>,
         private val addMessageToChat: suspend (String, ChatMessage) -> Unit,
         private val saveCurrentChat: () -> Unit,
         private val showErrorMessage: (String) -> Unit,
@@ -58,6 +58,11 @@ class MessageProcessingDelegate(
     companion object {
         private const val TAG = "MessageProcessingDelegate"
         private const val STREAM_SCROLL_THROTTLE_MS = 200L
+
+        private val sharedIsLoading = MutableStateFlow(false)
+        private val sharedActiveStreamingChatIds = MutableStateFlow<Set<String>>(emptySet())
+        private val loadingByInstance = ConcurrentHashMap<String, Boolean>()
+        private val activeChatIdsByInstance = ConcurrentHashMap<String, Set<String>>()
     }
 
     // 角色卡管理器
@@ -72,11 +77,9 @@ class MessageProcessingDelegate(
     private val _userMessage = MutableStateFlow(TextFieldValue(""))
     val userMessage: StateFlow<TextFieldValue> = _userMessage.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    val isLoading: StateFlow<Boolean> = sharedIsLoading.asStateFlow()
 
-    private val _activeStreamingChatIds = MutableStateFlow<Set<String>>(emptySet())
-    val activeStreamingChatIds: StateFlow<Set<String>> = _activeStreamingChatIds.asStateFlow()
+    val activeStreamingChatIds: StateFlow<Set<String>> = sharedActiveStreamingChatIds.asStateFlow()
 
     private val _inputProcessingStateByChatId =
         MutableStateFlow<Map<String, EnhancedInputProcessingState>>(emptyMap())
@@ -101,6 +104,8 @@ class MessageProcessingDelegate(
     private val lastScrollEmitMsByChatKey = ConcurrentHashMap<String, AtomicLong>()
     private val suppressIdleCompletedStateByChatId = ConcurrentHashMap<String, Boolean>()
     private val pendingAsyncSummaryUiByChatId = ConcurrentHashMap<String, Boolean>()
+
+    private val instanceKey = "MPD-${System.identityHashCode(this)}"
 
     private fun chatKey(chatId: String?): String = chatId ?: "__DEFAULT_CHAT__"
 
@@ -133,8 +138,13 @@ class MessageProcessingDelegate(
             .filter { it != "__DEFAULT_CHAT__" }
             .toSet()
 
-        _activeStreamingChatIds.value = activeChatIds
-        _isLoading.value = anyLoading
+        loadingByInstance[instanceKey] = anyLoading
+        activeChatIdsByInstance[instanceKey] = activeChatIds
+
+        sharedActiveStreamingChatIds.value = activeChatIdsByInstance.values
+            .flatten()
+            .toSet()
+        sharedIsLoading.value = loadingByInstance.values.any { it }
     }
 
     private fun setChatInputProcessingState(chatId: String?, state: EnhancedInputProcessingState) {
@@ -217,9 +227,11 @@ class MessageProcessingDelegate(
     fun sendUserMessage(
             attachments: List<AttachmentInfo> = emptyList(),
             chatId: String,
+            messageTextOverride: String? = null,
             workspacePath: String? = null,
             workspaceEnv: String? = null,
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
+            roleCardId: String,
             enableThinking: Boolean = false,
             thinkingGuidance: Boolean = false,
             enableMemoryQuery: Boolean = true, // 新增参数
@@ -230,23 +242,26 @@ class MessageProcessingDelegate(
             isAutoContinuation: Boolean = false, // 标识是否为自动续写
             enableSummary: Boolean = true
     ) {
-        if (_userMessage.value.text.isBlank() && attachments.isEmpty() && !isAutoContinuation) return
+        val rawMessageText = messageTextOverride ?: _userMessage.value.text
+        if (rawMessageText.isBlank() && attachments.isEmpty() && !isAutoContinuation) return
         val chatRuntime = runtimeFor(chatId)
         if (chatRuntime.isLoading.value) {
             return
         }
 
-        val originalMessageText = _userMessage.value.text.trim()
+        val originalMessageText = rawMessageText.trim()
         var messageText = originalMessageText
         
-        _userMessage.value = TextFieldValue("")
+        if (messageTextOverride == null) {
+            _userMessage.value = TextFieldValue("")
+        }
         chatRuntime.isLoading.value = true
         updateGlobalLoadingState()
         setChatInputProcessingState(chatId, EnhancedInputProcessingState.Processing(context.getString(R.string.message_processing)))
 
         coroutineScope.launch(Dispatchers.IO) {
             // 检查这是否是聊天中的第一条用户消息（忽略AI的开场白）
-            val isFirstMessage = getChatHistory().none { it.sender == "user" }
+            val isFirstMessage = getChatHistory(chatId).none { it.sender == "user" }
             if (isFirstMessage && chatId != null) {
                 val newTitle =
                     when {
@@ -327,6 +342,7 @@ class MessageProcessingDelegate(
             var shouldNotifyTurnComplete = false
             var isWaifuModeEnabled = false
             var didStreamAutoRead = false
+            val effectiveRoleCardId = roleCardId
             try {
                 // if (!NetworkUtils.isNetworkAvailable(context)) {
                 //     withContext(Dispatchers.Main) { showErrorMessage("网络连接不可用") }
@@ -375,18 +391,20 @@ class MessageProcessingDelegate(
                 val startTime = System.currentTimeMillis()
                 val deferred = CompletableDeferred<Unit>()
 
+                val userPreferencesManager = UserPreferencesManager.getInstance(context)
+
                 // 获取角色信息用于通知
                 val (characterName, avatarUri) = try {
-                    val activeCard = characterCardManager.activeCharacterCardFlow.first()
-                    val userPreferencesManager = UserPreferencesManager.getInstance(context)
-                    val avatar = userPreferencesManager.getAiAvatarForCharacterCardFlow(activeCard.id).first()
-                    Pair(activeCard.name, avatar)
+                    val roleCard = characterCardManager.getCharacterCardFlow(effectiveRoleCardId).first()
+                    val avatar =
+                        userPreferencesManager.getAiAvatarForCharacterCardFlow(roleCard.id).first()
+                    Pair(roleCard.name, avatar)
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "获取角色信息失败: ${e.message}", e)
                     Pair(null, null)
                 }
 
-                val chatHistory = getChatHistory()
+                val chatHistory = getChatHistory(activeChatId)
 
                 // 根据enableSummary控制Token阈值检查和Token超限回调
                 val effectiveMaxTokens = if (enableSummary) maxTokens else 0
@@ -420,7 +438,8 @@ class MessageProcessingDelegate(
                     },
                     onTokenLimitExceeded = effectiveOnTokenLimitExceeded,
                     characterName = characterName,
-                    avatarUri = avatarUri
+                    avatarUri = avatarUri,
+                    roleCardId = effectiveRoleCardId
                 )
 
                 // 将字符串流共享，以便多个收集器可以使用
@@ -445,7 +464,7 @@ class MessageProcessingDelegate(
 
                 // 获取当前激活角色卡的名称
                 val currentRoleName = try {
-                    characterCardManager.activeCharacterCardFlow.first().name
+                    characterCardManager.getCharacterCardFlow(effectiveRoleCardId).first().name
                 } catch (e: Exception) {
                     "Operit" // 默认角色名
                 }
@@ -590,7 +609,8 @@ class MessageProcessingDelegate(
                     aiMessageProvider = { aiMessage },
                     shouldNotifyTurnComplete = shouldNotifyTurnComplete,
                     serviceForTurnComplete = serviceForTurnComplete,
-                    skipFinalAutoRead = didStreamAutoRead && !isWaifuModeEnabled
+                    skipFinalAutoRead = didStreamAutoRead && !isWaifuModeEnabled,
+                    roleCardId = effectiveRoleCardId
                 )
                 cleanupRuntimeAfterSend(chatRuntime)
             }
@@ -603,7 +623,8 @@ class MessageProcessingDelegate(
         aiMessageProvider: () -> ChatMessage,
         shouldNotifyTurnComplete: Boolean,
         serviceForTurnComplete: EnhancedAIService?,
-        skipFinalAutoRead: Boolean
+        skipFinalAutoRead: Boolean,
+        roleCardId: String
     ) {
         // 修改为使用 try-catch 来检查变量是否已初始化，而不是使用 ::var.isInitialized
         try {
@@ -625,7 +646,7 @@ class MessageProcessingDelegate(
 
                     // 获取当前角色名
                     val currentRoleName = try {
-                        characterCardManager.activeCharacterCardFlow.first().name
+                        characterCardManager.getCharacterCardFlow(roleCardId).first().name
                     } catch (e: Exception) {
                         "Operit" // 默认角色名
                     }

@@ -288,7 +288,9 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             val tools =
                 packageMetadata.tools.map { tool ->
                     // 检查函数是否存在于脚本中
-                    validateToolFunctionExists(jsContent, tool.name)
+                    if (!tool.advice) {
+                        validateToolFunctionExists(jsContent, tool.name)
+                    }
 
                     // 使用整个脚本，并记录函数名，而不是提取单个函数
                     tool.copy(script = jsContent)
@@ -298,7 +300,9 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 packageMetadata.states.map { state ->
                     val stateTools =
                         state.tools.map { tool ->
-                            validateToolFunctionExists(jsContent, tool.name)
+                            if (!tool.advice) {
+                                validateToolFunctionExists(jsContent, tool.name)
+                            }
                             tool.copy(script = jsContent)
                         }
                     state.copy(tools = stateTools)
@@ -653,8 +657,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
     /** Registers all tools in a package with the AIToolHandler */
     private fun registerPackageTools(toolPackage: ToolPackage) {
         val packageToolExecutor = PackageToolExecutor(toolPackage, context, this)
-
-        val newToolNames = toolPackage.tools.map { packageTool -> "${toolPackage.name}:${packageTool.name}" }.toSet()
+        val executableTools = toolPackage.tools.filter { !it.advice }
+        val newToolNames = executableTools.map { packageTool -> "${toolPackage.name}:${packageTool.name}" }.toSet()
         val oldToolNames = activePackageToolNames[toolPackage.name] ?: emptySet()
         (oldToolNames - newToolNames).forEach { toolName ->
             aiToolHandler.unregisterTool(toolName)
@@ -662,7 +666,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         activePackageToolNames[toolPackage.name] = newToolNames
 
         // Register each tool with the format packageName:toolName
-        toolPackage.tools.forEach { packageTool ->
+        executableTools.forEach { packageTool ->
             val toolName = "${toolPackage.name}:${packageTool.name}"
             aiToolHandler.registerTool(toolName) { tool ->
                 packageToolExecutor.invoke(tool)
@@ -749,7 +753,13 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         sb.appendLine("Available tools in this package:")
 
         toolPackage.tools.forEach { tool ->
-            sb.appendLine("- ${toolPackage.name}:${tool.name}: ${tool.description.resolve(context)}")
+            val toolLabel =
+                if (tool.advice) {
+                    "- (advice): ${tool.description.resolve(context)}"
+                } else {
+                    "- ${toolPackage.name}:${tool.name}: ${tool.description.resolve(context)}"
+                }
+            sb.appendLine(toolLabel)
             if (tool.parameters.isNotEmpty()) {
                 sb.appendLine("  Parameters:")
                 tool.parameters.forEach { param ->

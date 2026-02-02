@@ -10,6 +10,7 @@ import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.ui.features.chat.viewmodel.UiStateDelegate
+import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -83,9 +84,14 @@ class MessageCoordinationDelegate(
      * 发送用户消息
      * 检查是否有当前对话，如果没有则自动创建新对话
      */
-    fun sendUserMessage(promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT) {
-        // 检查是否有当前对话，如果没有则创建一个新对话
-        if (chatHistoryDelegate.currentChatId.value == null) {
+    fun sendUserMessage(
+        promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
+        roleCardIdOverride: String? = null,
+        chatIdOverride: String? = null,
+        messageTextOverride: String? = null
+    ) {
+        // 仅在没有指定 chatId 的情况下，才需要确保有当前对话
+        if (chatIdOverride.isNullOrBlank() && chatHistoryDelegate.currentChatId.value == null) {
             AppLogger.d(TAG, "当前没有活跃对话，自动创建新对话")
 
             // 使用 coroutineScope 启动协程
@@ -112,11 +118,21 @@ class MessageCoordinationDelegate(
                 )
 
                 // 对话创建完成后，发送消息
-                sendMessageInternal(promptFunctionType)
+                sendMessageInternal(
+                    promptFunctionType,
+                    roleCardIdOverride = roleCardIdOverride,
+                    chatIdOverride = chatIdOverride,
+                    messageTextOverride = messageTextOverride
+                )
             }
         } else {
             // 已有对话，直接发送消息
-            sendMessageInternal(promptFunctionType)
+            sendMessageInternal(
+                promptFunctionType,
+                roleCardIdOverride = roleCardIdOverride,
+                chatIdOverride = chatIdOverride,
+                messageTextOverride = messageTextOverride
+            )
         }
     }
 
@@ -127,14 +143,18 @@ class MessageCoordinationDelegate(
         promptFunctionType: PromptFunctionType,
         isContinuation: Boolean = false,
         skipSummaryCheck: Boolean = false,
-        isAutoContinuation: Boolean = false
+        isAutoContinuation: Boolean = false,
+        roleCardIdOverride: String? = null,
+        chatIdOverride: String? = null,
+        messageTextOverride: String? = null
     ) {
         // 如果不是自动续写，更新当前的 promptFunctionType
         if (!isAutoContinuation) {
             currentPromptFunctionType = promptFunctionType
         }
+        val isBackgroundSend = !chatIdOverride.isNullOrBlank()
         // 获取当前聊天ID和工作区路径
-        val chatId = chatHistoryDelegate.currentChatId.value
+        val chatId = chatIdOverride ?: chatHistoryDelegate.currentChatId.value
         if (chatId == null) {
             uiStateDelegate.showErrorMessage(context.getString(R.string.chat_no_active_conversation))
             return
@@ -143,17 +163,19 @@ class MessageCoordinationDelegate(
         val workspacePath = currentChat?.workspace
         val workspaceEnv = currentChat?.workspaceEnv
 
-        // 更新本地Web服务器的聊天ID
-        updateWebServerForCurrentChat(chatId)
+        if (!isBackgroundSend) {
+            // 更新本地Web服务器的聊天ID
+            updateWebServerForCurrentChat(chatId)
+        }
 
         // 获取当前附件列表
-        val currentAttachments = attachmentDelegate.attachments.value
+        val currentAttachments = if (isBackgroundSend) emptyList() else attachmentDelegate.attachments.value
 
         // 当前请求使用的Token使用率阈值，默认使用配置值
         var tokenUsageThresholdForSend = apiConfigDelegate.summaryTokenThreshold.value.toDouble()
 
         // 如果不是续写，检查是否需要总结
-        if (!isContinuation && !skipSummaryCheck) {
+        if (!isBackgroundSend && !isContinuation && !skipSummaryCheck) {
             val currentMessages = chatHistoryDelegate.chatHistory.value
             val currentTokens = tokenStatsDelegate.currentWindowSizeFlow.value
             val maxTokens = (apiConfigDelegate.contextLength.value * 1024).toInt()
@@ -188,13 +210,19 @@ class MessageCoordinationDelegate(
         // 如果附着了记忆文件夹，临时启用记忆查询功能
         val shouldEnableMemoryQuery = apiConfigDelegate.enableMemoryQuery.value || hasMemoryFolder
 
+        val roleCardId =
+            roleCardIdOverride?.takeIf { it.isNotBlank() }
+                ?: CharacterCardManager.DEFAULT_CHARACTER_CARD_ID
+
         // 调用messageProcessingDelegate发送消息，并传递附件信息和工作区路径
         messageProcessingDelegate.sendUserMessage(
             attachments = currentAttachments,
             chatId = chatId,
+            messageTextOverride = messageTextOverride,
             workspacePath = workspacePath,
             workspaceEnv = workspaceEnv,
             promptFunctionType = promptFunctionType,
+            roleCardId = roleCardId,
             // Safety: thinking guidance and thinking mode are mutually exclusive.
             // When guidance is enabled, we avoid enabling provider-level thinking simultaneously.
             enableThinking = apiConfigDelegate.enableThinkingMode.value && !apiConfigDelegate.enableThinkingGuidance.value,
@@ -203,13 +231,13 @@ class MessageCoordinationDelegate(
             enableWorkspaceAttachment = !workspacePath.isNullOrBlank(),
             maxTokens = (apiConfigDelegate.contextLength.value * 1024).toInt(),
             tokenUsageThreshold = tokenUsageThresholdForSend,
-            replyToMessage = getReplyToMessage(),
+            replyToMessage = if (isBackgroundSend) null else getReplyToMessage(),
             isAutoContinuation = isAutoContinuation,
-            enableSummary = apiConfigDelegate.enableSummary.value
+            enableSummary = if (isBackgroundSend) false else apiConfigDelegate.enableSummary.value
         )
 
         // 只有在非续写（即用户主动发送）时才清空附件和UI状态
-        if (!isContinuation) {
+        if (!isBackgroundSend && !isContinuation) {
             if (currentAttachments.isNotEmpty()) {
                 attachmentDelegate.clearAttachments()
             }

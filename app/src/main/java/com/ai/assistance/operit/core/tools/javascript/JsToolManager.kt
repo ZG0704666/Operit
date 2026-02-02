@@ -2,6 +2,7 @@ package com.ai.assistance.operit.core.tools.javascript
 
 import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
@@ -93,6 +94,12 @@ private constructor(private val context: Context, private val packageManager: Pa
             } else {
                 injectedParams.remove("__operit_package_state")
             }
+            val language = LocaleUtils.getCurrentLanguage(context)
+            if (language.isNotBlank()) {
+                injectedParams["__operit_package_lang"] = language
+            } else {
+                injectedParams.remove("__operit_package_lang")
+            }
             val result = engine.executeScriptFunction(script, functionName, injectedParams)
 
             return result?.toString() ?: "null"
@@ -164,6 +171,12 @@ private constructor(private val context: Context, private val packageManager: Pa
                 injectedParams["__operit_package_state"] = stateId
             } else {
                 injectedParams.remove("__operit_package_state")
+            }
+            val language = LocaleUtils.getCurrentLanguage(context)
+            if (language.isNotBlank()) {
+                injectedParams["__operit_package_lang"] = language
+            } else {
+                injectedParams.remove("__operit_package_lang")
             }
 
             // Execute the script with timeout

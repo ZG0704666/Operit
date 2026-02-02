@@ -91,6 +91,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private val typography = mutableStateOf<Typography?>(null)
     private val gson = Gson()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var hasHandledStartCommand = false
 
     companion object {
         @Volatile
@@ -102,6 +103,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         const val EXTRA_AUTO_ENTER_VOICE_CHAT = "AUTO_ENTER_VOICE_CHAT"
         const val EXTRA_WAKE_LAUNCHED = "WAKE_LAUNCHED"
         const val EXTRA_AUTO_EXIT_AFTER_MS = "AUTO_EXIT_AFTER_MS"
+        const val EXTRA_KEEP_IF_EXISTS = "KEEP_IF_EXISTS"
 
         fun getInstance(): FloatingChatService? = instance
     }
@@ -143,7 +145,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     }
 
     inner class LocalBinder : Binder() {
-        private var closeCallback: (() -> Unit)? = null
+        private val closeCallbacks = mutableListOf<() -> Unit>()
         private var reloadCallback: (() -> Unit)? = null
         private var chatSyncCallback: ((String?, List<ChatMessage>) -> Unit)? = null
         private var chatStatsCallback: ((String?, Int, Int, Int) -> Unit)? = null
@@ -152,11 +154,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         fun getChatCore(): ChatServiceCore = chatCore
         
         fun setCloseCallback(callback: () -> Unit) {
-            this.closeCallback = callback
+            closeCallbacks.add(callback)
         }
         
         fun notifyClose() {
-            closeCallback?.invoke()
+            closeCallbacks.toList().forEach { it.invoke() }
         }
         
         fun setReloadCallback(callback: () -> Unit) {
@@ -188,7 +190,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         }
 
         fun clearCallbacks() {
-            closeCallback = null
+            closeCallbacks.clear()
             reloadCallback = null
             chatSyncCallback = null
             chatStatsCallback = null
@@ -306,7 +308,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                     }
                 }
             }
-            
+
             // 订阅 Toast 事件
             serviceScope.launch {
                 chatCore.getUiStateDelegate().toastEvent.collect { message ->
@@ -420,16 +422,24 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         try {
             acquireWakeLock()
 
-            // Handle initial mode from intent
-            intent?.getStringExtra("INITIAL_MODE")?.let { modeName ->
-                try {
-                    val mode = FloatingMode.valueOf(modeName)
-                    windowState.currentMode.value = mode
-                    AppLogger.d(TAG, "Set mode from intent: $mode")
-                } catch (e: IllegalArgumentException) {
-                    AppLogger.w(TAG, "Invalid mode name in intent: $modeName")
+            val keepIfExists = intent?.getBooleanExtra(EXTRA_KEEP_IF_EXISTS, false) == true
+            val isFirstStart = !hasHandledStartCommand
+            if (keepIfExists && instance != null && !isFirstStart) {
+                AppLogger.d(TAG, "Service already running; keep_if_exists=true, skip mode change")
+            } else {
+                // Handle initial mode from intent
+                intent?.getStringExtra("INITIAL_MODE")?.let { modeName ->
+                    try {
+                        val mode = FloatingMode.valueOf(modeName)
+                        windowState.currentMode.value = mode
+                        AppLogger.d(TAG, "Set mode from intent: $mode")
+                    } catch (e: IllegalArgumentException) {
+                        AppLogger.w(TAG, "Invalid mode name in intent: $modeName")
+                    }
                 }
             }
+
+            hasHandledStartCommand = true
 
             val isFullscreenMode =
                 windowState.currentMode.value == FloatingMode.FULLSCREEN ||
@@ -754,35 +764,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         // 直接使用 chatCore 发送消息，不再通过 SharedFlow
         serviceScope.launch {
             try {
-                // 获取当前聊天ID，如果没有则创建新聊天
-                var chatId = chatCore.currentChatId.value
-                if (chatId == null) {
-                    AppLogger.d(TAG, "当前没有活跃对话，自动创建新对话")
-                    val group = wakePrefs.autoNewChatGroupFlow.first().trim().ifBlank {
-                        WakeWordPreferences.DEFAULT_AUTO_NEW_CHAT_GROUP
-                    }
-                    chatCore.createNewChat(group = group, inheritGroupFromCurrent = false)
-                    
-                    // 等待对话ID更新
-                    var waitCount = 0
-                    while (chatCore.currentChatId.value == null && waitCount < 10) {
-                        kotlinx.coroutines.delay(100)
-                        waitCount++
-                    }
-                    
-                    chatId = chatCore.currentChatId.value
-                    if (chatId == null) {
-                        AppLogger.e(TAG, "创建新对话超时，无法发送消息")
-                        return@launch
-                    }
-                    AppLogger.d(TAG, "新对话创建完成，ID: $chatId")
-                }
-                
-                // 设置消息文本
-                chatCore.updateUserMessage(message)
-                
                 // 发送消息（包含总结逻辑）
-                chatCore.sendUserMessage(promptType)
+                chatCore.sendUserMessage(
+                    promptFunctionType = promptType,
+                    messageTextOverride = message
+                )
                 
                 AppLogger.d(TAG, "消息已通过 chatCore 发送")
             } catch (e: Exception) {

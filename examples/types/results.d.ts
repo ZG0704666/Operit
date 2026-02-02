@@ -991,6 +991,8 @@ export interface ChatInfo {
     inputTokens: number;
     /** Total output tokens used */
     outputTokens: number;
+    /** Bound character card name (if any) */
+    characterCardName?: string | null;
 }
 
 /**
@@ -1059,6 +1061,57 @@ export interface ChatMessagesResultData {
 }
 
 /**
+ * Character card list result data
+ */
+export interface CharacterCardListResultData {
+    totalCount: number;
+    cards: CharacterCardInfo[];
+    toString(): string;
+}
+
+/**
+ * Character card information
+ */
+export interface CharacterCardInfo {
+    id: string;
+    name: string;
+    description: string;
+    isDefault: boolean;
+    createdAt: number;
+    updatedAt: number;
+}
+
+/**
+ * Chat find result data
+ */
+export interface ChatFindResultData {
+    /** Total matched chats */
+    matchedCount: number;
+    /** The selected chat (if any) */
+    chat: ChatInfo | null;
+    /** Returns a formatted string representation */
+    toString(): string;
+}
+
+/**
+ * Agent status result data
+ */
+export interface AgentStatusResultData {
+    /** Target chat id */
+    chatId: string;
+    /** Current state key */
+    state: string;
+    /** Optional detail message */
+    message?: string | null;
+    /** Whether the chat is idle */
+    isIdle: boolean;
+    /** Whether the chat is processing */
+    isProcessing: boolean;
+    /** Returns a formatted string representation */
+    toString(): string;
+}
+
+/**
  * Result type wrappers for Chat Manager operations
  */
 export interface ChatServiceStartResult extends BaseResult {
@@ -1071,6 +1124,14 @@ export interface ChatCreationResult extends BaseResult {
 
 export interface ChatListResult extends BaseResult {
     data: ChatListResultData;
+}
+
+export interface ChatFindResult extends BaseResult {
+    data: ChatFindResultData;
+}
+
+export interface AgentStatusResult extends BaseResult {
+    data: AgentStatusResultData;
 }
 
 export interface ChatSwitchResult extends BaseResult {
