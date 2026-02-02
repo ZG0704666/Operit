@@ -258,6 +258,22 @@ class ChatServiceCore(
         chatHistoryDelegate.switchChat(chatId)
     }
 
+    /**
+     * 切换聊天（仅切换本地状态，不写回全局 currentChatId）。
+     * 悬浮窗可用此方法在窗口内切换会话，但不影响主界面。
+     */
+    fun switchChatLocal(chatId: String) {
+        chatHistoryDelegate.switchChat(chatId, syncToGlobal = false)
+    }
+
+    /**
+     * 将当前本地 chatId 写回全局 currentChatId，用于“返回主应用”时同步。
+     */
+    fun syncCurrentChatIdToGlobal() {
+        val chatId = chatHistoryDelegate.currentChatId.value ?: return
+        chatHistoryDelegate.switchChat(chatId, syncToGlobal = true)
+    }
+
     /** 删除聊天历史 */
     fun deleteChatHistory(chatId: String) {
         chatHistoryDelegate.deleteChatHistory(chatId)

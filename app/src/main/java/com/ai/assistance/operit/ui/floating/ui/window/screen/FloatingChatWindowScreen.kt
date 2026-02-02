@@ -77,6 +77,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /** 渲染悬浮窗的窗口模式界面 - 简化版 */
 @Composable
@@ -231,7 +232,7 @@ private fun RecentChatSelectorOverlay(
                                         Color.Transparent
                                 )
                                 .clickable {
-                                    chatCore?.switchChat(history.id)
+                                    chatCore?.switchChatLocal(history.id)
                                     onDismiss()
                                 }
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -399,87 +400,94 @@ private fun TitleBar(
             }
     ) {
         if (floatContext.contentVisible) {
-            // 左侧按钮组
             Row(
-                modifier = Modifier
-                    .align(Alignment.CenterStart),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TitleBarButton(
-                    icon = Icons.Default.History,
-                    description = stringResource(R.string.chat_history),
-                    onClick = onToggleRecentChatSelector
-                )
-                TitleBarButton(
-                    icon = Icons.Default.Fullscreen,
-                    description = stringResource(R.string.floating_fullscreen),
-                    onClick = { floatContext.onModeChange(FloatingMode.FULLSCREEN) }
-                )
-                MinimizeButton(viewModel, primaryColor) {
-                    floatContext.onModeChange(FloatingMode.BALL)
-                }
-            }
-
-            // 中间可拖动区域
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 80.dp, end = 90.dp)
-                    .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { viewModel.startDragging() },
-                            onDragEnd = {
-                                viewModel.endDragging()
-                                floatContext.saveWindowState?.invoke()
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                viewModel.handleMove(dragAmount.x, dragAmount.y)
-                            }
-                        )
-                    }
-            )
-
-            // 右侧按钮组
-            Row(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 返回主应用按钮
-                TitleBarButton(
-                    icon = Icons.Default.Home,
-                    description = stringResource(R.string.floating_back_to_main),
-                    onClick = {
-                        // 启动 MainActivity 返回主应用
-                        try {
-                            val context = floatContext.chatService
-                            if (context != null) {
-                                val intent = Intent(
-                                    context,
-                                    com.ai.assistance.operit.ui.main.MainActivity::class.java
-                                ).apply {
-                                    flags =
-                                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                                }
-                                context.startActivity(intent)
-                            }
-                        } catch (e: Exception) {
-                            AppLogger.e("FloatingChatWindow", "启动 MainActivity 失败", e)
-                        }
-                        // 然后关闭悬浮窗
-                        floatContext.onClose()
-                    }
-                )
-                // 关闭按钮
-                CloseButton(
-                    viewModel = viewModel,
-                    errorColor = errorColor,
-                    onSurfaceVariantColor = onSurfaceVariantColor
+                // 左侧按钮组
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    viewModel.closeButtonPressed = true
+                    TitleBarButton(
+                        icon = Icons.Default.History,
+                        description = stringResource(R.string.chat_history),
+                        onClick = onToggleRecentChatSelector
+                    )
+                    TitleBarButton(
+                        icon = Icons.Default.Fullscreen,
+                        description = stringResource(R.string.floating_fullscreen),
+                        onClick = { floatContext.onModeChange(FloatingMode.FULLSCREEN) }
+                    )
+                    MinimizeButton(viewModel, primaryColor) {
+                        floatContext.onModeChange(FloatingMode.BALL)
+                    }
+                }
+
+                // 中间可拖动区域（只占用中间空间，避免覆盖左右按钮点击）
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { viewModel.startDragging() },
+                                onDragEnd = {
+                                    viewModel.endDragging()
+                                    floatContext.saveWindowState?.invoke()
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    viewModel.handleMove(dragAmount.x, dragAmount.y)
+                                }
+                            )
+                        }
+                )
+
+                // 右侧按钮组
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 返回主应用按钮
+                    TitleBarButton(
+                        icon = Icons.Default.Home,
+                        description = stringResource(R.string.floating_back_to_main),
+                        onClick = {
+                            // 启动 MainActivity 返回主应用
+                            try {
+                                val context = floatContext.chatService
+                                if (context != null) {
+                                    runBlocking {
+                                        try {
+                                            context.getChatCore().syncCurrentChatIdToGlobal()
+                                        } catch (_: Exception) {
+                                        }
+                                    }
+                                    val intent = Intent(
+                                        context,
+                                        com.ai.assistance.operit.ui.main.MainActivity::class.java
+                                    ).apply {
+                                        flags =
+                                            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            } catch (e: Exception) {
+                                AppLogger.e("FloatingChatWindow", "启动 MainActivity 失败", e)
+                            }
+                            // 然后关闭悬浮窗
+                            floatContext.onClose()
+                        }
+                    )
+                    // 关闭按钮
+                    CloseButton(
+                        viewModel = viewModel,
+                        errorColor = errorColor,
+                        onSurfaceVariantColor = onSurfaceVariantColor
+                    ) {
+                        viewModel.closeButtonPressed = true
+                    }
                 }
             }
         }

@@ -356,23 +356,30 @@ class ChatHistoryDelegate(
     }
 
     /** 切换聊天 */
-    fun switchChat(chatId: String) {
+    fun switchChat(chatId: String, syncToGlobal: Boolean = true) {
         coroutineScope.launch {
             // 切换对话时，禁止添加消息
             allowAddMessage.set(false)
-            AppLogger.d(TAG, "切换对话到 $chatId，已禁止添加消息")
-            
+            AppLogger.d(TAG, "切换对话到 $chatId (syncToGlobal=$syncToGlobal)，已禁止添加消息")
+
             val (inputTokens, outputTokens, windowSize) = getChatStatistics()
             saveCurrentChat(inputTokens, outputTokens, windowSize) // 切换前使用正确的窗口大小保存
 
-            chatHistoryManager.setCurrentChatId(chatId)
-            // _currentChatId.value will be updated by the collector, no need to set it here.
-            // loadChatMessages(chatId) is also called by the collector.
+            if (syncToGlobal) {
+                chatHistoryManager.setCurrentChatId(chatId)
+                // _currentChatId.value will be updated by the collector, no need to set it here.
+                // loadChatMessages(chatId) is also called by the collector.
 
-            // 等待切换完成后再滚动到底部
-            withTimeoutOrNull(500) {
-                _currentChatId.first { it == chatId }
+                // 等待切换完成后再滚动到底部
+                withTimeoutOrNull(500) {
+                    _currentChatId.first { it == chatId }
+                }
+            } else {
+                // 本地切换：只更新内存态（供悬浮窗使用），不写回 DataStore。
+                _currentChatId.value = chatId
+                loadChatMessages(chatId)
             }
+
             onScrollToBottom()
         }
     }
