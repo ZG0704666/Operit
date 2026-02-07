@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.draw.alpha
+import com.ai.assistance.operit.api.chat.llmprovider.MediaLinkParser
 import com.ai.assistance.operit.ui.features.chat.components.style.cursor.CursorStyleChatMessage
 import com.ai.assistance.operit.ui.features.chat.components.style.bubble.BubbleStyleChatMessage
 import com.ai.assistance.operit.util.ChatMarkupRegex
@@ -95,6 +96,13 @@ private fun cleanXmlTags(content: String): String {
         .replace(ChatMarkupRegex.toolResultSelfClosingTag, "")
         // 移除emotion标签
         .replace(ChatMarkupRegex.emotionTag, "")
+        // 移除附件与工作区上下文
+        .replace(ChatMarkupRegex.workspaceAttachmentTag, "")
+        .replace(ChatMarkupRegex.attachmentTag, "")
+        .replace(ChatMarkupRegex.attachmentSelfClosingTag, "")
+        // 移除多媒体链接标签
+        .let(MediaLinkParser::removeImageLinks)
+        .let(MediaLinkParser::removeMediaLinks)
         // 移除其他常见的XML标签
         // .replace(Regex("<[^>]*>"), "")
         .trim()

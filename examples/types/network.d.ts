@@ -2,7 +2,7 @@
  * Network operation type definitions for Assistance Package Tools
  */
 
-import { HttpResponseData, VisitWebResultData } from './results';
+import { HttpResponseData, VisitWebResultData, StringResultData } from './results';
 
 /**
  * Network operations namespace
@@ -34,6 +34,82 @@ export namespace Net {
         user_agent_preset?: string;
         user_agent?: string;
     }): Promise<VisitWebResultData>;
+
+    /**
+     * Start a persistent web session (floating window WebView).
+     * Returns StringResultData whose `value` is a JSON string payload.
+     */
+    function startWeb(options?: {
+        url?: string;
+        headers?: Record<string, string> | string;
+        user_agent?: string;
+        session_name?: string;
+    }): Promise<StringResultData>;
+
+    /**
+     * Stop one web session or all web sessions.
+     * Returns StringResultData whose `value` is a JSON string payload.
+     */
+    function stopWeb(sessionIdOrOptions?: string | {
+        session_id?: string;
+        close_all?: boolean;
+    }): Promise<StringResultData>;
+
+    /**
+     * Navigate a web session to a target URL.
+     */
+    function webNavigate(
+        sessionId: string | undefined,
+        url: string,
+        headers?: Record<string, string> | string
+    ): Promise<StringResultData>;
+
+    /**
+     * Evaluate JavaScript in a web session.
+     */
+    function webEval(
+        sessionId: string | undefined,
+        script: string,
+        timeoutMs?: number
+    ): Promise<StringResultData>;
+
+    /**
+     * Click an element by CSS selector.
+     */
+    function webClick(
+        sessionId: string | undefined,
+        selector: string,
+        index?: number
+    ): Promise<StringResultData>;
+
+    /**
+     * Fill an input by CSS selector.
+     */
+    function webFill(
+        sessionId: string | undefined,
+        selector: string,
+        value: string
+    ): Promise<StringResultData>;
+
+    /**
+     * Wait for page ready or selector appearance.
+     */
+    function webWaitFor(
+        sessionId: string | undefined,
+        selector?: string,
+        timeoutMs?: number
+    ): Promise<StringResultData>;
+
+    /**
+     * Capture a text snapshot of current page.
+     */
+    function webSnapshot(
+        sessionId: string | undefined,
+        options?: {
+            include_links?: boolean;
+            include_images?: boolean;
+        }
+    ): Promise<StringResultData>;
 
     /**
      * Enhanced HTTP request with flexible options
@@ -96,4 +172,4 @@ export namespace Net {
      * Cookie management
      */
     const cookies: CookieManager;
-} 
+}

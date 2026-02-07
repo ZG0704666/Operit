@@ -104,6 +104,15 @@ object ToolGetter {
     }
 
     /**
+     * 获取会话型 Web 工具
+     * @param context 应用上下文
+     * @return 会话型 Web 工具实现（标准权限级别）
+     */
+    fun getWebSessionTools(context: Context): StandardWebSessionTools {
+        return StandardWebSessionTools(context)
+    }
+
+    /**
      * 获取Intent工具执行器
      * @param context 应用上下文
      * @return Intent工具执行器实现（只有标准版本）

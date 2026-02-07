@@ -46,6 +46,38 @@ METADATA
 */
 
 const superAdmin = (function () {
+    const MAX_INLINE_TERMINAL_OUTPUT_CHARS = 12_000;
+
+    async function persistTerminalOutputIfTooLong(command: string, result: any): Promise<any | null> {
+        const outputStr = typeof result?.output === "string"
+            ? result.output
+            : String(result?.output ?? "");
+
+        if (outputStr.length <= MAX_INLINE_TERMINAL_OUTPUT_CHARS) {
+            return null;
+        }
+
+        await Tools.Files.mkdir(OPERIT_CLEAN_ON_EXIT_DIR, true);
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const rand = Math.floor(Math.random() * 1_000_000);
+        const filePath = `${OPERIT_CLEAN_ON_EXIT_DIR}/terminal_output_${timestamp}_${rand}.log`;
+
+        await Tools.Files.write(filePath, outputStr, false);
+
+        return {
+            command,
+            output: "(saved_to_file)",
+            exitCode: result?.exitCode,
+            sessionId: result?.sessionId,
+            context_preserved: true,
+            output_saved_to: filePath,
+            output_chars: outputStr.length,
+            operit_clean_on_exit_dir: OPERIT_CLEAN_ON_EXIT_DIR,
+            hint: "Output is large and saved to file. Use read_file_part or grep_code to inspect it.",
+        };
+    }
+
     /**
      * 在Ubuntu环境中执行终端命令并收集输出结果
      * 运行环境：完整的Ubuntu系统，已正确挂载sdcard和storage目录
@@ -98,6 +130,11 @@ const superAdmin = (function () {
 
             // 调用系统工具执行终端命令
             const result = await Tools.System.terminal.exec(sessionId, command);
+
+            const persistedResult = await persistTerminalOutputIfTooLong(command, result);
+            if (persistedResult) {
+                return persistedResult;
+            }
 
             return {
                 command: command,

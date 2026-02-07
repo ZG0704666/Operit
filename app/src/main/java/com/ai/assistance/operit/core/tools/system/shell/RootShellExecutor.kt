@@ -5,6 +5,9 @@ import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShellIdentity
+import com.ai.assistance.operit.data.preferences.AndroidPermissionPreferences
+import com.ai.assistance.operit.data.preferences.RootCommandExecutionMode
+import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.topjohnwu.superuser.CallbackList
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.CoroutineScope
@@ -50,6 +53,7 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
 
     // 是否使用exec模式执行命令
     private var useExecMode = false
+    private var suCommand: String = AndroidPermissionPreferences.DEFAULT_SU_COMMAND
 
     init {
         AppLogger.d(TAG, "RootShellExecutor实例初始化")
@@ -61,13 +65,69 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
      */
     fun setUseExecMode(useExec: Boolean) {
         useExecMode = useExec
+        refreshExecSuCommandFromPreferences()
         AppLogger.d(TAG, "Root命令执行模式设置为: ${if(useExec) "exec模式" else "libsu模式"}")
+    }
+
+    fun setExecSuCommand(command: String?) {
+        suCommand = normalizeSuCommand(command)
+        AppLogger.d(TAG, "Root exec su命令设置为: $suCommand")
+    }
+
+    private fun normalizeSuCommand(command: String?): String {
+        val normalized = command?.trim().orEmpty()
+        return normalized.ifEmpty { AndroidPermissionPreferences.DEFAULT_SU_COMMAND }
+    }
+
+    private fun parseCommandTokens(command: String): List<String> {
+        val normalized = normalizeSuCommand(command)
+        return normalized.split(Regex("\\s+")).filter { it.isNotEmpty() }
+    }
+
+    private fun buildSuExecCommand(command: String): Array<String> {
+        val tokens = parseCommandTokens(suCommand)
+        return (tokens + listOf("-c", command)).toTypedArray()
+    }
+
+    private fun buildSuInteractiveCommand(): Array<String> {
+        return parseCommandTokens(suCommand).toTypedArray()
+    }
+
+    private fun refreshExecSuCommandFromPreferences() {
+        try {
+            val mode = androidPermissionPreferences.getRootExecutionMode()
+            suCommand = if (mode == RootCommandExecutionMode.FORCE_EXEC) {
+                normalizeSuCommand(androidPermissionPreferences.getCustomSuCommand())
+            } else {
+                AndroidPermissionPreferences.DEFAULT_SU_COMMAND
+            }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "读取自定义su命令失败，回退默认su", e)
+            suCommand = AndroidPermissionPreferences.DEFAULT_SU_COMMAND
+        }
+    }
+
+    private fun applyExecutionModePreferenceOverride() {
+        try {
+            when (androidPermissionPreferences.getRootExecutionMode()) {
+                RootCommandExecutionMode.FORCE_EXEC -> useExecMode = true
+                RootCommandExecutionMode.FORCE_LIBSU -> useExecMode = false
+                RootCommandExecutionMode.AUTO -> Unit
+            }
+            if (useExecMode) {
+                refreshExecSuCommandFromPreferences()
+            }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "读取Root执行模式偏好失败，保留当前模式", e)
+        }
     }
 
     override fun getPermissionLevel(): AndroidPermissionLevel = AndroidPermissionLevel.ROOT
 
     override fun isAvailable(): Boolean {
         try {
+            applyExecutionModePreferenceOverride()
+
             // 如果使用exec模式，检查su命令是否可用
             if (useExecMode) {
                 return checkExecSuAvailable()
@@ -103,7 +163,7 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
      */
     private fun checkExecSuAvailable(): Boolean {
         try {
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            val process = Runtime.getRuntime().exec(buildSuExecCommand("id"))
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val output = StringBuilder()
             var line: String?
@@ -140,8 +200,11 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
 
     override fun initialize() {
         try {
+            applyExecutionModePreferenceOverride()
+
             // 如果使用exec模式，检查su命令是否可用
             if (useExecMode) {
+                refreshExecSuCommandFromPreferences()
                 rootAvailable = checkExecSuAvailable()
                 AppLogger.d(TAG, "使用exec模式初始化, Root可用: $rootAvailable")
                 return
@@ -239,9 +302,9 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
         return withContext(Dispatchers.IO) {
             try {
                 AppLogger.d(TAG, "使用exec执行Root命令: $command")
-                
+
                 // 执行su -c命令
-                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+                val process = Runtime.getRuntime().exec(buildSuExecCommand(command))
                 
                 // 读取标准输出
                 val stdoutReader = BufferedReader(InputStreamReader(process.inputStream))
@@ -296,6 +359,8 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
     ): ShellExecutor.CommandResult =
             withContext(Dispatchers.IO) {
                 try {
+                    applyExecutionModePreferenceOverride()
+
                     val permStatus = hasPermission()
                     if (!permStatus.granted) {
                         return@withContext ShellExecutor.CommandResult(false, "", permStatus.reason)
@@ -318,7 +383,7 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
                             } else {
                                 if (useExecMode) {
                                     val fullCmd = "$launcherPath $actualCommand"
-                                    val process = Runtime.getRuntime().exec(arrayOf("su", "-c", fullCmd))
+                                    val process = Runtime.getRuntime().exec(buildSuExecCommand(fullCmd))
 
                                     val stdoutReader = BufferedReader(InputStreamReader(process.inputStream))
                                     val stdout = StringBuilder()
@@ -410,12 +475,14 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
             }
 
     override suspend fun startProcess(command: String): ShellProcess {
+        applyExecutionModePreferenceOverride()
+
         if (!hasPermission().granted) {
             throw SecurityException("Root permission not granted.")
         }
         
         return if (useExecMode) {
-            ExecRootShellProcess(command)
+            ExecRootShellProcess(command, buildSuInteractiveCommand())
         } else {
             LibSuShellProcess(command)
         }
@@ -485,8 +552,8 @@ private class LibSuShellProcess(command: String) : ShellProcess {
 /**
  * 使用传统 `Runtime.exec("su")` 实现的 ShellProcess。
  */
-private class ExecRootShellProcess(command: String) : ShellProcess {
-    private val process: Process = Runtime.getRuntime().exec("su")
+private class ExecRootShellProcess(command: String, suCommand: Array<String>) : ShellProcess {
+    private val process: Process = Runtime.getRuntime().exec(suCommand)
 
     init {
         process.outputStream.bufferedWriter().use {

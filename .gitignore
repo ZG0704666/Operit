@@ -1,5 +1,6 @@
 *.iml
 .gradle
+.gradle-local
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -47,3 +48,4 @@ gradle/gradle-8.7
 mnn/build/*
 mnn/build
 kls_database.db
+.claude

@@ -101,7 +101,8 @@ class ShowerBinderReceiver : BroadcastReceiver() {
 
 说明：
 
- - shower-server 会先用 `PackageManager.queryBroadcastReceivers(Intent(ACTION_SHOWER_BINDER_READY))` 找到能接收该 Action 的 Receiver，然后逐个 `setComponent()` 发送**显式广播**；如果没找到 receiver，才会 fallback 到一次隐式 `sendBroadcast()`。
+ - `ShowerServerManager` 启动命令会附带宿主包名参数：`CLASSPATH=/data/local/tmp/shower-server.jar app_process / com.ai.assistance.shower.Main <hostPackage> &`。
+ - shower-server 读取该参数后，会通过 `IActivityManager.broadcastIntent(...)` 发送 `SHOWER_BINDER_READY`，并用 `Intent.setPackage(<hostPackage>)` 只投递给目标宿主包。
  - 因此宿主 App 侧的关键是：**Manifest 里声明 intent-filter 的 action 必须匹配**，并在 `onReceive()` 里把 `ShowerBinderContainer` 交给 `ShowerBinderRegistry.setService()`。
 
 ---

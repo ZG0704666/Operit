@@ -22,6 +22,9 @@ object ShowerServerManager {
     private const val ASSET_JAR_NAME = "shower-server.jar"
     private const val LOCAL_JAR_NAME = "shower-server.jar"
 
+    @Volatile
+    var additionalTargetPackages: Set<String> = emptySet()
+
     /**
      * Ensure the Shower server is started in the background.
      * Returns true if the start command was issued successfully and a Binder
@@ -80,7 +83,8 @@ object ShowerServerManager {
         }
 
         // 4) Start app_process with CLASSPATH pointing to /data/local/tmp/shower-server.jar, in background.
-        val startCmd = "CLASSPATH=$remoteJarPath app_process / com.ai.assistance.shower.Main &"
+        val targetPackagesArg = appContext.packageName
+        val startCmd = "CLASSPATH=$remoteJarPath app_process / com.ai.assistance.shower.Main $targetPackagesArg &"
         Log.d(TAG, "Starting Shower server with command: $startCmd")
         val startResult = runner.run(startCmd, ShellIdentity.SHELL)
         if (!startResult.success) {

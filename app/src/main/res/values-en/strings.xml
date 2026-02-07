@@ -751,8 +751,8 @@
     <string name="settings_theme_appearance">Theme and Appearance</string>
     <string name="settings_theme_appearance_desc">Personalize app appearance, including dark/light mode and custom color schemes</string>
     <string name="settings_customize_theme">Customize Theme</string>
-    <string name="settings_global_display">Global Display Settings</string>
-    <string name="settings_global_display_subtitle">Manage message display, FPS counter, notifications and other global display options</string>
+    <string name="settings_global_display">Display &amp; Behavior</string>
+    <string name="settings_global_display_subtitle">Manage global options for display style, automation behavior, and screenshots</string>
     <string name="settings_data_backup">Data Backup and Recovery</string>
     <string name="settings_data_backup_desc">Import, export, or delete chat history and problem library data for easy backup and recovery of important information</string>
     <string name="settings_chat_history_management">Chat History Management</string>
@@ -3535,7 +3535,7 @@
     <string name="screen_title_model_prompts_settings">Model Prompts Settings</string>
     <string name="screen_title_functional_config">Functional Model Configuration</string>
     <string name="screen_title_theme_settings">Theme Settings</string>
-    <string name="screen_title_global_display_settings">Global Display Settings</string>
+    <string name="screen_title_global_display_settings">Display &amp; Behavior</string>
     <string name="screen_title_layout_adjustment">Layout Adjustment</string>
     <string name="screen_title_chat_history_settings">Chat History Management</string>
     <string name="screen_title_chat_backup_settings">Data Backup &amp; Restore</string>
@@ -5857,6 +5857,13 @@
 
     <!-- Global Display Settings -->
     <string name="global_display_automation_behavior">Automation Display &amp; Behavior</string>
+    <string name="root_execution_mode_title">Root Execution Mode</string>
+    <string name="root_execution_mode_description">Auto picks based on environment; manual mode overrides auto selection.</string>
+    <string name="root_execution_mode_auto">Auto</string>
+    <string name="root_execution_mode_force_libsu">Manual libsu</string>
+    <string name="root_execution_mode_force_exec">Manual exec</string>
+    <string name="root_custom_su_command">Custom su command (exec only)</string>
+    <string name="root_custom_su_command_description">Applies only in exec mode. You can enter commands like su or su --mount-master.</string>
     <string name="global_display_virtual_screen_bitrate">Virtual Screen Bitrate</string>
     <string name="global_display_status_indicator_style">Status Indicator Style</string>
     <string name="global_display_screenshot_settings">Screenshot Settings</string>
@@ -6527,5 +6534,10 @@
     <string name="repo_bookmark_name_empty">Name cannot be empty</string>
     <string name="repo_bookmark_name_exists">Name already exists, please choose another</string>
     <string name="repo_bookmark_delete">Delete</string>
+
+    <string name="mcp_config_invalid_tag">Invalid</string>
+    <string name="mcp_config_invalid_missing_endpoint">Invalid: missing endpoint</string>
+    <string name="mcp_config_invalid_missing_server_entry">Invalid: missing mcpServers.%1$s</string>
+    <string name="mcp_config_invalid_missing_command">Invalid: missing command</string>
 
 </resources>

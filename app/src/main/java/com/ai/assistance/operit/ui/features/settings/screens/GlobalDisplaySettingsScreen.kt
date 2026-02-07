@@ -17,9 +17,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
+import com.ai.assistance.operit.data.preferences.AndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
+import com.ai.assistance.operit.data.preferences.RootCommandExecutionMode
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.ai.assistance.operit.services.floating.StatusIndicatorStyle
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import kotlinx.coroutines.launch
@@ -55,9 +59,13 @@ fun GlobalDisplaySettingsScreen(
 
     val hasBackgroundImage by userPreferences.useBackgroundImage.collectAsState(initial = false)
     val uiAccessibilityMode by userPreferences.uiAccessibilityMode.collectAsState(initial = false)
+    val preferredPermissionLevel by androidPermissionPreferences.preferredPermissionLevelFlow.collectAsState(initial = null)
+    val rootExecutionMode by androidPermissionPreferences.rootExecutionModeFlow.collectAsState(initial = RootCommandExecutionMode.AUTO)
+    val customSuCommand by androidPermissionPreferences.customSuCommandFlow.collectAsState(initial = AndroidPermissionPreferences.DEFAULT_SU_COMMAND)
 
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
     var userNameInput by remember { mutableStateOf(globalUserName ?: "") }
+    var customSuCommandInput by remember { mutableStateOf(customSuCommand) }
 
     // 自动化状态指示样式（使用与 FloatingChatService 相同的 SharedPreferences）
     val statusIndicatorPrefs = remember {
@@ -80,6 +88,10 @@ fun GlobalDisplaySettingsScreen(
     // 同步全局用户名状态
     LaunchedEffect(globalUserName) {
         userNameInput = globalUserName ?: ""
+    }
+
+    LaunchedEffect(customSuCommand) {
+        customSuCommandInput = customSuCommand
     }
 
     val componentBackgroundColor = if (hasBackgroundImage) {
@@ -504,6 +516,96 @@ fun GlobalDisplaySettingsScreen(
                 }
             }
 
+            if (preferredPermissionLevel == AndroidPermissionLevel.ROOT) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(componentBackgroundColor)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.root_execution_mode_title),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(id = R.string.root_execution_mode_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = rootExecutionMode == RootCommandExecutionMode.AUTO,
+                            onClick = {
+                                scope.launch {
+                                    androidPermissionPreferences.saveRootExecutionMode(RootCommandExecutionMode.AUTO)
+                                    showSaveSuccessMessage = true
+                                }
+                            },
+                            label = { Text(stringResource(R.string.root_execution_mode_auto)) }
+                        )
+                        FilterChip(
+                            selected = rootExecutionMode == RootCommandExecutionMode.FORCE_LIBSU,
+                            onClick = {
+                                scope.launch {
+                                    androidPermissionPreferences.saveRootExecutionMode(RootCommandExecutionMode.FORCE_LIBSU)
+                                    showSaveSuccessMessage = true
+                                }
+                            },
+                            label = { Text(stringResource(R.string.root_execution_mode_force_libsu)) }
+                        )
+                        FilterChip(
+                            selected = rootExecutionMode == RootCommandExecutionMode.FORCE_EXEC,
+                            onClick = {
+                                scope.launch {
+                                    androidPermissionPreferences.saveRootExecutionMode(RootCommandExecutionMode.FORCE_EXEC)
+                                    showSaveSuccessMessage = true
+                                }
+                            },
+                            label = { Text(stringResource(R.string.root_execution_mode_force_exec)) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customSuCommandInput,
+                        onValueChange = { customSuCommandInput = it },
+                        label = { Text(stringResource(id = R.string.root_custom_su_command)) },
+                        supportingText = {
+                            Text(stringResource(id = R.string.root_custom_su_command_description))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        trailingIcon = {
+                            if (customSuCommandInput.trim() != customSuCommand.trim()) {
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            androidPermissionPreferences.saveCustomSuCommand(customSuCommandInput)
+                                            showSaveSuccessMessage = true
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Save,
+                                        contentDescription = stringResource(id = R.string.save)
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // ======= 重置按钮 =======
@@ -511,6 +613,7 @@ fun GlobalDisplaySettingsScreen(
                 onClick = {
                     scope.launch {
                         displayPreferencesManager.resetDisplaySettings()
+                        androidPermissionPreferences.resetRootExecutionSettings()
                         showSaveSuccessMessage = true
                     }
                 },

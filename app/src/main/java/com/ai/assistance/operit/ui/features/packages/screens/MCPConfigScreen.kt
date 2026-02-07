@@ -101,6 +101,12 @@ fun MCPConfigScreen(
             mcpRepository.installedPluginIds.collectAsState(initial = emptySet()).value
 
     val mcpConfigSnapshot = mcpLocalServer.mcpConfig.collectAsState().value
+    val configuredPluginIds = remember(mcpConfigSnapshot) {
+        mcpConfigSnapshot.mcpServers.keys.toSet()
+    }
+    val visiblePluginIds = remember(installedPlugins, configuredPluginIds) {
+        installedPlugins + configuredPluginIds
+    }
 
     // 部署状态
     val deploymentStatus by deployViewModel.deploymentStatus.collectAsState()
@@ -235,8 +241,8 @@ fun MCPConfigScreen(
     var pluginToolsMap by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
 
     // 计算插件启动统计 - 只统计已启用的插件
-    val totalEnabledPlugins = remember(installedPlugins) {
-        installedPlugins.count { pluginId -> mcpLocalServer.isServerEnabled(pluginId) }
+    val totalEnabledPlugins = remember(visiblePluginIds) {
+        visiblePluginIds.count { pluginId -> mcpLocalServer.isServerEnabled(pluginId) }
     }
     val successfulToolRequests = remember { mutableStateOf(0) }
     
@@ -246,12 +252,12 @@ fun MCPConfigScreen(
     }
 
     val computedSortedPluginIds = remember(
-        installedPlugins,
+        visiblePluginIds,
         pluginToolsMap,
         serverStatusMap,
         mcpConfigSnapshot
     ) {
-        installedPlugins
+        visiblePluginIds
             .toList()
             .sortedWith(
                 compareBy<String> { pluginId ->
@@ -269,17 +275,17 @@ fun MCPConfigScreen(
     }
 
     // Lock order once tools are loaded (so the initial "good" sort is applied, then frozen)
-    LaunchedEffect(isToolsLoading, installedPlugins, toolRefreshTrigger) {
-        if (lockedPluginOrder == null && installedPlugins.isNotEmpty() && !isToolsLoading) {
+    LaunchedEffect(isToolsLoading, visiblePluginIds, toolRefreshTrigger) {
+        if (lockedPluginOrder == null && visiblePluginIds.isNotEmpty() && !isToolsLoading) {
             lockedPluginOrder = computedSortedPluginIds
         }
     }
 
-    val sortedPluginIds = remember(lockedPluginOrder, installedPlugins, computedSortedPluginIds) {
-        val installedSet = installedPlugins.toSet()
+    val sortedPluginIds = remember(lockedPluginOrder, visiblePluginIds, computedSortedPluginIds) {
+        val visibleSet = visiblePluginIds.toSet()
         val base = (lockedPluginOrder ?: computedSortedPluginIds)
-        val kept = base.filter { installedSet.contains(it) }
-        val missing = installedSet - kept.toSet()
+        val kept = base.filter { visibleSet.contains(it) }
+        val missing = visibleSet - kept.toSet()
         if (missing.isEmpty()) {
             kept
         } else {
@@ -994,7 +1000,7 @@ fun MCPConfigScreen(
     val isAnyLoading =
         isRefreshing || isToolsLoading || isImporting || isPluginLoading || pendingPluginId != null
 
-    val isEmptyLoading = installedPlugins.isEmpty() && (isAnyLoading || !initialAutoStartPerformed.value)
+    val isEmptyLoading = visiblePluginIds.isEmpty() && (isAnyLoading || !initialAutoStartPerformed.value)
     
     CustomScaffold(
             floatingActionButton = {
@@ -1127,7 +1133,7 @@ fun MCPConfigScreen(
 
                     
                     // 插件列表标题
-                    if (installedPlugins.isNotEmpty()) {
+                    if (sortedPluginIds.isNotEmpty()) {
                         
                         // 插件列表
                         items(items = sortedPluginIds, key = { it }) { pluginId ->
@@ -1135,6 +1141,21 @@ fun MCPConfigScreen(
                                 mcpRepository.getInstalledPluginInfo(pluginId)
                             }
                             val isRemote = pluginInfo?.type == "remote"
+                            val serverConfig = mcpConfigSnapshot.mcpServers[pluginId]
+                            val command = runCatching { serverConfig?.command }.getOrNull()
+                            val hasValidLocalConfig = !command.isNullOrBlank()
+                            val hasValidRemoteConfig = !pluginInfo?.endpoint.isNullOrBlank()
+                            val isConfigValid = if (isRemote) hasValidRemoteConfig else hasValidLocalConfig
+                            val invalidConfigReason = when {
+                                isConfigValid -> null
+                                isRemote -> context.getString(R.string.mcp_config_invalid_missing_endpoint)
+                                serverConfig == null ->
+                                    context.getString(
+                                        R.string.mcp_config_invalid_missing_server_entry,
+                                        pluginId
+                                    )
+                                else -> context.getString(R.string.mcp_config_invalid_missing_command)
+                            }
 
                             // 获取插件服务器状态
                             val pluginServerStatus = mcpLocalServer.getServerStatus(pluginId)
@@ -1206,7 +1227,9 @@ fun MCPConfigScreen(
                                         }
                                     },
                                     isRunning = pluginRunningState.value,
-                                    isDeployed = deploySuccessState.value
+                                    isDeployed = deploySuccessState.value,
+                                    isConfigValid = isConfigValid,
+                                    invalidConfigReason = invalidConfigReason
                             )
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp))
                         }
@@ -1323,7 +1346,9 @@ private fun PluginListItem(
     isEnabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     isRunning: Boolean = false,
-    isDeployed: Boolean = false
+    isDeployed: Boolean = false,
+    isConfigValid: Boolean = true,
+    invalidConfigReason: String? = null
 ) {
     Card(
         modifier = Modifier
@@ -1440,6 +1465,33 @@ private fun PluginListItem(
                                 )
                             }
                         }
+
+                        if (!isConfigValid) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.mcp_config_invalid_tag),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontSize = 9.sp
+                                )
+                            }
+                        }
+                    }
+
+                    if (!invalidConfigReason.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = invalidConfigReason,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
 
@@ -1447,6 +1499,7 @@ private fun PluginListItem(
                 Switch(
                     checked = isEnabled,
                     onCheckedChange = onEnabledChange,
+                    enabled = isConfigValid,
                     modifier = Modifier.scale(0.8f),
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,

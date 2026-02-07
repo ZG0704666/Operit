@@ -30,12 +30,17 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +58,31 @@ public class Main {
 
     private static final String ACTION_SHOWER_BINDER_READY = "com.ai.assistance.operit.action.SHOWER_BINDER_READY";
     private static final String EXTRA_BINDER_CONTAINER = "binder_container";
+
+    private static volatile String sTargetPackageName;
+
+    private static ArrayList<String> getTargetPackages() {
+        ArrayList<String> packages = new ArrayList<>();
+        String raw = sTargetPackageName;
+        if (raw == null || raw.trim().isEmpty()) {
+            return packages;
+        }
+
+        String[] parts = raw.split(",");
+        for (String part : parts) {
+            if (part == null) {
+                continue;
+            }
+            String pkg = part.trim();
+            if (pkg.isEmpty()) {
+                continue;
+            }
+            if (!packages.contains(pkg)) {
+                packages.add(pkg);
+            }
+        }
+        return packages;
+    }
 
     private static final int VIRTUAL_DISPLAY_FLAG_PUBLIC = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC;
     private static final int VIRTUAL_DISPLAY_FLAG_PRESENTATION = DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION;
@@ -385,6 +415,10 @@ public class Main {
 
     public static void main(String... args) {
         sExitOnStop = true;
+        if (args != null && args.length > 0 && args[0] != null && !args[0].trim().isEmpty()) {
+            sTargetPackageName = args[0].trim();
+            logToFile("Using target package arg from args: " + sTargetPackageName, null);
+        }
         try {
             prepareMainLooper();
             logToFile("prepareMainLooper ok", null);
@@ -560,28 +594,7 @@ public class Main {
                     }
                 }
             };
-            try {
-                Class<?> smClass = Class.forName("android.os.ServiceManager");
-                java.lang.reflect.Method addService;
-                try {
-                    // Older Android: addService(String, IBinder, boolean)
-                    addService = smClass.getDeclaredMethod("addService", String.class, IBinder.class, boolean.class);
-                    addService.setAccessible(true);
-                    addService.invoke(null, "ai.assistance.shower", (IBinder) service, Boolean.TRUE);
-                    logToFile("Registered Binder service ai.assistance.shower via 3-arg addService", null);
-                } catch (NoSuchMethodException e) {
-                    // Newer Android: addService(String, IBinder, boolean, int)
-                    addService = smClass.getDeclaredMethod("addService", String.class, IBinder.class, boolean.class, int.class);
-                    addService.setAccessible(true);
-                    // Use 0 as dump priority, same as scrcpy/shizuku style implementations.
-                    addService.invoke(null, "ai.assistance.shower", (IBinder) service, Boolean.TRUE, 0);
-                    logToFile("Registered Binder service ai.assistance.shower via 4-arg addService", null);
-                }
-            } catch (SecurityException se) {
-                logToFile("ServiceManager.addService denied by SELinux, continuing with broadcast-only registration", se);
-            } catch (Throwable t) {
-                logToFile("ServiceManager.addService failed (non-fatal): " + t.getMessage(), t);
-            }
+            logToFile("Skip ServiceManager.addService by design (Shizuku-style binder handoff)", null);
 
             sendBinderToApp(service);
         } catch (Throwable t) {
@@ -592,46 +605,221 @@ public class Main {
     }
 
     public static Main start(Context context) {
+        if (context != null) {
+            sTargetPackageName = context.getPackageName();
+            logToFile("Using target package from context: " + sTargetPackageName, null);
+        }
         Main main = new Main(context);
         logToFile("server started (Binder only mode via Activity)", null);
         return main;
     }
 
 
-    private void sendBinderToApp(IShowerService service) {
-        try {
-            Context context = FakeContext.get();
-            Intent baseIntent = new Intent(ACTION_SHOWER_BINDER_READY);
-            baseIntent.putExtra(EXTRA_BINDER_CONTAINER, new ShowerBinderContainer(service.asBinder()));
+    private static Object[] buildBroadcastIntentArgs(Class<?>[] parameterTypes, Intent intent) {
+        Object[] args = new Object[parameterTypes.length];
+        int intentIndex = -1;
+        for (int i = 0; i < parameterTypes.length; i++) {
+            if (Intent.class.isAssignableFrom(parameterTypes[i])) {
+                intentIndex = i;
+                break;
+            }
+        }
 
-            PackageManager pm = context.getPackageManager();
-            java.util.List<android.content.pm.ResolveInfo> receivers = null;
-            if (pm != null) {
+        int intArgIndex = 0;
+        boolean callingPackageSet = false;
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Class<?> type = parameterTypes[i];
+            if (Intent.class.isAssignableFrom(type)) {
+                args[i] = intent;
+                continue;
+            }
+
+            if (type == String.class) {
+                if (!callingPackageSet && intentIndex >= 0 && i < intentIndex) {
+                    args[i] = FakeContext.PACKAGE_NAME;
+                    callingPackageSet = true;
+                } else {
+                    args[i] = null;
+                }
+                continue;
+            }
+
+            if (type == int.class) {
+                if (intArgIndex == 1) {
+                    args[i] = -1; // appOp = OP_NONE
+                } else if (intArgIndex >= 2) {
+                    args[i] = -2; // userId = USER_CURRENT for tail int arguments
+                } else {
+                    args[i] = 0;
+                }
+                intArgIndex++;
+                continue;
+            }
+
+            if (type == boolean.class) {
+                args[i] = Boolean.FALSE;
+                continue;
+            }
+
+            if (type == long.class) {
+                args[i] = 0L;
+                continue;
+            }
+
+            if (type == float.class) {
+                args[i] = 0f;
+                continue;
+            }
+
+            if (type == double.class) {
+                args[i] = 0d;
+                continue;
+            }
+
+            if (type == byte.class) {
+                args[i] = (byte) 0;
+                continue;
+            }
+
+            if (type == short.class) {
+                args[i] = (short) 0;
+                continue;
+            }
+
+            if (type == char.class) {
+                args[i] = (char) 0;
+                continue;
+            }
+
+            args[i] = null;
+        }
+
+        return args;
+    }
+
+    private boolean sendBinderReadyViaActivityManager(Intent intent) {
+        try {
+            Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
+            Method getServiceMethod = serviceManagerClass.getDeclaredMethod("getService", String.class);
+            IBinder amBinder = (IBinder) getServiceMethod.invoke(null, "activity");
+            if (amBinder == null) {
+                logToFile("IActivityManager binder is null", null);
+                return false;
+            }
+
+            Object activityManager = null;
+            try {
+                Class<?> iActivityManagerStubClass = Class.forName("android.app.IActivityManager$Stub");
+                Method asInterfaceMethod = iActivityManagerStubClass.getDeclaredMethod("asInterface", IBinder.class);
+                activityManager = asInterfaceMethod.invoke(null, amBinder);
+            } catch (Throwable ignored) {
+            }
+
+            if (activityManager == null) {
                 try {
-                    receivers = pm.queryBroadcastReceivers(baseIntent, 0);
-                } catch (Throwable t) {
-                    logToFile("queryBroadcastReceivers for SHOWER_BINDER_READY failed: " + t.getMessage(), t);
+                    Class<?> activityManagerNativeClass = Class.forName("android.app.ActivityManagerNative");
+                    Method asInterfaceMethod = activityManagerNativeClass.getDeclaredMethod("asInterface", IBinder.class);
+                    activityManager = asInterfaceMethod.invoke(null, amBinder);
+                } catch (Throwable ignored) {
                 }
             }
 
-            if (receivers == null || receivers.isEmpty()) {
-                // Fallback: best-effort implicit broadcast (may be ignored on some systems).
-                context.sendBroadcast(baseIntent);
-                logToFile("Sent SHOWER_BINDER_READY broadcast via Context.sendBroadcast (no explicit receivers found)", null);
-            } else {
-                for (android.content.pm.ResolveInfo ri : receivers) {
-                    if (ri.activityInfo == null) {
-                        continue;
-                    }
-                    android.content.ComponentName cn = new android.content.ComponentName(
-                            ri.activityInfo.packageName,
-                            ri.activityInfo.name
-                    );
-                    Intent intent = new Intent(baseIntent);
-                    intent.setComponent(cn);
-                    context.sendBroadcast(intent);
-                    logToFile("Sent SHOWER_BINDER_READY broadcast to " + cn.flattenToShortString(), null);
+            if (activityManager == null) {
+                logToFile("Unable to obtain IActivityManager instance", null);
+                return false;
+            }
+
+            ArrayList<Method> candidates = new ArrayList<>();
+            for (Method method : activityManager.getClass().getMethods()) {
+                if (!"broadcastIntent".equals(method.getName())) {
+                    continue;
                 }
+                Class<?>[] parameterTypes = method.getParameterTypes();
+                boolean hasIntent = false;
+                for (Class<?> parameterType : parameterTypes) {
+                    if (Intent.class.isAssignableFrom(parameterType)) {
+                        hasIntent = true;
+                        break;
+                    }
+                }
+                if (hasIntent) {
+                    candidates.add(method);
+                }
+            }
+
+            if (candidates.isEmpty()) {
+                logToFile("No broadcastIntent method found on IActivityManager", null);
+                return false;
+            }
+
+            Collections.sort(candidates, new Comparator<Method>() {
+                @Override
+                public int compare(Method a, Method b) {
+                    return Integer.compare(b.getParameterCount(), a.getParameterCount());
+                }
+            });
+
+            Throwable lastError = null;
+            for (Method method : candidates) {
+                try {
+                    method.setAccessible(true);
+                    Object[] args = buildBroadcastIntentArgs(method.getParameterTypes(), intent);
+                    method.invoke(activityManager, args);
+                    logToFile("Sent SHOWER_BINDER_READY via IActivityManager." + method.getParameterCount() + "args", null);
+                    return true;
+                } catch (InvocationTargetException ite) {
+                    lastError = ite.getCause() != null ? ite.getCause() : ite;
+                    logToFile(
+                            "IActivityManager.broadcastIntent failed for " + method.getParameterCount() + " args: "
+                                    + lastError.getMessage(),
+                            lastError
+                    );
+                } catch (Throwable t) {
+                    lastError = t;
+                    logToFile(
+                            "IActivityManager.broadcastIntent invoke error for " + method.getParameterCount() + " args: "
+                                    + t.getMessage(),
+                            t
+                    );
+                }
+            }
+
+            if (lastError != null) {
+                logToFile("All IActivityManager.broadcastIntent attempts failed", lastError);
+            }
+            return false;
+        } catch (Throwable t) {
+            logToFile("sendBinderReadyViaActivityManager failed: " + t.getMessage(), t);
+            return false;
+        }
+    }
+
+
+    private void sendBinderToApp(IShowerService service) {
+        try {
+            Intent baseIntent = new Intent(ACTION_SHOWER_BINDER_READY);
+            baseIntent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+            baseIntent.putExtra(EXTRA_BINDER_CONTAINER, new ShowerBinderContainer(service.asBinder()));
+
+            ArrayList<String> targetPackages = getTargetPackages();
+            if (targetPackages.isEmpty()) {
+                boolean sent = sendBinderReadyViaActivityManager(baseIntent);
+                if (!sent) {
+                    logToFile("Failed to send SHOWER_BINDER_READY: ActivityManager path unavailable", null);
+                }
+                return;
+            }
+
+            boolean anySent = false;
+            for (String pkg : targetPackages) {
+                Intent targetedIntent = new Intent(baseIntent);
+                targetedIntent.setPackage(pkg);
+                boolean sent = sendBinderReadyViaActivityManager(targetedIntent);
+                anySent = anySent || sent;
+            }
+
+            if (!anySent) {
+                logToFile("Failed to send SHOWER_BINDER_READY to target packages: " + targetPackages, null);
             }
         } catch (Throwable t) {
             logToFile("Failed to send SHOWER_BINDER_READY broadcast: " + t.getMessage(), t);

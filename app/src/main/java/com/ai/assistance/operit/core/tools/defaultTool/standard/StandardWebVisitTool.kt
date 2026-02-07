@@ -953,29 +953,54 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
 
         MaterialTheme {
             Box(
-                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)),
                     contentAlignment = Alignment.Center
             ) {
                 Card(
                         modifier =
-                                Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.9f),
-                        shape = RoundedCornerShape(16.dp)
+                                Modifier.fillMaxWidth(0.99f).fillMaxHeight(0.97f),
+                        shape = RoundedCornerShape(18.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
                 ) {
                     Column(
-                            modifier = Modifier.fillMaxSize().padding(16.dp),
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        val statusText =
+                                when {
+                                    !pageLoaded.value -> context.getString(R.string.webvisit_status_loading_page)
+                                    isLoading.value -> context.getString(R.string.webvisit_status_waiting_page)
+                                    isCaptchaVerification.value -> context.getString(R.string.webvisit_status_captcha, autoCountdownSeconds.value)
+                                    autoCountdownActive.value -> context.getString(R.string.webvisit_status_extracting, autoCountdownSeconds.value)
+                                    hasExtractedContent.value -> context.getString(R.string.webvisit_status_extracted_waiting)
+                                    else -> context.getString(R.string.webvisit_status_waiting_extraction)
+                                }
+
                         // Header
                         Row(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                     text = context.getString(R.string.webvisit_title),
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.weight(1f)
                             )
+
+                            Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                        text = statusText,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
                         }
 
                         // URL info
@@ -984,55 +1009,36 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                         Modifier.fillMaxWidth()
                                                 .border(
                                                         width = 1.dp,
-                                                        color = MaterialTheme.colorScheme.outline,
-                                                        shape = RoundedCornerShape(8.dp)
+                                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                                        shape = RoundedCornerShape(10.dp)
                                                 )
-                                                .padding(16.dp)
+                                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Column {
                                 Text(
-                                        text = context.getString(R.string.webvisit_url_label),
-                                        fontSize = 16.sp
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Text(
                                         text = currentUrl.value,
-                                        fontSize = 14.sp,
-                                        maxLines = 3,
-                                        overflow = TextOverflow.Ellipsis
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
 
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                // 状态文本根据当前状态动态变化
-                                val statusText =
-                                        when {
-                                            !pageLoaded.value -> context.getString(R.string.webvisit_status_loading_page)
-                                            isLoading.value -> context.getString(R.string.webvisit_status_waiting_page)
-                                            isCaptchaVerification.value -> context.getString(R.string.webvisit_status_captcha, autoCountdownSeconds.value)
-                                            autoCountdownActive.value -> context.getString(R.string.webvisit_status_extracting, autoCountdownSeconds.value)
-                                            hasExtractedContent.value -> context.getString(R.string.webvisit_status_extracted_waiting)
-                                            else -> context.getString(R.string.webvisit_status_waiting_extraction)
-                                        }
-
-                                Text(
-                                        text = statusText,
-                                        fontSize = 16.sp
-                                )
+                                Spacer(modifier = Modifier.height(2.dp))
 
                                 if (pageTitle.value.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                            text = context.getString(R.string.webvisit_page_title, pageTitle.value),
-                                            fontSize = 14.sp
+                                            text = pageTitle.value,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         // WebView
                         AndroidView(
@@ -1199,15 +1205,16 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                 }
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         // 按钮区域 - 根据当前状态显示不同按钮
                         Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                         ) {
                             // 左侧按钮 - 根据状态变化
-                            OutlinedButton(
+                            FilledTonalButton(
                                     onClick = {
                                         if (autoCountdownActive.value) {
                                             // 如果正在倒计时，则取消倒计时
@@ -1224,7 +1231,8 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                         }
                                     }
                             ,
-                                    modifier = Modifier.weight(1f)
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f).heightIn(min = 42.dp)
                             ) {
                                 Text(
                                         when {
@@ -1233,21 +1241,21 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                                     !hasExtractedContent.value &&
                                                     autoModeEnabled.value -> context.getString(R.string.webvisit_button_cancel_auto)
                                             else -> context.getString(R.string.webvisit_button_cancel)
-                                        }
+                                        },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                 )
                             }
 
                             if (isExpanded.value && !isCaptchaVerification.value) {
-                                OutlinedButton(
+                                FilledTonalIconButton(
                                         onClick = onMinimizeRequested,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.size(42.dp)
                                 ) {
                                     Icon(
                                             imageVector = Icons.Filled.KeyboardArrowDown,
-                                            contentDescription = null
+                                            contentDescription = context.getString(R.string.webvisit_button_minimize)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(context.getString(R.string.webvisit_button_minimize))
                                 }
                             }
 
@@ -1291,7 +1299,8 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                             ButtonDefaults.buttonColors(
                                                     containerColor = MaterialTheme.colorScheme.primary
                                             ),
-                                    modifier = Modifier.weight(1f)
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f).heightIn(min = 42.dp)
                             ) {
                                 Text(
                                         when {
@@ -1300,30 +1309,36 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
                                             hasExtractedContent.value -> context.getString(R.string.webvisit_button_continue)
                                             !autoModeEnabled.value -> context.getString(R.string.webvisit_button_manual_extract)
                                             else -> context.getString(R.string.webvisit_button_extract)
-                                        }
+                                        },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         // 帮助文本
-                        Text(
-                                text =
-                                        when {
-                                            !pageLoaded.value -> stringResource(R.string.webvisit_help_loading_page)
-                                            autoCountdownActive.value -> stringResource(R.string.webvisit_help_countdown)
-                                            !hasExtractedContent.value && autoModeEnabled.value ->
-                                                    stringResource(R.string.webvisit_help_cancel_auto)
-                                            !hasExtractedContent.value && !autoModeEnabled.value ->
-                                                    stringResource(R.string.webvisit_help_manual_mode)
-                                            else -> stringResource(R.string.webvisit_help_extracted)
-                                        },
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                        )
+                        val helperText =
+                                when {
+                                    !pageLoaded.value -> stringResource(R.string.webvisit_help_loading_page)
+                                    autoCountdownActive.value -> stringResource(R.string.webvisit_help_countdown)
+                                    !hasExtractedContent.value && !autoModeEnabled.value ->
+                                            stringResource(R.string.webvisit_help_manual_mode)
+                                    else -> ""
+                                }
+
+                        if (helperText.isNotEmpty()) {
+                            Text(
+                                    text = helperText,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                            )
+                        }
                     }
                 }
             }

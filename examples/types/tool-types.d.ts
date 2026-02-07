@@ -49,6 +49,14 @@ export interface ToolResultMap {
     // Network operations
     'http_request': HttpResponseData;
     'visit_web': VisitWebResultData;
+    'start_web': StringResultData;
+    'stop_web': StringResultData;
+    'web_navigate': StringResultData;
+    'web_eval': StringResultData;
+    'web_click': StringResultData;
+    'web_fill': StringResultData;
+    'web_wait_for': StringResultData;
+    'web_snapshot': StringResultData;
     'multipart_request': HttpResponseData;
     'manage_cookies': HttpResponseData;
 

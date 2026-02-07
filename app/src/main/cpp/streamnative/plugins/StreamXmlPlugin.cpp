@@ -37,16 +37,26 @@ bool StreamXmlPlugin::isAsciiLetter(char16_t c) {
 
 bool StreamXmlPlugin::isPunctuationTrigger(char16_t c) {
     switch (c) {
-        case u'，':
-        case u'。':
-        case u'？':
-        case u'！':
-        case u'：':
+        case u'\uFF0C': // ，
+        case u'\u3002': // 。
+        case u'\uFF1F': // ？
+        case u'\uFF01': // ！
+        case u'\uFF1A': // ：
+        case u'\uFF08': // （
+        case u'\uFF09': // ）
+        case u'\u3010': // 【
+        case u'\u3011': // 】
+        case u'\u300A': // 《
+        case u'\u300B': // 》
         case u':':
         case u',':
         case u'.':
         case u'?':
         case u'!':
+        case u'~':
+        case u'\uFF5E': // ～
+        case u'>':
+        case u'\uFF1E': // ＞
             return true;
         default:
             return false;

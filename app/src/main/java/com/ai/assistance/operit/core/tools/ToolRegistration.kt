@@ -335,6 +335,112 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    handler.registerTool(
+            name = "start_web",
+            descriptionGenerator = { tool ->
+                val url = tool.parameters.find { it.name == "url" }?.value
+                if (url.isNullOrBlank()) "Start a web session" else "Start a web session at $url"
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "stop_web",
+            descriptionGenerator = { tool ->
+                val closeAll = tool.parameters.find { it.name == "close_all" }?.value
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value
+                if (closeAll.equals("true", ignoreCase = true)) {
+                    "Stop all web sessions"
+                } else {
+                    "Stop web session: ${sessionId ?: "(missing session_id)"}"
+                }
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "web_navigate",
+            descriptionGenerator = { tool ->
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value ?: ""
+                val url = tool.parameters.find { it.name == "url" }?.value ?: ""
+                "Navigate web session ${sessionId.take(8)} to $url"
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "web_eval",
+            descriptionGenerator = { tool ->
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value ?: ""
+                "Evaluate JavaScript in web session ${sessionId.take(8)}"
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "web_click",
+            descriptionGenerator = { tool ->
+                val selector = tool.parameters.find { it.name == "selector" }?.value ?: ""
+                "Click element: $selector"
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "web_fill",
+            descriptionGenerator = { tool ->
+                val selector = tool.parameters.find { it.name == "selector" }?.value ?: ""
+                "Fill element: $selector"
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "web_wait_for",
+            descriptionGenerator = { tool ->
+                val selector = tool.parameters.find { it.name == "selector" }?.value
+                if (selector.isNullOrBlank()) {
+                    "Wait for web page load"
+                } else {
+                    "Wait for selector: $selector"
+                }
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "web_snapshot",
+            descriptionGenerator = { tool ->
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value ?: ""
+                "Snapshot web session ${sessionId.take(8)}"
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
     // 休眠工具
     handler.registerTool(
             name = "sleep",

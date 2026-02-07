@@ -447,7 +447,7 @@ data class ImageLinkData(
 private fun parseMessageContent(context: android.content.Context, content: String): MessageParseResult {
     // First, strip out any <memory> tags so they are not displayed in the UI.
     var cleanedContent =
-        content.replace(Regex("<memory>.*?</memory>", RegexOption.DOT_MATCHES_ALL), "").trim()
+        content.replace(ChatMarkupRegex.memoryTag, "").trim()
 
     val proxySenderMatch = ChatMarkupRegex.proxySenderTag.find(cleanedContent)
     val proxySenderName = proxySenderMatch?.groupValues?.getOrNull(1)
@@ -489,8 +489,7 @@ private fun parseMessageContent(context: android.content.Context, content: Strin
     cleanedContent = MediaLinkParser.removeMediaLinks(cleanedContent).trim()
 
     // Extract reply information
-    val replyRegex = Regex("<reply_to\\s+sender=\"([^\"]+)\"\\s+timestamp=\"([^\"]+)\">([^<]*)</reply_to>")
-    val replyMatch = replyRegex.find(cleanedContent)
+    val replyMatch = ChatMarkupRegex.replyToTag.find(cleanedContent)
     val replyInfo = replyMatch?.let { match ->
         val fullContent = match.groupValues[3]
         // 指示语，用于从回复内容中提取纯净的预览文本
@@ -514,9 +513,7 @@ private fun parseMessageContent(context: android.content.Context, content: Strin
 
     val workspaceAttachments = mutableListOf<AttachmentData>()
     // Extract workspace context as a special attachment
-    val workspaceRegex =
-        Regex("<workspace_attachment>.*?</workspace_attachment>", RegexOption.DOT_MATCHES_ALL)
-    val workspaceMatch = workspaceRegex.find(cleanedContent)
+    val workspaceMatch = ChatMarkupRegex.workspaceAttachmentTag.find(cleanedContent)
     if (workspaceMatch != null) {
         val workspaceContent = workspaceMatch.value
         workspaceAttachments.add(
@@ -551,12 +548,8 @@ private fun parseMessageContent(context: android.content.Context, content: Strin
         // 1. New format (paired tags): <attachment ...>content</attachment>
         // 2. Old format (self-closing): <attachment ... content="..." />
         // 注意：优先匹配新格式（配对标签），回退到旧格式（自闭合标签）
-        val pairedTagPattern =
-                "<attachment\\s+id=\"([^\"]+)\"\\s+filename=\"([^\"]+)\"\\s+type=\"([^\"]+)\"(?:\\s+size=\"([^\"]+)\")?\\s*>([\\s\\S]*?)</attachment>".toRegex()
-        val selfClosingPattern =
-                "<attachment\\s+id=\"([^\"]+)\"\\s+filename=\"([^\"]+)\"\\s+type=\"([^\"]+)\"(?:\\s+size=\"([^\"]+)\")?(?:\\s+content=\"(.*?)\")?\\s*/>".toRegex(
-                        RegexOption.DOT_MATCHES_ALL
-                )
+        val pairedTagPattern = ChatMarkupRegex.attachmentDataTag
+        val selfClosingPattern = ChatMarkupRegex.attachmentDataSelfClosingTag
 
         // Try to find matches with both patterns
         val pairedMatches = pairedTagPattern.findAll(cleanedContent).toList()

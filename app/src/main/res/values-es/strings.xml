@@ -1352,4 +1352,9 @@
     <string name="speech_services_deepgram_stt_model">model</string>
     <string name="speech_services_deepgram_stt_model_placeholder">p. ej.: nova-2</string>
     <string name="speech_services_stt_info">Admite motores Sherpa locales y OpenAI / Deepgram STT (remoto).</string>
+
+    <string name="mcp_config_invalid_tag">Inválido</string>
+    <string name="mcp_config_invalid_missing_endpoint">Inválido: falta endpoint</string>
+    <string name="mcp_config_invalid_missing_server_entry">Inválido: falta mcpServers.%1$s</string>
+    <string name="mcp_config_invalid_missing_command">Inválido: falta comando</string>
 </resources>

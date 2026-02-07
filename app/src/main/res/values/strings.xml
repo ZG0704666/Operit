@@ -728,8 +728,8 @@
     <string name="settings_theme_appearance">主题和外观</string>
     <string name="settings_theme_appearance_desc">个性化应用外观，包括深色/浅色模式和自定义配色方案</string>
     <string name="settings_customize_theme">自定义主题</string>
-    <string name="settings_global_display">全局显示设置</string>
-    <string name="settings_global_display_subtitle">管理消息显示、FPS计数器和通知等全局显示选项</string>
+    <string name="settings_global_display">显示与行为</string>
+    <string name="settings_global_display_subtitle">管理显示样式、自动化行为与截图等全局选项</string>
     <string name="settings_data_backup">数据备份与恢复</string>
     <string name="settings_data_backup_desc">导入、导出或删除聊天记录和问题库数据，方便备份和恢复重要信息</string>
     <string name="settings_manage_backup">管理备份</string>
@@ -3455,7 +3455,7 @@
     <string name="screen_title_model_prompts_settings">模型提示词设置</string>
     <string name="screen_title_functional_config">功能模型配置</string>
     <string name="screen_title_theme_settings">主题设置</string>
-    <string name="screen_title_global_display_settings">全局显示设置</string>
+    <string name="screen_title_global_display_settings">显示与行为</string>
     <string name="screen_title_layout_adjustment">布局调整</string>
     <string name="screen_title_chat_history_settings">聊天记录管理</string>
     <string name="screen_title_chat_backup_settings">数据备份与恢复</string>
@@ -5846,6 +5846,13 @@
 
     <!-- Global Display Settings -->
     <string name="global_display_automation_behavior">自动化显示与行为</string>
+    <string name="root_execution_mode_title">Root 执行模式</string>
+    <string name="root_execution_mode_description">自动模式会按环境选择；手动模式可覆盖自动结果。</string>
+    <string name="root_execution_mode_auto">自动选择</string>
+    <string name="root_execution_mode_force_libsu">手动 libsu</string>
+    <string name="root_execution_mode_force_exec">手动 exec</string>
+    <string name="root_custom_su_command">自定义 su 命令（exec 专用）</string>
+    <string name="root_custom_su_command_description">仅在 exec 模式生效，可填写 su 或 su --mount-master 等命令。</string>
     <string name="global_display_virtual_screen_bitrate">虚拟屏幕码率</string>
     <string name="global_display_status_indicator_style">自动化状态指示样式</string>
     <string name="global_display_screenshot_settings">自动化截图设置</string>
@@ -6515,5 +6522,10 @@
     <string name="repo_bookmark_name_empty">名称不能为空</string>
     <string name="repo_bookmark_name_exists">名称已存在，请换一个</string>
     <string name="repo_bookmark_delete">删除</string>
+
+    <string name="mcp_config_invalid_tag">无效</string>
+    <string name="mcp_config_invalid_missing_endpoint">无效：缺少 endpoint</string>
+    <string name="mcp_config_invalid_missing_server_entry">无效：缺少 mcpServers.%1$s</string>
+    <string name="mcp_config_invalid_missing_command">无效：缺少 command</string>
 
 </resources>

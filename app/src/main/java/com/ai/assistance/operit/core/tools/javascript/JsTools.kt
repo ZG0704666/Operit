@@ -172,6 +172,69 @@ fun getJsToolsDefinition(): String {
                     }
                     return toolCall("visit_web", params);
                 },
+                startWeb: (options) => {
+                    const params = { ...(options || {}) };
+                    if (params.headers !== undefined && typeof params.headers === 'object') {
+                        params.headers = JSON.stringify(params.headers);
+                    }
+                    return toolCall("start_web", params);
+                },
+                stopWeb: (sessionIdOrOptions) => {
+                    if (typeof sessionIdOrOptions === 'string') {
+                        const sid = String(sessionIdOrOptions).trim();
+                        return toolCall("stop_web", sid ? { session_id: sid } : {});
+                    }
+                    return toolCall("stop_web", sessionIdOrOptions || {});
+                },
+                webNavigate: (sessionId, url, headers) => {
+                    const params = { url };
+                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
+                        params.session_id = String(sessionId);
+                    }
+                    if (headers !== undefined && headers !== null) {
+                        params.headers = typeof headers === 'object' ? JSON.stringify(headers) : headers;
+                    }
+                    return toolCall("web_navigate", params);
+                },
+                webEval: (sessionId, script, timeoutMs) => {
+                    const params = { script };
+                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
+                        params.session_id = String(sessionId);
+                    }
+                    if (timeoutMs !== undefined) params.timeout_ms = String(timeoutMs);
+                    return toolCall("web_eval", params);
+                },
+                webClick: (sessionId, selector, index) => {
+                    const params = { selector };
+                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
+                        params.session_id = String(sessionId);
+                    }
+                    if (index !== undefined) params.index = String(index);
+                    return toolCall("web_click", params);
+                },
+                webFill: (sessionId, selector, value) => {
+                    const params = { selector, value: String(value ?? "") };
+                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
+                        params.session_id = String(sessionId);
+                    }
+                    return toolCall("web_fill", params);
+                },
+                webWaitFor: (sessionId, selector, timeoutMs) => {
+                    const params = {};
+                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
+                        params.session_id = String(sessionId);
+                    }
+                    if (selector !== undefined && selector !== null) params.selector = String(selector);
+                    if (timeoutMs !== undefined) params.timeout_ms = String(timeoutMs);
+                    return toolCall("web_wait_for", params);
+                },
+                webSnapshot: (sessionId, options) => {
+                    const params = { ...(options || {}) };
+                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
+                        params.session_id = String(sessionId);
+                    }
+                    return toolCall("web_snapshot", params);
+                },
                 // 新增增强版HTTP请求
                 http: (options) => {
                     const params = { ...options };

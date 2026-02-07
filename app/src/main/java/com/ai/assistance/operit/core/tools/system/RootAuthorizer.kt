@@ -5,6 +5,8 @@ import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.system.shell.RootShellExecutor
 import com.ai.assistance.operit.core.tools.system.ShellIdentity
+import com.ai.assistance.operit.data.preferences.RootCommandExecutionMode
+import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.topjohnwu.superuser.Shell
 import java.io.File
 import java.io.BufferedReader
@@ -34,6 +36,53 @@ object RootAuthorizer {
     
     // 是否使用exec执行命令而不是libsu (适用于KernelSu等情况)
     private var useExecForCommands = false
+
+    private fun normalizeSuCommand(command: String?): String {
+        val normalized = command?.trim().orEmpty()
+        return normalized.ifEmpty { "su" }
+    }
+
+    private fun parseSuCommandTokens(command: String): List<String> {
+        return normalizeSuCommand(command).split(Regex("\\s+")).filter { it.isNotEmpty() }
+    }
+
+    private fun getConfiguredSuCommand(): String {
+        return try {
+            normalizeSuCommand(androidPermissionPreferences.getCustomSuCommand())
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "读取自定义su命令失败，回退默认su", e)
+            "su"
+        }
+    }
+
+    private fun buildSuExecCommand(command: String): Array<String> {
+        val tokens = parseSuCommandTokens(getConfiguredSuCommand())
+        return (tokens + listOf("-c", command)).toTypedArray()
+    }
+
+    private fun buildSuVersionCommand(): Array<String> {
+        val tokens = parseSuCommandTokens(getConfiguredSuCommand())
+        return (tokens + "--version").toTypedArray()
+    }
+
+    private fun getRootExecutionModePreference(): RootCommandExecutionMode {
+        return try {
+            androidPermissionPreferences.getRootExecutionMode()
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "读取Root执行模式偏好失败，回退自动模式", e)
+            RootCommandExecutionMode.AUTO
+        }
+    }
+
+    private fun applyRootExecutionPreferences() {
+        val rootExecutionMode = getRootExecutionModePreference()
+        val customSuCommand = if (rootExecutionMode == RootCommandExecutionMode.FORCE_EXEC) {
+            getConfiguredSuCommand()
+        } else {
+            "su"
+        }
+        rootShellExecutor?.setExecSuCommand(customSuCommand)
+    }
     
     // 静态初始化libsu
     init {
@@ -88,6 +137,8 @@ object RootAuthorizer {
                 rootShellExecutor = RootShellExecutor(context)
                 rootShellExecutor?.initialize()
             }
+
+            applyRootExecutionPreferences()
             
             // 检查设备是否已Root（基于文件系统检查，不依赖于Shell访问）
             val deviceRooted = isDeviceRooted()
@@ -101,20 +152,20 @@ object RootAuthorizer {
                 return false
             }
 
-            // 检查应用是否有Root访问权限
-            val hasAccess = if (useExecForCommands) {
-                // 如果使用exec方式，则通过检查su --version的执行结果判断
-                checkExecSuAccess()
-            } else {
-                // 否则使用libsu检查
-                rootShellExecutor?.isAvailable() ?: false
+            val rootExecutionMode = getRootExecutionModePreference()
+            useExecForCommands = when (rootExecutionMode) {
+                RootCommandExecutionMode.FORCE_EXEC -> true
+                RootCommandExecutionMode.FORCE_LIBSU -> false
+                RootCommandExecutionMode.AUTO -> useExecForCommands
             }
+
+            rootShellExecutor?.setUseExecMode(useExecForCommands)
+
+            // 检查应用是否有Root访问权限
+            val hasAccess = rootShellExecutor?.isAvailable() ?: false
             
             _hasRootAccess.value = hasAccess
             AppLogger.d(TAG, "应用Root访问权限: $hasAccess，使用exec模式: $useExecForCommands")
-
-            // 设置根执行器的执行模式
-            rootShellExecutor?.setUseExecMode(useExecForCommands)
 
             // 通知状态变更
             notifyStateChanged()
@@ -137,21 +188,32 @@ object RootAuthorizer {
     fun isDeviceRooted(): Boolean {
         try {
             AppLogger.d(TAG, "检查设备是否已Root...")
-            
-            // 方法1: 使用libsu检测
-            try {
-                val isRoot = Shell.isAppGrantedRoot() ?: false
-                if (isRoot) {
-                    AppLogger.d(TAG, "libsu检测到设备已Root并授予应用权限")
-                    useExecForCommands = false
+            val rootExecutionMode = getRootExecutionModePreference()
+
+            if (rootExecutionMode == RootCommandExecutionMode.FORCE_EXEC) {
+                AppLogger.d(TAG, "Root执行模式已手动设为exec，跳过libsu自动检测")
+                useExecForCommands = true
+                if (checkExecSuAccess()) {
                     return true
                 }
-            } catch (e: Exception) {
-                AppLogger.d(TAG, "libsu检测Root失败: ${e.message}")
             }
-            
+
+            // 方法1: 使用libsu检测
+            if (rootExecutionMode != RootCommandExecutionMode.FORCE_EXEC) {
+                try {
+                    val isRoot = Shell.isAppGrantedRoot() ?: false
+                    if (isRoot) {
+                        AppLogger.d(TAG, "libsu检测到设备已Root并授予应用权限")
+                        useExecForCommands = false
+                        return true
+                    }
+                } catch (e: Exception) {
+                    AppLogger.d(TAG, "libsu检测Root失败: ${e.message}")
+                }
+            }
+
             // 方法2: 检查KernelSU
-            if (checkKernelSu()) {
+            if (rootExecutionMode != RootCommandExecutionMode.FORCE_LIBSU && checkKernelSu()) {
                 AppLogger.d(TAG, "检测到KernelSU，设备已Root")
                 useExecForCommands = true
                 return true
@@ -203,9 +265,9 @@ object RootAuthorizer {
     private fun checkKernelSu(): Boolean {
         try {
             AppLogger.d(TAG, "检查KernelSU...")
-            
+
             // 执行su --version命令
-            val process = Runtime.getRuntime().exec(arrayOf("su", "--version"))
+            val process = Runtime.getRuntime().exec(buildSuVersionCommand())
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val output = StringBuilder()
             var line: String?
@@ -240,9 +302,9 @@ object RootAuthorizer {
     private fun checkExecSuAccess(): Boolean {
         try {
             AppLogger.d(TAG, "检查exec su访问权限...")
-            
+
             // 执行一个简单的测试命令
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo success"))
+            val process = Runtime.getRuntime().exec(buildSuExecCommand("echo success"))
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val output = StringBuilder()
             var line: String?
@@ -275,7 +337,7 @@ object RootAuthorizer {
             // 如果使用exec模式，尝试通过exec请求权限
             if (useExecForCommands) {
                 try {
-                    val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo granted"))
+                    val process = Runtime.getRuntime().exec(buildSuExecCommand("echo granted"))
                     val reader = BufferedReader(InputStreamReader(process.inputStream))
                     val result = reader.readLine()
                     val exitCode = process.waitFor()

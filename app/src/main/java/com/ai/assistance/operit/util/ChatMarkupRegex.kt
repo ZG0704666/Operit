@@ -121,6 +121,39 @@ object ChatMarkupRegex {
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
 
+    val memoryTag = Regex(
+        "<memory>.*?</memory>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+
+    val replyToTag = Regex(
+        "<reply_to\\s+sender=\"([^\"]+)\"\\s+timestamp=\"([^\"]+)\">([^<]*)</reply_to>"
+    )
+
+    val attachmentDataTag = Regex(
+        "<attachment\\s+id=\"([^\"]+)\"\\s+filename=\"([^\"]+)\"\\s+type=\"([^\"]+)\"(?:\\s+size=\"([^\"]+)\")?\\s*>([\\s\\S]*?)</attachment>"
+    )
+
+    val attachmentDataSelfClosingTag = Regex(
+        "<attachment\\s+id=\"([^\"]+)\"\\s+filename=\"([^\"]+)\"\\s+type=\"([^\"]+)\"(?:\\s+size=\"([^\"]+)\")?(?:\\s+content=\"(.*?)\")?\\s*/>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+
+    val attachmentTag = Regex(
+        "<attachment\\b[\\s\\S]*?</attachment>",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
+    val attachmentSelfClosingTag = Regex(
+        "<attachment\\b[\\s\\S]*?/>",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
+    val workspaceAttachmentTag = Regex(
+        "<workspace_attachment\\b[\\s\\S]*?</workspace_attachment>",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
     val proxySenderTag = Regex(
         "<proxy_sender\\s+name=\"([^\"]+)\"\\s*/>",
         RegexOption.IGNORE_CASE

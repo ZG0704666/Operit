@@ -93,12 +93,77 @@ public final class Workarounds {
         }
     }
 
-    static Context getSystemContext() {
+    private static Context invokeGetSystemContext(Object activityThread) {
+        if (activityThread == null) {
+            return null;
+        }
         try {
             Method getSystemContextMethod = ACTIVITY_THREAD_CLASS.getDeclaredMethod("getSystemContext");
-            return (Context) getSystemContextMethod.invoke(ACTIVITY_THREAD);
+            return (Context) getSystemContextMethod.invoke(activityThread);
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    private static Context invokeGetSystemUiContext(Object activityThread) {
+        if (activityThread == null) {
+            return null;
+        }
+        try {
+            Method getSystemUiContextMethod = ACTIVITY_THREAD_CLASS.getDeclaredMethod("getSystemUiContext");
+            return (Context) getSystemUiContextMethod.invoke(activityThread);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object invokeActivityThreadStatic(String methodName) {
+        try {
+            Method method = ACTIVITY_THREAD_CLASS.getDeclaredMethod(methodName);
+            method.setAccessible(true);
+            return method.invoke(null);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    static Context getSystemContext() {
+        Context context = invokeGetSystemContext(ACTIVITY_THREAD);
+        if (context != null) {
+            return context;
+        }
+
+        Object currentActivityThread = invokeActivityThreadStatic("currentActivityThread");
+        context = invokeGetSystemContext(currentActivityThread);
+        if (context != null) {
+            return context;
+        }
+
+        context = invokeGetSystemUiContext(currentActivityThread);
+        if (context != null) {
+            return context;
+        }
+
+        Object systemMainThread = invokeActivityThreadStatic("systemMain");
+        if (systemMainThread != null) {
+            try {
+                Field sCurrentActivityThreadField = ACTIVITY_THREAD_CLASS.getDeclaredField("sCurrentActivityThread");
+                sCurrentActivityThreadField.setAccessible(true);
+                sCurrentActivityThreadField.set(null, systemMainThread);
+            } catch (Throwable ignored) {
+            }
+
+            context = invokeGetSystemContext(systemMainThread);
+            if (context != null) {
+                return context;
+            }
+
+            context = invokeGetSystemUiContext(systemMainThread);
+            if (context != null) {
+                return context;
+            }
+        }
+
+        return null;
     }
 }
