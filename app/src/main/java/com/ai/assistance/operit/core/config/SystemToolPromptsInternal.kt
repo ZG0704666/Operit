@@ -181,27 +181,46 @@ object SystemToolPromptsInternal {
                         ),
                         ToolPrompt(
                             name = "web_click",
-                            description = "Click an element matched by CSS selector.",
+                            description = "Click an element by snapshot ref.",
                             parametersStructured =
                                 listOf(
                                     ToolParameterSchema(
                                         name = "session_id",
                                         type = "string",
-                                        description = "web session id",
-                                        required = true
+                                        description = "optional, web session id",
+                                        required = false
                                     ),
                                     ToolParameterSchema(
-                                        name = "selector",
+                                        name = "ref",
                                         type = "string",
-                                        description = "CSS selector",
+                                        description = "required, exact target element ref from web_snapshot output",
                                         required = true
                                     ),
                                     ToolParameterSchema(
-                                        name = "index",
-                                        type = "integer",
-                                        description = "optional, 0-based index in matched elements",
+                                        name = "element",
+                                        type = "string",
+                                        description = "optional, human-readable element description",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "button",
+                                        type = "string",
+                                        description = "optional, left/right/middle",
                                         required = false,
-                                        default = "0"
+                                        default = "left"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "modifiers",
+                                        type = "string",
+                                        description = "optional JSON array, only Alt/Control/ControlOrMeta/Meta/Shift",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "doubleClick",
+                                        type = "boolean",
+                                        description = "optional, perform double click",
+                                        required = false,
+                                        default = "false"
                                     )
                                 )
                         ),
@@ -1813,20 +1832,32 @@ object SystemToolPromptsInternal {
                         ),
                         ToolPrompt(
                             name = "web_click",
-                            description = "按 CSS 选择器点击元素。",
+                            description = "按快照 ref 或 CSS 选择器点击元素。",
                             parametersStructured =
                                 listOf(
                                     ToolParameterSchema(
                                         name = "session_id",
                                         type = "string",
-                                        description = "网页会话 ID",
-                                        required = true
+                                        description = "可选，网页会话 ID",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "ref",
+                                        type = "string",
+                                        description = "可选，来自 web_snapshot 输出的元素引用",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "element",
+                                        type = "string",
+                                        description = "可选，人类可读元素描述",
+                                        required = false
                                     ),
                                     ToolParameterSchema(
                                         name = "selector",
                                         type = "string",
-                                        description = "CSS 选择器",
-                                        required = true
+                                        description = "可选，CSS 选择器（提供 ref 时可省略）",
+                                        required = false
                                     ),
                                     ToolParameterSchema(
                                         name = "index",
@@ -1834,6 +1865,33 @@ object SystemToolPromptsInternal {
                                         description = "可选，匹配元素中的 0 基索引",
                                         required = false,
                                         default = "0"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "button",
+                                        type = "string",
+                                        description = "可选，left/right/middle",
+                                        required = false,
+                                        default = "left"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "modifiers",
+                                        type = "string",
+                                        description = "可选，修饰键 JSON 数组：Alt/Control/ControlOrMeta/Meta/Shift",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "double_click",
+                                        type = "boolean",
+                                        description = "可选，是否双击",
+                                        required = false,
+                                        default = "false"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "timeout_ms",
+                                        type = "integer",
+                                        description = "可选，动作可交互检查超时（毫秒）",
+                                        required = false,
+                                        default = "10000"
                                     )
                                 )
                         ),

@@ -73,6 +73,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
+import org.json.JSONArray
 import org.json.JSONObject
 
 class StandardWebSessionTools(private val context: Context) : ToolExecutor {
@@ -382,45 +383,357 @@ private class WebSessionOverlayLifecycleOwner :
         val session = getSession(param(tool, "session_id"))
             ?: return error(tool.name, "Session not found")
 
-        val selector = param(tool, "selector")
-        if (selector.isNullOrBlank()) {
-            return error(tool.name, "selector is required")
+        val ref = param(tool, "ref")?.trim()?.takeIf { it.isNotBlank() }
+        val element = param(tool, "element")?.trim()?.takeIf { it.isNotBlank() }
+        if (ref.isNullOrBlank()) {
+            return error(tool.name, "ref is required")
         }
 
-        val index = intParam(tool, "index", 0).coerceAtLeast(0)
+        val buttonRaw = param(tool, "button")?.trim()
+        val button =
+            when {
+                buttonRaw.isNullOrBlank() -> "left"
+                buttonRaw == "left" || buttonRaw == "right" || buttonRaw == "middle" -> buttonRaw
+                else -> return error(tool.name, "button must be one of: left, right, middle")
+            }
+
+        val doubleClick = boolParam(tool, "doubleClick", false)
+
+        val (modifiers, invalidModifiers) = parseClickModifiers(param(tool, "modifiers"))
+        if (invalidModifiers.isNotEmpty()) {
+            return error(
+                tool.name,
+                "Invalid modifiers: ${invalidModifiers.joinToString(", ")}. Allowed: Alt, Control, ControlOrMeta, Meta, Shift"
+            )
+        }
 
         runOnMainSync {
             ensureSessionAttachedOnMain(session.id)
         }
 
+        val beforeUrl =
+            runCatching {
+                val raw =
+                    evaluateJavascriptSync(
+                        session.webView,
+                        "(function(){ return String(location.href || ''); })();",
+                        2_000L
+                    )
+                decodeJsResult(raw)
+            }.getOrDefault(session.currentUrl)
+
+        val clickProbe = waitForClickableTarget(session.webView, ref, DEFAULT_TIMEOUT_MS)
+            ?: return error(tool.name, "Element not found")
+
+        if (!clickProbe.optBoolean("ok", false)) {
+            val reason = clickProbe.optString("error", "unknown")
+            return error(tool.name, "Element lookup failed: $reason")
+        }
+
+        if (!clickProbe.optBoolean("actionable", false)) {
+            return error(tool.name, "Element is not actionable for click: ${clickProbe}")
+        }
+
+        val cx = clickProbe.optDouble("cx", Double.NaN)
+        val cy = clickProbe.optDouble("cy", Double.NaN)
+
+        val jsResult =
+            dispatchSyntheticMouseClickByPoint(
+                webView = session.webView,
+                cssX = cx,
+                cssY = cy,
+                button = button,
+                modifiers = modifiers,
+                doubleClick = doubleClick
+            )
+        if (jsResult?.optBoolean("ok", false) != true) {
+            return error(
+                tool.name,
+                "Failed to dispatch click: ${jsResult?.optString("error") ?: "unknown"}"
+            )
+        }
+
+        waitForClickCompletion(session.webView, beforeUrl)
+
+        val payload =
+            JSONObject()
+                .put("session_id", session.id)
+                .put("status", "ok")
+                .put("ref", ref)
+                .put("button", button)
+                .put("doubleClick", doubleClick)
+                .put("result", clickProbe)
+        if (modifiers.isNotEmpty()) {
+            payload.put("modifiers", JSONArray(modifiers.toList()))
+        }
+        if (!element.isNullOrBlank()) {
+            payload.put("element", element)
+        }
+
+        return ok(tool.name, payload)
+    }
+
+    private fun waitForClickableTarget(
+        webView: WebView,
+        ref: String,
+        timeoutMs: Long
+    ): JSONObject? {
+        val deadline = System.currentTimeMillis() + timeoutMs
         val script =
             """
             (function() {
                 try {
-                    const list = document.querySelectorAll(${quoteJs(selector)});
-                    if (!list || list.length <= $index) {
-                        return JSON.stringify({ ok: false, error: "element_not_found", count: list ? list.length : 0 });
+                    const refValue = ${quoteJs(ref)};
+
+                    const list = Array.from(document.querySelectorAll('[aria-ref], [data-operit-ref]')).filter((el) => {
+                        const ariaRef = el.getAttribute('aria-ref') || '';
+                        const operitRef = el.getAttribute('data-operit-ref') || '';
+                        return ariaRef === refValue || operitRef === refValue;
+                    });
+
+                    if (!list || list.length === 0) {
+                        return JSON.stringify({
+                            ok: false,
+                            error: "element_not_found",
+                            ref: refValue
+                        });
                     }
-                    const el = list[$index];
+
+                    const el = list[0];
                     try { el.scrollIntoView({ block: "center", inline: "center" }); } catch (_) {}
-                    el.click();
-                    return JSON.stringify({ ok: true, count: list.length, index: $index, tag: (el.tagName || "").toLowerCase() });
+
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    const cx = rect.left + rect.width / 2;
+                    const cy = rect.top + rect.height / 2;
+
+                    const visible =
+                        rect.width > 0 &&
+                        rect.height > 0 &&
+                        style.display !== "none" &&
+                        style.visibility !== "hidden" &&
+                        parseFloat(style.opacity || "1") > 0;
+
+                    const disabled =
+                        !!el.disabled ||
+                        el.hasAttribute("disabled") ||
+                        String(el.getAttribute("aria-disabled") || "").toLowerCase() === "true";
+
+                    const top = document.elementFromPoint(cx, cy);
+                    const receivesEvents = !!top && (top === el || el.contains(top));
+
+                    return JSON.stringify({
+                        ok: true,
+                        ref: refValue,
+                        count: list.length,
+                        cx,
+                        cy,
+                        tag: String(el.tagName || "").toLowerCase(),
+                        visible,
+                        disabled,
+                        receivesEvents,
+                        actionable: visible && !disabled && receivesEvents
+                    });
                 } catch (e) {
                     return JSON.stringify({ ok: false, error: String(e) });
                 }
             })();
             """.trimIndent()
 
-        val raw = evaluateJavascriptSync(session.webView, script, DEFAULT_TIMEOUT_MS)
-        val decoded = decodeJsResult(raw)
+        var last: JSONObject? = null
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                val raw = evaluateJavascriptSync(webView, script, 2_000L)
+                val decoded = decodeJsResult(raw)
+                val result = JSONObject(decoded)
+                last = result
 
-        val payload =
-            JSONObject()
-                .put("session_id", session.id)
-                .put("status", "ok")
-                .put("result", decoded)
+                if (result.optBoolean("ok", false) && result.optBoolean("actionable", false)) {
+                    return result
+                }
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "waitForClickableTarget error: ${e.message}")
+            }
 
-        return ok(tool.name, payload)
+            Thread.sleep(120)
+        }
+
+        return last
+    }
+
+    private fun dispatchSyntheticMouseClickByPoint(
+        webView: WebView,
+        cssX: Double,
+        cssY: Double,
+        button: String,
+        modifiers: Set<String>,
+        doubleClick: Boolean
+    ): JSONObject? {
+        if (!cssX.isFinite() || !cssY.isFinite()) {
+            return JSONObject().put("ok", false).put("error", "invalid_click_coordinates")
+        }
+
+        val buttonValue =
+            when (button) {
+                "middle" -> 1
+                "right" -> 2
+                else -> 0
+            }
+        val buttonsValue =
+            when (button) {
+                "middle" -> 4
+                "right" -> 2
+                else -> 1
+            }
+
+        val altKey = modifiers.contains("Alt")
+        val controlKey = modifiers.contains("Control") || modifiers.contains("ControlOrMeta")
+        val metaKey = modifiers.contains("Meta") || modifiers.contains("ControlOrMeta")
+        val shiftKey = modifiers.contains("Shift")
+
+        val script =
+            """
+            (function() {
+                try {
+                    const x = ${cssX};
+                    const y = ${cssY};
+                    const target = document.elementFromPoint(x, y);
+                    if (!target) {
+                        return JSON.stringify({ ok: false, error: "element_not_found_at_point", x, y });
+                    }
+
+                    try { target.focus({ preventScroll: true }); } catch (_) {}
+
+                    const buttonValue = ${buttonValue};
+                    const buttonsValue = ${buttonsValue};
+                    const altKey = ${if (altKey) "true" else "false"};
+                    const ctrlKey = ${if (controlKey) "true" else "false"};
+                    const metaKey = ${if (metaKey) "true" else "false"};
+                    const shiftKey = ${if (shiftKey) "true" else "false"};
+
+                    function emit(type, detail) {
+                        try {
+                            target.dispatchEvent(new MouseEvent(type, {
+                                bubbles: true,
+                                cancelable: true,
+                                composed: true,
+                                view: window,
+                                detail: detail,
+                                clientX: x,
+                                clientY: y,
+                                screenX: x,
+                                screenY: y,
+                                button: buttonValue,
+                                buttons: buttonsValue,
+                                altKey,
+                                ctrlKey,
+                                metaKey,
+                                shiftKey
+                            }));
+                        } catch (_) {}
+                    }
+
+                    function clickOnce(detail) {
+                        emit("mousedown", detail);
+                        emit("mouseup", detail);
+                        emit("click", detail);
+                    }
+
+                    if (${if (doubleClick) "true" else "false"}) {
+                        clickOnce(1);
+                        clickOnce(2);
+                        emit("dblclick", 2);
+                    } else {
+                        clickOnce(1);
+                    }
+
+                    return JSON.stringify({
+                        ok: true,
+                        source: "js",
+                        button: ${quoteJs(button)},
+                        doubleClick: ${if (doubleClick) "true" else "false"},
+                        tag: String(target.tagName || "").toLowerCase()
+                    });
+                } catch (e) {
+                    return JSON.stringify({ ok: false, error: String(e) });
+                }
+            })();
+            """.trimIndent()
+
+        return try {
+            val raw = evaluateJavascriptSync(webView, script, DEFAULT_TIMEOUT_MS.coerceIn(2_000L, 8_000L))
+            val decoded = decodeJsResult(raw)
+            JSONObject(decoded)
+        } catch (e: Exception) {
+            JSONObject().put("ok", false).put("error", e.message ?: "js_click_dispatch_error")
+        }
+    }
+
+    private fun parseClickModifiers(raw: String?): Pair<Set<String>, List<String>> {
+        if (raw.isNullOrBlank()) {
+            return emptySet<String>() to emptyList()
+        }
+
+        val allowed = setOf("Alt", "Control", "ControlOrMeta", "Meta", "Shift")
+        val parsed = linkedSetOf<String>()
+        val invalid = mutableListOf<String>()
+
+        val arr =
+            try {
+                JSONArray(raw)
+            } catch (_: Exception) {
+                return emptySet<String>() to listOf(raw)
+            }
+
+        for (i in 0 until arr.length()) {
+            val token = arr.optString(i, "").trim()
+            if (token in allowed) {
+                parsed.add(token)
+            } else {
+                invalid.add(token.ifBlank { "<empty>" })
+            }
+        }
+
+        return parsed to invalid
+    }
+
+    private fun waitForClickCompletion(webView: WebView, beforeUrl: String) {
+        val deadline = System.currentTimeMillis() + 5_000L
+        var urlChanged = false
+
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                val raw =
+                    evaluateJavascriptSync(
+                        webView,
+                        "(function(){ return JSON.stringify({ url: String(location.href || ''), ready: String(document.readyState || '') }); })();",
+                        2_000L
+                    )
+                val decoded = decodeJsResult(raw)
+                val state = JSONObject(decoded)
+                val currentUrl = state.optString("url", "")
+                val ready = state.optString("ready", "")
+
+                if (currentUrl != beforeUrl) {
+                    urlChanged = true
+                }
+
+                if (urlChanged && ready == "complete") {
+                    Thread.sleep(500)
+                    return
+                }
+
+                if (!urlChanged && ready == "complete") {
+                    Thread.sleep(120)
+                    return
+                }
+            } catch (_: Exception) {
+                Thread.sleep(120)
+                return
+            }
+
+            Thread.sleep(120)
+        }
     }
 
     private fun webFill(tool: AITool): ToolResult {
@@ -548,12 +861,70 @@ private class WebSessionOverlayLifecycleOwner :
                         text = text.slice(0, 20000) + "\n...(truncated)";
                     }
 
+                    const interactiveSelector = [
+                        "a[href]",
+                        "button",
+                        "input",
+                        "select",
+                        "textarea",
+                        "summary",
+                        "[role='button']",
+                        "[onclick]",
+                        "[tabindex]"
+                    ].join(",");
+
+                    const candidates = Array.from(document.querySelectorAll(interactiveSelector));
+                    let nextRef = 1;
+                    const existingRefNumbers = Array.from(document.querySelectorAll("[data-operit-ref]")).map((el) => {
+                        const raw = String(el.getAttribute("data-operit-ref") || "");
+                        const m = /^e(\d+)$/.exec(raw);
+                        return m ? parseInt(m[1], 10) : 0;
+                    }).filter((n) => Number.isFinite(n) && n > 0);
+                    if (existingRefNumbers.length) {
+                        nextRef = Math.max.apply(null, existingRefNumbers) + 1;
+                    }
+
+                    const refs = [];
+                    candidates.slice(0, 200).forEach((el) => {
+                        let ref = String(el.getAttribute("data-operit-ref") || "");
+                        if (!ref) {
+                            ref = "e" + (nextRef++);
+                            try { el.setAttribute("data-operit-ref", ref); } catch (_) {}
+                        }
+
+                        const tag = String(el.tagName || "").toLowerCase();
+                        const label = (
+                            el.innerText ||
+                            el.textContent ||
+                            el.getAttribute("aria-label") ||
+                            el.getAttribute("title") ||
+                            el.getAttribute("name") ||
+                            el.getAttribute("value") ||
+                            ""
+                        ).replace(/\s+/g, " ").trim();
+
+                        refs.push({
+                            ref,
+                            tag,
+                            label: label.slice(0, 80)
+                        });
+                    });
+
                     const lines = [];
                     lines.push("Title: " + title);
                     lines.push("URL: " + url);
                     lines.push("");
                     lines.push("Content:");
                     lines.push(text);
+
+                    if (refs.length) {
+                        lines.push("");
+                        lines.push("Elements:");
+                        refs.slice(0, 120).forEach((item) => {
+                            const readable = item.label || "(no label)";
+                            lines.push("[" + item.ref + "] <" + item.tag + "> " + readable);
+                        });
+                    }
 
                     if (includeLinks) {
                         const links = Array.from(document.querySelectorAll("a[href]")).slice(0, 100);
@@ -1108,6 +1479,7 @@ private class WebSessionOverlayLifecycleOwner :
             controller.rootView.setMinimizedMeasure(false)
             controller.rootView.setBackgroundColor(AndroidColor.argb(110, 0, 0, 0))
             controller.cardView.visibility = View.VISIBLE
+            controller.cardView.alpha = 1f
 
             params.width = WindowManager.LayoutParams.MATCH_PARENT
             params.height = WindowManager.LayoutParams.MATCH_PARENT
@@ -1128,7 +1500,8 @@ private class WebSessionOverlayLifecycleOwner :
                 fakeHeight = displayMetrics.heightPixels
             )
             controller.rootView.setBackgroundColor(AndroidColor.TRANSPARENT)
-            controller.cardView.visibility = View.INVISIBLE
+            controller.cardView.visibility = View.VISIBLE
+            controller.cardView.alpha = 0.01f
 
             params.width = 1
             params.height = 1
@@ -1144,9 +1517,30 @@ private class WebSessionOverlayLifecycleOwner :
             }
         }
 
+        keepActiveWebViewRunningOnMain(controller, expanded)
+
         controller.overlayParams = params
         if (controller.rootView.windowToken != null) {
             controller.windowManager.updateViewLayout(controller.rootView, params)
+        }
+    }
+
+    private fun keepActiveWebViewRunningOnMain(controller: OverlayController, expanded: Boolean) {
+        val activeSessionId = controller.activeSessionId ?: return
+        val webView = sessions[activeSessionId]?.webView ?: return
+
+        try {
+            webView.onResume()
+            webView.resumeTimers()
+            webView.visibility = View.VISIBLE
+            webView.alpha = 1f
+            if (expanded) {
+                if (!webView.hasFocus()) {
+                    webView.requestFocus()
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Failed to keep active WebView running: ${e.message}")
         }
     }
 

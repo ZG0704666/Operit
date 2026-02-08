@@ -28,11 +28,14 @@
         },
         {
             "name": "click",
-            "description": { "zh": "按 CSS 选择器点击元素。", "en": "Click element by CSS selector." },
+            "description": { "zh": "按快照 ref 点击元素。", "en": "Click element by snapshot ref." },
             "parameters": [
-                { "name": "selector", "description": { "zh": "CSS 选择器", "en": "CSS selector." }, "type": "string", "required": true },
-                { "name": "session_id", "description": { "zh": "可选，不传则使用 Kotlin 侧当前活动会话", "en": "Optional. Uses active Kotlin-side session when omitted." }, "type": "string", "required": false },
-                { "name": "index", "description": { "zh": "可选，匹配元素中的索引", "en": "Optional index among matched elements." }, "type": "number", "required": false }
+                { "name": "session_id", "description": { "zh": "可选，不传则使用 Kotlin 侧当前活动会话。", "en": "Optional. Uses active Kotlin-side session when omitted." }, "type": "string", "required": false },
+                { "name": "ref", "description": { "zh": "必填，snapshot 中的元素引用（例如 e12）。", "en": "Required element ref from snapshot (for example e12)." }, "type": "string", "required": true },
+                { "name": "element", "description": { "zh": "可选，人类可读元素描述，仅用于语义提示。", "en": "Optional human-readable element description." }, "type": "string", "required": false },
+                { "name": "button", "description": { "zh": "可选，left/right/middle", "en": "Optional mouse button: left/right/middle." }, "type": "string", "required": false },
+                { "name": "modifiers", "description": { "zh": "可选，修饰键数组（仅 Alt/Control/ControlOrMeta/Meta/Shift）。", "en": "Optional modifier keys array (only Alt/Control/ControlOrMeta/Meta/Shift)." }, "type": "array", "required": false },
+                { "name": "doubleClick", "description": { "zh": "可选，是否双击", "en": "Optional double click." }, "type": "boolean", "required": false }
             ]
         },
         {
@@ -270,19 +273,74 @@ const Web = (function () {
     }
 
     async function click(params: AnyObject): Promise<AnyObject> {
-        if (!params || !params.selector) {
-            throw new Error('selector 参数必填');
+        type ClickButton = 'left' | 'right' | 'middle';
+        type ClickModifier = 'Alt' | 'Control' | 'ControlOrMeta' | 'Meta' | 'Shift';
+
+        const ref =
+            params && params.ref !== undefined && params.ref !== null
+                ? String(params.ref).trim()
+                : '';
+
+        if (!ref) {
+            throw new Error('ref 参数必填');
+        }
+
+        const normalizedButtonRaw =
+            params && params.button !== undefined && params.button !== null
+                ? String(params.button).trim()
+                : '';
+        if (
+            normalizedButtonRaw &&
+            normalizedButtonRaw !== 'left' &&
+            normalizedButtonRaw !== 'right' &&
+            normalizedButtonRaw !== 'middle'
+        ) {
+            throw new Error('button 只能是 left/right/middle');
+        }
+        const button: ClickButton | undefined =
+            normalizedButtonRaw === 'left' ||
+            normalizedButtonRaw === 'right' ||
+            normalizedButtonRaw === 'middle'
+                ? (normalizedButtonRaw as ClickButton)
+                : undefined;
+
+        let modifiers: ClickModifier[] | undefined = undefined;
+        if (params && params.modifiers !== undefined) {
+            if (!Array.isArray(params.modifiers)) {
+                throw new Error('modifiers 必须是数组');
+            }
+            const normalized = params.modifiers.map((item: any) => String(item).trim());
+            const invalid = normalized.filter(
+                (item) =>
+                    item !== 'Alt' &&
+                    item !== 'Control' &&
+                    item !== 'ControlOrMeta' &&
+                    item !== 'Meta' &&
+                    item !== 'Shift'
+            );
+            if (invalid.length > 0) {
+                throw new Error(`modifiers 存在非法值: ${invalid.join(', ')}`);
+            }
+            modifiers = normalized as ClickModifier[];
         }
 
         return toPayload(
-            await Tools.Net.webClick(
-                optionalSessionId(params.session_id),
-                String(params.selector),
-                params.index !== undefined ? Number(params.index) : undefined
-            )
+            await Tools.Net.webClick({
+                session_id: optionalSessionId(params?.session_id),
+                ref,
+                element:
+                    params && params.element !== undefined && params.element !== null
+                        ? String(params.element)
+                        : undefined,
+                button,
+                modifiers: modifiers && modifiers.length > 0 ? modifiers : undefined,
+                doubleClick:
+                    params && params.doubleClick !== undefined
+                        ? Boolean(params.doubleClick)
+                        : undefined,
+            })
         );
     }
-
     async function fill(params: AnyObject): Promise<AnyObject> {
         if (!params || !params.selector) {
             throw new Error('selector 参数必填');

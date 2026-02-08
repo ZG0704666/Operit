@@ -204,12 +204,56 @@ fun getJsToolsDefinition(): String {
                     if (timeoutMs !== undefined) params.timeout_ms = String(timeoutMs);
                     return toolCall("web_eval", params);
                 },
-                webClick: (sessionId, selector, index) => {
-                    const params = { selector };
-                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
-                        params.session_id = String(sessionId);
+                webClick: (options) => {
+                    if (!options || typeof options !== 'object' || Array.isArray(options)) {
+                        throw new Error("webClick only accepts one options object");
                     }
-                    if (index !== undefined) params.index = String(index);
+
+                    const params = { ...options };
+
+                    if (params.session_id !== undefined && params.session_id !== null) {
+                        const sid = String(params.session_id).trim();
+                        if (sid) params.session_id = sid;
+                        else delete params.session_id;
+                    }
+
+                    if (params.ref !== undefined && params.ref !== null) params.ref = String(params.ref).trim();
+                    if (!params.ref) throw new Error("web_click requires ref");
+
+                    if (
+                        params.selector !== undefined ||
+                        params.index !== undefined ||
+                        params.double_click !== undefined ||
+                        params.timeout_ms !== undefined
+                    ) {
+                        throw new Error("webClick options do not support selector/index/double_click/timeout_ms");
+                    }
+
+                    if (params.element !== undefined && params.element !== null) params.element = String(params.element);
+
+                    if (params.button !== undefined && params.button !== null) {
+                        const button = String(params.button).trim();
+                        if (button !== 'left' && button !== 'right' && button !== 'middle') {
+                            throw new Error("button must be one of: left, right, middle");
+                        }
+                        params.button = button;
+                    }
+
+                    if (params.modifiers !== undefined) {
+                        if (!Array.isArray(params.modifiers)) {
+                            throw new Error("modifiers must be an array");
+                        }
+                        const allowedModifiers = ['Alt', 'Control', 'ControlOrMeta', 'Meta', 'Shift'];
+                        const normalized = params.modifiers.map((m) => String(m).trim());
+                        const invalid = normalized.filter((m) => !allowedModifiers.includes(m));
+                        if (invalid.length > 0) {
+                            throw new Error("Invalid modifiers: " + invalid.join(', '));
+                        }
+                        params.modifiers = JSON.stringify(normalized);
+                    }
+
+                    if (params.doubleClick !== undefined) params.doubleClick = params.doubleClick ? "true" : "false";
+
                     return toolCall("web_click", params);
                 },
                 webFill: (sessionId, selector, value) => {

@@ -33,11 +33,13 @@ import androidx.compose.ui.window.PopupProperties
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.llmprovider.AIServiceFactory
 import com.ai.assistance.operit.api.chat.llmprovider.MediaLinkBuilder
+import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.getModelByIndex
 import com.ai.assistance.operit.data.model.ToolParameterSchema
 import com.ai.assistance.operit.data.model.ToolPrompt
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.ui.features.settings.sections.AdvancedSettingsSection
 import com.ai.assistance.operit.ui.features.settings.sections.ModelApiSettingsSection
@@ -67,14 +69,15 @@ fun ModelConfigScreen(
 ) {
     val context = LocalContext.current
     val configManager = remember { ModelConfigManager(context) }
+    val functionalConfigManager = remember { FunctionalConfigManager(context) }
     val apiPreferences = remember { ApiPreferences.getInstance(context) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
     // 配置状态
     val configList = configManager.configListFlow.collectAsState(initial = listOf("default")).value
-    // 不再使用activeConfigIdFlow，默认选择第一个配置
-    var selectedConfigId by remember { mutableStateOf(configList.firstOrNull() ?: "default") }
+    // 进入页面时默认选中“对话功能”当前绑定的模型配置
+    var selectedConfigId by remember { mutableStateOf(ModelConfigManager.DEFAULT_CONFIG_ID) }
     val selectedConfig = remember { mutableStateOf<ModelConfigData?>(null) }
 
     // 配置名称映射
@@ -96,8 +99,18 @@ fun ModelConfigScreen(
     // 保存API设置的函数引用
     var saveApiSettings: (() -> Unit)? by remember { mutableStateOf(null) }
 
-    // 初始化配置管理器
-    LaunchedEffect(Unit) { configManager.initializeIfNeeded() }
+    // 初始化配置，并默认定位到“对话功能模型”所使用的配置
+    LaunchedEffect(Unit) {
+        configManager.initializeIfNeeded()
+        functionalConfigManager.initializeIfNeeded()
+
+        val chatConfigId = functionalConfigManager.getConfigIdForFunction(FunctionType.CHAT)
+        val availableConfigIds = configManager.configListFlow.first()
+        selectedConfigId =
+            availableConfigIds.firstOrNull { it == chatConfigId }
+                ?: availableConfigIds.firstOrNull()
+                ?: ModelConfigManager.DEFAULT_CONFIG_ID
+    }
 
     // 加载所有配置名称
     LaunchedEffect(configList) {

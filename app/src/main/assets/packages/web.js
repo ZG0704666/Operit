@@ -2,8 +2,8 @@
 {
     "name": "web",
     "description": {
-        "zh": "Playwright 风格的网页会话封装。提供 start/goto/click/fill/evaluate/snapshot/close 等接口，底层基于 start_web 与 web_* 工具。",
-        "en": "Playwright-style web session wrapper. Exposes start/goto/click/fill/evaluate/snapshot/close using start_web and web_* tools."
+        "zh": "能够基于浏览器完成复杂的网页操作。",
+        "en": "Enables complex web operations based on a real browser session."
     },
     "enabledByDefault": true,
     "tools": [
@@ -28,11 +28,14 @@
         },
         {
             "name": "click",
-            "description": { "zh": "按 CSS 选择器点击元素。", "en": "Click element by CSS selector." },
+            "description": { "zh": "按快照 ref 点击元素。", "en": "Click element by snapshot ref." },
             "parameters": [
-                { "name": "selector", "description": { "zh": "CSS 选择器", "en": "CSS selector." }, "type": "string", "required": true },
-                { "name": "session_id", "description": { "zh": "可选，不传则使用 Kotlin 侧当前活动会话", "en": "Optional. Uses active Kotlin-side session when omitted." }, "type": "string", "required": false },
-                { "name": "index", "description": { "zh": "可选，匹配元素中的索引", "en": "Optional index among matched elements." }, "type": "number", "required": false }
+                { "name": "session_id", "description": { "zh": "可选，不传则使用 Kotlin 侧当前活动会话。", "en": "Optional. Uses active Kotlin-side session when omitted." }, "type": "string", "required": false },
+                { "name": "ref", "description": { "zh": "必填，snapshot 中的元素引用（例如 e12）。", "en": "Required element ref from snapshot (for example e12)." }, "type": "string", "required": true },
+                { "name": "element", "description": { "zh": "可选，人类可读元素描述，仅用于语义提示。", "en": "Optional human-readable element description." }, "type": "string", "required": false },
+                { "name": "button", "description": { "zh": "可选，left/right/middle", "en": "Optional mouse button: left/right/middle." }, "type": "string", "required": false },
+                { "name": "modifiers", "description": { "zh": "可选，修饰键数组（仅 Alt/Control/ControlOrMeta/Meta/Shift）。", "en": "Optional modifier keys array (only Alt/Control/ControlOrMeta/Meta/Shift)." }, "type": "array", "required": false },
+                { "name": "doubleClick", "description": { "zh": "可选，是否双击", "en": "Optional double click." }, "type": "boolean", "required": false }
             ]
         },
         {
@@ -81,6 +84,15 @@
             ]
         },
         {
+            "name": "open_in_system_browser",
+            "description": { "zh": "在系统浏览器中打开当前会话 URL（或指定 URL）。", "en": "Open current session URL (or a specified URL) in system browser." },
+            "parameters": [
+                { "name": "url", "description": { "zh": "可选，目标 URL。不传则自动读取当前会话 URL。", "en": "Optional target URL. If omitted, uses current session URL." }, "type": "string", "required": false },
+                { "name": "session_id", "description": { "zh": "可选，读取当前会话 URL 时指定会话，不传则使用 Kotlin 侧当前活动会话。", "en": "Optional session when resolving current URL; uses active Kotlin-side session if omitted." }, "type": "string", "required": false },
+                { "name": "package_name", "description": { "zh": "可选，指定浏览器包名。", "en": "Optional target browser package name." }, "type": "string", "required": false }
+            ]
+        },
+        {
             "name": "close",
             "description": { "zh": "关闭网页会话。", "en": "Close web session." },
             "parameters": [
@@ -91,7 +103,7 @@
     ]
 }
 */
-const MAX_INLINE_WEB_CONTENT_CHARS = 12000;
+const MAX_INLINE_WEB_CONTENT_CHARS = 24000;
 const Web = (function () {
     function toPayload(raw) {
         if (raw == null) {
@@ -101,7 +113,7 @@ const Web = (function () {
             try {
                 return JSON.parse(raw);
             }
-            catch {
+            catch (_a) {
                 return { value: raw };
             }
         }
@@ -109,8 +121,8 @@ const Web = (function () {
             try {
                 return JSON.parse(raw.value);
             }
-            catch {
-                return { ...raw, value: raw.value };
+            catch (_b) {
+                return Object.assign(Object.assign({}, raw), { value: raw.value });
             }
         }
         if (typeof raw === 'object') {
@@ -138,6 +150,33 @@ const Web = (function () {
         const sid = String(raw).trim();
         return sid.length > 0 ? sid : undefined;
     }
+    function extractUrlFromPayload(payload) {
+        const candidates = [payload === null || payload === void 0 ? void 0 : payload.url, payload === null || payload === void 0 ? void 0 : payload.result, payload === null || payload === void 0 ? void 0 : payload.value];
+        for (const item of candidates) {
+            if (typeof item !== 'string') {
+                continue;
+            }
+            const trimmed = item.trim();
+            if (trimmed.length > 0) {
+                return trimmed;
+            }
+        }
+        return undefined;
+    }
+    async function resolveUrlForSystemBrowser(sessionId, explicitUrl) {
+        const providedUrl = explicitUrl !== undefined && explicitUrl !== null
+            ? String(explicitUrl).trim()
+            : '';
+        if (providedUrl.length > 0) {
+            return providedUrl;
+        }
+        const evalPayload = toPayload(await Tools.Net.webEval(sessionId, '(function(){ try { return window.location.href || document.URL || ""; } catch (e) { return ""; } })();', 3000));
+        const detectedUrl = extractUrlFromPayload(evalPayload);
+        if (!detectedUrl) {
+            throw new Error('url 参数缺失，且无法从当前会话获取 URL');
+        }
+        return detectedUrl;
+    }
     function extractPageContent(payload) {
         const candidates = [payload === null || payload === void 0 ? void 0 : payload.snapshot, payload === null || payload === void 0 ? void 0 : payload.content, payload === null || payload === void 0 ? void 0 : payload.text, payload === null || payload === void 0 ? void 0 : payload.value];
         for (const item of candidates) {
@@ -164,14 +203,7 @@ const Web = (function () {
         const safeSessionId = sanitizeSessionId(sessionId);
         const filePath = `${OPERIT_CLEAN_ON_EXIT_DIR}/web_content_${safeSessionId}_${timestamp}_${rand}.txt`;
         await Tools.Files.write(filePath, content, false);
-        return {
-            ...payload,
-            snapshot: '(saved_to_file)',
-            snapshot_chars: content.length,
-            snapshot_saved_to: filePath,
-            operit_clean_on_exit_dir: OPERIT_CLEAN_ON_EXIT_DIR,
-            hint: 'Content is large and saved to file. Use read_file_part or grep_code to inspect it.',
-        };
+        return Object.assign(Object.assign({}, payload), { snapshot: '(saved_to_file)', snapshot_chars: content.length, snapshot_saved_to: filePath, operit_clean_on_exit_dir: OPERIT_CLEAN_ON_EXIT_DIR, hint: 'Content is large and saved to file. Use read_file_part or grep_code to inspect it.' });
     }
     async function start(params = {}) {
         return toPayload(await Tools.Net.startWeb({
@@ -188,10 +220,54 @@ const Web = (function () {
         return toPayload(await Tools.Net.webNavigate(optionalSessionId(params.session_id), String(params.url), normalizeHeaders(params.headers)));
     }
     async function click(params) {
-        if (!params || !params.selector) {
-            throw new Error('selector 参数必填');
+        const ref = params && params.ref !== undefined && params.ref !== null
+            ? String(params.ref).trim()
+            : '';
+        if (!ref) {
+            throw new Error('ref is required');
         }
-        return toPayload(await Tools.Net.webClick(optionalSessionId(params.session_id), String(params.selector), params.index !== undefined ? Number(params.index) : undefined));
+        const normalizedButtonRaw = params && params.button !== undefined && params.button !== null
+            ? String(params.button).trim()
+            : '';
+        if (normalizedButtonRaw &&
+            normalizedButtonRaw !== 'left' &&
+            normalizedButtonRaw !== 'right' &&
+            normalizedButtonRaw !== 'middle') {
+            throw new Error('button must be one of: left, right, middle');
+        }
+        const button = normalizedButtonRaw === 'left' ||
+            normalizedButtonRaw === 'right' ||
+            normalizedButtonRaw === 'middle'
+            ? normalizedButtonRaw
+            : undefined;
+        let modifiers = undefined;
+        if (params && params.modifiers !== undefined) {
+            if (!Array.isArray(params.modifiers)) {
+                throw new Error('modifiers must be an array');
+            }
+            const normalized = params.modifiers.map((item) => String(item).trim());
+            const invalid = normalized.filter((item) => item !== 'Alt' &&
+                item !== 'Control' &&
+                item !== 'ControlOrMeta' &&
+                item !== 'Meta' &&
+                item !== 'Shift');
+            if (invalid.length > 0) {
+                throw new Error(`Invalid modifiers: ${invalid.join(', ')}`);
+            }
+            modifiers = normalized;
+        }
+        return toPayload(await Tools.Net.webClick({
+            session_id: optionalSessionId(params === null || params === void 0 ? void 0 : params.session_id),
+            ref,
+            element: params && params.element !== undefined && params.element !== null
+                ? String(params.element)
+                : undefined,
+            button,
+            modifiers: modifiers && modifiers.length > 0 ? modifiers : undefined,
+            doubleClick: params && params.doubleClick !== undefined
+                ? Boolean(params.doubleClick)
+                : undefined,
+        }));
     }
     async function fill(params) {
         if (!params || !params.selector) {
@@ -221,6 +297,22 @@ const Web = (function () {
     }
     async function content(params = {}) {
         return snapshot(params);
+    }
+    async function open_in_system_browser(params = {}) {
+        const sessionId = optionalSessionId(params.session_id);
+        const targetUrl = await resolveUrlForSystemBrowser(sessionId, params.url);
+        const intentResult = await Tools.System.intent({
+            action: 'android.intent.action.VIEW',
+            uri: targetUrl,
+            package: params.package_name ? String(params.package_name) : undefined,
+            type: 'activity',
+        });
+        return {
+            status: 'ok',
+            url: targetUrl,
+            session_id: sessionId,
+            intent_result: intentResult,
+        };
     }
     async function close(params = {}) {
         const closeAll = Boolean(params.close_all);
@@ -255,7 +347,7 @@ const Web = (function () {
     async function main() {
         complete({
             success: true,
-            message: 'Web 已就绪，可调用 start/goto/click/fill/evaluate/wait_for/snapshot/content/close',
+            message: 'Web 已就绪，可调用 start/goto/click/fill/evaluate/wait_for/snapshot/content/open_in_system_browser/close',
         });
     }
     return {
@@ -267,6 +359,7 @@ const Web = (function () {
         wait_for: (params) => wrap('wait_for', wait_for, params),
         snapshot: (params) => wrap('snapshot', snapshot, params),
         content: (params) => wrap('content', content, params),
+        open_in_system_browser: (params) => wrap('open_in_system_browser', open_in_system_browser, params),
         close: (params) => wrap('close', close, params),
         main,
     };
@@ -279,5 +372,6 @@ exports.evaluate = Web.evaluate;
 exports.wait_for = Web.wait_for;
 exports.snapshot = Web.snapshot;
 exports.content = Web.content;
+exports.open_in_system_browser = Web.open_in_system_browser;
 exports.close = Web.close;
 exports.main = Web.main;

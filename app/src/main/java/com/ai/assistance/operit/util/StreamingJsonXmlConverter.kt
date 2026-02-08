@@ -35,6 +35,7 @@ class StreamingJsonXmlConverter {
     private var primitiveInString = false
     private var primitiveEscape = false
     private var readingComplexValue = false
+    private var hasOpenParam = false
 
     private fun resetPrimitiveTracking() {
         primitiveNestingDepth = 0
@@ -46,9 +47,22 @@ class StreamingJsonXmlConverter {
     private fun emitPrimitiveParam(events: MutableList<Event>) {
         events.add(Event.Content(escapeXml(buffer.toString())))
         events.add(Event.Tag("</param>"))
+        hasOpenParam = false
         buffer.setLength(0)
         resetPrimitiveTracking()
     }
+
+    private fun canFinalizePrimitiveOnFlush(): Boolean {
+        if (state != State.READ_PRIMITIVE || buffer.isEmpty()) return false
+        if (!readingComplexValue) return true
+        return primitiveNestingDepth == 0 && !primitiveInString && !primitiveEscape
+    }
+
+    /**
+     * 当前是否存在未闭合的 <param>。
+     * 若为 true，说明参数内容仍可能是半截，调用方不应补 </tool>。
+     */
+    fun hasUnfinishedParam(): Boolean = hasOpenParam
 
     /**
      * 处理 JSON 块并返回 XML 事件列表
@@ -70,6 +84,7 @@ class StreamingJsonXmlConverter {
                 State.READ_KEY -> {
                     if (c == '"') {
                         events.add(Event.Tag("\n  <param name=\"${buffer}\">"))
+                        hasOpenParam = true
                         state = State.WAIT_COLON
                     } else {
                         if (c != '\\') buffer.append(c)
@@ -95,6 +110,7 @@ class StreamingJsonXmlConverter {
                     if (c == '"') {
                         state = State.WAIT_COMMA
                         events.add(Event.Tag("</param>"))
+                        hasOpenParam = false
                     } else if (c == '\\') {
                         state = State.ESCAPE
                     } else {
@@ -195,7 +211,7 @@ class StreamingJsonXmlConverter {
      */
     fun flush(): List<Event> {
         val events = mutableListOf<Event>()
-        if (state == State.READ_PRIMITIVE && buffer.isNotEmpty()) {
+        if (canFinalizePrimitiveOnFlush()) {
             emitPrimitiveParam(events)
         }
         return events

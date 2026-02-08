@@ -392,8 +392,8 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     handler.registerTool(
             name = "web_click",
             descriptionGenerator = { tool ->
-                val selector = tool.parameters.find { it.name == "selector" }?.value ?: ""
-                "Click element: $selector"
+                val ref = tool.parameters.find { it.name == "ref" }?.value ?: ""
+                "Click element by ref: $ref"
             },
             executor = { tool ->
                 val webSessionTool = ToolGetter.getWebSessionTools(context)

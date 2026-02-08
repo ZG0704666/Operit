@@ -1359,11 +1359,46 @@ open class OpenAIProvider(
         val args = deltaFunction.optString("arguments", "")
         if (args.isNotEmpty()) {
             val currentArgs = accFunction.optString("arguments", "")
-            accFunction.put("arguments", currentArgs + args)
-            // 流式输出参数
-            val events = state.toolCallState.getParser(index).feed(args)
-            emitter.handleJsonEvents(events)
+            val argsToAppend = resolveToolArgumentsDelta(currentArgs, args)
+            if (argsToAppend.isNotEmpty()) {
+                accFunction.put("arguments", currentArgs + argsToAppend)
+                // 流式输出参数
+                val events = state.toolCallState.getParser(index).feed(argsToAppend)
+                emitter.handleJsonEvents(events)
+            }
         }
+    }
+
+    /**
+     * 兼容不同供应商的 tool arguments 增量格式：
+     * - 标准增量：每次只返回新增片段
+     * - 累积快照：每次返回从头到当前的完整参数字符串
+     * - 重叠片段：返回与已接收内容有部分重叠的片段
+     */
+    private fun resolveToolArgumentsDelta(existing: String, incoming: String): String {
+        if (incoming.isEmpty()) return ""
+        if (existing.isEmpty()) return incoming
+
+        // 累积快照（包含已有前缀）
+        if (incoming.startsWith(existing)) {
+            return incoming.removePrefix(existing)
+        }
+
+        // 重复发送（incoming 已完全包含于 existing 尾部）
+        if (existing.endsWith(incoming)) {
+            return ""
+        }
+
+        // 处理部分重叠（existing 后缀 == incoming 前缀）
+        val maxOverlap = minOf(existing.length, incoming.length)
+        for (overlap in maxOverlap downTo 1) {
+            if (existing.endsWith(incoming.substring(0, overlap))) {
+                return incoming.substring(overlap)
+            }
+        }
+
+        // 无法判定时按增量处理，宁可保留，不直接丢弃
+        return incoming
     }
 
     /**
@@ -1405,10 +1440,36 @@ open class OpenAIProvider(
         if (state.toolCallState.closed[index] == true || state.toolCallState.nameEmitted[index] != true) {
             return
         }
-        val events = state.toolCallState.getParser(index).flush()
+
+        val parser = state.toolCallState.getParser(index)
+        val events = parser.flush()
         emitter.handleJsonEvents(events)
+
+        if (parser.hasUnfinishedParam()) {
+            AppLogger.w("AIService", "检测到未完成的 tool 参数，跳过自动补 </tool>，index=$index")
+            return
+        }
+
         emitter.emitTag("\n</tool>")
         state.toolCallState.closed[index] = true
+    }
+
+    private fun hasOpenToolCalls(state: StreamingState): Boolean {
+        return state.toolCallState.nameEmitted.any { (index, emitted) ->
+            emitted && state.toolCallState.closed[index] != true
+        }
+    }
+
+    private suspend fun closeAllOpenToolCalls(
+        state: StreamingState,
+        emitter: StreamEmitter
+    ) {
+        if (!hasOpenToolCalls(state)) return
+
+        val sortedIndices = state.accumulatedToolCalls.keys.sorted()
+        for (index in sortedIndices) {
+            closeToolCallIfOpen(index, state, emitter)
+        }
     }
 
     private suspend fun processResponsesStreamingEvent(
@@ -1468,13 +1529,7 @@ open class OpenAIProvider(
                                 ?: ""
 
                         val argumentsToAppend =
-                            if (existingArguments.isEmpty()) {
-                                rawArguments
-                            } else if (rawArguments.startsWith(existingArguments)) {
-                                rawArguments.removePrefix(existingArguments)
-                            } else {
-                                ""
-                            }
+                            resolveToolArgumentsDelta(existingArguments, rawArguments)
 
                         if (argumentsToAppend.isNotEmpty()) {
                             put("arguments", argumentsToAppend)
@@ -1543,9 +1598,7 @@ open class OpenAIProvider(
                     state.hasEmittedThinkStart = false
                 }
 
-                if (state.lastProcessedToolIndex != null) {
-                    closeToolCallIfOpen(state.lastProcessedToolIndex!!, state, emitter)
-                }
+                closeAllOpenToolCalls(state, emitter)
 
                 val responseObj = jsonResponse.optJSONObject("response")
                 applyUsageToCounters(responseObj?.optJSONObject("usage"), onTokensUpdated)
@@ -1569,17 +1622,9 @@ open class OpenAIProvider(
         emitter: StreamEmitter,
         onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit
     ) {
-        if (finishReason == "tool_calls" && state.lastProcessedToolIndex != null) {
-            val index = state.lastProcessedToolIndex!!
-            // 输出最后一个工具的结束标签
-            if (state.toolCallState.closed[index] != true && 
-                state.toolCallState.nameEmitted[index] == true) {
-                val events = state.toolCallState.getParser(index).flush()
-                emitter.handleJsonEvents(events)
-                emitter.emitTag("\n</tool>")
-                state.toolCallState.closed[index] = true
-                AppLogger.d("AIService", "Tool Call流式完成（最后一个工具 index=$index）")
-            }
+        if (finishReason.isNotEmpty() && hasOpenToolCalls(state)) {
+            closeAllOpenToolCalls(state, emitter)
+            AppLogger.d("AIService", "Tool Call流式收尾，finish_reason=$finishReason")
 
             onTokensUpdated(
                 tokenCacheManager.totalInputTokenCount,
@@ -1708,6 +1753,7 @@ open class OpenAIProvider(
                 val data = line.substring(5).trim()
                 if (data == "[DONE]") {
                     flushImageBuffers(state, emitter)
+                    closeAllOpenToolCalls(state, emitter)
                     // 收到流结束标记，关闭思考标签
                     if (state.isInReasoningMode) {
                         state.isInReasoningMode = false
@@ -1745,6 +1791,8 @@ open class OpenAIProvider(
                 }
             }
             
+            closeAllOpenToolCalls(state, emitter)
+
             AppLogger.d(
                 "AIService",
                 "【发送消息】响应流处理完成，总块数: ${state.chunkCount}，输出token: ${tokenCacheManager.outputTokenCount}"
@@ -1765,6 +1813,7 @@ open class OpenAIProvider(
             }
         } finally {
             runCatching { flushImageBuffers(state, emitter) }
+            runCatching { closeAllOpenToolCalls(state, emitter) }
             // 确保 reader 被关闭
             try {
                 reader.close()

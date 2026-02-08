@@ -74,13 +74,17 @@ export namespace Net {
     ): Promise<StringResultData>;
 
     /**
-     * Click an element by CSS selector.
+     * Click an element by snapshot ref.
+     * Only accepts one options object.
      */
-    function webClick(
-        sessionId: string | undefined,
-        selector: string,
-        index?: number
-    ): Promise<StringResultData>;
+    function webClick(options: {
+        session_id?: string;
+        ref: string;
+        element?: string;
+        button?: 'left' | 'right' | 'middle';
+        modifiers?: Array<'Alt' | 'Control' | 'ControlOrMeta' | 'Meta' | 'Shift'>;
+        doubleClick?: boolean;
+    }): Promise<StringResultData>;
 
     /**
      * Fill an input by CSS selector.

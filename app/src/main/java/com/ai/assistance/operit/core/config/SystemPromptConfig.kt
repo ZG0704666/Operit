@@ -91,13 +91,17 @@ PACKAGE SYSTEM
 - Some additional functionality is available through packages
 - To use a package, call the use_package function with the package_name parameter
 - This will show you all the tools in the package and how to use them
-- Only after activating a package, you can use its tools directly"""
+- If use_package for a package has appeared earlier in this chat, treat that package as activated
+- After a package is activated, call its tools directly using function names like packageName:toolName
+- Package tools may not appear in the current system/tool list, but they are still callable after activation"""
     private const val PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_CN = """
 包系统：
 - 一些额外功能通过包提供
 - 要使用包，调用 use_package 函数并传入 package_name 参数
 - 这将显示包中的所有工具及其使用方法
-- 只有在激活包后，才能直接使用其工具"""
+- 只要本次聊天中该包曾出现过 use_package，就视为该包已激活
+- 包激活后，请直接使用 packageName:toolName 形式的函数名调用包内工具
+- 包内工具可能不会出现在当前系统/工具列表中，但激活后依然可以直接调用"""
 
     private fun getAvailableToolsEn(
         hasImageRecognition: Boolean,
