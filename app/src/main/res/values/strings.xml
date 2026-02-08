@@ -5849,10 +5849,10 @@
     <string name="root_execution_mode_title">Root 执行模式</string>
     <string name="root_execution_mode_description">自动模式会按环境选择；手动模式可覆盖自动结果。</string>
     <string name="root_execution_mode_auto">自动选择</string>
-    <string name="root_execution_mode_force_libsu">手动 libsu</string>
-    <string name="root_execution_mode_force_exec">手动 exec</string>
-    <string name="root_custom_su_command">自定义 su 命令（exec 专用）</string>
-    <string name="root_custom_su_command_description">仅在 exec 模式生效，可填写 su 或 su --mount-master 等命令。</string>
+    <string name="root_execution_mode_force_libsu">手动 Magisk SU</string>
+    <string name="root_execution_mode_force_exec">手动 KernelSU</string>
+    <string name="root_custom_su_command">自定义 su 命令（KernelSU 模式）</string>
+    <string name="root_custom_su_command_description">仅在 KernelSU 模式生效，可填写 su 或 su --mount-master 等命令。</string>
     <string name="global_display_virtual_screen_bitrate">虚拟屏幕码率</string>
     <string name="global_display_status_indicator_style">自动化状态指示样式</string>
     <string name="global_display_screenshot_settings">自动化截图设置</string>
@@ -6527,5 +6527,11 @@
     <string name="mcp_config_invalid_missing_endpoint">无效：缺少 endpoint</string>
     <string name="mcp_config_invalid_missing_server_entry">无效：缺少 mcpServers.%1$s</string>
     <string name="mcp_config_invalid_missing_command">无效：缺少 command</string>
+
+    <!-- StandardWebSessionTools Accessibility -->
+    <string name="web_session_accessibility_web_content">网页内容</string>
+    <string name="web_session_accessibility_minimize_panel">最小化网页会话面板</string>
+    <string name="web_session_accessibility_close_current_session">关闭当前网页会话</string>
+    <string name="web_session_accessibility_minimized_indicator">已最小化网页会话面板，双击展开</string>
 
 </resources>

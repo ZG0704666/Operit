@@ -7,7 +7,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
@@ -26,6 +25,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.rememberAsyncImagePainter
 
+private const val CHAT_HEADER_CHARACTER_NAME_MAX_LENGTH = 12
+
+private fun String.toChatHeaderName(maxLength: Int = CHAT_HEADER_CHARACTER_NAME_MAX_LENGTH): String {
+        return if (length <= maxLength) this else take(maxLength) + "…"
+}
+
 @Composable
 fun ChatHeader(
         showChatHistorySelector: Boolean,
@@ -40,6 +45,8 @@ fun ChatHeader(
         activeCharacterAvatarUri: String?,
         onCharacterClick: () -> Unit
 ) {
+        val displayCharacterName = activeCharacterName.toChatHeaderName()
+
         Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -147,11 +154,12 @@ fun ChatHeader(
                 Row(
                         modifier =
                                 Modifier
+                                        .widthIn(max = 176.dp)
                                         .clip(CircleShape)
                                         .clickable(onClick = onCharacterClick)
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                         // Placeholder for Avatar
                         Box(
@@ -179,10 +187,11 @@ fun ChatHeader(
                                 }
                         }
                         Text(
-                                text = activeCharacterName,
+                                text = displayCharacterName,
                                 style = MaterialTheme.typography.bodyMedium,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 116.dp)
                         )
                 }
         }

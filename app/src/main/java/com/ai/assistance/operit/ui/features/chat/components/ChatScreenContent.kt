@@ -300,8 +300,6 @@ fun ChatScreenContent(
                                 },
                         actualViewModel = actualViewModel,
                         showChatHistorySelector = showChatHistorySelector,
-                        chatHistories = chatHistories,
-                        currentChatId = currentChatId,
                         chatHeaderTransparent = chatHeaderTransparent,
                         chatHeaderHistoryIconColor = chatHeaderHistoryIconColor,
                         chatHeaderPipIconColor = chatHeaderPipIconColor,
@@ -314,8 +312,6 @@ fun ChatScreenContent(
                 ChatScreenHeader(
                         actualViewModel = actualViewModel,
                         showChatHistorySelector = showChatHistorySelector,
-                        chatHistories = chatHistories,
-                        currentChatId = currentChatId,
                         chatHeaderTransparent = chatHeaderTransparent,
                         chatHeaderHistoryIconColor = chatHeaderHistoryIconColor,
                         chatHeaderPipIconColor = chatHeaderPipIconColor,

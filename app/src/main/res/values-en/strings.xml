@@ -5860,10 +5860,10 @@
     <string name="root_execution_mode_title">Root Execution Mode</string>
     <string name="root_execution_mode_description">Auto picks based on environment; manual mode overrides auto selection.</string>
     <string name="root_execution_mode_auto">Auto</string>
-    <string name="root_execution_mode_force_libsu">Manual libsu</string>
-    <string name="root_execution_mode_force_exec">Manual exec</string>
-    <string name="root_custom_su_command">Custom su command (exec only)</string>
-    <string name="root_custom_su_command_description">Applies only in exec mode. You can enter commands like su or su --mount-master.</string>
+    <string name="root_execution_mode_force_libsu">Manual Magisk SU</string>
+    <string name="root_execution_mode_force_exec">Manual KernelSU</string>
+    <string name="root_custom_su_command">Custom su command (KernelSU mode)</string>
+    <string name="root_custom_su_command_description">Applies only in KernelSU mode. You can enter commands like su or su --mount-master.</string>
     <string name="global_display_virtual_screen_bitrate">Virtual Screen Bitrate</string>
     <string name="global_display_status_indicator_style">Status Indicator Style</string>
     <string name="global_display_screenshot_settings">Screenshot Settings</string>
@@ -6539,5 +6539,11 @@
     <string name="mcp_config_invalid_missing_endpoint">Invalid: missing endpoint</string>
     <string name="mcp_config_invalid_missing_server_entry">Invalid: missing mcpServers.%1$s</string>
     <string name="mcp_config_invalid_missing_command">Invalid: missing command</string>
+
+    <!-- StandardWebSessionTools Accessibility -->
+    <string name="web_session_accessibility_web_content">Web content</string>
+    <string name="web_session_accessibility_minimize_panel">Minimize web sessions panel</string>
+    <string name="web_session_accessibility_close_current_session">Close current web session</string>
+    <string name="web_session_accessibility_minimized_indicator">Web sessions panel minimized, double tap to expand</string>
 
 </resources>

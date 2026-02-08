@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.*
@@ -29,15 +30,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.ui.common.rememberLocal
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.rememberAsyncImagePainter
+
+private enum class CharacterSelectorSortOption {
+    DEFAULT,
+    NAME_ASC,
+    CREATED_DESC
+}
+
+private fun applyCharacterSelectorSort(
+    cards: List<CharacterCard>,
+    sortOptionName: String
+): List<CharacterCard> {
+    val sortOption =
+        runCatching { CharacterSelectorSortOption.valueOf(sortOptionName) }
+            .getOrDefault(CharacterSelectorSortOption.DEFAULT)
+
+    return when (sortOption) {
+        CharacterSelectorSortOption.DEFAULT -> cards
+        CharacterSelectorSortOption.NAME_ASC -> cards.sortedBy { it.name.lowercase() }
+        CharacterSelectorSortOption.CREATED_DESC -> cards.sortedByDescending { it.updatedAt }
+    }
+}
 
 @Composable
 fun CharacterSelectorPanel(
@@ -49,6 +71,14 @@ fun CharacterSelectorPanel(
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     var allCards by remember { mutableStateOf<List<CharacterCard>>(emptyList()) }
     val activeCardId by characterCardManager.activeCharacterCardIdFlow.collectAsState(initial = "")
+    val sortOptionNameState = rememberLocal(
+        key = "ModelPromptsSettingsScreen.CharacterCardTab.sortOption",
+        defaultValue = CharacterSelectorSortOption.DEFAULT.name
+    )
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    val sortedCards = remember(allCards, sortOptionNameState.value) {
+        applyCharacterSelectorSort(allCards, sortOptionNameState.value)
+    }
 
     LaunchedEffect(isVisible) {
         if (isVisible) {
@@ -118,6 +148,65 @@ fun CharacterSelectorPanel(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Box {
+                                IconButton(
+                                    onClick = { sortMenuExpanded = true },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sort,
+                                        contentDescription = context.getString(R.string.character_card_sort),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = sortMenuExpanded,
+                                    onDismissRequest = { sortMenuExpanded = false },
+                                    modifier = Modifier
+                                        .shadow(elevation = 12.dp, shape = RoundedCornerShape(12.dp))
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = context.getString(R.string.character_card_sort_default),
+                                                color = Color(0xFF1F1F1F)
+                                            )
+                                        },
+                                        onClick = {
+                                            sortOptionNameState.value = CharacterSelectorSortOption.DEFAULT.name
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = context.getString(R.string.character_card_sort_by_name),
+                                                color = Color(0xFF1F1F1F)
+                                            )
+                                        },
+                                        onClick = {
+                                            sortOptionNameState.value = CharacterSelectorSortOption.NAME_ASC.name
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = context.getString(R.string.character_card_sort_by_created),
+                                                color = Color(0xFF1F1F1F)
+                                            )
+                                        },
+                                        onClick = {
+                                            sortOptionNameState.value = CharacterSelectorSortOption.CREATED_DESC.name
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                         
                         // 角色列表
@@ -125,7 +214,7 @@ fun CharacterSelectorPanel(
                             modifier = Modifier.heightIn(max = 320.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            items(allCards) { card ->
+                            items(sortedCards, key = { it.id }) { card ->
                                 CharacterItem(
                                     card = card,
                                     isSelected = card.id == activeCardId,
@@ -215,7 +304,7 @@ fun CharacterItem(
             
             // 角色信息
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).padding(end = if (isSelected) 4.dp else 0.dp)
             ) {
                 Text(
                     text = card.name,

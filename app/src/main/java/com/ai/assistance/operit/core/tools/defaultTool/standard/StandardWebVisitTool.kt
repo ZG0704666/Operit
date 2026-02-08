@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import com.ai.assistance.operit.util.AppLogger
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
@@ -1400,8 +1401,14 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
             }
 
             // 启用交互
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             isFocusable = true
             isFocusableInTouchMode = true
+            isClickable = true
+            isLongClickable = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                isScreenReaderFocusable = true
+            }
             requestFocus()
 
             // 配置Cookie策略，确保第三方Cookie也被接受

@@ -49,6 +49,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,6 +66,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.model.AITool
@@ -997,6 +1001,18 @@ private class WebSessionOverlayLifecycleOwner :
             }
         }
 
+        session.webView.apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isClickable = true
+            isLongClickable = true
+            contentDescription = context.getString(R.string.web_session_accessibility_web_content)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                isScreenReaderFocusable = true
+            }
+        }
+
         session.webView.webViewClient =
             object : WebViewClient() {
                 override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
@@ -1082,6 +1098,7 @@ private class WebSessionOverlayLifecycleOwner :
                     textSize = 18f
                     setTextColor(AndroidColor.parseColor("#6B7280"))
                     setPadding(dp(10), dp(2), dp(10), dp(2))
+                    contentDescription = appContext.getString(R.string.web_session_accessibility_minimize_panel)
                 }
 
             val closeButton =
@@ -1090,6 +1107,7 @@ private class WebSessionOverlayLifecycleOwner :
                     textSize = 16f
                     setTextColor(AndroidColor.parseColor("#6B7280"))
                     setPadding(dp(8), dp(2), dp(8), dp(2))
+                    contentDescription = appContext.getString(R.string.web_session_accessibility_close_current_session)
                 }
 
             topBar.addView(
@@ -1313,6 +1331,9 @@ private class WebSessionOverlayLifecycleOwner :
                 label = "pulse"
             )
 
+        val minimizedIndicatorDescription =
+            stringResource(R.string.web_session_accessibility_minimized_indicator)
+
         Surface(
             shape = CircleShape,
             color = Color.Transparent,
@@ -1326,6 +1347,9 @@ private class WebSessionOverlayLifecycleOwner :
                         detectDragGestures { _, dragAmount ->
                             onDragBy(dragAmount.x.roundToInt(), dragAmount.y.roundToInt())
                         }
+                    }
+                    .semantics {
+                        contentDescription = minimizedIndicatorDescription
                     }
                     .clickable { onToggleFullscreen() }
         ) {

@@ -4,52 +4,30 @@ import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.api.chat.EnhancedAIService
-import com.ai.assistance.operit.data.model.ChatHistory
-import com.ai.assistance.operit.data.model.FunctionType
-import com.ai.assistance.operit.data.model.ModelConfigSummary
-import com.ai.assistance.operit.data.preferences.ApiPreferences
-import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
-import com.ai.assistance.operit.data.preferences.ModelConfigManager
-import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
-import com.ai.assistance.operit.ui.floating.FloatingMode
-import com.ai.assistance.operit.ui.permissions.PermissionLevel
-import kotlinx.coroutines.launch
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.text.font.FontWeight
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlinx.coroutines.flow.flowOf
 
 @Composable
@@ -82,8 +60,6 @@ fun ChatScreenHeader(
         modifier: Modifier = Modifier,
         actualViewModel: ChatViewModel,
         showChatHistorySelector: Boolean,
-        chatHistories: List<ChatHistory>,
-        currentChatId: String,
         chatHeaderTransparent: Boolean,
         chatHeaderHistoryIconColor: Int?,
         chatHeaderPipIconColor: Int?,
@@ -92,8 +68,6 @@ fun ChatScreenHeader(
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
-    val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
-    val scope = rememberCoroutineScope()
 
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
@@ -120,7 +94,7 @@ fun ChatScreenHeader(
 
     val launchFloatingWindow = useFloatingWindowLauncher(actualViewModel, permissionLauncher)
 
-    Box(
+    Row(
             modifier =
                     modifier
                             .fillMaxWidth()
@@ -128,34 +102,27 @@ fun ChatScreenHeader(
                                     if (chatHeaderTransparent) Color.Transparent
                                     else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
                             )
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 左侧：聊天历史按钮
-        Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            ChatHeader(
-                    showChatHistorySelector = showChatHistorySelector,
-                    onToggleChatHistorySelector = { actualViewModel.toggleChatHistorySelector() },
-                    modifier = Modifier,
-                    isFloatingMode = actualViewModel.isFloatingMode.value,
-                    onLaunchFloatingWindow = launchFloatingWindow,
-                    historyIconColor = chatHeaderHistoryIconColor,
-                    pipIconColor = chatHeaderPipIconColor,
-                    runningTaskCount = activeStreamingChatIds.size,
-                    activeCharacterName = activeCharacterCard?.name ?: "",
-                    activeCharacterAvatarUri = activeCharacterAvatarUri,
-                    onCharacterClick = onCharacterSwitcherClick
-            )
-        }
+        ChatHeader(
+                showChatHistorySelector = showChatHistorySelector,
+                onToggleChatHistorySelector = { actualViewModel.toggleChatHistorySelector() },
+                modifier = Modifier.weight(1f),
+                isFloatingMode = actualViewModel.isFloatingMode.value,
+                onLaunchFloatingWindow = launchFloatingWindow,
+                historyIconColor = chatHeaderHistoryIconColor,
+                pipIconColor = chatHeaderPipIconColor,
+                runningTaskCount = activeStreamingChatIds.size,
+                activeCharacterName = activeCharacterCard?.name ?: "",
+                activeCharacterAvatarUri = activeCharacterAvatarUri,
+                onCharacterClick = onCharacterSwitcherClick
+        )
 
-        // 右侧：统计信息，水平排列
         Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.align(Alignment.CenterEnd)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 统计信息
             val currentWindowSize = actualViewModel.currentWindowSize.value
