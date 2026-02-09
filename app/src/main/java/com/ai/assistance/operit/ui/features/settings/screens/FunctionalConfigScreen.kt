@@ -569,23 +569,13 @@ fun FunctionConfigCard(
                                                 }
                                                 FunctionType.GREP -> {
                                                     val prompt =
-                                                        if (useEnglish) {
-                                                            FunctionalPrompts.grepContextSelectPrompt(
-                                                                intent = "Find the greeting in the snippet.",
-                                                                displayPath = "<test>",
-                                                                candidatesDigest = "#1 [file: example.txt]\nHello world\n#2 [file: main.kt]\nfun main() {}",
-                                                                maxResults = 1,
-                                                                useEnglish = true
-                                                            )
-                                                        } else {
-                                                            FunctionalPrompts.grepContextSelectPrompt(
-                                                                intent = "找到包含问候语的片段。",
-                                                                displayPath = "<测试>",
-                                                                candidatesDigest = "#1 [file: example.txt]\n你好世界\n#2 [file: main.kt]\nfun main() {}",
-                                                                maxResults = 1,
-                                                                useEnglish = false
-                                                            )
-                                                        }
+                                                        FunctionalPrompts.grepContextSelectPrompt(
+                                                            intent = context.getString(R.string.functional_config_test_grep_intent),
+                                                            displayPath = context.getString(R.string.functional_config_test_grep_display_path),
+                                                            candidatesDigest = context.getString(R.string.functional_config_test_grep_candidates_digest),
+                                                            maxResults = 1,
+                                                            useEnglish = useEnglish
+                                                        )
                                                     val parameters =
                                                         modelConfigManager.getModelParametersForConfig(configWithSelectedModel.id)
                                                     val buffer = StringBuilder()
@@ -596,11 +586,7 @@ fun FunctionConfigCard(
                                                 FunctionType.UI_CONTROLLER -> {
                                                     val systemPrompt = FunctionalPrompts.uiControllerPrompt(useEnglish)
                                                     val userPrompt =
-                                                        if (useEnglish) {
-                                                            "Current UI State: [Button(label=\"OK\", bounds=\"[0,0][100,50]\")]\nTask Goal: Tap OK.\nExecution History: []"
-                                                        } else {
-                                                            "当前 UI 状态: [Button(label=\"确定\", bounds=\"[0,0][100,50]\")]\n任务目标: 点击确定。\n执行历史: []"
-                                                        }
+                                                        context.getString(R.string.functional_config_test_ui_controller_prompt)
                                                     val parameters =
                                                         modelConfigManager.getModelParametersForConfig(configWithSelectedModel.id)
                                                     val buffer = StringBuilder()
@@ -627,11 +613,7 @@ fun FunctionConfigCard(
                                                             useEnglish = useEnglish
                                                         )
                                                     val userPrompt =
-                                                        if (useEnglish) {
-                                                            "Conversation:\nUser: Connection test question.\nAssistant: Connection test answer."
-                                                        } else {
-                                                            "对话内容:\n用户: 连接测试问题。\n助手: 连接测试回答。"
-                                                        }
+                                                        context.getString(R.string.functional_config_test_problem_library_prompt)
                                                     val parameters =
                                                         modelConfigManager.getModelParametersForConfig(configWithSelectedModel.id)
                                                     val buffer = StringBuilder()

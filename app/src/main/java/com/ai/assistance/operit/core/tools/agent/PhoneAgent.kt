@@ -12,8 +12,8 @@ import android.view.KeyEvent
 import androidx.core.content.FileProvider
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.llmprovider.AIService
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.AppListData
-import com.ai.assistance.operit.core.tools.defaultTool.ToolGetter
 import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardUITools
 import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
@@ -33,13 +33,11 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.withContext
 
 /** Configuration for the PhoneAgent. */
 data class AgentConfig(
@@ -681,6 +679,8 @@ class ActionHandler(
     private val toolImplementations: ToolImplementations
 ) {
     private var agentId: String = "default"
+    private var appPackagesSyncedFromTool = false
+    private val aiToolManager: AIToolHandler by lazy { AIToolHandler.getInstance(context) }
 
     fun setAgentId(id: String) {
         agentId = id
@@ -939,8 +939,9 @@ class ActionHandler(
                             }
                         }
                     } else {
-                        val systemTools = ToolGetter.getSystemOperationTools(context)
-                        val result = systemTools.startApp(AITool("start_app", listOf(ToolParameter("package_name", packageName))))
+                        val result = aiToolManager.executeTool(
+                            AITool("start_app", listOf(ToolParameter("package_name", packageName)))
+                        )
                         if (result.success) {
                             delay(POST_LAUNCH_DELAY_MS)
                             ok()
@@ -1134,11 +1135,51 @@ class ActionHandler(
     private suspend fun resolveAppPackageName(app: String): String {
         val trimmed = app.trim()
         val lowered = trimmed.lowercase(Locale.getDefault())
-        fun lookup(): String? = StandardUITools.APP_PACKAGES[app] ?: StandardUITools.APP_PACKAGES[trimmed] ?: StandardUITools.APP_PACKAGES[lowered]
-        val directHit = lookup()
-        if (directHit != null) return directHit
-        withContext(Dispatchers.IO) { StandardUITools.scanAndAddInstalledApps(context) }
+        fun lookup(): String? =
+            StandardUITools.APP_PACKAGES[app] ?: StandardUITools.APP_PACKAGES[trimmed] ?: StandardUITools.APP_PACKAGES[lowered]
+
+        lookup()?.let { return it }
+
+        syncAppPackagesFromToolIfNeeded()
         return lookup() ?: trimmed
+    }
+
+    private suspend fun syncAppPackagesFromToolIfNeeded() {
+        if (appPackagesSyncedFromTool) return
+        appPackagesSyncedFromTool = true
+
+        val listResult = aiToolManager.executeTool(AITool("list_installed_apps"))
+        if (!listResult.success) {
+            AppLogger.w("PhoneAgent", "[$agentId] Failed to sync app packages from tool layer: ${listResult.error}")
+            return
+        }
+
+        val appListData = listResult.result as? AppListData ?: return
+        val discoveredPackages = mutableMapOf<String, String>()
+
+        appListData.packages.forEach { entry ->
+            val parsed = parseToolAppEntry(entry) ?: return@forEach
+            val (appName, packageName) = parsed
+            if (appName.isBlank() || packageName.isBlank()) return@forEach
+
+            discoveredPackages.putIfAbsent(appName, packageName)
+            discoveredPackages.putIfAbsent(appName.lowercase(Locale.getDefault()), packageName)
+        }
+
+        if (discoveredPackages.isNotEmpty()) {
+            StandardUITools.addAppPackages(discoveredPackages)
+        }
+    }
+
+    private fun parseToolAppEntry(entry: String): Pair<String, String>? {
+        val left = entry.lastIndexOf('(')
+        val right = entry.lastIndexOf(')')
+        if (left < 0 || right <= left) return null
+
+        val appName = entry.substring(0, left).trim()
+        val packageName = entry.substring(left + 1, right).trim()
+        if (packageName.isBlank()) return null
+        return Pair(if (appName.isBlank()) packageName else appName, packageName)
     }
 }
 

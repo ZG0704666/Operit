@@ -644,7 +644,7 @@
     <string name="share_failed">Share failed</string>
     <string name="image_generated">Image generated</string>
     <string name="image_preview">Image Preview</string>
-    <string name="load_more_history">Load more history messages...</string>
+    <string name="load_more_history">Tap to load chat history</string>
 
     <!-- Theme Settings Screen -->
     <string name="theme_title_mode">Theme Mode</string>
@@ -2710,6 +2710,11 @@
     <string name="theme_font_cursive">Cursive</string>
     <string name="theme_avatar_description">Note: The user avatar on the left is a character card exclusive setting. When empty, it will use the global user avatar on the right. The global user avatar is shared across all character cards.</string>
     <string name="functional_config_model_count">%1$d models</string>
+    <string name="functional_config_test_grep_intent">Find the greeting in the snippet.</string>
+    <string name="functional_config_test_grep_display_path">&lt;test&gt;</string>
+    <string name="functional_config_test_grep_candidates_digest">#1 [file: example.txt]\nHello world\n#2 [file: main.kt]\nfun main() {}</string>
+    <string name="functional_config_test_ui_controller_prompt">Current UI State: [Button(label="OK", bounds="[0,0][100,50]")]\nTask Goal: Tap OK.\nExecution History: []</string>
+    <string name="functional_config_test_problem_library_prompt">Conversation:\nUser: Connection test question.\nAssistant: Connection test answer.</string>
     <string name="tool_permission_instruction_title">Instructions</string>
     <string name="tool_permission_instruction_content">1. The \"Global Default Permission\" above controls the default behavior of all tools.\n2. Tools added to each group below set \"exception rules\" for that tool, which override the global default.\n3. Click the same tool in a group again, or uncheck it in the selection dialog to remove the tool\'s exception configuration and make it follow the global default again.</string>
     <string name="token_price_description">Set the RMB price per API request</string>

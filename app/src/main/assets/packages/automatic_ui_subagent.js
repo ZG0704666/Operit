@@ -370,6 +370,15 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
                 }
 
                 {
+                    name: "close_all_virtual_displays"
+                    description: {
+                        zh: "关闭所有虚拟屏幕。",
+                        en: "Close all virtual displays."
+                    }
+                    parameters: []
+                }
+
+                {
                     name: "run_subagent_main"
                     description: {
                         zh: "在主屏幕运行 UI 子代理（强制主屏）。",
@@ -768,6 +777,18 @@ const UIAutomationSubAgentTools = (function () {
     async function run_subagent_parallel_virtual(params) {
         return run_subagent_parallel_internal(params);
     }
+    async function close_all_virtual_displays(_params) {
+        const result = await toolCall('close_all_virtual_displays', {});
+        const ok = (result === null || result === void 0 ? void 0 : result.success) !== false;
+        const error = result === null || result === void 0 ? void 0 : result.error;
+        return {
+            success: ok,
+            message: ok
+                ? '已关闭所有虚拟屏幕。'
+                : `关闭虚拟屏幕失败：${error ? String(error) : 'unknown error'}`,
+            data: result,
+        };
+    }
     async function wrapToolExecution(func, params) {
         try {
             const result = await func(params);
@@ -785,10 +806,12 @@ const UIAutomationSubAgentTools = (function () {
         usage_advice: (params) => wrapToolExecution(usage_advice, params),
         run_subagent_main: (params) => wrapToolExecution(run_subagent_main, params),
         run_subagent_virtual: (params) => wrapToolExecution(run_subagent_virtual, params),
+        close_all_virtual_displays: (params) => wrapToolExecution(close_all_virtual_displays, params),
         run_subagent_parallel_virtual: (params) => wrapToolExecution(run_subagent_parallel_virtual, params),
     };
 })();
 exports.usage_advice = UIAutomationSubAgentTools.usage_advice;
 exports.run_subagent_main = UIAutomationSubAgentTools.run_subagent_main;
 exports.run_subagent_virtual = UIAutomationSubAgentTools.run_subagent_virtual;
+exports.close_all_virtual_displays = UIAutomationSubAgentTools.close_all_virtual_displays;
 exports.run_subagent_parallel_virtual = UIAutomationSubAgentTools.run_subagent_parallel_virtual;

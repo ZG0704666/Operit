@@ -1,9 +1,9 @@
 [OVERALL]
-Total strings found: 1948
-Excluded logs: 1799
+Total strings found: 1920
+Excluded logs: 1777
 Excluded long prompts(>100 chars): 61
-Remaining UI strings: 88
-Files with Chinese strings: 147
+Remaining UI strings: 82
+Files with Chinese strings: 148
 
 [BY MODULE]
 
@@ -102,23 +102,11 @@ FILE: app\src\main\java\com\ai\assistance\operit\api\chat\library\ProblemLibrary
   L762:31 (30 chars) "(职业|Occupation)[:：\\s]+([^;]+)"
   L763:28 (83 chars) "(AI风格|期待的AI风格|偏好的AI风格|AI Style|Expected AI Style|Preferred AI Style)[:：\\s]+([^;]+)"
 
-FILE: app\src\main\java\com\ai\assistance\operit\core\tools\system\shell\DebuggerShellExecutor.kt
-  remaining=3 total=31 excluded_logs=9 excluded_long=19
-  L272:37 (97 chars) "\n\n                    // 等待进程结束并获取退出代码\n                    val exitCode = processClass.getMethod("
-  L361:85 (94 chars) ")\n\n                    // 构建shell命令，使用-e确保出错时立即退出\n                    val shellArgs = arrayOf("
-  L426:37 (97 chars) "\n\n                    // 等待进程结束并获取退出代码\n                    val exitCode = processClass.getMethod("
-
 FILE: app\src\main\java\com\ai\assistance\operit\data\converter\GenericJsonConverter.kt
   remaining=3 total=3 excluded_logs=0 excluded_long=0
   L203:30 (2 chars) "用户"
   L204:48 (2 chars) "助手"
   L205:23 (2 chars) "系统"
-
-FILE: app\src\main\java\com\ai\assistance\operit\data\mcp\plugins\MCPCommandGenerator.kt
-  remaining=3 total=5 excluded_logs=2 excluded_long=0
-  L68:34 (17 chars) "# 如果换源失败，将继续使用默认源"
-  L142:42 (47 chars) "# TypeScript编译后可能需要执行: node dist/index.js 或类似命令"
-  L152:34 (17 chars) "# 如果换源失败，将继续使用默认源"
 
 FILE: app\src\main\java\com\ai\assistance\operit\util\LocaleUtils.kt
   remaining=2 total=2 excluded_logs=0 excluded_long=0

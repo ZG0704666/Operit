@@ -370,6 +370,15 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
                 }
 
                 {
+                    name: "close_all_virtual_displays"
+                    description: {
+                        zh: "关闭所有虚拟屏幕。",
+                        en: "Close all virtual displays."
+                    }
+                    parameters: []
+                }
+
+                {
                     name: "run_subagent_main"
                     description: {
                         zh: "在主屏幕运行 UI 子代理（强制主屏）。",
@@ -815,6 +824,19 @@ const UIAutomationSubAgentTools = (function () {
         return run_subagent_parallel_internal(params);
     }
 
+    async function close_all_virtual_displays(_params: {}): Promise<ToolResponse> {
+        const result = await toolCall('close_all_virtual_displays', {});
+        const ok = (result as { success?: boolean } | null)?.success !== false;
+        const error = (result as { error?: unknown } | null)?.error;
+        return {
+            success: ok,
+            message: ok
+                ? '已关闭所有虚拟屏幕。'
+                : `关闭虚拟屏幕失败：${error ? String(error) : 'unknown error'}`,
+            data: result,
+        };
+    }
+
     async function wrapToolExecution<P>(func: (params: P) => Promise<ToolResponse>, params: P) {
         try {
             const result = await func(params);
@@ -832,6 +854,7 @@ const UIAutomationSubAgentTools = (function () {
         usage_advice: (params: {}) => wrapToolExecution(usage_advice, params),
         run_subagent_main: (params: { intent: string, max_steps?: number, target_app?: string }) => wrapToolExecution(run_subagent_main, params),
         run_subagent_virtual: (params: { intent: string, max_steps?: number, agent_id?: string, target_app?: string }) => wrapToolExecution(run_subagent_virtual, params),
+        close_all_virtual_displays: (params: {}) => wrapToolExecution(close_all_virtual_displays, params),
         run_subagent_parallel_virtual: (params: {
             intent_1: string, target_app_1: string, max_steps_1?: number, agent_id_1?: string,
             intent_2?: string, target_app_2?: string, max_steps_2?: number, agent_id_2?: string,
@@ -844,4 +867,5 @@ const UIAutomationSubAgentTools = (function () {
 exports.usage_advice = UIAutomationSubAgentTools.usage_advice;
 exports.run_subagent_main = UIAutomationSubAgentTools.run_subagent_main;
 exports.run_subagent_virtual = UIAutomationSubAgentTools.run_subagent_virtual;
+exports.close_all_virtual_displays = UIAutomationSubAgentTools.close_all_virtual_displays;
 exports.run_subagent_parallel_virtual = UIAutomationSubAgentTools.run_subagent_parallel_virtual;

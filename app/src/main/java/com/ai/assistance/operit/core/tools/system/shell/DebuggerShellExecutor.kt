@@ -271,7 +271,6 @@ class DebuggerShellExecutor(private val context: Context) : ShellExecutor {
                                 }
                             } else ""
 
-                    // 等待进程结束并获取退出代码
                     val exitCode = processClass.getMethod("waitFor").invoke(process) as Int
 
                     // 返回结果
@@ -360,7 +359,6 @@ class DebuggerShellExecutor(private val context: Context) : ShellExecutor {
                     val isBackground =
                             trimmedForBg.endsWith("&") && !trimmedForBg.endsWith("&&")
 
-                    // 构建shell命令，使用-e确保出错时立即退出
                     val shellArgs = arrayOf("sh", "-e", "-c", enhancedCommand)
                     AppLogger.d(TAG, "Enhanced shell command: ${shellArgs.joinToString(", ", "[", "]")}")
 
@@ -425,7 +423,6 @@ class DebuggerShellExecutor(private val context: Context) : ShellExecutor {
                                 }
                             } else ""
 
-                    // 等待进程结束并获取退出代码
                     val exitCode = processClass.getMethod("waitFor").invoke(process) as Int
 
                     // 关闭文件描述符

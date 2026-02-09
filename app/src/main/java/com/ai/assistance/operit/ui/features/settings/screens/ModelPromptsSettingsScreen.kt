@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.settings.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -63,6 +64,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.draw.shadow
 import com.ai.assistance.operit.ui.features.settings.components.CharacterCardDialog
 import com.ai.assistance.operit.ui.common.rememberLocal
 import com.ai.assistance.operit.util.ColorQrCodeUtil
@@ -1596,7 +1598,10 @@ fun CharacterCardTab(
 
                         DropdownMenu(
                             expanded = sortMenuExpanded,
-                            onDismissRequest = { sortMenuExpanded = false }
+                            onDismissRequest = { sortMenuExpanded = false },
+                            modifier = Modifier
+                                .shadow(12.dp, RoundedCornerShape(16.dp))
+                                .background(Color.White, RoundedCornerShape(16.dp))
                         ) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.character_card_sort_default)) },

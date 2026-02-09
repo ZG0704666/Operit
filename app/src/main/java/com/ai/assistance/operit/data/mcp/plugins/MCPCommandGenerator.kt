@@ -65,7 +65,6 @@ class MCPCommandGenerator {
                 if (projectStructure.hasPackageJson) {
                     // 添加pnpm换源命令 - 使用国内淘宝镜像提高安装速度和成功率
                     commands.add("pnpm config set registry https://registry.npmmirror.com")
-                    commands.add("# 如果换源失败，将继续使用默认源")
 
                     // 安装依赖，禁用脚本执行
                     commands.add("pnpm install --ignore-scripts")
@@ -137,9 +136,6 @@ class MCPCommandGenerator {
                         // 这里我们只添加运行命令，因为我们无法确定编译后确切的JS文件路径
                         if (projectStructure.configExample != null) {
                             // 如果有配置示例，我们将依赖它
-                        } else {
-                            // 如果没有配置示例，添加一条注释命令
-                            commands.add("# TypeScript编译后可能需要执行: node dist/index.js 或类似命令")
                         }
                     }
                 }
@@ -149,7 +145,6 @@ class MCPCommandGenerator {
                 if (projectStructure.hasPackageJson) {
                     // 同样为Node.js项目添加换源设置
                     commands.add("pnpm config set registry https://registry.npmmirror.com")
-                    commands.add("# 如果换源失败，将继续使用默认源")
                     commands.add("pnpm install")
                 }
 

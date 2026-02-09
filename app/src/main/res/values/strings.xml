@@ -1428,7 +1428,7 @@
     <string name="share_failed">分享失败</string>
     <string name="image_generated">图片已生成</string>
     <string name="image_preview">图片预览</string>
-    <string name="load_more_history">加载更多历史消息...</string>
+    <string name="load_more_history">点击加载历史记录</string>
 
     <!-- Permission Guide Screen -->
     <string name="permission_guide_intro_1_title">语音驱动的UI自动化</string>
@@ -5291,6 +5291,11 @@
     <string name="theme_font_cursive">手写体 (Cursive)</string>
     <string name="theme_avatar_description">说明：左侧的用户头像是角色卡专属设置，为空时将使用右侧的全局用户头像。全局用户头像在所有角色卡中共享使用。</string>
     <string name="functional_config_model_count">%1$d个模型</string>
+    <string name="functional_config_test_grep_intent">找到包含问候语的片段。</string>
+    <string name="functional_config_test_grep_display_path">&lt;测试&gt;</string>
+    <string name="functional_config_test_grep_candidates_digest">#1 [file: example.txt]\n你好世界\n#2 [file: main.kt]\nfun main() {}</string>
+    <string name="functional_config_test_ui_controller_prompt">当前 UI 状态: [Button(label="确定", bounds="[0,0][100,50]")]\n任务目标: 点击确定。\n执行历史: []</string>
+    <string name="functional_config_test_problem_library_prompt">对话内容:\n用户: 连接测试问题。\n助手: 连接测试回答。</string>
     <string name="tool_permission_instruction_title">使用说明</string>
     <string name="tool_permission_instruction_content">1. 上面的\"全局默认权限\"控制所有工具的默认行为。\n2. 下面每个分组中添加的工具，是对该工具设置\"例外规则\"，会覆盖全局默认。\n3. 再次点击同一分组中的工具，或在选择对话框中取消勾选，即可移除该工具的例外配置，让它重新跟随全局默认。</string>
     <string name="token_price_description">设置每次API请求的人民币价格</string>

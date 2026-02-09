@@ -12,6 +12,7 @@ import rikka.shizuku.Shizuku
 class ShizukuAuthorizer {
     companion object {
         private const val TAG = "ShizukuAuthorizer"
+        private const val SHIZUKU_PACKAGE_NAME = "moe.shizuku.privileged.api"
         private val mainHandler = Handler(Looper.getMainLooper())
 
         // 注册Shizuku权限请求监听器
@@ -62,22 +63,46 @@ class ShizukuAuthorizer {
             }
         }
 
+        private fun isSuiBackendAvailable(): Boolean {
+            return try {
+                if (Shizuku.pingBinder()) {
+                    AppLogger.i(TAG, "检测到Sui/Shizuku后端可用（pingBinder）")
+                    true
+                } else {
+                    val binder = Shizuku.getBinder()
+                    val binderAlive = binder != null && binder.isBinderAlive
+                    if (binderAlive) {
+                        AppLogger.i(TAG, "检测到Sui/Shizuku后端可用（binder alive）")
+                    }
+                    binderAlive
+                }
+            } catch (e: Exception) {
+                AppLogger.d(TAG, "Sui后端检测失败: ${e.message}")
+                false
+            }
+        }
+
         /**
-         * 检查Shizuku是否已安装
+         * 检查Shizuku是否已安装（兼容Sui后端）
          * @param context Android上下文
-         * @return 是否已安装Shizuku
+         * @return 是否已安装Shizuku或可用Sui后端
          */
         fun isShizukuInstalled(context: Context): Boolean {
             return try {
-                val packageInfo = context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
+                val packageInfo = context.packageManager.getPackageInfo(SHIZUKU_PACKAGE_NAME, 0)
                 val versionName = packageInfo.versionName
                 AppLogger.i(TAG, "检测到已安装Shizuku，版本: $versionName")
                 true
             } catch (e: PackageManager.NameNotFoundException) {
-                AppLogger.i(TAG, "未检测到已安装的Shizuku")
-                false
+                val suiBackendAvailable = isSuiBackendAvailable()
+                if (suiBackendAvailable) {
+                    AppLogger.i(TAG, "未检测到Shizuku应用，但检测到Sui后端可用")
+                } else {
+                    AppLogger.i(TAG, "未检测到已安装的Shizuku，也未检测到可用的Sui后端")
+                }
+                suiBackendAvailable
             } catch (e: Exception) {
-                AppLogger.e(TAG, "检查Shizuku是否安装时出错", e)
+                AppLogger.e(TAG, "检查Shizuku/Sui可用性时出错", e)
                 false
             }
         }
