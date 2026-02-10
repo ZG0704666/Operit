@@ -5,13 +5,10 @@ import com.ai.assistance.operit.core.avatar.common.model.AvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.ai.assistance.operit.core.avatar.impl.dragonbones.model.DragonBonesAvatarModel
+import com.ai.assistance.operit.core.avatar.impl.mmd.model.MmdAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.webp.model.WebPAvatarModel
 import com.ai.assistance.operit.data.model.DragonBonesModel
 
-/**
- * A concrete implementation of [AvatarModelFactory] that can create virtual avatar models
- * from various data sources and configurations.
- */
 class AvatarModelFactoryImpl : AvatarModelFactory {
 
     override fun createModel(
@@ -23,14 +20,8 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
         return when (type) {
             AvatarType.DRAGONBONES -> createDragonBonesModel(id, name, data)
             AvatarType.WEBP -> createWebPModel(id, name, data)
-            AvatarType.LIVE2D -> {
-                // TODO: Implement Live2D model creation when available
-                null
-            }
-            AvatarType.MMD -> {
-                // TODO: Implement MMD model creation when available
-                null
-            }
+            AvatarType.MMD -> createMmdModel(id, name, data)
+            AvatarType.LIVE2D -> null
         }
     }
 
@@ -40,7 +31,6 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
                 DragonBonesAvatarModel(dataModel)
             }
             else -> {
-                // Try to extract data if it's a map-like structure
                 if (dataModel is Map<*, *>) {
                     val dataMap = dataModel as? Map<String, Any> ?: return null
                     val id = dataMap["id"] as? String ?: return null
@@ -60,8 +50,7 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
 
     override fun createDefaultModel(type: AvatarType, baseName: String): AvatarModel? {
         return when (type) {
-                         AvatarType.DRAGONBONES -> {
-                 // Create a default DragonBones virtual avatar model with placeholder paths
+            AvatarType.DRAGONBONES -> {
                 val defaultData = mapOf(
                     "folderPath" to "assets/avatars/default",
                     "skeletonFile" to "default_ske.json",
@@ -71,41 +60,38 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
                 )
                 createDragonBonesModel("default_dragonbones", baseName, defaultData)
             }
-                         AvatarType.WEBP -> {
-                 // Create a default WebP virtual avatar model with standard emotion mapping
+            AvatarType.WEBP -> {
                 WebPAvatarModel.createStandard(
                     id = "default_webp",
                     name = baseName,
                     basePath = "assets/avatars/default"
                 )
             }
-                         AvatarType.LIVE2D -> {
-                 // TODO: Implement default Live2D virtual avatar model when available
-                null
+            AvatarType.MMD -> {
+                val defaultData = mapOf(
+                    "basePath" to "assets/avatars/default",
+                    "modelFile" to "default.pmx"
+                )
+                createMmdModel("default_mmd", baseName, defaultData)
             }
-                         AvatarType.MMD -> {
-                 // TODO: Implement default MMD virtual avatar model when available
-                null
-            }
+            AvatarType.LIVE2D -> null
         }
     }
 
     override fun validateData(type: AvatarType, data: Map<String, Any>): Boolean {
         return when (type) {
-            AvatarType.DRAGONBONES -> {
+            AvatarType.DRAGONBONES,
+            AvatarType.WEBP,
+            AvatarType.MMD -> {
                 val requiredKeys = getRequiredDataKeys(type)
                 requiredKeys.all { key -> data.containsKey(key) && data[key] != null }
             }
-            AvatarType.WEBP -> {
-                val requiredKeys = getRequiredDataKeys(type)
-                requiredKeys.all { key -> data.containsKey(key) && data[key] != null }
-            }
-            else -> false // Unsupported types
+            AvatarType.LIVE2D -> false
         }
     }
 
     override val supportedTypes: List<AvatarType>
-        get() = listOf(AvatarType.DRAGONBONES, AvatarType.WEBP)
+        get() = listOf(AvatarType.DRAGONBONES, AvatarType.WEBP, AvatarType.MMD)
 
     override fun getRequiredDataKeys(type: AvatarType): List<String> {
         return when (type) {
@@ -115,16 +101,12 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
                 "textureJsonFile",
                 "textureImageFile"
             )
-            AvatarType.WEBP -> listOf(
-                "basePath"
-            )
-            else -> emptyList()
+            AvatarType.WEBP -> listOf("basePath")
+            AvatarType.MMD -> listOf("basePath", "modelFile")
+            AvatarType.LIVE2D -> emptyList()
         }
     }
 
-    /**
-     * Creates a DragonBones virtual avatar model from the provided data.
-     */
     private fun createDragonBonesModel(id: String, name: String, data: Map<String, Any>): AvatarModel? {
         return try {
             val folderPath = data["folderPath"] as? String ?: return null
@@ -149,16 +131,12 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
         }
     }
 
-    /**
-     * Creates a WebP virtual avatar model from the provided data.
-     */
     private fun createWebPModel(id: String, name: String, data: Map<String, Any>): AvatarModel? {
         return try {
             val basePath = data["basePath"] as? String ?: return null
             val emotionMapData = data["emotionToFileMap"] as? Map<String, String>
 
             if (emotionMapData != null) {
-                // Convert string keys to AvatarEmotion enum
                 val emotionMap = emotionMapData.mapNotNull { (emotionStr, fileName) ->
                     try {
                         val emotion = AvatarEmotion.valueOf(emotionStr.uppercase())
@@ -187,7 +165,6 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
                     currentEmotion = currentEmotion
                 )
             } else {
-                // Use standard emotion mapping
                 WebPAvatarModel.createStandard(
                     id = id,
                     name = name,
@@ -198,4 +175,22 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
             null
         }
     }
-} 
+
+    private fun createMmdModel(id: String, name: String, data: Map<String, Any>): AvatarModel? {
+        return try {
+            val basePath = data["basePath"] as? String ?: return null
+            val modelFile = data["modelFile"] as? String ?: return null
+            val motionFile = data["motionFile"] as? String
+
+            MmdAvatarModel(
+                id = id,
+                name = name,
+                basePath = basePath,
+                modelFile = modelFile,
+                motionFile = motionFile
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+}

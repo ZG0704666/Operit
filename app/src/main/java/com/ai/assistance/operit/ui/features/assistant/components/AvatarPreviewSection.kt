@@ -35,6 +35,7 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.avatar.common.view.AvatarView
 import com.ai.assistance.operit.core.avatar.impl.factory.AvatarControllerFactoryImpl
 import com.ai.assistance.operit.core.avatar.impl.factory.AvatarRendererFactoryImpl
+import com.ai.assistance.operit.core.avatar.impl.mmd.model.MmdAvatarModel
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 import kotlinx.coroutines.delay
 
@@ -94,6 +95,14 @@ fun AvatarPreviewSection(
                                                 rendererFactory = rendererFactory,
                                                 onError = { error -> println("Avatar error: $error") }
                                 )
+
+                                        if (currentModel is MmdAvatarModel) {
+                                                Text(
+                                                        text = "MMD (${currentModel.modelFile})",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                                                )
+                                        }
                                         
                                         // Animation control area for skeletal models
                                         if (avatarController.availableAnimations.isNotEmpty()) {

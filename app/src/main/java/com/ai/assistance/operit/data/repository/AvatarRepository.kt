@@ -77,31 +77,53 @@ class DragonBonesPersistenceDelegate : AvatarPersistenceDelegate {
 
     override fun scanDirectory(directory: File, isBuiltIn: Boolean): List<AvatarConfig> {
         val allConfigs = mutableListOf<AvatarConfig>()
-        if (!directory.exists() || !directory.isDirectory) return allConfigs
+        if (!directory.exists() || !directory.isDirectory) {
+            AppLogger.d("AvatarRepository", "DragonBones scan skipped (not dir): ${directory.absolutePath}")
+            return allConfigs
+        }
 
-        val skeletonFile = directory.listFiles { f -> f.isFile && f.extension == "json" && !f.name.endsWith("_tex.json") }?.firstOrNull()
-        if (skeletonFile == null) return allConfigs
+        val jsonFiles = directory.listFiles { file ->
+            file.isFile && file.extension.equals("json", ignoreCase = true)
+        } ?: emptyArray()
+
+        val skeletonFile = jsonFiles.firstOrNull { !it.name.endsWith("_tex.json", ignoreCase = true) }
+        if (skeletonFile == null) {
+            if (jsonFiles.isNotEmpty()) {
+                AppLogger.d(
+                    "AvatarRepository",
+                    "DragonBones scan no skeleton json in ${directory.absolutePath}, jsons=${jsonFiles.joinToString { it.name }}"
+                )
+            }
+            return allConfigs
+        }
 
         val modelName = skeletonFile.nameWithoutExtension.removeSuffix("_ske")
         val textureJsonFile = File(directory, "${modelName}_tex.json")
         val textureImageFile = File(directory, "${modelName}_tex.png")
 
-        if (textureJsonFile.exists() && textureImageFile.exists()) {
-            val config = AvatarConfig(
-                id = if (isBuiltIn) "built_in_db_${directory.name}" else "user_db_${directory.name}_${System.currentTimeMillis()}",
-                name = directory.name,
-                type = AvatarType.DRAGONBONES,
-                isBuiltIn = isBuiltIn,
-                data = mapOf(
-                    "folderPath" to directory.absolutePath,
-                    "skeletonFile" to skeletonFile.name,
-                    "textureJsonFile" to textureJsonFile.name,
-                    "textureImageFile" to textureImageFile.name,
-                    "isBuiltIn" to isBuiltIn
-                )
+        if (!textureJsonFile.exists() || !textureImageFile.exists()) {
+            AppLogger.d(
+                "AvatarRepository",
+                "DragonBones scan incomplete in ${directory.absolutePath}, expected=${textureJsonFile.name}, ${textureImageFile.name}"
             )
-            allConfigs.add(config)
+            return allConfigs
         }
+
+        val config = AvatarConfig(
+            id = if (isBuiltIn) "built_in_db_${directory.name}" else "user_db_${directory.name}_${System.currentTimeMillis()}",
+            name = directory.name,
+            type = AvatarType.DRAGONBONES,
+            isBuiltIn = isBuiltIn,
+            data = mapOf(
+                "folderPath" to directory.absolutePath,
+                "skeletonFile" to skeletonFile.name,
+                "textureJsonFile" to textureJsonFile.name,
+                "textureImageFile" to textureImageFile.name,
+                "isBuiltIn" to isBuiltIn
+            )
+        )
+        AppLogger.i("AvatarRepository", "DragonBones config recognized: ${directory.absolutePath}")
+        allConfigs.add(config)
         return allConfigs
     }
 }
@@ -114,26 +136,75 @@ class WebPPersistenceDelegate : AvatarPersistenceDelegate {
 
     override fun scanDirectory(directory: File, isBuiltIn: Boolean): List<AvatarConfig> {
         val allConfigs = mutableListOf<AvatarConfig>()
-        if (!directory.exists() || !directory.isDirectory) return allConfigs
+        if (!directory.exists() || !directory.isDirectory) {
+            AppLogger.d("AvatarRepository", "WebP scan skipped (not dir): ${directory.absolutePath}")
+            return allConfigs
+        }
 
-        // Check if directory contains any WebP files
         val webpFiles = directory.listFiles { file ->
             file.isFile && file.extension.equals("webp", ignoreCase = true)
         } ?: emptyArray()
 
-        if (webpFiles.isNotEmpty()) {
-            val config = AvatarConfig(
-                id = if (isBuiltIn) "built_in_webp_${directory.name}" else "user_webp_${directory.name}_${System.currentTimeMillis()}",
-                name = directory.name,
-                type = AvatarType.WEBP,
-                isBuiltIn = isBuiltIn,
-                data = mapOf(
-                    "basePath" to directory.absolutePath,
-                    "webpFiles" to webpFiles.map { it.name }
-                )
-            )
-            allConfigs.add(config)
+        if (webpFiles.isEmpty()) {
+            return allConfigs
         }
+
+        val config = AvatarConfig(
+            id = if (isBuiltIn) "built_in_webp_${directory.name}" else "user_webp_${directory.name}_${System.currentTimeMillis()}",
+            name = directory.name,
+            type = AvatarType.WEBP,
+            isBuiltIn = isBuiltIn,
+            data = mapOf(
+                "basePath" to directory.absolutePath,
+                "webpFiles" to webpFiles.map { it.name }
+            )
+        )
+        AppLogger.i(
+            "AvatarRepository",
+            "WebP config recognized: ${directory.absolutePath}, files=${webpFiles.joinToString { it.name }}"
+        )
+        allConfigs.add(config)
+        return allConfigs
+    }
+}
+
+class MmdPersistenceDelegate : AvatarPersistenceDelegate {
+    override val type = AvatarType.MMD
+
+    override fun scanDirectory(directory: File, isBuiltIn: Boolean): List<AvatarConfig> {
+        val allConfigs = mutableListOf<AvatarConfig>()
+        if (!directory.exists() || !directory.isDirectory) {
+            AppLogger.d("AvatarRepository", "MMD scan skipped (not dir): ${directory.absolutePath}")
+            return allConfigs
+        }
+
+        val modelCandidates = directory.listFiles { file ->
+            file.isFile && (file.extension.equals("pmx", ignoreCase = true) || file.extension.equals("pmd", ignoreCase = true))
+        } ?: emptyArray()
+        val modelFile = modelCandidates.firstOrNull() ?: return allConfigs
+
+        val motionFile = directory.listFiles { file ->
+            file.isFile && file.extension.equals("vmd", ignoreCase = true)
+        }?.firstOrNull()
+
+        val data = mutableMapOf<String, Any>(
+            "basePath" to directory.absolutePath,
+            "modelFile" to modelFile.name
+        )
+        motionFile?.let { data["motionFile"] = it.name }
+
+        val config = AvatarConfig(
+            id = if (isBuiltIn) "built_in_mmd_${directory.name}" else "user_mmd_${directory.name}_${System.currentTimeMillis()}",
+            name = directory.name,
+            type = AvatarType.MMD,
+            isBuiltIn = isBuiltIn,
+            data = data
+        )
+        AppLogger.i(
+            "AvatarRepository",
+            "MMD config recognized: ${directory.absolutePath}, model=${modelFile.name}, motion=${motionFile?.name ?: "<none>"}"
+        )
+        allConfigs.add(config)
         return allConfigs
     }
 }
@@ -172,7 +243,8 @@ class AvatarRepository(
 
     private val delegates: Map<AvatarType, AvatarPersistenceDelegate> = listOf(
         DragonBonesPersistenceDelegate(),
-        WebPPersistenceDelegate()
+        WebPPersistenceDelegate(),
+        MmdPersistenceDelegate()
     ).associateBy { it.type }
 
     private val _configs = MutableStateFlow<List<AvatarConfig>>(emptyList())
@@ -339,38 +411,100 @@ class AvatarRepository(
         val tempDir = File(context.cacheDir, "avatar_import_${System.currentTimeMillis()}")
         try {
             tempDir.mkdirs()
-            context.contentResolver.openInputStream(uri)?.use {
-                ZipInputStream(it).use { zis ->
+            val tempRootCanonical = tempDir.canonicalPath + File.separator
+            AppLogger.i(TAG, "Start import from ZIP: uri=$uri tempDir=${tempDir.absolutePath}")
+
+            var entryCount = 0
+            val sampledEntries = mutableListOf<String>()
+
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                ZipInputStream(inputStream).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
-                        val file = File(tempDir, entry.name)
-                        if(entry.isDirectory) {
-                           file.mkdirs()
+                        entryCount += 1
+                        if (sampledEntries.size < 40) {
+                            sampledEntries.add(entry.name)
+                        }
+
+                        val targetFile = File(tempDir, entry.name)
+                        val targetCanonical = targetFile.canonicalPath
+                        if (!targetCanonical.startsWith(tempRootCanonical)) {
+                            AppLogger.w(TAG, "Skip suspicious ZIP entry outside target dir: ${entry.name}")
+                            entry = zis.nextEntry
+                            continue
+                        }
+
+                        if (entry.isDirectory) {
+                            targetFile.mkdirs()
                         } else {
-                           file.outputStream().use(zis::copyTo)
+                            targetFile.parentFile?.mkdirs()
+                            targetFile.outputStream().use(zis::copyTo)
                         }
                         entry = zis.nextEntry
                     }
                 }
-            } ?: return@withContext false
-            
-            val foundConfigs = tempDir.listFiles {f -> f.isDirectory}?.flatMap { folder ->
-                delegates.values.flatMap { delegate -> delegate.scanDirectory(folder, false) }
-            } ?: emptyList()
-            
-            if (foundConfigs.isEmpty()) {
-                AppLogger.w(TAG, "No valid avatar configs found in the imported ZIP.")
+            } ?: run {
+                AppLogger.w(TAG, "Import failed: unable to open ZIP stream for uri=$uri")
                 return@withContext false
             }
 
-            foundConfigs.forEach { config ->
+            AppLogger.i(
+                TAG,
+                "ZIP extracted: entryCount=$entryCount sampleEntries=${sampledEntries.joinToString()}"
+            )
+
+            val candidateDirs = tempDir.walkTopDown().filter { it.isDirectory }.toList()
+            AppLogger.i(TAG, "Scanning ${candidateDirs.size} directory candidates for avatar configs.")
+
+            val foundConfigs = mutableListOf<AvatarConfig>()
+            candidateDirs.forEach { folder ->
+                delegates.values.forEach { delegate ->
+                    try {
+                        val scanned = delegate.scanDirectory(folder, false)
+                        if (scanned.isNotEmpty()) {
+                            AppLogger.i(
+                                TAG,
+                                "Delegate ${delegate.type} matched ${scanned.size} config(s) at ${folder.absolutePath}"
+                            )
+                            foundConfigs.addAll(scanned)
+                        }
+                    } catch (scanError: Exception) {
+                        AppLogger.e(
+                            TAG,
+                            "Delegate ${delegate.type} scan failed at ${folder.absolutePath}",
+                            scanError
+                        )
+                    }
+                }
+            }
+
+            val uniqueConfigs = foundConfigs.distinctBy { config ->
+                "${config.type}|${config.getBasePath()}|${config.name}"
+            }
+
+            if (uniqueConfigs.isEmpty()) {
+                val topLevelEntries = tempDir.listFiles()?.joinToString { file ->
+                    if (file.isDirectory) "[D]${file.name}" else "[F]${file.name}"
+                } ?: "<empty>"
+                AppLogger.w(TAG, "No valid avatar configs found in the imported ZIP. topLevel=$topLevelEntries")
+                AppLogger.w(
+                    TAG,
+                    "Import hints: DragonBones needs *_tex.json + *_tex.png; WebP needs .webp; MMD needs .pmx/.pmd (optional .vmd)."
+                )
+                return@withContext false
+            }
+
+            uniqueConfigs.forEach { config ->
                 val sourcePath = config.getBasePath()
                 if (sourcePath != null) {
                     val sourceDir = File(sourcePath)
                     if (sourceDir.exists()) {
                         val targetDir = File(userAvatarDir, sourceDir.name)
                         sourceDir.copyRecursively(targetDir, true)
-                        AppLogger.i(TAG, "Imported avatar model: ${sourceDir.name}")
+                        AppLogger.i(
+                            TAG,
+                            "Imported avatar model: name=${sourceDir.name}, type=${config.type}, target=${targetDir.absolutePath}"
+                        )
                     } else {
                         AppLogger.w(TAG, "Source directory does not exist for imported config: ${config.id} at $sourcePath")
                     }
@@ -378,7 +512,9 @@ class AvatarRepository(
                     AppLogger.w(TAG, "Could not find path for imported config: ${config.id}")
                 }
             }
+
             refreshAvatars()
+            AppLogger.i(TAG, "Import completed: importedConfigs=${uniqueConfigs.size}")
             true
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to import avatar from ZIP", e)

@@ -19,4 +19,16 @@ object MmdNative {
     @JvmStatic external fun nativeReadMotionModelName(pathMotion: String): String?
 
     @JvmStatic external fun nativeReadMotionSummary(pathMotion: String): LongArray?
+
+    @JvmStatic external fun nativeBuildPreviewMesh(pathModel: String): FloatArray?
+
+    @JvmStatic external fun nativeBuildPreviewBatches(pathModel: String): IntArray?
+
+    @JvmStatic external fun nativeReadPreviewTexturePath(pathModel: String): String?
+
+    @JvmStatic external fun nativeReadPreviewTexturePaths(pathModel: String): Array<String>?
+
+    @JvmStatic external fun nativeDecodeImageSize(pathImage: String): IntArray?
+
+    @JvmStatic external fun nativeDecodeImageRgba(pathImage: String): ByteArray?
 }

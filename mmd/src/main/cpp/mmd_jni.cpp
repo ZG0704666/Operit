@@ -6,14 +6,21 @@
 #include <cctype>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
 #include "Saba/Model/MMD/PMDFile.h"
 #include "Saba/Model/MMD/PMXFile.h"
 #include "Saba/Model/MMD/VMDFile.h"
+
+#ifndef STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#endif
+#include "stb_image.h"
 #endif
 
 #define TAG "MmdNative"
@@ -84,6 +91,71 @@ std::string getFileExtension(const std::string& filepath) {
     return toLowerAscii(filepath.substr(dotPosition + 1));
 }
 
+std::string trimAscii(std::string value) {
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+
+    value.erase(std::find_if(value.rbegin(), value.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), value.end());
+
+    return value;
+}
+
+std::string normalizePathSeparators(std::string path) {
+    std::replace(path.begin(), path.end(), '\\', '/');
+    return path;
+}
+
+bool isAbsolutePath(const std::string& path) {
+    if (path.empty()) {
+        return false;
+    }
+
+    if (path[0] == '/' || path[0] == '\\') {
+        return true;
+    }
+
+    return path.size() > 1 && path[1] == ':';
+}
+
+std::string getParentDirectory(const std::string& path) {
+    const size_t slashPosition = path.find_last_of("/\\");
+    if (slashPosition == std::string::npos) {
+        return "";
+    }
+
+    return path.substr(0, slashPosition);
+}
+
+std::string joinPaths(const std::string& base, const std::string& relative) {
+    if (base.empty()) {
+        return relative;
+    }
+    if (relative.empty()) {
+        return base;
+    }
+
+    if (base.back() == '/' || base.back() == '\\') {
+        return base + relative;
+    }
+
+    return base + "/" + relative;
+}
+
+bool isSupportedDiffuseTextureExtension(const std::string& path) {
+    const std::string ext = getFileExtension(path);
+    return ext == "png" ||
+        ext == "jpg" ||
+        ext == "jpeg" ||
+        ext == "bmp" ||
+        ext == "tga" ||
+        ext == "gif" ||
+        ext == "webp" ||
+        ext == "dds";
+}
+
 #if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
 
 enum class ModelFileType {
@@ -114,6 +186,49 @@ struct MotionParseResult {
     int64_t ikCount = 0;
 };
 
+struct PreviewRenderData {
+    std::vector<float> vertices;
+    std::vector<int32_t> batches;
+    std::vector<std::string> texturePaths;
+};
+
+struct PreviewRenderCache {
+    std::string modelPath;
+    PreviewRenderData data;
+};
+
+struct ImageDecodeCache {
+    std::string imagePath;
+    int width = 0;
+    int height = 0;
+    std::vector<uint8_t> rgbaPixels;
+};
+
+constexpr size_t kPreviewVertexStride = 8;
+constexpr size_t kMaxPreviewTriangles = 500000;
+
+std::mutex gPreviewCacheMutex;
+PreviewRenderCache gPreviewCache;
+
+std::mutex gImageDecodeCacheMutex;
+ImageDecodeCache gImageDecodeCache;
+
+inline void appendPreviewVertex(
+    std::vector<float>* outVertices,
+    const glm::vec3& position,
+    const glm::vec3& normal,
+    const glm::vec2& uv
+) {
+    outVertices->push_back(position.x);
+    outVertices->push_back(position.y);
+    outVertices->push_back(position.z);
+    outVertices->push_back(normal.x);
+    outVertices->push_back(normal.y);
+    outVertices->push_back(normal.z);
+    outVertices->push_back(uv.x);
+    outVertices->push_back(uv.y);
+}
+
 ModelFileType detectModelFileType(const std::string& modelPath) {
     const std::string extension = getFileExtension(modelPath);
     if (extension == "pmd") {
@@ -123,6 +238,75 @@ ModelFileType detectModelFileType(const std::string& modelPath) {
         return ModelFileType::Pmx;
     }
     return ModelFileType::Unknown;
+}
+
+int64_t toModelFormatId(ModelFileType fileType) {
+    if (fileType == ModelFileType::Pmd) {
+        return kModelFormatPmd;
+    }
+    if (fileType == ModelFileType::Pmx) {
+        return kModelFormatPmx;
+    }
+    return 0;
+}
+
+std::string normalizeTexturePath(const std::string& baseDir, const std::string& textureNameRaw) {
+    std::string textureName = normalizePathSeparators(trimAscii(textureNameRaw));
+    if (textureName.empty()) {
+        return "";
+    }
+
+    if (isAbsolutePath(textureName)) {
+        return normalizePathSeparators(textureName);
+    }
+
+    return normalizePathSeparators(joinPaths(baseDir, textureName));
+}
+
+bool appendBatch(
+    std::vector<int32_t>* outBatches,
+    size_t startVertex,
+    size_t vertexCount,
+    int textureSlot,
+    std::string* outError
+) {
+    if (vertexCount == 0) {
+        return true;
+    }
+
+    if (startVertex > static_cast<size_t>(std::numeric_limits<int32_t>::max()) ||
+        vertexCount > static_cast<size_t>(std::numeric_limits<int32_t>::max())) {
+        if (outError != nullptr) {
+            *outError = "preview batch index overflow.";
+        }
+        return false;
+    }
+
+    const int32_t safeTextureSlot = textureSlot >= 0 ? static_cast<int32_t>(textureSlot) : static_cast<int32_t>(-1);
+    outBatches->push_back(static_cast<int32_t>(startVertex));
+    outBatches->push_back(static_cast<int32_t>(vertexCount));
+    outBatches->push_back(safeTextureSlot);
+    return true;
+}
+
+int getOrCreateTextureSlot(
+    const std::string& texturePath,
+    PreviewRenderData* outData,
+    std::unordered_map<std::string, int>* slotMap
+) {
+    if (texturePath.empty() || outData == nullptr || slotMap == nullptr) {
+        return -1;
+    }
+
+    const auto found = slotMap->find(texturePath);
+    if (found != slotMap->end()) {
+        return found->second;
+    }
+
+    const int newSlot = static_cast<int>(outData->texturePaths.size());
+    outData->texturePaths.push_back(texturePath);
+    (*slotMap)[texturePath] = newSlot;
+    return newSlot;
 }
 
 bool parseModelFile(const std::string& modelPath, ModelParseResult* outResult, std::string* outError) {
@@ -216,6 +400,357 @@ bool parseMotionFile(const std::string& motionPath, MotionParseResult* outResult
     return true;
 }
 
+bool buildPreviewRenderDataFromPmd(
+    const std::string& modelPath,
+    PreviewRenderData* outData,
+    std::string* outError
+) {
+    saba::PMDFile pmdFile;
+    if (!saba::ReadPMDFile(&pmdFile, modelPath.c_str())) {
+        if (outError != nullptr) {
+            *outError = "failed to parse PMD file: " + modelPath;
+        }
+        return false;
+    }
+
+    if (pmdFile.m_faces.size() > kMaxPreviewTriangles) {
+        if (outError != nullptr) {
+            *outError = "model is too complex for preview renderer (PMD face count limit exceeded).";
+        }
+        return false;
+    }
+
+    const std::string baseDir = getParentDirectory(normalizePathSeparators(modelPath));
+
+    outData->vertices.clear();
+    outData->batches.clear();
+    outData->texturePaths.clear();
+
+    outData->vertices.reserve(pmdFile.m_faces.size() * 3 * kPreviewVertexStride);
+
+    std::unordered_map<std::string, int> textureSlotMap;
+    size_t faceCursor = 0;
+
+    for (const auto& material : pmdFile.m_materials) {
+        const size_t startVertex = outData->vertices.size() / kPreviewVertexStride;
+
+        std::string textureName = material.m_textureName.ToUtf8String();
+        const size_t separatorPosition = textureName.find('*');
+        if (separatorPosition != std::string::npos) {
+            textureName = textureName.substr(0, separatorPosition);
+        }
+
+        std::string texturePath = normalizeTexturePath(baseDir, textureName);
+        if (!isSupportedDiffuseTextureExtension(texturePath)) {
+            texturePath.clear();
+        }
+        const int textureSlot = getOrCreateTextureSlot(texturePath, outData, &textureSlotMap);
+
+        const size_t triangleCount = static_cast<size_t>(material.m_faceVertexCount / 3);
+        for (size_t triangleIndex = 0; triangleIndex < triangleCount && faceCursor < pmdFile.m_faces.size(); ++triangleIndex, ++faceCursor) {
+            const auto& face = pmdFile.m_faces[faceCursor];
+            for (int corner = 0; corner < 3; ++corner) {
+                const uint16_t vertexIndex = face.m_vertices[corner];
+                if (vertexIndex >= pmdFile.m_vertices.size()) {
+                    if (outError != nullptr) {
+                        *outError = "invalid PMD face index at face " + std::to_string(faceCursor);
+                    }
+                    return false;
+                }
+
+                const auto& vertex = pmdFile.m_vertices[vertexIndex];
+                appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+            }
+        }
+
+        const size_t endVertex = outData->vertices.size() / kPreviewVertexStride;
+        if (!appendBatch(&outData->batches, startVertex, endVertex - startVertex, textureSlot, outError)) {
+            return false;
+        }
+    }
+
+    if (faceCursor < pmdFile.m_faces.size()) {
+        const size_t startVertex = outData->vertices.size() / kPreviewVertexStride;
+        for (; faceCursor < pmdFile.m_faces.size(); ++faceCursor) {
+            const auto& face = pmdFile.m_faces[faceCursor];
+            for (int corner = 0; corner < 3; ++corner) {
+                const uint16_t vertexIndex = face.m_vertices[corner];
+                if (vertexIndex >= pmdFile.m_vertices.size()) {
+                    if (outError != nullptr) {
+                        *outError = "invalid PMD face index at face " + std::to_string(faceCursor);
+                    }
+                    return false;
+                }
+
+                const auto& vertex = pmdFile.m_vertices[vertexIndex];
+                appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+            }
+        }
+
+        const size_t endVertex = outData->vertices.size() / kPreviewVertexStride;
+        if (!appendBatch(&outData->batches, startVertex, endVertex - startVertex, -1, outError)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool buildPreviewRenderDataFromPmx(
+    const std::string& modelPath,
+    PreviewRenderData* outData,
+    std::string* outError
+) {
+    saba::PMXFile pmxFile;
+    if (!saba::ReadPMXFile(&pmxFile, modelPath.c_str())) {
+        if (outError != nullptr) {
+            *outError = "failed to parse PMX file: " + modelPath;
+        }
+        return false;
+    }
+
+    if (pmxFile.m_faces.size() > kMaxPreviewTriangles) {
+        if (outError != nullptr) {
+            *outError = "model is too complex for preview renderer (PMX face count limit exceeded).";
+        }
+        return false;
+    }
+
+    const std::string baseDir = getParentDirectory(normalizePathSeparators(modelPath));
+
+    outData->vertices.clear();
+    outData->batches.clear();
+    outData->texturePaths.clear();
+
+    outData->vertices.reserve(pmxFile.m_faces.size() * 3 * kPreviewVertexStride);
+
+    std::unordered_map<std::string, int> textureSlotMap;
+    size_t faceCursor = 0;
+
+    for (const auto& material : pmxFile.m_materials) {
+        const size_t startVertex = outData->vertices.size() / kPreviewVertexStride;
+
+        std::string texturePath;
+        if (material.m_textureIndex >= 0 && material.m_textureIndex < static_cast<int32_t>(pmxFile.m_textures.size())) {
+            texturePath = normalizeTexturePath(baseDir, pmxFile.m_textures[material.m_textureIndex].m_textureName);
+            if (!isSupportedDiffuseTextureExtension(texturePath)) {
+                texturePath.clear();
+            }
+        }
+        const int textureSlot = getOrCreateTextureSlot(texturePath, outData, &textureSlotMap);
+
+        const size_t triangleCount = static_cast<size_t>(material.m_numFaceVertices / 3);
+        for (size_t triangleIndex = 0; triangleIndex < triangleCount && faceCursor < pmxFile.m_faces.size(); ++triangleIndex, ++faceCursor) {
+            const auto& face = pmxFile.m_faces[faceCursor];
+            for (int corner = 0; corner < 3; ++corner) {
+                const uint32_t vertexIndex = face.m_vertices[corner];
+                if (vertexIndex >= pmxFile.m_vertices.size()) {
+                    if (outError != nullptr) {
+                        *outError = "invalid PMX face index at face " + std::to_string(faceCursor);
+                    }
+                    return false;
+                }
+
+                const auto& vertex = pmxFile.m_vertices[vertexIndex];
+                appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+            }
+        }
+
+        const size_t endVertex = outData->vertices.size() / kPreviewVertexStride;
+        if (!appendBatch(&outData->batches, startVertex, endVertex - startVertex, textureSlot, outError)) {
+            return false;
+        }
+    }
+
+    if (faceCursor < pmxFile.m_faces.size()) {
+        const size_t startVertex = outData->vertices.size() / kPreviewVertexStride;
+        for (; faceCursor < pmxFile.m_faces.size(); ++faceCursor) {
+            const auto& face = pmxFile.m_faces[faceCursor];
+            for (int corner = 0; corner < 3; ++corner) {
+                const uint32_t vertexIndex = face.m_vertices[corner];
+                if (vertexIndex >= pmxFile.m_vertices.size()) {
+                    if (outError != nullptr) {
+                        *outError = "invalid PMX face index at face " + std::to_string(faceCursor);
+                    }
+                    return false;
+                }
+
+                const auto& vertex = pmxFile.m_vertices[vertexIndex];
+                appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+            }
+        }
+
+        const size_t endVertex = outData->vertices.size() / kPreviewVertexStride;
+        if (!appendBatch(&outData->batches, startVertex, endVertex - startVertex, -1, outError)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool buildPreviewRenderData(const std::string& modelPath, PreviewRenderData* outData, std::string* outError) {
+    if (outData == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: preview render data output buffer is null.";
+        }
+        return false;
+    }
+
+    const ModelFileType modelFileType = detectModelFileType(modelPath);
+    if (modelFileType == ModelFileType::Unknown) {
+        if (outError != nullptr) {
+            *outError = "unsupported model extension; expected .pmd or .pmx.";
+        }
+        return false;
+    }
+
+    if (modelFileType == ModelFileType::Pmd) {
+        if (!buildPreviewRenderDataFromPmd(modelPath, outData, outError)) {
+            return false;
+        }
+    } else {
+        if (!buildPreviewRenderDataFromPmx(modelPath, outData, outError)) {
+            return false;
+        }
+    }
+
+    if (outData->vertices.empty()) {
+        if (outError != nullptr) {
+            *outError = "preview mesh is empty.";
+        }
+        return false;
+    }
+
+    if (outData->batches.empty()) {
+        if (outError != nullptr) {
+            *outError = "preview batch list is empty.";
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool getPreviewRenderDataCached(const std::string& modelPath, PreviewRenderData* outData, std::string* outError) {
+    if (outData == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: preview render data output buffer is null.";
+        }
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(gPreviewCacheMutex);
+        if (gPreviewCache.modelPath == modelPath && !gPreviewCache.data.vertices.empty()) {
+            *outData = gPreviewCache.data;
+            return true;
+        }
+    }
+
+    PreviewRenderData newData;
+    if (!buildPreviewRenderData(modelPath, &newData, outError)) {
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(gPreviewCacheMutex);
+        gPreviewCache.modelPath = modelPath;
+        gPreviewCache.data = std::move(newData);
+        *outData = gPreviewCache.data;
+    }
+
+    return true;
+}
+
+bool decodeImageRgbaCached(
+    const std::string& imagePath,
+    int* outWidth,
+    int* outHeight,
+    std::vector<uint8_t>* outPixels,
+    std::string* outError
+) {
+    if (imagePath.empty()) {
+        if (outError != nullptr) {
+            *outError = "image path is empty.";
+        }
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(gImageDecodeCacheMutex);
+        if (gImageDecodeCache.imagePath == imagePath &&
+            gImageDecodeCache.width > 0 &&
+            gImageDecodeCache.height > 0 &&
+            !gImageDecodeCache.rgbaPixels.empty()) {
+            if (outWidth != nullptr) {
+                *outWidth = gImageDecodeCache.width;
+            }
+            if (outHeight != nullptr) {
+                *outHeight = gImageDecodeCache.height;
+            }
+            if (outPixels != nullptr) {
+                *outPixels = gImageDecodeCache.rgbaPixels;
+            }
+            return true;
+        }
+    }
+
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    stbi_uc* decodedPixels = stbi_load(imagePath.c_str(), &width, &height, &channels, 4);
+    if (decodedPixels == nullptr) {
+        if (outError != nullptr) {
+            const char* reason = stbi_failure_reason();
+            *outError = "failed to decode image: " + imagePath + (reason != nullptr ? (" (" + std::string(reason) + ")") : "");
+        }
+        return false;
+    }
+
+    if (width <= 0 || height <= 0) {
+        stbi_image_free(decodedPixels);
+        if (outError != nullptr) {
+            *outError = "decoded image size is invalid: " + imagePath;
+        }
+        return false;
+    }
+
+    const size_t totalSize = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
+    if (totalSize == 0) {
+        stbi_image_free(decodedPixels);
+        if (outError != nullptr) {
+            *outError = "decoded image pixel count is zero: " + imagePath;
+        }
+        return false;
+    }
+
+    std::vector<uint8_t> rgbaPixels(decodedPixels, decodedPixels + totalSize);
+    stbi_image_free(decodedPixels);
+
+    if (outWidth != nullptr) {
+        *outWidth = width;
+    }
+    if (outHeight != nullptr) {
+        *outHeight = height;
+    }
+    if (outPixels != nullptr) {
+        *outPixels = rgbaPixels;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(gImageDecodeCacheMutex);
+        gImageDecodeCache.imagePath = imagePath;
+        gImageDecodeCache.width = width;
+        gImageDecodeCache.height = height;
+        gImageDecodeCache.rgbaPixels = std::move(rgbaPixels);
+    }
+
+    return true;
+}
+
+#endif
+
 jlongArray buildLongArray(JNIEnv* env, std::initializer_list<jlong> values) {
     jlongArray result = env->NewLongArray(static_cast<jsize>(values.size()));
     if (result == nullptr) {
@@ -227,17 +762,81 @@ jlongArray buildLongArray(JNIEnv* env, std::initializer_list<jlong> values) {
     return result;
 }
 
-int64_t toModelFormatId(ModelFileType fileType) {
-    if (fileType == ModelFileType::Pmd) {
-        return kModelFormatPmd;
+jintArray buildIntArray(JNIEnv* env, const std::vector<int32_t>& values) {
+    if (values.size() > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
+        return nullptr;
     }
-    if (fileType == ModelFileType::Pmx) {
-        return kModelFormatPmx;
+
+    jintArray result = env->NewIntArray(static_cast<jsize>(values.size()));
+    if (result == nullptr) {
+        return nullptr;
     }
-    return 0;
+
+    if (!values.empty()) {
+        env->SetIntArrayRegion(result, 0, static_cast<jsize>(values.size()), reinterpret_cast<const jint*>(values.data()));
+    }
+    return result;
 }
 
-#endif
+jfloatArray buildFloatArray(JNIEnv* env, const std::vector<float>& values) {
+    if (values.size() > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
+        return nullptr;
+    }
+
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(values.size()));
+    if (result == nullptr) {
+        return nullptr;
+    }
+
+    if (!values.empty()) {
+        env->SetFloatArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+    }
+    return result;
+}
+
+jbyteArray buildByteArray(JNIEnv* env, const std::vector<uint8_t>& values) {
+    if (values.size() > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
+        return nullptr;
+    }
+
+    jbyteArray result = env->NewByteArray(static_cast<jsize>(values.size()));
+    if (result == nullptr) {
+        return nullptr;
+    }
+
+    if (!values.empty()) {
+        env->SetByteArrayRegion(
+            result,
+            0,
+            static_cast<jsize>(values.size()),
+            reinterpret_cast<const jbyte*>(values.data())
+        );
+    }
+    return result;
+}
+
+jobjectArray buildStringArray(JNIEnv* env, const std::vector<std::string>& values) {
+    jclass stringClass = env->FindClass("java/lang/String");
+    if (stringClass == nullptr) {
+        return nullptr;
+    }
+
+    jobjectArray result = env->NewObjectArray(static_cast<jsize>(values.size()), stringClass, nullptr);
+    if (result == nullptr) {
+        return nullptr;
+    }
+
+    for (jsize index = 0; index < static_cast<jsize>(values.size()); ++index) {
+        jstring javaString = stringToJString(env, values[static_cast<size_t>(index)]);
+        if (javaString == nullptr) {
+            return nullptr;
+        }
+        env->SetObjectArrayElement(result, index, javaString);
+        env->DeleteLocalRef(javaString);
+    }
+
+    return result;
+}
 
 } // namespace
 
@@ -384,6 +983,205 @@ Java_com_ai_assistance_mmd_MmdNative_nativeReadMotionSummary(JNIEnv* env, jclass
     setLastError(kUnavailableReason);
     (void) env;
     (void) pathMotion;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeBuildPreviewMesh(JNIEnv* env, jclass, jstring pathModel) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string modelPath = jstringToString(env, pathModel);
+    if (modelPath.empty()) {
+        setLastError("model path is empty.");
+        return nullptr;
+    }
+
+    PreviewRenderData previewData;
+    std::string parseError;
+    if (!getPreviewRenderDataCached(modelPath, &previewData, &parseError)) {
+        setLastError(parseError);
+        return nullptr;
+    }
+
+    jfloatArray result = buildFloatArray(env, previewData.vertices);
+    if (result == nullptr) {
+        setLastError("failed to allocate JNI float array for preview mesh.");
+        return nullptr;
+    }
+
+    clearLastError();
+    return result;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathModel;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeBuildPreviewBatches(JNIEnv* env, jclass, jstring pathModel) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string modelPath = jstringToString(env, pathModel);
+    if (modelPath.empty()) {
+        setLastError("model path is empty.");
+        return nullptr;
+    }
+
+    PreviewRenderData previewData;
+    std::string parseError;
+    if (!getPreviewRenderDataCached(modelPath, &previewData, &parseError)) {
+        setLastError(parseError);
+        return nullptr;
+    }
+
+    jintArray result = buildIntArray(env, previewData.batches);
+    if (result == nullptr) {
+        setLastError("failed to allocate JNI int array for preview batches.");
+        return nullptr;
+    }
+
+    clearLastError();
+    return result;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathModel;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeReadPreviewTexturePath(JNIEnv* env, jclass, jstring pathModel) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string modelPath = jstringToString(env, pathModel);
+    if (modelPath.empty()) {
+        setLastError("model path is empty.");
+        return nullptr;
+    }
+
+    PreviewRenderData previewData;
+    std::string parseError;
+    if (!getPreviewRenderDataCached(modelPath, &previewData, &parseError)) {
+        setLastError(parseError);
+        return nullptr;
+    }
+
+    if (previewData.texturePaths.empty()) {
+        clearLastError();
+        return nullptr;
+    }
+
+    clearLastError();
+    return stringToJString(env, previewData.texturePaths.front());
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathModel;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeReadPreviewTexturePaths(JNIEnv* env, jclass, jstring pathModel) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string modelPath = jstringToString(env, pathModel);
+    if (modelPath.empty()) {
+        setLastError("model path is empty.");
+        return nullptr;
+    }
+
+    PreviewRenderData previewData;
+    std::string parseError;
+    if (!getPreviewRenderDataCached(modelPath, &previewData, &parseError)) {
+        setLastError(parseError);
+        return nullptr;
+    }
+
+    jobjectArray result = buildStringArray(env, previewData.texturePaths);
+    if (result == nullptr) {
+        setLastError("failed to allocate JNI string array for preview texture paths.");
+        return nullptr;
+    }
+
+    clearLastError();
+    return result;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathModel;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeDecodeImageSize(JNIEnv* env, jclass, jstring pathImage) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string imagePath = jstringToString(env, pathImage);
+    if (imagePath.empty()) {
+        setLastError("image path is empty.");
+        return nullptr;
+    }
+
+    int width = 0;
+    int height = 0;
+    std::string decodeError;
+    if (!decodeImageRgbaCached(imagePath, &width, &height, nullptr, &decodeError)) {
+        setLastError(decodeError);
+        return nullptr;
+    }
+
+    std::vector<int32_t> sizeData = {
+        static_cast<int32_t>(width),
+        static_cast<int32_t>(height)
+    };
+
+    jintArray result = buildIntArray(env, sizeData);
+    if (result == nullptr) {
+        setLastError("failed to allocate JNI int array for decoded image size.");
+        return nullptr;
+    }
+
+    clearLastError();
+    return result;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathImage;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeDecodeImageRgba(JNIEnv* env, jclass, jstring pathImage) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string imagePath = jstringToString(env, pathImage);
+    if (imagePath.empty()) {
+        setLastError("image path is empty.");
+        return nullptr;
+    }
+
+    int width = 0;
+    int height = 0;
+    std::vector<uint8_t> rgbaPixels;
+    std::string decodeError;
+    if (!decodeImageRgbaCached(imagePath, &width, &height, &rgbaPixels, &decodeError)) {
+        setLastError(decodeError);
+        return nullptr;
+    }
+
+    jbyteArray result = buildByteArray(env, rgbaPixels);
+    if (result == nullptr) {
+        setLastError("failed to allocate JNI byte array for decoded image rgba.");
+        return nullptr;
+    }
+
+    clearLastError();
+    return result;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathImage;
     return nullptr;
 #endif
 }

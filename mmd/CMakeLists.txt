@@ -24,6 +24,7 @@ if (DEFINED OPERIT_SABA_DIR)
         "${OPERIT_SABA_DIR}/src"
         "${OPERIT_SABA_DIR}/external/glm/include"
         "${OPERIT_SABA_DIR}/external/spdlog/include"
+        "${OPERIT_SABA_DIR}/external/stb/include"
     )
 
     target_sources(MmdWrapper PRIVATE
