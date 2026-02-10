@@ -196,16 +196,36 @@ class MCPDeployViewModel(private val context: Context, private val mcpRepository
                     customCommands = customCommands,
                     environmentVariables = _environmentVariables.value,
                     statusCallback = { status ->
-                        _deploymentStatus.value = status
+                        var consumedAsOutput = false
 
                         // 收集输出消息
                         if (status is MCPDeployer.DeploymentStatus.InProgress) {
-                            if (status.message.startsWith(context.getString(R.string.mcp_deploy_output_prefix))) {
-                                val newMessage = status.message.removePrefix(context.getString(R.string.mcp_deploy_output_prefix)).trim()
-                                if (newMessage.isNotEmpty()) {
-                                    _outputMessages.value = _outputMessages.value + newMessage
+                            val outputPrefix = context.getString(R.string.mcp_deployment_output_prefix).trimEnd()
+                            val legacyPrefix = context.getString(R.string.mcp_deploy_output_prefix).trimEnd()
+                            val rawMessage = status.message
+
+                            val outputContent = when {
+                                rawMessage.startsWith(outputPrefix) ->
+                                    rawMessage.removePrefix(outputPrefix).trimStart()
+                                rawMessage.startsWith(legacyPrefix) ->
+                                    rawMessage.removePrefix(legacyPrefix).trimStart()
+                                else -> null
+                            }
+
+                            if (!outputContent.isNullOrEmpty()) {
+                                val newLines = outputContent
+                                    .replace("\r\n", "\n")
+                                    .split('\n')
+                                    .filter { it.isNotBlank() }
+                                if (newLines.isNotEmpty()) {
+                                    _outputMessages.value = _outputMessages.value + newLines
+                                    consumedAsOutput = true
                                 }
                             }
+                        }
+
+                        if (!consumedAsOutput) {
+                            _deploymentStatus.value = status
                         }
                     }
             )

@@ -14,6 +14,7 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 
 /**
@@ -54,6 +55,31 @@ class MCPDeployer(private val context: Context) {
             val chunk = output.substring(start, end)
             statusCallback(DeploymentStatus.InProgress("$prefix$chunk"))
             start = end
+        }
+    }
+
+    private suspend fun executeCommandWithStreaming(
+        terminal: Terminal,
+        sessionId: String,
+        command: String,
+        statusCallback: (DeploymentStatus) -> Unit
+    ): String? {
+        return try {
+            val outputBuilder = StringBuilder()
+            var hasEvent = false
+
+            terminal.executeCommandFlow(sessionId, command).collect { event ->
+                hasEvent = true
+                if (event.outputChunk.isNotEmpty()) {
+                    outputBuilder.append(event.outputChunk)
+                    emitCommandOutput(event.outputChunk, statusCallback)
+                }
+            }
+
+            if (hasEvent) outputBuilder.toString() else null
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "流式执行命令失败: $command", e)
+            null
         }
     }
     /**
@@ -347,11 +373,12 @@ class MCPDeployer(private val context: Context) {
                 )
                 AppLogger.d(TAG, "执行命令 (${index + 1}/${deployCommands.size}): $cleanCommand")
 
-                val commandExecuted = terminal.executeCommand(sessionId, cleanCommand)
-
-                if (commandExecuted != null) {
-                    emitCommandOutput(commandExecuted, statusCallback)
-                }
+                val commandExecuted = executeCommandWithStreaming(
+                    terminal = terminal,
+                    sessionId = sessionId,
+                    command = cleanCommand,
+                    statusCallback = statusCallback
+                )
 
                 // 如果命令失败
                 if (commandExecuted == null) {

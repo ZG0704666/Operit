@@ -448,6 +448,33 @@ class MCPBridge private constructor(private val context: Context) {
                     }
                 }
 
+        private fun sendCommandThroughStream(
+            command: JSONObject,
+            writer: PrintWriter,
+            reader: BufferedReader,
+            cmdId: String,
+            cmdType: String,
+            serviceName: String?,
+            emptyResponseMessage: String
+        ): JSONObject? {
+            return try {
+                writer.println(command.toString())
+                writer.flush()
+
+                val response = reader.readLine()
+                if (response.isNullOrBlank()) {
+                    AppLogger.e(TAG, emptyResponseMessage)
+                    null
+                } else {
+                    AppLogger.d(TAG, "命令[$cmdId: $cmdType${if (!serviceName.isNullOrBlank()) " service=$serviceName" else ""}]响应: $response")
+                    JSONObject(response)
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "命令[$cmdId: $cmdType]通信或解析失败: ${e.message}")
+                null
+            }
+        }
+
         suspend fun sendCommand(
             command: JSONObject,
             host: String = DEFAULT_HOST,
@@ -490,6 +517,38 @@ class MCPBridge private constructor(private val context: Context) {
 
                         AppLogger.d(TAG, logMessage)
 
+                        if (cmdType == "spawn") {
+                            var dedicatedSocket: Socket? = null
+                            return@withContext try {
+                                dedicatedSocket = Socket().apply {
+                                    reuseAddress = true
+                                    soTimeout = 180000
+                                    connect(java.net.InetSocketAddress(host, actualPort), 5000)
+                                }
+
+                                val dedicatedWriter = PrintWriter(dedicatedSocket.getOutputStream(), true)
+                                val dedicatedReader = BufferedReader(InputStreamReader(dedicatedSocket.getInputStream()))
+
+                                sendCommandThroughStream(
+                                    command = command,
+                                    writer = dedicatedWriter,
+                                    reader = dedicatedReader,
+                                    cmdId = cmdId,
+                                    cmdType = cmdType,
+                                    serviceName = serviceName,
+                                    emptyResponseMessage = "命令[$cmdId: $cmdType]没有收到响应（独立连接）"
+                                )
+                            } catch (e: Exception) {
+                                AppLogger.e(TAG, "发送独立连接命令失败[$cmdType]: ${e.message}")
+                                null
+                            } finally {
+                                try {
+                                    dedicatedSocket?.close()
+                                } catch (_: Exception) {
+                                }
+                            }
+                        }
+
                         return@withContext commandConnectionMutex.withLock {
                             val canReuse = isCommandSocketReusable(host, actualPort, nowMs)
                             if (!canReuse) {
@@ -520,73 +579,24 @@ class MCPBridge private constructor(private val context: Context) {
                                 return@withLock null
                             }
 
-                            try {
-                                writer.println(command.toString())
-                                writer.flush()
+                            val jsonResponse = sendCommandThroughStream(
+                                command = command,
+                                writer = writer,
+                                reader = reader,
+                                cmdId = cmdId,
+                                cmdType = cmdType,
+                                serviceName = serviceName,
+                                emptyResponseMessage = "命令[$cmdId: $cmdType]没有收到响应"
+                            )
 
-                                val response = reader.readLine()
-                                if (response != null) {
-                                    try {
-                                        val jsonResponse = JSONObject(response)
-                                        val success = jsonResponse.optBoolean("success", false)
-                                        val result = jsonResponse.optJSONObject("result")
-                                        val error = jsonResponse.optJSONObject("error")
-
-                                        AppLogger.d(TAG, "命令[$cmdId: $cmdType]原始JSON响应: $response")
-
-                                        val responseLog = StringBuilder()
-                                        responseLog.append("${context.getString(R.string.mcp_send_command)}[$cmdId: $cmdType")
-                                        if (serviceName != null) responseLog.append(" ${context.getString(R.string.mcp_service_label)}: $serviceName")
-                                        responseLog.append("]${context.getString(R.string.mcp_command_response)}: ${if (success) context.getString(R.string.mcp_success) else context.getString(R.string.mcp_failed)} ")
-
-                                        if (result != null) {
-                                            if (cmdType == "listtools" && result.has("tools")) {
-                                                val tools = result.optJSONArray("tools")
-                                                val toolCount = tools?.length() ?: 0
-                                                responseLog.append(context.getString(R.string.mcp_tools_count, toolCount))
-                                                if (toolCount > 0) {
-                                                    responseLog.append(" [")
-                                                    for (i in 0 until toolCount) {
-                                                        val tool = tools?.optJSONObject(i)
-                                                        val toolName = tool?.optString("name", context.getString(R.string.mcp_unnamed_tool))
-                                                        if (i > 0) responseLog.append(", ")
-                                                        responseLog.append(toolName)
-                                                        if (i >= 2 && toolCount > 3) {
-                                                            responseLog.append("... (${context.getString(R.string.mcp_tools_total, toolCount)})")
-                                                            break
-                                                        }
-                                                    }
-                                                    responseLog.append("]")
-                                                }
-                                            } else {
-                                                responseLog.append("${context.getString(R.string.mcp_result)}: $result")
-                                            }
-                                        }
-
-                                        if (error != null) responseLog.append(" ${context.getString(R.string.mcp_error)}: $error")
-
-                                        AppLogger.d(TAG, responseLog.toString())
-
-                                        commandLastUsedAtMs = System.currentTimeMillis()
-                                        scheduleCommandConnectionCloseLocked()
-
-                                        return@withLock jsonResponse
-                                    } catch (e: Exception) {
-                                        AppLogger.e(TAG, "解析响应失败: $response", e)
-                                        closeCommandConnectionLocked()
-                                        return@withLock null
-                                    }
-                                } else {
-                                    AppLogger.e(TAG, "命令[$cmdId: $cmdType]没有收到响应")
-                                    closeCommandConnectionLocked()
-                                    return@withLock null
-                                }
-                            } catch (e: Exception) {
-                                val errorCmdType = command.optString("command", "unknown")
-                                AppLogger.e(TAG, "发送命令失败[$errorCmdType]: ${e.message}")
+                            if (jsonResponse == null) {
                                 closeCommandConnectionLocked()
                                 return@withLock null
                             }
+
+                            commandLastUsedAtMs = System.currentTimeMillis()
+                            scheduleCommandConnectionCloseLocked()
+                            return@withLock jsonResponse
                         }
                     } catch (e: Exception) {
                         // 简化错误日志 - 只记录关键信息

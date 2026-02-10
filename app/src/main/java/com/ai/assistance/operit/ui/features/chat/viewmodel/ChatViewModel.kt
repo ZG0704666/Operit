@@ -180,6 +180,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val enableMemoryQuery: StateFlow<Boolean> by lazy { apiConfigDelegate.enableMemoryQuery }
     val enableTools: StateFlow<Boolean> by lazy { apiConfigDelegate.enableTools }
     val disableStreamOutput: StateFlow<Boolean> by lazy { apiConfigDelegate.disableStreamOutput }
+    val disableUserPreferenceDescription: StateFlow<Boolean> by lazy {
+        apiConfigDelegate.disableUserPreferenceDescription
+    }
+    val disableLatexDescription: StateFlow<Boolean> by lazy { apiConfigDelegate.disableLatexDescription }
 
     val summaryTokenThreshold: StateFlow<Float> by lazy { apiConfigDelegate.summaryTokenThreshold }
     val enableSummary: StateFlow<Boolean> by lazy { apiConfigDelegate.enableSummary }
@@ -681,6 +685,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     fun toggleDisableStreamOutput() {
         apiConfigDelegate.toggleDisableStreamOutput()
+    }
+
+    fun toggleDisableUserPreferenceDescription() {
+        apiConfigDelegate.toggleDisableUserPreferenceDescription()
+    }
+
+    fun toggleDisableLatexDescription() {
+        apiConfigDelegate.toggleDisableLatexDescription()
     }
 
     // 聊天历史相关方法

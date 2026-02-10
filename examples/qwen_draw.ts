@@ -49,7 +49,7 @@
         { "name": "file_name", "description": { "zh": "自定义保存到本地的文件名（不含路径和扩展名）", "en": "Custom output file name (without path or extension)" }, "type": "string", "required": false },
         { "name": "api_base_url", "description": { "zh": "DashScope API Base URL（不传则取环境变量 DASHSCOPE_API_BASE_URL 或默认 https://dashscope.aliyuncs.com ）", "en": "DashScope API base URL (optional; falls back to env DASHSCOPE_API_BASE_URL or https://dashscope.aliyuncs.com)" }, "type": "string", "required": false },
         { "name": "poll_interval_ms", "description": { "zh": "轮询间隔（毫秒），默认 2000", "en": "Polling interval (milliseconds), default 2000" }, "type": "number", "required": false },
-        { "name": "max_wait_time_ms", "description": { "zh": "最长等待时间（毫秒），默认 5 分钟", "en": "Max wait time (milliseconds), default 5 minutes" }, "type": "number", "required": false }
+        { "name": "max_wait_time_ms", "description": { "zh": "最长等待时间（毫秒），默认 15 分钟", "en": "Max wait time (milliseconds), default 15 minutes" }, "type": "number", "required": false }
       ]
     }
   ]
@@ -59,7 +59,12 @@
 /// <reference path="./types/index.d.ts" />
 
 const qwenDraw = (function () {
-    const client = OkHttp.newClient();
+    const HTTP_TIMEOUT_MS = 180000;
+    const client = OkHttp.newBuilder()
+        .connectTimeout(HTTP_TIMEOUT_MS)
+        .readTimeout(HTTP_TIMEOUT_MS)
+        .writeTimeout(HTTP_TIMEOUT_MS)
+        .build();
 
     const DEFAULT_API_BASE_URL = "https://dashscope.aliyuncs.com";
     const DEFAULT_MODEL = "qwen-image-plus";
@@ -69,7 +74,7 @@ const qwenDraw = (function () {
     const DRAWS_DIR = `${OPERIT_DIR}/draws`;
 
     const POLL_INTERVAL_MS = 2000;
-    const MAX_WAIT_TIME_MS = 300000;
+    const MAX_WAIT_TIME_MS = 900000;
 
     function isRecord(value: unknown): value is Record<string, unknown> {
         return typeof value === "object" && value !== null;

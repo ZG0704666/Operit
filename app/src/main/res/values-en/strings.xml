@@ -609,6 +609,12 @@
     <string name="auto_read_active">Auto read enabled</string>
     <string name="disable_stream_output">Disable Stream Output</string>
     <string name="disable_stream_output_desc">When disabled, AI responses will be displayed all at once instead of streaming word by word</string>
+    <string name="disable_settings_group">Disable Options</string>
+    <string name="disable_settings_group_desc">This group manages disable toggles that affect response behavior.</string>
+    <string name="disable_user_preference_description">Disable User Preference Description</string>
+    <string name="disable_user_preference_description_desc">When disabled, the system prompt no longer appends the "User preference description" section</string>
+    <string name="disable_latex_description">Disable LaTeX Description</string>
+    <string name="disable_latex_description_desc">When disabled, the system prompt no longer includes LaTeX formula formatting guidance</string>
     <string name="stop_reading">Stop Reading</string>
     <string name="edit_and_resend">Edit &amp; Resend</string>
     <string name="rollback_to_here">Rollback to Here</string>
@@ -6460,7 +6466,7 @@
     <string name="default_character_card">Default Character Card</string>
 
     <!-- PromptTagManager -->
-    <string name="prompt_tag_system_chat_prompt">Use problem library to personalize responses based on user style, preferences, and past information.</string>
+    <string name="prompt_tag_system_chat_prompt"></string>
     <string name="prompt_tag_unnamed">Unnamed Tag</string>
     <string name="prompt_tag_general_chat">General Chat</string>
     <string name="prompt_tag_general_chat_desc">General prompt for chat functionality</string>

@@ -20,7 +20,7 @@ system_tools.js
 tasker.js
 tavily.js
 time.js
-various_output.js
+pollinations_draw.js
 various_search.js
 workflow.js
 xai_draw.js

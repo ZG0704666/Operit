@@ -170,7 +170,7 @@ fun ModelApiSettingsSection(
     var enableToolCallInput by remember(config.id) { mutableStateOf(config.enableToolCall) }
 
     LaunchedEffect(config.id, selectedApiProvider) {
-        if (selectedApiProvider == ApiProviderType.MNN || selectedApiProvider == ApiProviderType.LLAMA_CPP) {
+        if (selectedApiProvider == ApiProviderType.MNN) {
             enableToolCallInput = false
         }
     }
@@ -796,7 +796,7 @@ fun ModelApiSettingsSection(
                 subtitle = stringResource(R.string.enable_tool_call_desc),
                 checked = enableToolCallInput,
                 onCheckedChange = { enableToolCallInput = it },
-                enabled = selectedApiProvider != ApiProviderType.MNN && selectedApiProvider != ApiProviderType.LLAMA_CPP
+                enabled = selectedApiProvider != ApiProviderType.MNN
             )
             
         }

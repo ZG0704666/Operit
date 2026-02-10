@@ -1549,10 +1549,9 @@ open class OpenAIProvider(
 
                 processToolCallChunk(outputIndex, deltaCall, state, emitter)
                 state.lastProcessedToolIndex = outputIndex
-
-                if (eventType == "response.output_item.done") {
-                    closeToolCallIfOpen(outputIndex, state, emitter)
-                }
+                // 某些供应商会先发送 output_item.done，随后才发送 function_call_arguments.delta。
+                // 因此不在 output_item.done 阶段关闭工具调用，改由
+                // response.function_call_arguments.done / response.completed 统一收口。
             }
 
             "response.function_call_arguments.delta" -> {

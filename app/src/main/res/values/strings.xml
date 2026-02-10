@@ -1393,6 +1393,12 @@
     <string name="auto_read_active">自动朗读已启用</string>
     <string name="disable_stream_output">禁用流式输出</string>
     <string name="disable_stream_output_desc">禁用后，AI回复将一次性完整显示，而不是逐字流式显示</string>
+    <string name="disable_settings_group">禁用项</string>
+    <string name="disable_settings_group_desc">该分组用于集中管理会影响回复行为的禁用开关。</string>
+    <string name="disable_user_preference_description">禁用用户偏好描述</string>
+    <string name="disable_user_preference_description_desc">禁用后，系统提示词中不再附加“User preference description”段落</string>
+    <string name="disable_latex_description">禁用 LaTeX 描述</string>
+    <string name="disable_latex_description_desc">禁用后，系统提示词中不再包含 LaTeX 公式格式说明</string>
     <string name="reply_message">回复</string>
     <string name="stop_reading">停止朗读</string>
     <string name="edit_and_resend">编辑并重发</string>
@@ -6448,7 +6454,7 @@
     <string name="default_character_card">默认角色卡</string>
 
     <!-- PromptTagManager -->
-    <string name="prompt_tag_system_chat_prompt">使用问题库根据用户的风格、偏好和过去的信息个性化响应。</string>
+    <string name="prompt_tag_system_chat_prompt"></string>
     <string name="prompt_tag_unnamed">未命名标签</string>
     <string name="prompt_tag_general_chat">通用聊天</string>
     <string name="prompt_tag_general_chat_desc">适用于聊天功能的通用提示词</string>

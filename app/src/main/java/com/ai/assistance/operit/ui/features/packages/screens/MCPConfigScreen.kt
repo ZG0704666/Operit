@@ -97,15 +97,18 @@ fun MCPConfigScreen(
     val installProgress by viewModel.installProgress.collectAsState()
     val installResult by viewModel.installResult.collectAsState()
     val currentInstallingPlugin by viewModel.currentServer.collectAsState()
-    val installedPlugins =
-            mcpRepository.installedPluginIds.collectAsState(initial = emptySet()).value
-
     val mcpConfigSnapshot = mcpLocalServer.mcpConfig.collectAsState().value
     val configuredPluginIds = remember(mcpConfigSnapshot) {
         mcpConfigSnapshot.mcpServers.keys.toSet()
     }
-    val visiblePluginIds = remember(installedPlugins, configuredPluginIds) {
-        installedPlugins + configuredPluginIds
+    val remotePluginIds = remember(mcpConfigSnapshot) {
+        mcpConfigSnapshot.pluginMetadata
+            .filterValues { metadata -> metadata.type == "remote" }
+            .keys
+            .toSet()
+    }
+    val visiblePluginIds = remember(configuredPluginIds, remotePluginIds) {
+        configuredPluginIds + remotePluginIds
     }
 
     // 部署状态
@@ -144,7 +147,10 @@ fun MCPConfigScreen(
             try {
                 refreshMcpScreen()
                 withTimeoutOrNull(20_000) {
-                    mcpRepository.installedPluginIds.first { it.contains(pluginId) }
+                    mcpLocalServer.mcpConfig.first { config ->
+                        config.mcpServers.containsKey(pluginId) ||
+                            config.pluginMetadata.containsKey(pluginId)
+                    }
                 }
             } finally {
                 pendingPluginId = null
@@ -171,7 +177,7 @@ fun MCPConfigScreen(
 
             // 读取并记录已安装的MCP插件列表，但不执行任何操作
             com.ai.assistance.operit.util.AppLogger.d("MCPConfigScreen", "已安装的MCP插件列表:")
-            installedPlugins.forEach { pluginId ->
+            visiblePluginIds.forEach { pluginId ->
                 try {
                     val isEnabled = mcpLocalServer.isServerEnabled(pluginId) // 从配置读取
                     com.ai.assistance.operit.util.AppLogger.d("MCPConfigScreen", "插件ID: $pluginId, 已启用: $isEnabled")
@@ -295,11 +301,10 @@ fun MCPConfigScreen(
         }
     }
 
-    LaunchedEffect(installedPlugins, toolRefreshTrigger) {
+    LaunchedEffect(visiblePluginIds, mcpConfigSnapshot, toolRefreshTrigger) {
         isToolsLoading = true
-        // 只有在安装了插件后才运行
-        if (installedPlugins.isEmpty()) {
-            AppLogger.d("MCPConfigScreen", "No installed plugins, clearing tool list.")
+        if (visiblePluginIds.isEmpty()) {
+            AppLogger.d("MCPConfigScreen", "No configured plugins, clearing tool list.")
             pluginToolsMap = emptyMap()
             isToolsLoading = false
             return@LaunchedEffect
@@ -308,14 +313,21 @@ fun MCPConfigScreen(
         // Give services a moment to initialize after starting
         delay(1000)
 
-        AppLogger.d("MCPConfigScreen", "Fetching tools for installed services...")
+        AppLogger.d("MCPConfigScreen", "Fetching tools for configured deployed services...")
 
         val toolsMap = mutableMapOf<String, List<String>>()
 
         try {
-            // 遍历已安装的插件，获取每个插件的工具信息
-            for (pluginId in installedPlugins) {
+            for (pluginId in visiblePluginIds) {
                 try {
+                    val metadata = mcpConfigSnapshot.pluginMetadata[pluginId]
+                    val isRemote = metadata?.type == "remote"
+                    val isDeployed = if (isRemote) true else mcpLocalServer.isPluginDeployed(pluginId)
+                    if (!isDeployed) {
+                        AppLogger.d("MCPConfigScreen", "Plugin $pluginId is not deployed, skip tool fetch.")
+                        continue
+                    }
+
                     val client = MCPBridgeClient(context, pluginId)
                     val serviceInfo = client.getServiceInfo()
 
@@ -835,7 +847,7 @@ fun MCPConfigScreen(
                         } else if (isRepoImport || isZipImport || isRemoteConnect) {
                             // 检查插件ID是否冲突
                             val proposedId = pluginNameInput.replace(" ", "_").lowercase()
-                            if (mcpRepository.isPluginInstalled(proposedId)) {
+                            if (visiblePluginIds.contains(proposedId)) {
                                 Toast.makeText(context, context.getString(R.string.plugin_already_exists, pluginNameInput), Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
@@ -1141,21 +1153,7 @@ fun MCPConfigScreen(
                                 mcpRepository.getInstalledPluginInfo(pluginId)
                             }
                             val isRemote = pluginInfo?.type == "remote"
-                            val serverConfig = mcpConfigSnapshot.mcpServers[pluginId]
-                            val command = runCatching { serverConfig?.command }.getOrNull()
-                            val hasValidLocalConfig = !command.isNullOrBlank()
-                            val hasValidRemoteConfig = !pluginInfo?.endpoint.isNullOrBlank()
-                            val isConfigValid = if (isRemote) hasValidRemoteConfig else hasValidLocalConfig
-                            val invalidConfigReason = when {
-                                isConfigValid -> null
-                                isRemote -> context.getString(R.string.mcp_config_invalid_missing_endpoint)
-                                serverConfig == null ->
-                                    context.getString(
-                                        R.string.mcp_config_invalid_missing_server_entry,
-                                        pluginId
-                                    )
-                                else -> context.getString(R.string.mcp_config_invalid_missing_command)
-                            }
+                            val invalidConfigReason: String? = null
 
                             // 获取插件服务器状态
                             val pluginServerStatus = mcpLocalServer.getServerStatus(pluginId)
@@ -1206,7 +1204,7 @@ fun MCPConfigScreen(
                                     onClick = {
                                         selectedPluginId = pluginId
                                         pluginConfigJson = mcpLocalServer.getPluginConfig(pluginId)
-                                        selectedPluginForDetails = getPluginAsServer(pluginId, mcpRepository, context)
+                                        selectedPluginForDetails = getPluginAsServer(pluginId, mcpRepository, mcpConfigSnapshot, context)
                                     },
                                     onDeploy = {
                                         pluginToDeploy = pluginId
@@ -1214,7 +1212,7 @@ fun MCPConfigScreen(
                                     },
                                     onEdit = {
                                         // 设置要编辑的服务器并显示对话框
-                                        val serverToEdit = getPluginAsServer(pluginId, mcpRepository,context)
+                                        val serverToEdit = getPluginAsServer(pluginId, mcpRepository, mcpConfigSnapshot, context)
                                         if(serverToEdit != null){
                                             editingRemoteServer = serverToEdit
                                             showRemoteEditDialog = true
@@ -1228,7 +1226,7 @@ fun MCPConfigScreen(
                                     },
                                     isRunning = pluginRunningState.value,
                                     isDeployed = deploySuccessState.value,
-                                    isConfigValid = isConfigValid,
+                                    isConfigValid = isRemote || deploySuccessState.value,
                                     invalidConfigReason = invalidConfigReason
                             )
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp))
@@ -1301,16 +1299,21 @@ private fun getPluginDisplayName(pluginId: String, mcpRepository: MCPRepository)
 private fun getPluginAsServer(
     pluginId: String,
     mcpRepository: MCPRepository,
+    mcpConfigSnapshot: MCPLocalServer.MCPConfig,
     context: Context
 ): MCPLocalServer.PluginMetadata? {
-    val pluginInfo = mcpRepository.getInstalledPluginInfo(pluginId)
+    val metadataFromConfig = mcpConfigSnapshot.pluginMetadata[pluginId]
+    val pluginInfo = metadataFromConfig ?: mcpRepository.getInstalledPluginInfo(pluginId)
+    val serverConfigExists = mcpConfigSnapshot.mcpServers.containsKey(pluginId)
+    val isRemote = pluginInfo?.type == "remote"
+    val isConfigured = serverConfigExists || isRemote || (pluginInfo?.isInstalled == true)
 
     // 尝试从内存中的服务器列表查找
     val existingServer = mcpRepository.mcpServers.value.find { it.id == pluginId }
 
     // 如果在列表中找到，直接使用
     if (existingServer != null) {
-        return existingServer.copy(isInstalled = true)
+        return existingServer.copy(isInstalled = isConfigured)
     }
 
     val displayName = getPluginDisplayName(pluginId, mcpRepository)
@@ -1321,7 +1324,7 @@ private fun getPluginAsServer(
         description = pluginInfo?.description ?: context.getString(R.string.local_installed_plugin),
         logoUrl = "",
         author = pluginInfo?.author ?: context.getString(R.string.local_installation),
-        isInstalled = true,
+        isInstalled = isConfigured,
         version = pluginInfo?.version ?: context.getString(R.string.local_version),
         updatedAt = "",
         longDescription = pluginInfo?.longDescription
@@ -1466,7 +1469,7 @@ private fun PluginListItem(
                             }
                         }
 
-                        if (!isConfigValid) {
+                        if (!invalidConfigReason.isNullOrBlank()) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),

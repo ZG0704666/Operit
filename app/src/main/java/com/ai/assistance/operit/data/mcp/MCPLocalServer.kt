@@ -663,6 +663,21 @@ class MCPLocalServer private constructor(private val context: Context) {
             // 获取插件元数据
             val metadata = getPluginMetadata(pluginId)
             val installedPath = metadata?.installedPath
+
+            if (metadata?.type == "remote") {
+                AppLogger.d(TAG, "插件 $pluginId 是远程服务，判定为已部署")
+                return@withContext true
+            }
+
+            val commandName = getMCPServer(pluginId)?.command
+                ?.trim()
+                ?.substringAfterLast('/')
+                ?.substringAfterLast('\\')
+                ?.lowercase(Locale.ROOT)
+            if (commandName == "npx" || commandName == "uvx" || commandName == "uv") {
+                AppLogger.d(TAG, "插件 $pluginId 使用 $commandName 命令，判定为已部署")
+                return@withContext true
+            }
             
             // 如果是虚拟路径，直接返回true
             if (installedPath?.startsWith("virtual://") == true) {

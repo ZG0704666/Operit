@@ -53,7 +53,12 @@
 /// <reference path="./types/index.d.ts" />
 
 const openaiDraw = (function () {
-    const client = OkHttp.newClient();
+    const HTTP_TIMEOUT_MS = 180000;
+    const client = OkHttp.newBuilder()
+        .connectTimeout(HTTP_TIMEOUT_MS)
+        .readTimeout(HTTP_TIMEOUT_MS)
+        .writeTimeout(HTTP_TIMEOUT_MS)
+        .build();
     const DEFAULT_API_BASE_URL = "https://api.openai.com";
     const DEFAULT_MODEL = "gpt-image-1";
 

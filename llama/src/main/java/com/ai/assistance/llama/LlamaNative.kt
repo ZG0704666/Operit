@@ -46,6 +46,16 @@ object LlamaNative {
         callback: GenerationCallback
     ): Boolean
 
+    @JvmStatic
+    external fun nativeSetToolCallGrammar(
+        sessionPtr: Long,
+        grammar: String,
+        triggerPatterns: Array<String>
+    ): Boolean
+
+    @JvmStatic
+    external fun nativeClearToolCallGrammar(sessionPtr: Long): Boolean
+
     interface GenerationCallback {
         fun onToken(token: String): Boolean
     }

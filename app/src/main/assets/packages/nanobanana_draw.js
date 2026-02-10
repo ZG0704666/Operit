@@ -25,14 +25,19 @@
         { "name": "image_paths", "description": { "zh": "参考图本地路径数组（图生图，会先上传图床再进行生成），支持格式：字符串数组['/sdcard/...'] 或 JSON字符串 或 逗号分隔，可选", "en": "Reference local image path list for img2img (will be uploaded first). Accepts: string array ['/sdcard/...'], or JSON string, or comma-separated list (optional)." }, "type": "array", "required": false },
         { "name": "file_name", "description": { "zh": "自定义保存到本地的文件名（不含路径和扩展名）", "en": "Custom output file name (without path or extension)" }, "type": "string", "required": false },
         { "name": "poll_interval_ms", "description": { "zh": "轮询间隔（毫秒），默认 5000", "en": "Polling interval (milliseconds), default 5000" }, "type": "number", "required": false },
-        { "name": "max_wait_time_ms", "description": { "zh": "最长等待时间（毫秒）。默认 5 分钟；当 image_size=4K 时默认 15 分钟", "en": "Max wait time (milliseconds). Default 5 minutes; default 15 minutes when image_size=4K." }, "type": "number", "required": false }
+        { "name": "max_wait_time_ms", "description": { "zh": "最长等待时间（毫秒）。默认 15 分钟；当 image_size=4K 时默认 30 分钟", "en": "Max wait time (milliseconds). Default 15 minutes; default 30 minutes when image_size=4K." }, "type": "number", "required": false }
       ]
     }
   ]
 }
 */
 const nanobananaDraw = (function () {
-    const client = OkHttp.newClient();
+    const HTTP_TIMEOUT_MS = 180000;
+    const client = OkHttp.newBuilder()
+        .connectTimeout(HTTP_TIMEOUT_MS)
+        .readTimeout(HTTP_TIMEOUT_MS)
+        .writeTimeout(HTTP_TIMEOUT_MS)
+        .build();
     const BEEIMG_UPLOAD_ENDPOINT = "https://beeimg.com/api/upload/file/json/";
     // API配置
     const API_ENDPOINT = "https://grsai.dakka.com.cn/v1/draw/nano-banana";
@@ -44,7 +49,7 @@ const nanobananaDraw = (function () {
     const DRAWS_DIR = `${OPERIT_DIR}/draws`;
     // 轮询配置
     const POLL_INTERVAL = 5000; // 每5秒查询一次
-    const MAX_WAIT_TIME = 300000; // 最多等待5分钟
+    const MAX_WAIT_TIME = 900000; // 最多等待15分钟
     function isRecord(value) {
         return typeof value === "object" && value !== null;
     }
@@ -318,7 +323,7 @@ const nanobananaDraw = (function () {
         const prompt = params.prompt.trim();
         const pollIntervalMs = normalizePositiveInt(params.poll_interval_ms, POLL_INTERVAL);
         const normalizedImageSize = params.image_size ? params.image_size.trim().toUpperCase() : "";
-        const defaultMaxWaitTimeMs = normalizedImageSize === "4K" ? 900000 : MAX_WAIT_TIME;
+        const defaultMaxWaitTimeMs = normalizedImageSize === "4K" ? 1800000 : MAX_WAIT_TIME;
         const maxWaitTimeMs = normalizePositiveInt(params.max_wait_time_ms, defaultMaxWaitTimeMs);
         // 添加辅助函数来解析URL数组
         function parseImageUrls(image_urls) {

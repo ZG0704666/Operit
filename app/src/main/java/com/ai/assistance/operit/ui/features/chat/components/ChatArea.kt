@@ -108,6 +108,52 @@ private fun cleanXmlTags(content: String): String {
         .trim()
 }
 
+private data class PaginationWindow(
+    val minVisibleIndex: Int,
+    val hasMoreMessages: Boolean
+)
+
+private fun isPaginationTriggerMessage(message: ChatMessage): Boolean {
+    return message.sender == "user" || message.sender == "ai" || message.sender == "summary"
+}
+
+private fun calculatePaginationWindow(
+    chatHistory: List<ChatMessage>,
+    visibleTriggerMessages: Int
+): PaginationWindow {
+    if (chatHistory.isEmpty()) {
+        return PaginationWindow(minVisibleIndex = 0, hasMoreMessages = false)
+    }
+
+    val safeVisibleTriggerMessages = visibleTriggerMessages.coerceAtLeast(1)
+    var triggerCount = 0
+    var minVisibleIndex = 0
+    var hasMoreMessages = false
+
+    for (index in chatHistory.lastIndex downTo 0) {
+        if (!isPaginationTriggerMessage(chatHistory[index])) {
+            continue
+        }
+
+        triggerCount += 1
+        if (triggerCount == safeVisibleTriggerMessages) {
+            minVisibleIndex = index
+        } else if (triggerCount > safeVisibleTriggerMessages) {
+            hasMoreMessages = true
+            break
+        }
+    }
+
+    if (triggerCount < safeVisibleTriggerMessages) {
+        minVisibleIndex = 0
+    }
+
+    return PaginationWindow(
+        minVisibleIndex = minVisibleIndex,
+        hasMoreMessages = hasMoreMessages
+    )
+}
+
 enum class ChatStyle {
     CURSOR,
     BUBBLE
@@ -174,10 +220,23 @@ fun ChatArea(
                 showLoadingIndicator && chatStyle == ChatStyle.BUBBLE && lastMessage?.sender == "ai"
 
             val messagesCount = chatHistory.size
-            val maxVisibleIndex = messagesCount - 1
-            val minVisibleIndex =
-                maxOf(0, maxVisibleIndex - currentDepth.value * messagesPerPage + 1)
-            val hasMoreMessages = minVisibleIndex > 0
+            val safeMessagesPerPage = messagesPerPage.coerceAtLeast(1)
+            val visibleTriggerMessages = currentDepth.value * safeMessagesPerPage
+            val chatHistoryIdentity = System.identityHashCode(chatHistory)
+            val paginationWindow = remember(
+                chatHistoryIdentity,
+                messagesCount,
+                lastMessage?.timestamp,
+                lastMessage?.sender,
+                visibleTriggerMessages
+            ) {
+                calculatePaginationWindow(
+                    chatHistory = chatHistory,
+                    visibleTriggerMessages = visibleTriggerMessages
+                )
+            }
+            val minVisibleIndex = paginationWindow.minVisibleIndex
+            val hasMoreMessages = paginationWindow.hasMoreMessages
 
             // "加载更多"文本 - 改为灰色文本而非按钮
             if (hasMoreMessages) {

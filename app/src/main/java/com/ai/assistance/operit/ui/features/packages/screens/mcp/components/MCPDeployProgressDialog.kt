@@ -2,9 +2,10 @@ package com.ai.assistance.operit.ui.features.packages.screens.mcp.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
@@ -36,6 +37,13 @@ fun MCPDeployProgressDialog(
         onEnvironmentVariablesChange: ((Map<String, String>) -> Unit)? = null
 ) {
     var showEnvVarsDialog by remember { mutableStateOf(false) }
+    val logListState = rememberLazyListState()
+
+    LaunchedEffect(outputMessages.size) {
+        if (outputMessages.isNotEmpty()) {
+            logListState.animateScrollToItem(outputMessages.lastIndex)
+        }
+    }
 
     Dialog(
             onDismissRequest = onDismissRequest,
@@ -204,13 +212,13 @@ fun MCPDeployProgressDialog(
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                     ) {
-                        Column(
+                        LazyColumn(
+                                state = logListState,
                                 modifier =
                                         Modifier.fillMaxWidth()
                                                 .padding(12.dp)
-                                                .verticalScroll(rememberScrollState())
                         ) {
-                            outputMessages.forEach { message ->
+                            itemsIndexed(outputMessages) { _, message ->
                                 Text(
                                         text = message,
                                         style = MaterialTheme.typography.bodySmall,

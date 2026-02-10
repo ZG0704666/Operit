@@ -1,6 +1,6 @@
 /* METADATA
 {
-  name: Experimental_various_output
+  name: pollinations_draw
   description: {
     zh: "提供图片输出功能"
     en: "Provides guidance for outputting images"
@@ -21,7 +21,7 @@
 }
 */
 
-const variousOutput = (function () {
+const pollinationsDraw = (function () {
   return {
     main: async () => {
       return "Hello, world!";
@@ -30,4 +30,4 @@ const variousOutput = (function () {
 })();
 
 // 逐个导出
-exports.main = variousOutput.main;
+exports.main = pollinationsDraw.main;

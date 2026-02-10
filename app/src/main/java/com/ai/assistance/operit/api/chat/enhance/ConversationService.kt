@@ -287,6 +287,9 @@ class ConversationService(
 
                 // 获取工具启用状态
                 val enableTools = apiPreferences.enableToolsFlow.first()
+                val disableUserPreferenceDescription =
+                        apiPreferences.disableUserPreferenceDescriptionFlow.first()
+                val disableLatexDescription = apiPreferences.disableLatexDescriptionFlow.first()
 
                 val safBookmarkNames = runCatching {
                     apiPreferences.safBookmarksFlow.first().map { it.name }
@@ -312,7 +315,8 @@ class ConversationService(
                     hasVideoRecognition = hasVideoRecognition,
                     chatModelHasDirectAudio = chatModelHasDirectAudio,
                     chatModelHasDirectVideo = chatModelHasDirectVideo,
-                    useToolCallApi = useToolCallApi
+                    useToolCallApi = useToolCallApi,
+                    disableLatexDescription = disableLatexDescription
                 )
 
                 // 构建waifu特殊规则
@@ -324,9 +328,9 @@ class ConversationService(
                 // 构建最终的系统提示词
                 val finalSystemPrompt = buildString {
                     append(desktopPetRulesText)
-                    append(systemPrompt) 
+                    append(systemPrompt)
                     append(waifuRulesText)
-                    if (preferencesText.isNotEmpty()) {
+                    if (!disableUserPreferenceDescription && preferencesText.isNotEmpty()) {
                         append("\n\nUser preference description: ")
                         append(preferencesText)
                     }

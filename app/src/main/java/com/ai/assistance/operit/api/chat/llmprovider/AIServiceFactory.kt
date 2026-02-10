@@ -161,7 +161,8 @@ object AIServiceFactory {
                 modelName = config.modelName,
                 threadCount = config.llamaThreadCount,
                 contextSize = config.llamaContextSize,
-                providerType = config.apiProviderType
+                providerType = config.apiProviderType,
+                enableToolCall = enableToolCall
             )
 
             // 阿里云（通义千问）使用专用的QwenProvider

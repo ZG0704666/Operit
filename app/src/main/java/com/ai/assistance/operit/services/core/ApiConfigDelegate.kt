@@ -108,6 +108,15 @@ class ApiConfigDelegate(
     private val _disableStreamOutput = MutableStateFlow(ApiPreferences.DEFAULT_DISABLE_STREAM_OUTPUT)
     val disableStreamOutput: StateFlow<Boolean> = _disableStreamOutput.asStateFlow()
 
+    private val _disableUserPreferenceDescription =
+            MutableStateFlow(ApiPreferences.DEFAULT_DISABLE_USER_PREFERENCE_DESCRIPTION)
+    val disableUserPreferenceDescription: StateFlow<Boolean> =
+            _disableUserPreferenceDescription.asStateFlow()
+
+    private val _disableLatexDescription =
+            MutableStateFlow(ApiPreferences.DEFAULT_DISABLE_LATEX_DESCRIPTION)
+    val disableLatexDescription: StateFlow<Boolean> = _disableLatexDescription.asStateFlow()
+
     // 为了兼容现有代码，添加API密钥状态流
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
@@ -253,6 +262,20 @@ class ApiConfigDelegate(
                 _disableStreamOutput.value = disabled
             }
         }
+
+        // Collect disable user preference description setting
+        coroutineScope.launch {
+            apiPreferences.disableUserPreferenceDescriptionFlow.collect { disabled ->
+                _disableUserPreferenceDescription.value = disabled
+            }
+        }
+
+        // Collect disable LaTeX description setting
+        coroutineScope.launch {
+            apiPreferences.disableLatexDescriptionFlow.collect { disabled ->
+                _disableLatexDescription.value = disabled
+            }
+        }
     }
 
     /**
@@ -387,6 +410,24 @@ class ApiConfigDelegate(
             val newValue = !_disableStreamOutput.value
             apiPreferences.saveDisableStreamOutput(newValue)
             _disableStreamOutput.value = newValue
+        }
+    }
+
+    /** 切换禁用用户偏好描述 */
+    fun toggleDisableUserPreferenceDescription() {
+        coroutineScope.launch {
+            val newValue = !_disableUserPreferenceDescription.value
+            apiPreferences.saveDisableUserPreferenceDescription(newValue)
+            _disableUserPreferenceDescription.value = newValue
+        }
+    }
+
+    /** 切换禁用 LaTeX 描述 */
+    fun toggleDisableLatexDescription() {
+        coroutineScope.launch {
+            val newValue = !_disableLatexDescription.value
+            apiPreferences.saveDisableLatexDescription(newValue)
+            _disableLatexDescription.value = newValue
         }
     }
 

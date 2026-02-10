@@ -203,6 +203,9 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val enableMaxContextMode by actualViewModel.enableMaxContextMode.collectAsState()
     val enableTools by actualViewModel.enableTools.collectAsState()
     val disableStreamOutput by actualViewModel.disableStreamOutput.collectAsState()
+    val disableUserPreferenceDescription by
+            actualViewModel.disableUserPreferenceDescription.collectAsState()
+    val disableLatexDescription by actualViewModel.disableLatexDescription.collectAsState()
     val summaryTokenThreshold by actualViewModel.summaryTokenThreshold.collectAsState()
     val isAutoReadEnabled by actualViewModel.isAutoReadEnabled.collectAsState()
     val showChatHistorySelector by actualViewModel.showChatHistorySelector.collectAsState()
@@ -709,6 +712,15 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                 onToggleTools = { actualViewModel.toggleTools() },
                                 disableStreamOutput = disableStreamOutput,
                                 onToggleDisableStreamOutput = { actualViewModel.toggleDisableStreamOutput() },
+                                disableUserPreferenceDescription =
+                                        disableUserPreferenceDescription,
+                                onToggleDisableUserPreferenceDescription = {
+                                    actualViewModel.toggleDisableUserPreferenceDescription()
+                                },
+                                disableLatexDescription = disableLatexDescription,
+                                onToggleDisableLatexDescription = {
+                                    actualViewModel.toggleDisableLatexDescription()
+                                },
                                 onManualMemoryUpdate = { actualViewModel.manuallyUpdateMemory() },
                                 onManualSummarizeConversation = { actualViewModel.manuallySummarizeConversation() }
                         )
@@ -959,7 +971,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                     onDismiss = { showExportCompleteDialog = false },
                     onOpenFile = { path ->
                         val tool = AITool(
-                            name = "open_file",
+                            name = if (path.endsWith(".apk", ignoreCase = true)) "install_app" else "open_file",
                             parameters = listOf(ToolParameter("path", path))
                         )
                         AIToolHandler.getInstance(context).executeTool(tool)

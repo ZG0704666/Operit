@@ -110,6 +110,10 @@ fun ChatSettingsBar(
     onToggleTools: () -> Unit,
     disableStreamOutput: Boolean,
     onToggleDisableStreamOutput: () -> Unit,
+    disableUserPreferenceDescription: Boolean,
+    onToggleDisableUserPreferenceDescription: () -> Unit,
+    disableLatexDescription: Boolean,
+    onToggleDisableLatexDescription: () -> Unit,
     onManualMemoryUpdate: () -> Unit,
     onManualSummarizeConversation: () -> Unit
 ) {
@@ -123,6 +127,7 @@ fun ChatSettingsBar(
     var showPromptDropdown by remember { mutableStateOf(false) }
     var showMemoryDropdown by remember { mutableStateOf(false) }
     var showThinkingDropdown by remember { mutableStateOf(false) }
+    var showDisableSettingsDropdown by remember { mutableStateOf(false) }
 
     // 将模型选择逻辑封装到组件内部
     val context = LocalContext.current
@@ -247,6 +252,23 @@ fun ChatSettingsBar(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+                AnimatedVisibility(visible = disableUserPreferenceDescription) {
+                    Icon(
+                        imageVector = Icons.Outlined.Block,
+                        contentDescription =
+                                stringResource(R.string.disable_user_preference_description),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                AnimatedVisibility(visible = disableLatexDescription) {
+                    Icon(
+                        imageVector = Icons.Outlined.Block,
+                        contentDescription = stringResource(R.string.disable_latex_description),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
  
                 AnimatedVisibility(visible = enableMaxContextMode) {
                     Icon(
@@ -362,6 +384,45 @@ fun ChatSettingsBar(
                                 onThinkingGuidanceInfoClick = {
                                     infoPopupContent =
                                         context.getString(R.string.thinking_guidance) to context.getString(R.string.thinking_guidance_desc)
+                                    showMenu = false
+                                }
+                            )
+
+                            DisableSettingsGroupItem(
+                                disableStreamOutput = disableStreamOutput,
+                                onToggleDisableStreamOutput = onToggleDisableStreamOutput,
+                                enableTools = enableTools,
+                                onToggleTools = onToggleTools,
+                                disableUserPreferenceDescription = disableUserPreferenceDescription,
+                                onToggleDisableUserPreferenceDescription =
+                                        onToggleDisableUserPreferenceDescription,
+                                disableLatexDescription = disableLatexDescription,
+                                onToggleDisableLatexDescription = onToggleDisableLatexDescription,
+                                expanded = showDisableSettingsDropdown,
+                                onExpandedChange = { showDisableSettingsDropdown = it },
+                                onInfoClick = {
+                                    infoPopupContent =
+                                        context.getString(R.string.disable_settings_group) to context.getString(R.string.disable_settings_group_desc)
+                                    showMenu = false
+                                },
+                                onDisableStreamOutputInfoClick = {
+                                    infoPopupContent =
+                                        context.getString(R.string.disable_stream_output) to context.getString(R.string.disable_stream_output_desc)
+                                    showMenu = false
+                                },
+                                onDisableToolsInfoClick = {
+                                    infoPopupContent =
+                                        context.getString(R.string.disable_tools) to context.getString(R.string.disable_tools_desc)
+                                    showMenu = false
+                                },
+                                onDisableUserPreferenceDescriptionInfoClick = {
+                                    infoPopupContent =
+                                        context.getString(R.string.disable_user_preference_description) to context.getString(R.string.disable_user_preference_description_desc)
+                                    showMenu = false
+                                },
+                                onDisableLatexDescriptionInfoClick = {
+                                    infoPopupContent =
+                                        context.getString(R.string.disable_latex_description) to context.getString(R.string.disable_latex_description_desc)
                                     showMenu = false
                                 }
                             )
@@ -489,28 +550,6 @@ fun ChatSettingsBar(
                                 }
                             )
 
-                            // 禁用流式输出
-                            SettingItem(
-                                title = stringResource(R.string.disable_stream_output),
-                                    icon =
-                                            if (disableStreamOutput) Icons.Outlined.Block
-                                            else Icons.Outlined.Speed,
-                                    iconTint =
-                                            if (disableStreamOutput)
-                                                    MaterialTheme.colorScheme.error // 开启时为红色
-                                            else
-                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                            alpha = 0.7f // 关闭时为灰色
-                                                    ),
-                                isChecked = disableStreamOutput,
-                                onToggle = onToggleDisableStreamOutput,
-                                onInfoClick = {
-                                        infoPopupContent =
-                                                context.getString(R.string.disable_stream_output) to context.getString(R.string.disable_stream_output_desc)
-                                    showMenu = false
-                                }
-                            )
-
                             HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 2.dp),
                                 thickness = 0.5.dp,
@@ -552,26 +591,6 @@ fun ChatSettingsBar(
                             )
 
                             // ========== 权限与工具 ==========
-                            // 禁用工具
-                            SettingItem(
-                                title = stringResource(R.string.disable_tools),
-                                    icon =
-                                            if (!enableTools) Icons.Outlined.Block
-                                            else Icons.Outlined.Build,
-                                    iconTint =
-                                            if (!enableTools) MaterialTheme.colorScheme.error
-                                            else
-                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                            alpha = 0.7f
-                                                    ),
-                                isChecked = !enableTools,
-                                onToggle = onToggleTools,
-                                onInfoClick = {
-                                        infoPopupContent =
-                                                context.getString(R.string.disable_tools) to context.getString(R.string.disable_tools_desc)
-                                    showMenu = false
-                                }
-                            )
 
                             // 自动批准
                             SettingItem(
@@ -848,6 +867,151 @@ private fun SettingSliderItem(
             steps = steps,
             modifier = Modifier.fillMaxWidth().height(24.dp)
         )
+    }
+}
+
+@Composable
+private fun DisableSettingsGroupItem(
+    disableStreamOutput: Boolean,
+    onToggleDisableStreamOutput: () -> Unit,
+    enableTools: Boolean,
+    onToggleTools: () -> Unit,
+    disableUserPreferenceDescription: Boolean,
+    onToggleDisableUserPreferenceDescription: () -> Unit,
+    disableLatexDescription: Boolean,
+    onToggleDisableLatexDescription: () -> Unit,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onInfoClick: () -> Unit,
+    onDisableStreamOutputInfoClick: () -> Unit,
+    onDisableToolsInfoClick: () -> Unit,
+    onDisableUserPreferenceDescriptionInfoClick: () -> Unit,
+    onDisableLatexDescriptionInfoClick: () -> Unit
+) {
+    val disabledCount =
+            listOf(
+                            disableStreamOutput,
+                            !enableTools,
+                            disableUserPreferenceDescription,
+                            disableLatexDescription
+                    )
+                    .count { it }
+    val summaryText = "$disabledCount/4"
+    val expandStateDesc = if (expanded) stringResource(R.string.expanded) else stringResource(R.string.collapsed)
+    val accessibilityDesc = "${stringResource(R.string.disable_settings_group)}: $summaryText, $expandStateDesc"
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .height(36.dp)
+                                .semantics { contentDescription = accessibilityDesc }
+                                .clickable { onExpandedChange(!expanded) }
+                                .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Block,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp).clearAndSetSemantics {}
+            )
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = stringResource(R.string.details),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Row(
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.disable_settings_group) + ":",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.clearAndSetSemantics {}
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = summaryText,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clearAndSetSemantics {}
+                )
+            }
+            Icon(
+                    imageVector =
+                            if (expanded) Icons.Filled.KeyboardArrowUp
+                            else Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+
+        if (expanded) {
+            Column(
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                                    .padding(horizontal = 12.dp)
+            ) {
+                SettingItem(
+                    title = stringResource(R.string.disable_stream_output),
+                        icon = if (disableStreamOutput) Icons.Outlined.Block else Icons.Outlined.Speed,
+                        iconTint =
+                                if (disableStreamOutput) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    isChecked = disableStreamOutput,
+                    onToggle = onToggleDisableStreamOutput,
+                    onInfoClick = onDisableStreamOutputInfoClick
+                )
+
+                SettingItem(
+                    title = stringResource(R.string.disable_tools),
+                        icon = if (!enableTools) Icons.Outlined.Block else Icons.Outlined.Build,
+                        iconTint =
+                                if (!enableTools) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    isChecked = !enableTools,
+                    onToggle = onToggleTools,
+                    onInfoClick = onDisableToolsInfoClick
+                )
+
+                SettingItem(
+                    title = stringResource(R.string.disable_user_preference_description),
+                        icon =
+                                if (disableUserPreferenceDescription) Icons.Outlined.Block
+                                else Icons.Outlined.Portrait,
+                        iconTint =
+                                if (disableUserPreferenceDescription) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    isChecked = disableUserPreferenceDescription,
+                    onToggle = onToggleDisableUserPreferenceDescription,
+                    onInfoClick = onDisableUserPreferenceDescriptionInfoClick
+                )
+
+                SettingItem(
+                    title = stringResource(R.string.disable_latex_description),
+                        icon =
+                                if (disableLatexDescription) Icons.Outlined.Block
+                                else Icons.AutoMirrored.Outlined.Message,
+                        iconTint =
+                                if (disableLatexDescription) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    isChecked = disableLatexDescription,
+                    onToggle = onToggleDisableLatexDescription,
+                    onInfoClick = onDisableLatexDescriptionInfoClick
+                )
+            }
+        }
     }
 }
 

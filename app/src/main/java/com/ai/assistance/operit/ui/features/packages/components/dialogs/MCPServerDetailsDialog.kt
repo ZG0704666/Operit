@@ -61,9 +61,7 @@ fun MCPServerDetailsDialog(
 ) {
     // Local state for loaded README content
     var readmeContent by remember { mutableStateOf<String?>(null) }
-    val isInstalled =
-            if (server.type == "remote") server.isInstalled
-            else server.isInstalled && installedPath != null
+    val isInstalled = server.isInstalled
     val coroutineScope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp

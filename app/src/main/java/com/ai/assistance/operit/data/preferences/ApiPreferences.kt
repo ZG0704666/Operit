@@ -94,6 +94,12 @@ class ApiPreferences private constructor(private val context: Context) {
         // Key for Disable Stream Output
         val DISABLE_STREAM_OUTPUT = booleanPreferencesKey("disable_stream_output")
 
+        // Key for Disable User Preference Description
+        val DISABLE_USER_PREFERENCE_DESCRIPTION = booleanPreferencesKey("disable_user_preference_description")
+
+        // Key for Disable LaTeX Description
+        val DISABLE_LATEX_DESCRIPTION = booleanPreferencesKey("disable_latex_description")
+
         // Custom System Prompt Template (Advanced Configuration)
         val CUSTOM_SYSTEM_PROMPT_TEMPLATE = stringPreferencesKey("custom_system_prompt_template")
 
@@ -120,6 +126,12 @@ class ApiPreferences private constructor(private val context: Context) {
 
         // Default value for Disable Stream Output (default false, meaning stream is enabled by default)
         const val DEFAULT_DISABLE_STREAM_OUTPUT = false
+
+        // Default value for Disable User Preference Description
+        const val DEFAULT_DISABLE_USER_PREFERENCE_DESCRIPTION = false
+
+        // Default value for Disable LaTeX Description
+        const val DEFAULT_DISABLE_LATEX_DESCRIPTION = false
 
         // Default system prompt template (empty means use built-in template)
         const val DEFAULT_SYSTEM_PROMPT_TEMPLATE = ""
@@ -251,6 +263,18 @@ class ApiPreferences private constructor(private val context: Context) {
             preferences[DISABLE_STREAM_OUTPUT] ?: DEFAULT_DISABLE_STREAM_OUTPUT
         }
 
+    // Flow for Disable User Preference Description
+    val disableUserPreferenceDescriptionFlow: Flow<Boolean> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[DISABLE_USER_PREFERENCE_DESCRIPTION] ?: DEFAULT_DISABLE_USER_PREFERENCE_DESCRIPTION
+        }
+
+    // Flow for Disable LaTeX Description
+    val disableLatexDescriptionFlow: Flow<Boolean> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[DISABLE_LATEX_DESCRIPTION] ?: DEFAULT_DISABLE_LATEX_DESCRIPTION
+        }
+
     // Custom System Prompt Template Flow
     val customSystemPromptTemplateFlow: Flow<String> =
             context.apiDataStore.data.map { preferences ->
@@ -361,6 +385,18 @@ class ApiPreferences private constructor(private val context: Context) {
     // Save Disable Stream Output setting
     suspend fun saveDisableStreamOutput(isDisabled: Boolean) {
         context.apiDataStore.edit { preferences -> preferences[DISABLE_STREAM_OUTPUT] = isDisabled }
+    }
+
+    // Save Disable User Preference Description setting
+    suspend fun saveDisableUserPreferenceDescription(isDisabled: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[DISABLE_USER_PREFERENCE_DESCRIPTION] = isDisabled
+        }
+    }
+
+    // Save Disable LaTeX Description setting
+    suspend fun saveDisableLatexDescription(isDisabled: Boolean) {
+        context.apiDataStore.edit { preferences -> preferences[DISABLE_LATEX_DESCRIPTION] = isDisabled }
     }
 
     // 保存自定义请求头

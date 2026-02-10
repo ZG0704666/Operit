@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.AutoMode
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Check
@@ -462,13 +463,20 @@ fun PackageManagerScreen(
                                 ) {
                                     val packages = availablePackages.value
 
-                                    val automaticPackages = packages.filterKeys {
+                                    fun isDrawPackage(packageName: String): Boolean {
+                                        val normalizedName = packageName.lowercase()
+                                        return normalizedName.endsWith("_draw") || normalizedName.endsWith("draw")
+                                    }
+
+                                    val drawPackages = packages.filterKeys { isDrawPackage(it) }
+                                    val nonDrawPackages = packages.filterKeys { !isDrawPackage(it) }
+                                    val automaticPackages = nonDrawPackages.filterKeys {
                                         it.lowercase().startsWith("automatic")
                                     }
-                                    val experimentalPackages = packages.filterKeys {
+                                    val experimentalPackages = nonDrawPackages.filterKeys {
                                         it.lowercase().startsWith("experimental")
                                     }
-                                    val otherPackages = packages.filterKeys {
+                                    val otherPackages = nonDrawPackages.filterKeys {
                                         !it.lowercase().startsWith("automatic") && !it.lowercase()
                                             .startsWith("experimental")
                                     }
@@ -481,6 +489,9 @@ fun PackageManagerScreen(
                                     if (experimentalPackages.isNotEmpty()) {
                                         groupedPackages["Experimental"] = experimentalPackages
                                     }
+                                    if (drawPackages.isNotEmpty()) {
+                                        groupedPackages["Draw"] = drawPackages
+                                    }
                                     if (otherPackages.isNotEmpty()) {
                                         groupedPackages["Other"] = otherPackages
                                     }
@@ -488,7 +499,8 @@ fun PackageManagerScreen(
                                     // 在Composable上下文中预先获取颜色
                                     val automaticColor = MaterialTheme.colorScheme.primary
                                     val experimentalColor = MaterialTheme.colorScheme.tertiary
-                                    val otherColor = MaterialTheme.colorScheme.secondary
+                                    val drawColor = MaterialTheme.colorScheme.secondary
+                                    val otherColor = MaterialTheme.colorScheme.onSurfaceVariant
 
                                     LazyColumn(
                                         modifier = Modifier.fillMaxSize(),
@@ -499,6 +511,7 @@ fun PackageManagerScreen(
                                             val categoryColor = when (category) {
                                                 "Automatic" -> automaticColor
                                                 "Experimental" -> experimentalColor
+                                                "Draw" -> drawColor
                                                 else -> otherColor
                                             }
 
@@ -992,6 +1005,7 @@ private fun PackageListItemWithTag(
                     imageVector = when (category) {
                         "Automatic" -> Icons.Default.AutoMode
                         "Experimental" -> Icons.Default.Science
+                        "Draw" -> Icons.Default.Palette
                         "Other" -> Icons.Default.Widgets
                         else -> Icons.Default.Extension
                     },

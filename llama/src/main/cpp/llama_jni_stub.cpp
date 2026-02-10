@@ -32,6 +32,7 @@ static std::string jstringToString(JNIEnv * env, jstring jstr) {
 
 #if defined(OPERIT_HAS_LLAMA_CPP) && OPERIT_HAS_LLAMA_CPP
 static llama_sampler * createSamplerChain(
+        const llama_vocab * vocab,
         float temperature,
         float topP,
         int32_t topK,
@@ -39,7 +40,9 @@ static llama_sampler * createSamplerChain(
         float repeatPenalty,
         float frequencyPenalty,
         float presencePenalty,
-        uint32_t seed
+        uint32_t seed,
+        const std::string * grammar,
+        const std::vector<std::string> * triggerPatterns
 ) {
     if (topP < 0.0f) topP = 0.0f;
     if (topP > 1.0f) topP = 1.0f;
@@ -51,7 +54,6 @@ static llama_sampler * createSamplerChain(
     llama_sampler * chain = llama_sampler_chain_init(sparams);
     if (!chain) return nullptr;
 
-    // order follows llama.cpp common sampling: penalties -> top-k -> top-p -> temp -> dist
     llama_sampler_chain_add(chain, llama_sampler_init_penalties(
             penaltyLastN,
             repeatPenalty,
@@ -62,6 +64,48 @@ static llama_sampler * createSamplerChain(
     llama_sampler_chain_add(chain, llama_sampler_init_top_k(topK));
     llama_sampler_chain_add(chain, llama_sampler_init_top_p(topP, 1));
     llama_sampler_chain_add(chain, llama_sampler_init_temp(temperature));
+
+    if (grammar != nullptr && !grammar->empty()) {
+        if (vocab == nullptr) {
+            llama_sampler_free(chain);
+            return nullptr;
+        }
+
+        llama_sampler * grammarSampler = nullptr;
+        if (triggerPatterns != nullptr && !triggerPatterns->empty()) {
+            std::vector<const char *> triggerPatternsC;
+            triggerPatternsC.reserve(triggerPatterns->size());
+            for (const auto & pattern : *triggerPatterns) {
+                if (!pattern.empty()) {
+                    triggerPatternsC.push_back(pattern.c_str());
+                }
+            }
+
+            grammarSampler = llama_sampler_init_grammar_lazy_patterns(
+                vocab,
+                grammar->c_str(),
+                "root",
+                triggerPatternsC.data(),
+                triggerPatternsC.size(),
+                nullptr,
+                0
+            );
+        } else {
+            grammarSampler = llama_sampler_init_grammar(
+                vocab,
+                grammar->c_str(),
+                "root"
+            );
+        }
+
+        if (!grammarSampler) {
+            llama_sampler_free(chain);
+            return nullptr;
+        }
+
+        llama_sampler_chain_add(chain, grammarSampler);
+    }
+
     llama_sampler_chain_add(chain, llama_sampler_init_dist(seed));
 
     return chain;
@@ -235,14 +279,56 @@ Java_com_ai_assistance_llama_LlamaNative_nativeGenerateStream(JNIEnv * env, jcla
     return JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_ai_assistance_llama_LlamaNative_nativeSetToolCallGrammar(
+        JNIEnv * env,
+        jclass clazz,
+        jlong sessionPtr,
+        jstring grammar,
+        jobjectArray triggerPatterns
+) {
+    (void) env;
+    (void) clazz;
+    (void) sessionPtr;
+    (void) grammar;
+    (void) triggerPatterns;
+    return JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_ai_assistance_llama_LlamaNative_nativeClearToolCallGrammar(JNIEnv * env, jclass clazz, jlong sessionPtr) {
+    (void) env;
+    (void) clazz;
+    (void) sessionPtr;
+    return JNI_FALSE;
+}
+
 #else
 
 namespace {
+
+struct SamplingParamsNative {
+    float temperature = 1.0f;
+    float topP = 1.0f;
+    int32_t topK = 0;
+    int32_t penaltyLastN = 64;
+    float repeatPenalty = 1.0f;
+    float frequencyPenalty = 0.0f;
+    float presencePenalty = 0.0f;
+    uint32_t seed = static_cast<uint32_t>(std::rand());
+};
+
+struct ToolCallGrammarConfigNative {
+    std::string grammar;
+    std::vector<std::string> triggerPatterns;
+};
 
 struct LlamaSessionNative {
     llama_model * model = nullptr;
     llama_context * ctx = nullptr;
     llama_sampler * sampler = nullptr;
+    SamplingParamsNative samplingParams;
+    ToolCallGrammarConfigNative toolCallGrammar;
     std::atomic_bool cancel{false};
 };
 
@@ -259,6 +345,46 @@ static void ensureBackendInit() {
 static bool abortCallback(void * user_data) {
     auto * session = reinterpret_cast<LlamaSessionNative *>(user_data);
     return session != nullptr && session->cancel.load();
+}
+
+static bool rebuildSamplerForSession(LlamaSessionNative * session) {
+    if (session == nullptr || session->model == nullptr || session->ctx == nullptr) {
+        return false;
+    }
+
+    const llama_vocab * vocab = llama_model_get_vocab(session->model);
+    const std::string * grammar = session->toolCallGrammar.grammar.empty()
+        ? nullptr
+        : &session->toolCallGrammar.grammar;
+    const std::vector<std::string> * triggerPatterns = session->toolCallGrammar.triggerPatterns.empty()
+        ? nullptr
+        : &session->toolCallGrammar.triggerPatterns;
+
+    llama_sampler * next = createSamplerChain(
+        vocab,
+        session->samplingParams.temperature,
+        session->samplingParams.topP,
+        session->samplingParams.topK,
+        session->samplingParams.penaltyLastN,
+        session->samplingParams.repeatPenalty,
+        session->samplingParams.frequencyPenalty,
+        session->samplingParams.presencePenalty,
+        session->samplingParams.seed,
+        grammar,
+        triggerPatterns
+    );
+
+    if (!next) {
+        return false;
+    }
+
+    if (session->sampler) {
+        llama_sampler_free(session->sampler);
+        session->sampler = nullptr;
+    }
+
+    session->sampler = next;
+    return true;
 }
 
 static int32_t tokenizeText(const llama_vocab * vocab, const std::string & text, bool addSpecial) {
@@ -351,8 +477,11 @@ Java_com_ai_assistance_llama_LlamaNative_nativeCreateSession(JNIEnv * env, jclas
 
     llama_context_params cparams = llama_context_default_params();
     cparams.n_ctx = nCtx > 0 ? static_cast<uint32_t>(nCtx) : 0;
-    cparams.n_batch = 512;
-    cparams.n_ubatch = 512;
+    if (cparams.n_ctx == 0) {
+        cparams.n_ctx = static_cast<uint32_t>(llama_model_n_ctx_train(session->model));
+    }
+    cparams.n_batch = cparams.n_ctx;
+    cparams.n_ubatch = std::min<uint32_t>(cparams.n_batch, 512u);
     cparams.abort_callback = abortCallback;
     cparams.abort_callback_data = session;
 
@@ -366,24 +495,17 @@ Java_com_ai_assistance_llama_LlamaNative_nativeCreateSession(JNIEnv * env, jclas
 
     llama_set_n_threads(session->ctx, nThreads, nThreads);
 
-    llama_sampler * chain = createSamplerChain(
-            1.0f,   // temperature
-            1.0f,   // top_p
-            0,      // top_k
-            64,     // penalty_last_n
-            1.0f,   // repetition penalty
-            0.0f,   // frequency penalty
-            0.0f,   // presence penalty
-            static_cast<uint32_t>(std::rand())
-    );
-    if (!chain) {
+    session->samplingParams = SamplingParamsNative{};
+    session->samplingParams.seed = static_cast<uint32_t>(std::rand());
+
+    if (!rebuildSamplerForSession(session)) {
         LOGE("Failed to create sampler chain");
         llama_free(session->ctx);
         llama_model_free(session->model);
         delete session;
         return 0;
     }
-    session->sampler = chain;
+
     session->cancel.store(false);
 
     return reinterpret_cast<jlong>(session);
@@ -455,23 +577,98 @@ Java_com_ai_assistance_llama_LlamaNative_nativeSetSamplingParams(
     auto * session = reinterpret_cast<LlamaSessionNative *>(sessionPtr);
     if (!session->ctx || !session->model) return JNI_FALSE;
 
-    llama_sampler * next = createSamplerChain(
-            (float) temperature,
-            (float) topP,
-            (int32_t) topK,
-            (int32_t) penaltyLastN,
-            (float) repetitionPenalty,
-            (float) frequencyPenalty,
-            (float) presencePenalty,
-            static_cast<uint32_t>(std::rand())
-    );
-    if (!next) return JNI_FALSE;
+    session->samplingParams.temperature = (float) temperature;
+    session->samplingParams.topP = (float) topP;
+    session->samplingParams.topK = (int32_t) topK;
+    session->samplingParams.penaltyLastN = (int32_t) penaltyLastN;
+    session->samplingParams.repeatPenalty = (float) repetitionPenalty;
+    session->samplingParams.frequencyPenalty = (float) frequencyPenalty;
+    session->samplingParams.presencePenalty = (float) presencePenalty;
+    session->samplingParams.seed = static_cast<uint32_t>(std::rand());
 
-    if (session->sampler) {
-        llama_sampler_free(session->sampler);
-        session->sampler = nullptr;
+    if (!rebuildSamplerForSession(session)) {
+        return JNI_FALSE;
     }
-    session->sampler = next;
+
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_ai_assistance_llama_LlamaNative_nativeSetToolCallGrammar(
+        JNIEnv * env,
+        jclass clazz,
+        jlong sessionPtr,
+        jstring grammar,
+        jobjectArray triggerPatterns
+) {
+    (void) clazz;
+
+    if (sessionPtr == 0 || grammar == nullptr) return JNI_FALSE;
+    auto * session = reinterpret_cast<LlamaSessionNative *>(sessionPtr);
+    if (!session->ctx || !session->model) return JNI_FALSE;
+
+    const std::string grammarStr = jstringToString(env, grammar);
+    if (grammarStr.empty()) {
+        return JNI_FALSE;
+    }
+
+    std::vector<std::string> patterns;
+    if (triggerPatterns != nullptr) {
+        const jsize count = env->GetArrayLength(triggerPatterns);
+        patterns.reserve(static_cast<size_t>(count));
+        for (jsize i = 0; i < count; ++i) {
+            auto jPattern = reinterpret_cast<jstring>(env->GetObjectArrayElement(triggerPatterns, i));
+            if (jPattern != nullptr) {
+                const std::string pattern = jstringToString(env, jPattern);
+                if (!pattern.empty()) {
+                    patterns.push_back(pattern);
+                }
+                env->DeleteLocalRef(jPattern);
+            }
+        }
+    }
+
+    const std::string previousGrammar = session->toolCallGrammar.grammar;
+    const std::vector<std::string> previousPatterns = session->toolCallGrammar.triggerPatterns;
+
+    session->toolCallGrammar.grammar = grammarStr;
+    session->toolCallGrammar.triggerPatterns = patterns;
+
+    if (!rebuildSamplerForSession(session)) {
+        session->toolCallGrammar.grammar = previousGrammar;
+        session->toolCallGrammar.triggerPatterns = previousPatterns;
+        (void) rebuildSamplerForSession(session);
+        LOGE("Failed to enable tool-call grammar");
+        return JNI_FALSE;
+    }
+
+    LOGI("Tool-call grammar enabled. trigger_patterns=%zu", session->toolCallGrammar.triggerPatterns.size());
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_ai_assistance_llama_LlamaNative_nativeClearToolCallGrammar(JNIEnv * env, jclass clazz, jlong sessionPtr) {
+    (void) env;
+    (void) clazz;
+
+    if (sessionPtr == 0) return JNI_FALSE;
+    auto * session = reinterpret_cast<LlamaSessionNative *>(sessionPtr);
+    if (!session->ctx || !session->model) return JNI_FALSE;
+
+    const std::string previousGrammar = session->toolCallGrammar.grammar;
+    const std::vector<std::string> previousPatterns = session->toolCallGrammar.triggerPatterns;
+
+    session->toolCallGrammar.grammar.clear();
+    session->toolCallGrammar.triggerPatterns.clear();
+
+    if (!rebuildSamplerForSession(session)) {
+        session->toolCallGrammar.grammar = previousGrammar;
+        session->toolCallGrammar.triggerPatterns = previousPatterns;
+        (void) rebuildSamplerForSession(session);
+        LOGE("Failed to clear tool-call grammar");
+        return JNI_FALSE;
+    }
+
     return JNI_TRUE;
 }
 
@@ -608,6 +805,32 @@ Java_com_ai_assistance_llama_LlamaNative_nativeGenerateStream(JNIEnv * env, jcla
         return JNI_FALSE;
     }
 
+    const int32_t n_ctx = static_cast<int32_t>(llama_n_ctx(session->ctx));
+    int maxNew = maxTokens <= 0 ? 256 : static_cast<int>(maxTokens);
+    if (n_ctx > 0) {
+        const int32_t reserveForGeneration = std::max<int32_t>(32, std::min<int32_t>(maxNew, n_ctx / 4));
+        const int32_t maxPromptTokens = std::max<int32_t>(1, n_ctx - reserveForGeneration);
+        if (static_cast<int32_t>(promptTokens.size()) > maxPromptTokens) {
+            const size_t drop = promptTokens.size() - static_cast<size_t>(maxPromptTokens);
+            const auto dropCount = static_cast<std::vector<llama_token>::difference_type>(drop);
+            promptTokens.erase(promptTokens.begin(), promptTokens.begin() + dropCount);
+            LOGI("Prompt truncated to fit context: kept=%d dropped=%zu n_ctx=%d", maxPromptTokens, drop, n_ctx);
+        }
+    }
+
+    if (promptTokens.empty()) {
+        LOGE("Prompt became empty after truncation");
+        return JNI_FALSE;
+    }
+
+    LOGI(
+        "Prefill decode start: prompt_tokens=%zu n_ctx=%d n_batch=%u max_new=%d",
+        promptTokens.size(),
+        n_ctx,
+        llama_n_batch(session->ctx),
+        maxNew
+    );
+
     int32_t n_past = 0;
 
     // Evaluate prompt
@@ -652,8 +875,6 @@ Java_com_ai_assistance_llama_LlamaNative_nativeGenerateStream(JNIEnv * env, jcla
         : static_cast<int32_t>(promptTokens.size());
 
     // Generation loop
-    int maxNew = maxTokens <= 0 ? 256 : static_cast<int>(maxTokens);
-
     std::vector<llama_token> generatedTokens;
     generatedTokens.reserve(static_cast<size_t>(maxNew));
     std::string prevDecoded;
@@ -734,6 +955,11 @@ Java_com_ai_assistance_llama_LlamaNative_nativeGenerateStream(JNIEnv * env, jcla
                     break;
                 }
             }
+        }
+
+        if (n_ctx > 0 && n_past >= n_ctx) {
+            LOGI("context window reached: n_past=%d n_ctx=%d", n_past, n_ctx);
+            break;
         }
 
         llama_token next = newToken;

@@ -474,54 +474,20 @@ class MCPStarter(private val context: Context) {
                     return@launch
                 }
 
-                // --- STAGE 1: Register all plugins ---
-                val registrationJobs =
-                    pluginsToStart.mapIndexed { index, pluginId ->
-                        async {
-                            progressListener.onPluginStarting(
-                                pluginId,
-                                index + 1,
-                                pluginsToStart.size
-                            )
-                            val serviceName = registerPlugin(pluginId, progressListener)
-                            serviceName?.let {
-                                progressListener.onPluginRegistered(pluginId, it, true)
-                                pluginId to it // Return a pair of pluginId to serviceName
-                            } ?: run {
-                                progressListener.onPluginRegistered(pluginId, "", false)
-                                null
-                            }
-                        }
-                    }
-                val registrationResults = registrationJobs.awaitAll().filterNotNull().toMap()
-                val servicesToSpawn = registrationResults.values.toList()
-
-                if (servicesToSpawn.isEmpty()) {
-                    AppLogger.w(TAG, "No plugins were successfully registered.")
-                    progressListener.onAllPluginsStarted(
-                        0,
-                        pluginsToStart.size,
-                        PluginInitStatus.SUCCESS
-                    )
-                    return@launch
-                }
-
-                // --- STAGE 2, 3, 4: Spawn, Verify, Process, and Unspawn in batches ---
+                // 将注册与处理串联到同一个插件任务中，避免“全部先转 loading，再同时完成”的体验
                 val allVerificationResults = mutableListOf<VerificationResult>()
                 val batchSize = 4
                 val semaphore = Semaphore(batchSize)
+                var pluginsProcessingStartedCount = 0
                 var pluginsProcessedCount = 0
                 val totalPluginsToProcess = pluginsToStart.size
 
                 val jobs =
-                    registrationResults.toList().map { (pluginId, serviceName) ->
+                    pluginsToStart.map { pluginId ->
                         async {
-                            semaphore.withPermit {
-                                val result = processPlugin(pluginId, serviceName, progressListener)
-
-                                synchronized(allVerificationResults) {
-                                    allVerificationResults.add(result)
-                                }
+                            val serviceName = registerPlugin(pluginId, progressListener)
+                            if (serviceName == null) {
+                                progressListener.onPluginRegistered(pluginId, "", false)
 
                                 val currentIndex = synchronized(this@MCPStarter) {
                                     pluginsProcessedCount++
@@ -529,14 +495,47 @@ class MCPStarter(private val context: Context) {
                                 }
 
                                 progressListener.onPluginStarted(
-                                    result.pluginId,
-                                    result.isResponding,
+                                    pluginId,
+                                    false,
                                     currentIndex,
                                     totalPluginsToProcess
                                 )
-                                delay(150)
-                                result
+                                return@async
                             }
+
+                            progressListener.onPluginRegistered(pluginId, serviceName, true)
+
+                            val result = semaphore.withPermit {
+                                val startIndex = synchronized(this@MCPStarter) {
+                                    pluginsProcessingStartedCount++
+                                    pluginsProcessingStartedCount
+                                }
+
+                                progressListener.onPluginStarting(
+                                    pluginId,
+                                    startIndex,
+                                    totalPluginsToProcess
+                                )
+
+                                processPlugin(pluginId, serviceName, progressListener)
+                            }
+
+                            synchronized(allVerificationResults) {
+                                allVerificationResults.add(result)
+                            }
+
+                            val currentIndex = synchronized(this@MCPStarter) {
+                                pluginsProcessedCount++
+                                pluginsProcessedCount
+                            }
+
+                            progressListener.onPluginStarted(
+                                result.pluginId,
+                                result.isResponding,
+                                currentIndex,
+                                totalPluginsToProcess
+                            )
+                            delay(150)
                         }
                     }
 

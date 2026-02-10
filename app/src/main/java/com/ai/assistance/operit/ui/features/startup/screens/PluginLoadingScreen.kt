@@ -507,7 +507,8 @@ class PluginLoadingState {
     // 跳过加载事件回调
     private var onSkipCallback: (() -> Unit)? = null
 
-
+    // 保护插件状态与日志的并发更新，避免回调互相覆盖
+    private val pluginStateLock = Any()
 
     // 设置应用上下文
     fun setAppContext(context: Context) {
@@ -534,8 +535,10 @@ class PluginLoadingState {
 
     /** 更新插件统计 */
     fun updatePluginStats(started: Int, total: Int) {
-        _pluginsStarted.value = started
-        _pluginsTotal.value = total
+        synchronized(pluginStateLock) {
+            _pluginsStarted.value = started
+            _pluginsTotal.value = total
+        }
     }
 
     /** 设置插件列表 */
@@ -561,70 +564,77 @@ class PluginLoadingState {
 
                     PluginInfo(id = id, displayName = displayName)
                 }
-        _plugins.value = plugins
-        _pluginsTotal.value = plugins.size
+        synchronized(pluginStateLock) {
+            _plugins.value = plugins
+            _pluginsTotal.value = plugins.size
+            _pluginsStarted.value = plugins.count { it.status == PluginStatus.SUCCESS }
+        }
     }
 
     /** 更新插件状态 */
     fun updatePluginStatus(pluginId: String, status: PluginStatus, message: String = "") {
-        val currentPlugins = _plugins.value.toMutableList()
-        val pluginIndex = currentPlugins.indexOfFirst { it.id == pluginId }
+        synchronized(pluginStateLock) {
+            val currentPlugins = _plugins.value.toMutableList()
+            val pluginIndex = currentPlugins.indexOfFirst { it.id == pluginId }
 
-        if (pluginIndex >= 0) {
-            val plugin = currentPlugins[pluginIndex].copy(status = status, message = message)
-            currentPlugins[pluginIndex] = plugin
-            _plugins.value = currentPlugins
-
-            // 更新已启动计数
-            if (status == PluginStatus.SUCCESS) {
-                _pluginsStarted.value = _plugins.value.count { it.status == PluginStatus.SUCCESS }
+            if (pluginIndex >= 0) {
+                val plugin = currentPlugins[pluginIndex].copy(status = status, message = message)
+                currentPlugins[pluginIndex] = plugin
+                _plugins.value = currentPlugins
+                _pluginsStarted.value = currentPlugins.count { it.status == PluginStatus.SUCCESS }
             }
         }
     }
 
     private fun updatePluginMessage(pluginId: String, message: String) {
-        val currentPlugins = _plugins.value.toMutableList()
-        val pluginIndex = currentPlugins.indexOfFirst { it.id == pluginId }
+        synchronized(pluginStateLock) {
+            val currentPlugins = _plugins.value.toMutableList()
+            val pluginIndex = currentPlugins.indexOfFirst { it.id == pluginId }
 
-        if (pluginIndex >= 0) {
-            val plugin = currentPlugins[pluginIndex]
-            currentPlugins[pluginIndex] = plugin.copy(message = message)
-            _plugins.value = currentPlugins
+            if (pluginIndex >= 0) {
+                val plugin = currentPlugins[pluginIndex]
+                currentPlugins[pluginIndex] = plugin.copy(message = message)
+                _plugins.value = currentPlugins
+            }
         }
     }
 
     private fun appendPluginLog(pluginId: String, message: String) {
         if (message.isBlank()) return
 
-        val maxCharsPerPlugin = 2_000_000
-        val existing = _pluginLogs.value[pluginId].orEmpty()
-        val combined = if (existing.isBlank()) message else "$existing\n$message"
-        val trimmed =
-            if (combined.length > maxCharsPerPlugin) combined.takeLast(maxCharsPerPlugin) else combined
+        synchronized(pluginStateLock) {
+            val maxCharsPerPlugin = 2_000_000
+            val existing = _pluginLogs.value[pluginId].orEmpty()
+            val combined = if (existing.isBlank()) message else "$existing\n$message"
+            val trimmed =
+                if (combined.length > maxCharsPerPlugin) combined.takeLast(maxCharsPerPlugin) else combined
 
-        _pluginLogs.value = _pluginLogs.value.toMutableMap().apply {
-            put(pluginId, trimmed)
+            _pluginLogs.value = _pluginLogs.value.toMutableMap().apply {
+                put(pluginId, trimmed)
+            }
         }
     }
 
     /** 更新插件注册状态 */
     fun updatePluginRegistration(pluginId: String, serviceName: String, success: Boolean) {
-        val currentPlugins = _plugins.value.toMutableList()
-        val pluginIndex = currentPlugins.indexOfFirst { it.id == pluginId }
+        synchronized(pluginStateLock) {
+            val currentPlugins = _plugins.value.toMutableList()
+            val pluginIndex = currentPlugins.indexOfFirst { it.id == pluginId }
 
-        if (pluginIndex >= 0) {
-            val plugin = currentPlugins[pluginIndex]
-            val message = if (success) {
-                appContext?.getString(R.string.plugin_registered) ?: "Registered"
-            } else {
-                appContext?.getString(R.string.plugin_registration_failed) ?: "Registration Failed"
+            if (pluginIndex >= 0) {
+                val plugin = currentPlugins[pluginIndex]
+                val message = if (success) {
+                    appContext?.getString(R.string.plugin_registered) ?: "Registered"
+                } else {
+                    appContext?.getString(R.string.plugin_registration_failed) ?: "Registration Failed"
+                }
+                currentPlugins[pluginIndex] = plugin.copy(
+                    serviceName = serviceName,
+                    // 不要改变主状态，只更新消息
+                    message = message
+                )
+                _plugins.value = currentPlugins
             }
-            currentPlugins[pluginIndex] = plugin.copy(
-                serviceName = serviceName,
-                // 不要改变主状态，只更新消息
-                message = message
-            )
-            _plugins.value = currentPlugins
         }
     }
 
@@ -704,10 +714,12 @@ class PluginLoadingState {
         mcpInitInProgress.set(false)
         _progress.value = 0f
         _message.value = ""
-        _pluginsStarted.value = 0
-        _pluginsTotal.value = 0
-        _plugins.value = emptyList()
-        _pluginLogs.value = emptyMap()
+        synchronized(pluginStateLock) {
+            _pluginsStarted.value = 0
+            _pluginsTotal.value = 0
+            _plugins.value = emptyList()
+            _pluginLogs.value = emptyMap()
+        }
         _isVisible.value = false
         _hasTimedOut.value = false
         _isExpanded.value = false

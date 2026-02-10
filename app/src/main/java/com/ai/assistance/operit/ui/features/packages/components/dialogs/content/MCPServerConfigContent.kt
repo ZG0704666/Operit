@@ -1,7 +1,6 @@
 package com.ai.assistance.operit.ui.features.packages.components.dialogs.content
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,7 +29,7 @@ import com.ai.assistance.operit.R
 
 /**
  * Config content component for the MCP server details diaAppLogger.
- * 
+ *
  * @param localPluginConfig The current plugin configuration
  * @param onConfigChanged Callback to be invoked when the config is changed
  * @param installedPath The path where the plugin is installed
@@ -52,15 +51,12 @@ fun MCPServerConfigContent(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (installedPath != null) {
-            // 显示安装路径
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                 shape = RoundedCornerShape(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(8.dp)
-                ) {
+                Column(modifier = Modifier.padding(8.dp)) {
                     Text(
                         stringResource(R.string.mcp_server_plugin_install_path_label),
                         style = MaterialTheme.typography.labelSmall,
@@ -75,89 +71,71 @@ fun MCPServerConfigContent(
             }
 
             Spacer(modifier = Modifier.height(4.dp))
+        }
 
-            // 配置标题
-            Text(
-                stringResource(R.string.mcp_server_json_config_title),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold
-            )
+        Text(
+            stringResource(R.string.mcp_server_json_config_title),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold
+        )
 
-            // 配置编辑器
-            OutlinedTextField(
-                value = localPluginConfig,
-                onValueChange = { onConfigChanged(it) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                placeholder = {
-                    Text(
-                        "{\"key\": \"value\"}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                },
-                textStyle = MaterialTheme.typography.bodySmall
-            )
-
-            // 配置提示
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(4.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        stringResource(R.string.mcp_server_config_effective_hint),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            // 保存按钮
-            Button(
-                onClick = onSaveConfig,
-                modifier = Modifier.align(Alignment.End),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    horizontal = 12.dp, 
-                    vertical = 6.dp
+        OutlinedTextField(
+            value = localPluginConfig,
+            onValueChange = { onConfigChanged(it) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            placeholder = {
+                Text(
+                    "{\"key\": \"value\"}",
+                    style = MaterialTheme.typography.bodySmall
                 )
+            },
+            textStyle = MaterialTheme.typography.bodySmall
+        )
+
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+            shape = RoundedCornerShape(4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Save,
+                    imageVector = Icons.Default.Info,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    stringResource(R.string.mcp_server_save_config),
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-        } else {
-            // 未安装提示
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    stringResource(R.string.mcp_server_not_installed_cannot_configure),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
+                    stringResource(R.string.mcp_server_config_effective_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
+
+        Button(
+            onClick = onSaveConfig,
+            modifier = Modifier.align(Alignment.End),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 12.dp,
+                vertical = 6.dp
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Save,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                stringResource(R.string.mcp_server_save_config),
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
     }
-} 
+}

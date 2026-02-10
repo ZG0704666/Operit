@@ -28,7 +28,12 @@
 */
 
 const xaiDraw = (function () {
-    const client = OkHttp.newClient();
+    const HTTP_TIMEOUT_MS = 180000;
+    const client = OkHttp.newBuilder()
+        .connectTimeout(HTTP_TIMEOUT_MS)
+        .readTimeout(HTTP_TIMEOUT_MS)
+        .writeTimeout(HTTP_TIMEOUT_MS)
+        .build();
     const API_ENDPOINT = "https://api.x.ai/v1/images/generations";
     const DEFAULT_MODEL = "grok-2-image-1212";
 

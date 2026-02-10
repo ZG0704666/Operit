@@ -302,7 +302,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
           hasVideoRecognition: Boolean = false,
           chatModelHasDirectAudio: Boolean = false,
           chatModelHasDirectVideo: Boolean = false,
-          useToolCallApi: Boolean = false
+          useToolCallApi: Boolean = false,
+          disableLatexDescription: Boolean = false
   ): String {
     val importedPackages = packageManager.getImportedPackages()
     val mcpServers = packageManager.getAvailableServerPackages()
@@ -475,6 +476,12 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
     }
 
 
+    if (disableLatexDescription) {
+        prompt = prompt
+                .replace(Regex("(?m)^\\s*FORMULA FORMATTING:.*(?:\\r?\\n)?"), "")
+                .replace(Regex("(?m)^\\s*公式格式化：.*(?:\\r?\\n)?"), "")
+    }
+
     // Clean up multiple consecutive blank lines (replace 3+ newlines with 2)
     prompt = prompt.replace(Regex("\n{3,}"), "\n\n")
 
@@ -563,7 +570,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
           hasVideoRecognition: Boolean = false,
           chatModelHasDirectAudio: Boolean = false,
           chatModelHasDirectVideo: Boolean = false,
-          useToolCallApi: Boolean = false
+          useToolCallApi: Boolean = false,
+          disableLatexDescription: Boolean = false
   ): String {
     // Get the base system prompt
     val basePrompt = getSystemPrompt(
@@ -582,7 +590,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
         hasVideoRecognition = hasVideoRecognition,
         chatModelHasDirectAudio = chatModelHasDirectAudio,
         chatModelHasDirectVideo = chatModelHasDirectVideo,
-        useToolCallApi = useToolCallApi
+        useToolCallApi = useToolCallApi,
+        disableLatexDescription = disableLatexDescription
     )
 
     // Apply custom prompts
@@ -607,7 +616,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
         hasVideoRecognition = false,
         chatModelHasDirectAudio = false,
         chatModelHasDirectVideo = false,
-        useToolCallApi = false
+        useToolCallApi = false,
+        disableLatexDescription = false
     )
   }
 }
