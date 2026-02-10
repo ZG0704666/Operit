@@ -514,6 +514,19 @@ class MCPManager(private val context: Context) {
     }
 
     /**
+     * 注销MCP服务器配置
+     *
+     * @param serverName 服务器名称
+     */
+    fun unregisterServer(serverName: String) {
+        serverConfigCache.remove(serverName)
+
+        // 关闭并移除对应客户端缓存
+        val oldClient = clientCache.remove(serverName)
+        oldClient?.disconnect()
+    }
+
+    /**
      * 注册MCP服务器（简化版）
      *
      * @param serverName 服务器名称

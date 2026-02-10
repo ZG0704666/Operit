@@ -182,6 +182,7 @@ dependencies {
     implementation(project(":terminal"))
     implementation(project(":mnn"))
     implementation(project(":llama"))
+    implementation(project(":mmd"))
     implementation(project(":showerclient"))
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))

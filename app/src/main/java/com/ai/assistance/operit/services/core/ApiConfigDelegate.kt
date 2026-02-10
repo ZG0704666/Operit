@@ -105,6 +105,9 @@ class ApiConfigDelegate(
     private val _enableTools = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_TOOLS)
     val enableTools: StateFlow<Boolean> = _enableTools.asStateFlow()
 
+    private val _toolPromptVisibility = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val toolPromptVisibility: StateFlow<Map<String, Boolean>> = _toolPromptVisibility.asStateFlow()
+
     private val _disableStreamOutput = MutableStateFlow(ApiPreferences.DEFAULT_DISABLE_STREAM_OUTPUT)
     val disableStreamOutput: StateFlow<Boolean> = _disableStreamOutput.asStateFlow()
 
@@ -253,6 +256,13 @@ class ApiConfigDelegate(
         coroutineScope.launch {
             apiPreferences.enableToolsFlow.collect { enabled ->
                 _enableTools.value = enabled
+            }
+        }
+
+        // Collect tool prompt visibility setting
+        coroutineScope.launch {
+            apiPreferences.toolPromptVisibilityFlow.collect { visibility ->
+                _toolPromptVisibility.value = visibility
             }
         }
 
@@ -544,6 +554,20 @@ class ApiConfigDelegate(
             val newValue = !_enableTools.value
             apiPreferences.saveEnableTools(newValue)
             _enableTools.value = newValue
+        }
+    }
+
+    fun saveToolPromptVisibility(toolName: String, isVisible: Boolean) {
+        coroutineScope.launch {
+            apiPreferences.saveToolPromptVisibility(toolName, isVisible)
+            _toolPromptVisibility.value = _toolPromptVisibility.value + (toolName to isVisible)
+        }
+    }
+
+    fun saveToolPromptVisibilityMap(visibilityMap: Map<String, Boolean>) {
+        coroutineScope.launch {
+            apiPreferences.saveToolPromptVisibilityMap(visibilityMap)
+            _toolPromptVisibility.value = visibilityMap
         }
     }
 }

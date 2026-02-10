@@ -1621,9 +1621,17 @@ open class OpenAIProvider(
         emitter: StreamEmitter,
         onTokensUpdated: suspend (input: Int, cachedInput: Int, output: Int) -> Unit
     ) {
-        if (finishReason.isNotEmpty() && hasOpenToolCalls(state)) {
+        val normalizedFinishReason = finishReason.trim()
+        if (normalizedFinishReason.isEmpty() ||
+            normalizedFinishReason.equals("null", ignoreCase = true) ||
+            normalizedFinishReason.equals("none", ignoreCase = true)
+        ) {
+            return
+        }
+
+        if (hasOpenToolCalls(state)) {
             closeAllOpenToolCalls(state, emitter)
-            AppLogger.d("AIService", "Tool Call流式收尾，finish_reason=$finishReason")
+            AppLogger.d("AIService", "Tool Call流式收尾，finish_reason=$normalizedFinishReason")
 
             onTokensUpdated(
                 tokenCacheManager.totalInputTokenCount,
@@ -1693,6 +1701,13 @@ open class OpenAIProvider(
         // 处理delta格式（流式响应）
         val delta = choice.optJSONObject("delta")
         if (delta != null) {
+            val finishReason =
+                if (choice.has("finish_reason") && !choice.isNull("finish_reason")) {
+                    choice.optString("finish_reason", "").trim()
+                } else {
+                    ""
+                }
+
             // 处理工具调用
             val toolCallsDeltas = delta.optJSONArray("tool_calls")
             if (toolCallsDeltas != null && toolCallsDeltas.length() > 0 && enableToolCall) {
@@ -1700,7 +1715,6 @@ open class OpenAIProvider(
             }
 
             // 处理完成原因
-            val finishReason = choice.optString("finish_reason", "")
             if (finishReason.isNotEmpty()) {
                 handleFinishReason(finishReason, state, emitter, onTokensUpdated)
             }

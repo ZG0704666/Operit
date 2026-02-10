@@ -6,6 +6,10 @@ import android.net.Uri
 import com.ai.assistance.operit.util.AppLogger
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.canhub.cropper.CropImageContract
+import com.canhub.cropper.CropImageContractOptions
+import com.canhub.cropper.CropImageOptions
+import com.canhub.cropper.CropImageView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -172,9 +176,24 @@ fun AndroidExportDialog(
     var isVersionNameError by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val imageCropLauncher =
+            rememberLauncherForActivityResult(contract = CropImageContract()) { result ->
+                if (result.isSuccessful) {
+                    result.uriContent?.let { croppedUri ->
+                        iconUri = croppedUri
+                    }
+                } else {
+                    val cropError = result.error
+                    if (cropError != null) {
+                        AppLogger.e("ExportDialogs", "Android export icon crop failed", cropError)
+                    }
+                }
+            }
     val imagePicker =
             rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri ->
-                iconUri = uri
+                uri?.let { sourceUri ->
+                    imageCropLauncher.launch(createExportIconCropOptions(context, sourceUri))
+                }
             }
 
     Dialog(
@@ -380,10 +399,25 @@ fun WindowsExportDialog(
     var iconUri by remember { mutableStateOf<Uri?>(null) }
 
     val context = LocalContext.current
+    val imageCropLauncher =
+            rememberLauncherForActivityResult(contract = CropImageContract()) { result ->
+                if (result.isSuccessful) {
+                    result.uriContent?.let { croppedUri ->
+                        iconUri = croppedUri
+                    }
+                } else {
+                    val cropError = result.error
+                    if (cropError != null) {
+                        AppLogger.e("ExportDialogs", "Windows export icon crop failed", cropError)
+                    }
+                }
+            }
     val imagePicker =
             rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri
                 ->
-                iconUri = uri
+                uri?.let { sourceUri ->
+                    imageCropLauncher.launch(createExportIconCropOptions(context, sourceUri))
+                }
             }
 
     Dialog(
@@ -505,6 +539,63 @@ fun WindowsExportDialog(
             }
         }
     }
+}
+
+private fun createExportIconCropOptions(context: Context, sourceUri: Uri): CropImageContractOptions {
+    val isNightMode =
+            context.resources.configuration.uiMode and
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+
+    var primaryColor: Int
+    var onPrimaryColor: Int
+    var surfaceColor: Int
+    var statusBarColor: Int
+
+    try {
+        val typedValue = android.util.TypedValue()
+
+        context.theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
+        primaryColor = typedValue.data
+
+        context.theme.resolveAttribute(android.R.attr.colorPrimaryDark, typedValue, true)
+        statusBarColor = typedValue.data
+
+        context.theme.resolveAttribute(android.R.attr.colorBackground, typedValue, true)
+        surfaceColor = typedValue.data
+
+        onPrimaryColor = if (isNightMode) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+    } catch (_: Exception) {
+        primaryColor = if (isNightMode) 0xFF9C27B0.toInt() else 0xFF6200EE.toInt()
+        statusBarColor = if (isNightMode) 0xFF7B1FA2.toInt() else 0xFF3700B3.toInt()
+        surfaceColor = if (isNightMode) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+        onPrimaryColor = if (isNightMode) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+    }
+
+    return CropImageContractOptions(
+            sourceUri,
+            CropImageOptions().apply {
+                guidelines = CropImageView.Guidelines.ON
+                outputCompressFormat = android.graphics.Bitmap.CompressFormat.PNG
+                outputCompressQuality = 100
+                fixAspectRatio = true
+                aspectRatioX = 1
+                aspectRatioY = 1
+                cropMenuCropButtonTitle = context.getString(R.string.theme_crop_done)
+                activityTitle = context.getString(R.string.theme_crop_image)
+                toolbarColor = primaryColor
+                toolbarBackButtonColor = onPrimaryColor
+                toolbarTitleColor = onPrimaryColor
+                activityBackgroundColor = surfaceColor
+                backgroundColor = surfaceColor
+                statusBarColor = statusBarColor
+                activityMenuIconColor = onPrimaryColor
+                showCropOverlay = true
+                showProgressBar = true
+                multiTouchEnabled = true
+                autoZoomEnabled = true
+            }
+    )
 }
 
 /** 导出进度对话框 */

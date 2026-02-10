@@ -110,7 +110,8 @@ PACKAGE SYSTEM
         hasVideoRecognition: Boolean,
         chatModelHasDirectAudio: Boolean,
         chatModelHasDirectVideo: Boolean,
-        safBookmarkNames: List<String>
+        safBookmarkNames: List<String>,
+        toolVisibility: Map<String, Boolean>
     ): String {
         return SystemToolPrompts.generateToolsPromptEn(
             hasBackendImageRecognition = hasImageRecognition,
@@ -120,12 +121,14 @@ PACKAGE SYSTEM
             hasBackendVideoRecognition = hasVideoRecognition,
             chatModelHasDirectAudio = chatModelHasDirectAudio,
             chatModelHasDirectVideo = chatModelHasDirectVideo,
-            safBookmarkNames = safBookmarkNames
+            safBookmarkNames = safBookmarkNames,
+            toolVisibility = toolVisibility
         )
     }
-    
-    private val MEMORY_TOOLS_EN: String
-        get() = SystemToolPrompts.memoryTools.toString()
+
+    private fun getMemoryToolsEn(toolVisibility: Map<String, Boolean>): String {
+        return SystemToolPrompts.generateMemoryToolsPromptEn(toolVisibility)
+    }
 
     private fun getAvailableToolsCn(
         hasImageRecognition: Boolean,
@@ -134,7 +137,8 @@ PACKAGE SYSTEM
         hasVideoRecognition: Boolean,
         chatModelHasDirectAudio: Boolean,
         chatModelHasDirectVideo: Boolean,
-        safBookmarkNames: List<String>
+        safBookmarkNames: List<String>,
+        toolVisibility: Map<String, Boolean>
     ): String {
         return SystemToolPrompts.generateToolsPromptCn(
             hasBackendImageRecognition = hasImageRecognition,
@@ -144,12 +148,14 @@ PACKAGE SYSTEM
             hasBackendVideoRecognition = hasVideoRecognition,
             chatModelHasDirectAudio = chatModelHasDirectAudio,
             chatModelHasDirectVideo = chatModelHasDirectVideo,
-            safBookmarkNames = safBookmarkNames
+            safBookmarkNames = safBookmarkNames,
+            toolVisibility = toolVisibility
         )
     }
-    
-    private val MEMORY_TOOLS_CN: String
-        get() = SystemToolPrompts.memoryToolsCn.toString()
+
+    private fun getMemoryToolsCn(toolVisibility: Map<String, Boolean>): String {
+        return SystemToolPrompts.generateMemoryToolsPromptCn(toolVisibility)
+    }
 
 
     /** Base system prompt template used by the enhanced AI service */
@@ -303,7 +309,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
           chatModelHasDirectAudio: Boolean = false,
           chatModelHasDirectVideo: Boolean = false,
           useToolCallApi: Boolean = false,
-          disableLatexDescription: Boolean = false
+          disableLatexDescription: Boolean = false,
+          toolVisibility: Map<String, Boolean> = emptyMap()
   ): String {
     val importedPackages = packageManager.getImportedPackages()
     val mcpServers = packageManager.getAvailableServerPackages()
@@ -395,7 +402,7 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
     // 当使用Tool Call API时，不在系统提示词中包含工具描述（工具已通过API的tools字段发送）
     val availableToolsEn = if (useToolCallApi) "" else (
         if (enableMemoryQuery) {
-            MEMORY_TOOLS_EN +
+            getMemoryToolsEn(toolVisibility) +
                 getAvailableToolsEn(
                     hasImageRecognition = hasImageRecognition,
                     chatModelHasDirectImage = chatModelHasDirectImage,
@@ -403,7 +410,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
                     hasVideoRecognition = hasVideoRecognition,
                     chatModelHasDirectAudio = chatModelHasDirectAudio,
                     chatModelHasDirectVideo = chatModelHasDirectVideo,
-                    safBookmarkNames = safBookmarkNames
+                    safBookmarkNames = safBookmarkNames,
+                    toolVisibility = toolVisibility
                 )
         } else {
             getAvailableToolsEn(
@@ -413,13 +421,14 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
                 hasVideoRecognition = hasVideoRecognition,
                 chatModelHasDirectAudio = chatModelHasDirectAudio,
                 chatModelHasDirectVideo = chatModelHasDirectVideo,
-                safBookmarkNames = safBookmarkNames
+                safBookmarkNames = safBookmarkNames,
+                toolVisibility = toolVisibility
             )
         }
     )
     val availableToolsCn = if (useToolCallApi) "" else (
         if (enableMemoryQuery) {
-            MEMORY_TOOLS_CN +
+            getMemoryToolsCn(toolVisibility) +
                 getAvailableToolsCn(
                     hasImageRecognition = hasImageRecognition,
                     chatModelHasDirectImage = chatModelHasDirectImage,
@@ -427,7 +436,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
                     hasVideoRecognition = hasVideoRecognition,
                     chatModelHasDirectAudio = chatModelHasDirectAudio,
                     chatModelHasDirectVideo = chatModelHasDirectVideo,
-                    safBookmarkNames = safBookmarkNames
+                    safBookmarkNames = safBookmarkNames,
+                    toolVisibility = toolVisibility
                 )
         } else {
             getAvailableToolsCn(
@@ -437,7 +447,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
                 hasVideoRecognition = hasVideoRecognition,
                 chatModelHasDirectAudio = chatModelHasDirectAudio,
                 chatModelHasDirectVideo = chatModelHasDirectVideo,
-                safBookmarkNames = safBookmarkNames
+                safBookmarkNames = safBookmarkNames,
+                toolVisibility = toolVisibility
             )
         }
     )
@@ -462,7 +473,10 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
             prompt = prompt
                 .replace("TOOL_USAGE_GUIDELINES_SECTION", if (useEnglish) TOOL_USAGE_GUIDELINES_EN else TOOL_USAGE_GUIDELINES_CN)
                 .replace("PACKAGE_SYSTEM_GUIDELINES_SECTION", "")
-                .replace("AVAILABLE_TOOLS_SECTION", if (useEnglish) MEMORY_TOOLS_EN else MEMORY_TOOLS_CN)
+                .replace(
+                    "AVAILABLE_TOOLS_SECTION",
+                    if (useEnglish) getMemoryToolsEn(toolVisibility) else getMemoryToolsCn(toolVisibility)
+                )
         } else {
             // Remove all guidance sections when tools and memory are disabled
             // Replace tool-related sections and remove behavior guidelines and workspace guidelines
@@ -571,7 +585,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
           chatModelHasDirectAudio: Boolean = false,
           chatModelHasDirectVideo: Boolean = false,
           useToolCallApi: Boolean = false,
-          disableLatexDescription: Boolean = false
+          disableLatexDescription: Boolean = false,
+          toolVisibility: Map<String, Boolean> = emptyMap()
   ): String {
     // Get the base system prompt
     val basePrompt = getSystemPrompt(
@@ -591,7 +606,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
         chatModelHasDirectAudio = chatModelHasDirectAudio,
         chatModelHasDirectVideo = chatModelHasDirectVideo,
         useToolCallApi = useToolCallApi,
-        disableLatexDescription = disableLatexDescription
+        disableLatexDescription = disableLatexDescription,
+        toolVisibility = toolVisibility
     )
 
     // Apply custom prompts

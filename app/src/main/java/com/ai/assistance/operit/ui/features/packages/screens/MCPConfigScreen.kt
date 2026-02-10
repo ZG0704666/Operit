@@ -65,7 +65,6 @@ import kotlinx.coroutines.launch
 import com.ai.assistance.operit.data.mcp.InstallResult
 import com.ai.assistance.operit.data.mcp.InstallProgress
 import com.ai.assistance.operit.ui.features.startup.screens.LocalPluginLoadingState
-import com.ai.assistance.operit.data.mcp.plugins.MCPStarter
 
 /** MCP配置屏幕 - 极简风格界面，专注于插件快速部署 */
 @SuppressLint("StateFlowValueCalledInComposition")

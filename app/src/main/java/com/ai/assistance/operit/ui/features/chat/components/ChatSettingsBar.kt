@@ -59,6 +59,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import android.widget.Toast
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.core.config.SystemToolPrompts
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigSummary
 import com.ai.assistance.operit.data.model.PreferenceProfile
@@ -73,6 +74,7 @@ import com.ai.assistance.operit.data.model.getValidModelIndex
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
+import com.ai.assistance.operit.util.LocaleUtils
 import java.text.DecimalFormat
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -104,10 +106,13 @@ fun ChatSettingsBar(
     onNavigateToUserPreferences: () -> Unit,
     onNavigateToModelConfig: () -> Unit,
     onNavigateToModelPrompts: () -> Unit,
+    onNavigateToPackageManager: () -> Unit,
     isAutoReadEnabled: Boolean,
     onToggleAutoRead: () -> Unit,
     enableTools: Boolean,
     onToggleTools: () -> Unit,
+    toolPromptVisibility: Map<String, Boolean>,
+    onSaveToolPromptVisibilityMap: (Map<String, Boolean>) -> Unit,
     disableStreamOutput: Boolean,
     onToggleDisableStreamOutput: () -> Unit,
     disableUserPreferenceDescription: Boolean,
@@ -128,10 +133,20 @@ fun ChatSettingsBar(
     var showMemoryDropdown by remember { mutableStateOf(false) }
     var showThinkingDropdown by remember { mutableStateOf(false) }
     var showDisableSettingsDropdown by remember { mutableStateOf(false) }
+    var showToolPromptManagerDialog by remember { mutableStateOf(false) }
 
     // 将模型选择逻辑封装到组件内部
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val useEnglish = remember(context) {
+        LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+    }
+    val manageableTools = remember(useEnglish) {
+        SystemToolPrompts.getManageableToolPrompts(useEnglish)
+    }
+    var localToolPromptVisibility by remember(toolPromptVisibility) {
+        mutableStateOf(toolPromptVisibility)
+    }
     val functionalConfigManager = remember { FunctionalConfigManager(context) }
     val modelConfigManager = remember { ModelConfigManager(context) }
     val configMapping by
@@ -424,6 +439,10 @@ fun ChatSettingsBar(
                                     infoPopupContent =
                                         context.getString(R.string.disable_latex_description) to context.getString(R.string.disable_latex_description_desc)
                                     showMenu = false
+                                },
+                                onManageToolsClick = {
+                                    showToolPromptManagerDialog = true
+                                    showMenu = false
                                 }
                             )
 
@@ -618,6 +637,93 @@ fun ChatSettingsBar(
                     }
                 }
             }
+        }
+
+        if (showToolPromptManagerDialog) {
+            AlertDialog(
+                onDismissRequest = { showToolPromptManagerDialog = false },
+                confirmButton = {
+                    TextButton(onClick = { showToolPromptManagerDialog = false }) {
+                        Text(stringResource(R.string.common_close))
+                    }
+                },
+                title = {
+                    Text(
+                        text = stringResource(R.string.tool_prompt_manager_title),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        manageableTools.forEachIndexed { index, tool ->
+                            val isVisible = localToolPromptVisibility[tool.name] ?: true
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .toggleable(
+                                        value = isVisible,
+                                        onValueChange = { checked ->
+                                            val updated = localToolPromptVisibility + (tool.name to checked)
+                                            localToolPromptVisibility = updated
+                                            onSaveToolPromptVisibilityMap(updated)
+                                        },
+                                        role = Role.Switch
+                                    )
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = tool.name,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = tool.categoryName,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = isVisible,
+                                    onCheckedChange = null,
+                                    modifier = Modifier.scale(0.8f)
+                                )
+                            }
+                            if (index < manageableTools.lastIndex) {
+                                HorizontalDivider(
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(34.dp)
+                                .clickable {
+                                    showToolPromptManagerDialog = false
+                                    onNavigateToPackageManager()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.manage_packages),
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            )
         }
 
         // 详情说明弹窗
@@ -886,7 +992,8 @@ private fun DisableSettingsGroupItem(
     onDisableStreamOutputInfoClick: () -> Unit,
     onDisableToolsInfoClick: () -> Unit,
     onDisableUserPreferenceDescriptionInfoClick: () -> Unit,
-    onDisableLatexDescriptionInfoClick: () -> Unit
+    onDisableLatexDescriptionInfoClick: () -> Unit,
+    onManageToolsClick: () -> Unit
 ) {
     val disabledCount =
             listOf(
@@ -1010,6 +1117,20 @@ private fun DisableSettingsGroupItem(
                     onToggle = onToggleDisableLatexDescription,
                     onInfoClick = onDisableLatexDescriptionInfoClick
                 )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .clickable(onClick = onManageToolsClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.manage_tools),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }

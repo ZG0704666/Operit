@@ -56,6 +56,7 @@ class ConversationMarkupManager {
             return "<status type=\"warning\">$warningMessage</status>"
         }
 
+
         /**
          * Formats a tool result message for sending to the AI.
          *

@@ -466,6 +466,12 @@ class MCPStarter(private val context: Context) {
                                 AppLogger.e(TAG, "Failed to unregister disabled plugin '$pluginId'", e)
                             }
                         }
+
+                        runCatching {
+                            mcpRepository.unregisterToolsForPlugins(disabledPlugins)
+                        }.onFailure { e ->
+                            AppLogger.e(TAG, "Failed to unregister runtime MCP tools for disabled plugins", e)
+                        }
                     }
                 }
 

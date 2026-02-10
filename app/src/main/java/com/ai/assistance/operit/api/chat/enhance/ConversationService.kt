@@ -290,6 +290,9 @@ class ConversationService(
                 val disableUserPreferenceDescription =
                         apiPreferences.disableUserPreferenceDescriptionFlow.first()
                 val disableLatexDescription = apiPreferences.disableLatexDescriptionFlow.first()
+                val toolPromptVisibility = runCatching {
+                    apiPreferences.toolPromptVisibilityFlow.first()
+                }.getOrElse { emptyMap() }
 
                 val safBookmarkNames = runCatching {
                     apiPreferences.safBookmarksFlow.first().map { it.name }
@@ -316,7 +319,8 @@ class ConversationService(
                     chatModelHasDirectAudio = chatModelHasDirectAudio,
                     chatModelHasDirectVideo = chatModelHasDirectVideo,
                     useToolCallApi = useToolCallApi,
-                    disableLatexDescription = disableLatexDescription
+                    disableLatexDescription = disableLatexDescription,
+                    toolVisibility = toolPromptVisibility
                 )
 
                 // 构建waifu特殊规则

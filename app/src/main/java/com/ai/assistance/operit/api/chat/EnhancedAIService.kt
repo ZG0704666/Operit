@@ -54,6 +54,7 @@ import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.core.config.SystemToolPrompts
 import com.ai.assistance.operit.data.model.ToolPrompt
+import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.LocaleUtils
 
 /**
@@ -804,6 +805,47 @@ class EnhancedAIService private constructor(private val context: Context) {
                 return
             }
 
+            // 禁止“纯思考输出”：移除 thinking 后正文为空时，发出专用告警并回传给 AI 继续生成
+            val contentWithoutThinking = ChatUtils.removeThinkingContent(content)
+            if (contentWithoutThinking.isEmpty()) {
+                val pureThinkingWarning =
+                        ConversationMarkupManager.createWarningStatus(
+                                this@EnhancedAIService.context.getString(
+                                        R.string.enhanced_pure_thinking_only_warning
+                                )
+                        )
+                context.roundManager.appendContent("\n$pureThinkingWarning")
+                collector.emit(pureThinkingWarning)
+                try {
+                    context.conversationHistory.add(Pair("tool", pureThinkingWarning))
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "添加纯思考告警到历史记录失败", e)
+                    return
+                }
+                AppLogger.w(TAG, "检测到纯思考输出（removeThinking后正文为空），已回传告警给AI继续生成")
+                handleToolInvocation(
+                        toolInvocations = emptyList(),
+                        context = context,
+                        functionType = functionType,
+                        collector = collector,
+                        enableThinking = enableThinking,
+                        enableMemoryQuery = enableMemoryQuery,
+                        onNonFatalError = onNonFatalError,
+                        onTokenLimitExceeded = onTokenLimitExceeded,
+                        maxTokens = maxTokens,
+                        tokenUsageThreshold = tokenUsageThreshold,
+                        isSubTask = isSubTask,
+                        characterName = characterName,
+                        avatarUri = avatarUri,
+                        roleCardId = roleCardId,
+                        chatId = chatId,
+                        onToolInvocation = onToolInvocation,
+                        stream = stream,
+                        toolResultOverrideMessage = pureThinkingWarning
+                )
+                return
+            }
+
             // 使用增强的工具检测功能处理内容
             val enhancedContent = enhanceToolDetection(content)
             // 如果内容被增强修改了，更新到streamBuffer
@@ -1003,7 +1045,8 @@ class EnhancedAIService private constructor(private val context: Context) {
         roleCardId: String? = null,
         chatId: String? = null,
         onToolInvocation: (suspend (String) -> Unit)? = null,
-        stream: Boolean = true
+        stream: Boolean = true,
+        toolResultOverrideMessage: String? = null
     ) {
         val startTime = System.currentTimeMillis()
 
@@ -1011,7 +1054,7 @@ class EnhancedAIService private constructor(private val context: Context) {
             onToolInvocation?.invoke(invocation.tool.name)
         }
 
-        if (!isSubTask) {
+        if (!isSubTask && toolInvocations.isNotEmpty()) {
             withContext(Dispatchers.Main) {
                 val toolNames = toolInvocations.joinToString(", ") { it.tool.name }
                 _inputProcessingState.value = InputProcessingState.ExecutingTool(toolNames)
@@ -1035,6 +1078,28 @@ class EnhancedAIService private constructor(private val context: Context) {
                     allToolResults, context, functionType, collector, enableThinking,
                     enableMemoryQuery, onNonFatalError, onTokenLimitExceeded, maxTokens, tokenUsageThreshold, isSubTask,
                     characterName, avatarUri, roleCardId, chatId, onToolInvocation, stream
+                )
+            } else if (!toolResultOverrideMessage.isNullOrEmpty()) {
+                AppLogger.d(TAG, "0工具路由命中，使用覆盖消息继续请求AI。")
+                processToolResults(
+                    results = emptyList(),
+                    context = context,
+                    functionType = functionType,
+                    collector = collector,
+                    enableThinking = enableThinking,
+                    enableMemoryQuery = enableMemoryQuery,
+                    onNonFatalError = onNonFatalError,
+                    onTokenLimitExceeded = onTokenLimitExceeded,
+                    maxTokens = maxTokens,
+                    tokenUsageThreshold = tokenUsageThreshold,
+                    isSubTask = isSubTask,
+                    characterName = characterName,
+                    avatarUri = avatarUri,
+                    roleCardId = roleCardId,
+                    chatId = chatId,
+                    onToolInvocation = onToolInvocation,
+                    stream = stream,
+                    toolResultMessageOverride = toolResultOverrideMessage
                 )
             }
         }
@@ -1068,27 +1133,37 @@ class EnhancedAIService private constructor(private val context: Context) {
             roleCardId: String? = null,
             chatId: String? = null,
             onToolInvocation: (suspend (String) -> Unit)? = null,
-            stream: Boolean = true
+            stream: Boolean = true,
+            toolResultMessageOverride: String? = null
     ) {
         val startTime = System.currentTimeMillis()
         val toolNames = results.joinToString(", ") { it.toolName }
-        AppLogger.d(TAG, "开始处理工具结果: $toolNames, 成功: ${results.all { it.success }}")
+        val toolResultMessage = toolResultMessageOverride ?: results.joinToString("\n") {
+            ConversationMarkupManager.formatToolResultForMessage(it)
+        }
+
+        if (toolResultMessage.isBlank()) {
+            AppLogger.w(TAG, "工具结果消息为空，跳过后续AI请求")
+            return
+        }
+
+        val displayToolNames = if (toolNames.isNotBlank()) toolNames else "warning"
+        if (results.isNotEmpty()) {
+            AppLogger.d(TAG, "开始处理工具结果: $toolNames, 成功: ${results.all { it.success }}")
+        } else {
+            AppLogger.d(TAG, "开始处理0工具覆盖消息，长度: ${toolResultMessage.length}")
+        }
 
         // Add transition state
         if (!isSubTask) {
         withContext(Dispatchers.Main) {
-            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(toolNames)
+            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(displayToolNames)
             }
         }
 
         // Check if conversation is still active
         if (!context.isConversationActive.get()) {
             return
-        }
-
-        // Tool result processing and subsequent AI request
-        val toolResultMessage = results.joinToString("\n") {
-            ConversationMarkupManager.formatToolResultForMessage(it)
         }
 
         // Add tool result to conversation history
@@ -1108,7 +1183,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         // Clearly show we're preparing to send tool result to AI
         if (!isSubTask) {
         withContext(Dispatchers.Main) {
-            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(toolNames)
+            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(displayToolNames)
             }
         }
 

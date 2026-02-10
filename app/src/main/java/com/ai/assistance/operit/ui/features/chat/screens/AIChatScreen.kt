@@ -95,6 +95,7 @@ fun AIChatScreen(
         onNavigateToUserPreferences: () -> Unit = {},
         onNavigateToModelConfig: () -> Unit = {},
         onNavigateToModelPrompts: () -> Unit = {},
+        onNavigateToPackageManager: () -> Unit = {},
         onGestureConsumed: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -202,6 +203,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val enableMemoryQuery by actualViewModel.enableMemoryQuery.collectAsState()
     val enableMaxContextMode by actualViewModel.enableMaxContextMode.collectAsState()
     val enableTools by actualViewModel.enableTools.collectAsState()
+    val toolPromptVisibility by actualViewModel.toolPromptVisibility.collectAsState()
     val disableStreamOutput by actualViewModel.disableStreamOutput.collectAsState()
     val disableUserPreferenceDescription by
             actualViewModel.disableUserPreferenceDescription.collectAsState()
@@ -706,10 +708,15 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                 onNavigateToUserPreferences = onNavigateToUserPreferences,
                                 onNavigateToModelConfig = onNavigateToModelConfig,
                                 onNavigateToModelPrompts = onNavigateToModelPrompts,
+                                onNavigateToPackageManager = onNavigateToPackageManager,
                                 isAutoReadEnabled = isAutoReadEnabled,
                                 onToggleAutoRead = { actualViewModel.toggleAutoRead() },
                                 enableTools = enableTools,
                                 onToggleTools = { actualViewModel.toggleTools() },
+                                toolPromptVisibility = toolPromptVisibility,
+                                onSaveToolPromptVisibilityMap = { visibilityMap ->
+                                    actualViewModel.saveToolPromptVisibilityMap(visibilityMap)
+                                },
                                 disableStreamOutput = disableStreamOutput,
                                 onToggleDisableStreamOutput = { actualViewModel.toggleDisableStreamOutput() },
                                 disableUserPreferenceDescription =

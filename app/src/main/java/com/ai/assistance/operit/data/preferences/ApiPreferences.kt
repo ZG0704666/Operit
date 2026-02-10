@@ -91,6 +91,9 @@ class ApiPreferences private constructor(private val context: Context) {
         // Key for Tools Enable/Disable
         val ENABLE_TOOLS = booleanPreferencesKey("enable_tools")
 
+        // Key for per-tool prompt visibility
+        val TOOL_PROMPT_VISIBILITY_JSON = stringPreferencesKey("tool_prompt_visibility_json")
+
         // Key for Disable Stream Output
         val DISABLE_STREAM_OUTPUT = booleanPreferencesKey("disable_stream_output")
 
@@ -154,6 +157,7 @@ class ApiPreferences private constructor(private val context: Context) {
         // 默认空的自定义参数列表
         const val DEFAULT_CUSTOM_PARAMETERS = "[]"
         const val DEFAULT_CUSTOM_HEADERS = "{}"
+        const val DEFAULT_TOOL_PROMPT_VISIBILITY_JSON = "{}"
 
         // API 配置默认值
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
@@ -255,6 +259,15 @@ class ApiPreferences private constructor(private val context: Context) {
     val enableToolsFlow: Flow<Boolean> =
         context.apiDataStore.data.map { preferences ->
             preferences[ENABLE_TOOLS] ?: DEFAULT_ENABLE_TOOLS
+        }
+
+    // Flow for per-tool prompt visibility
+    val toolPromptVisibilityFlow: Flow<Map<String, Boolean>> =
+        context.apiDataStore.data.map { preferences ->
+            val json = preferences[TOOL_PROMPT_VISIBILITY_JSON] ?: DEFAULT_TOOL_PROMPT_VISIBILITY_JSON
+            runCatching {
+                Json.decodeFromString<Map<String, Boolean>>(json)
+            }.getOrElse { emptyMap() }
         }
 
     // Flow for Disable Stream Output
@@ -380,6 +393,32 @@ class ApiPreferences private constructor(private val context: Context) {
     // Save Tools Enable/Disable setting
     suspend fun saveEnableTools(isEnabled: Boolean) {
         context.apiDataStore.edit { preferences -> preferences[ENABLE_TOOLS] = isEnabled }
+    }
+
+    // Save prompt visibility for a single tool
+    suspend fun saveToolPromptVisibility(toolName: String, isVisible: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            val currentMap = runCatching {
+                val json = preferences[TOOL_PROMPT_VISIBILITY_JSON] ?: DEFAULT_TOOL_PROMPT_VISIBILITY_JSON
+                Json.decodeFromString<Map<String, Boolean>>(json)
+            }.getOrElse { emptyMap() }
+            preferences[TOOL_PROMPT_VISIBILITY_JSON] = Json.encodeToString(currentMap + (toolName to isVisible))
+        }
+    }
+
+    // Save prompt visibility map for all tools
+    suspend fun saveToolPromptVisibilityMap(visibilityMap: Map<String, Boolean>) {
+        context.apiDataStore.edit { preferences ->
+            preferences[TOOL_PROMPT_VISIBILITY_JSON] = Json.encodeToString(visibilityMap)
+        }
+    }
+
+    suspend fun getToolPromptVisibilityMap(): Map<String, Boolean> {
+        val preferences = context.apiDataStore.data.first()
+        val json = preferences[TOOL_PROMPT_VISIBILITY_JSON] ?: DEFAULT_TOOL_PROMPT_VISIBILITY_JSON
+        return runCatching {
+            Json.decodeFromString<Map<String, Boolean>>(json)
+        }.getOrElse { emptyMap() }
     }
 
     // Save Disable Stream Output setting

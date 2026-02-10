@@ -1395,6 +1395,9 @@
     <string name="disable_stream_output_desc">禁用后，AI回复将一次性完整显示，而不是逐字流式显示</string>
     <string name="disable_settings_group">禁用项</string>
     <string name="disable_settings_group_desc">该分组用于集中管理会影响回复行为的禁用开关。</string>
+    <string name="manage_tools">工具管理</string>
+    <string name="tool_prompt_manager_title">工具提示词管理</string>
+    <string name="manage_packages">管理包</string>
     <string name="disable_user_preference_description">禁用用户偏好描述</string>
     <string name="disable_user_preference_description_desc">禁用后，系统提示词中不再附加“User preference description”段落</string>
     <string name="disable_latex_description">禁用 LaTeX 描述</string>
@@ -6172,6 +6175,7 @@
     <string name="enhanced_receiving_response">正在接收AI响应...</string>
     <string name="enhanced_error_with_message">错误: %1$s</string>
     <string name="enhanced_tool_warning">警告：工具调用和等待用户响应不能同时存在。工具调用被处理了，但这是极具危险性的。</string>
+    <string name="enhanced_pure_thinking_only_warning">警告：检测到纯思考输出（移除思考内容后正文为空）。请输出可展示的正文内容，禁止仅输出思考内容。</string>
     <string name="enhanced_receiving_tool_result">正在接收工具执行后的AI响应...</string>
     <string name="enhanced_process_tool_result_failed">处理工具执行结果失败: %1$s</string>
     <string name="enhanced_memory_tools_category">记忆与记忆库工具</string>

@@ -1096,8 +1096,49 @@ class MCPRepository(private val context: Context) {
     }
 
     /**
-     * 获取插件的工具信息（统一处理缓存和动态获取）
+     * 反注册插件对应的运行时服务器与工具，避免禁用后仍出现在系统提示词。
      */
+    fun unregisterToolsForPlugins(pluginIds: List<String>) {
+        if (pluginIds.isEmpty()) return
+
+        val mcpManager = MCPManager.getInstance(context)
+        val toolHandler = AIToolHandler.getInstance(context)
+
+        pluginIds.forEach { pluginId ->
+            try {
+                val toolPrefix = "$pluginId:"
+                val toolNamesToRemove = toolHandler.getAllToolNames().filter { it.startsWith(toolPrefix) }
+                toolNamesToRemove.forEach { toolName ->
+                    toolHandler.unregisterTool(toolName)
+                }
+
+                val serverNamesToRemove = mutableSetOf(pluginId)
+                val pluginConfig = mcpLocalServer.getPluginConfig(pluginId)
+                if (pluginConfig.isNotBlank()) {
+                    runCatching {
+                        val root = JsonParser.parseString(pluginConfig).asJsonObject
+                        root.getAsJsonObject("mcpServers")?.keySet()?.forEach { serverName ->
+                            serverNamesToRemove.add(serverName)
+                        }
+                    }.onFailure { e ->
+                        AppLogger.w(TAG, "Failed to parse plugin config for $pluginId: ${e.message}")
+                    }
+                }
+
+                serverNamesToRemove.forEach { serverName ->
+                    mcpManager.unregisterServer(serverName)
+                }
+
+                AppLogger.d(
+                    TAG,
+                    "Runtime MCP entries removed for $pluginId, tools=${toolNamesToRemove.size}, servers=${serverNamesToRemove.size}"
+                )
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to unregister runtime MCP entries for $pluginId", e)
+            }
+        }
+    }
+
     private fun getToolsForPlugin(pluginId: String): List<UnifiedToolInfo> {
         // 1. 检查缓存
         val cachedTools = mcpLocalServer.getCachedTools(pluginId)

@@ -179,6 +179,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val thinkingQualityLevel: StateFlow<Int> by lazy { apiConfigDelegate.thinkingQualityLevel }
     val enableMemoryQuery: StateFlow<Boolean> by lazy { apiConfigDelegate.enableMemoryQuery }
     val enableTools: StateFlow<Boolean> by lazy { apiConfigDelegate.enableTools }
+    val toolPromptVisibility: StateFlow<Map<String, Boolean>> by lazy { apiConfigDelegate.toolPromptVisibility }
     val disableStreamOutput: StateFlow<Boolean> by lazy { apiConfigDelegate.disableStreamOutput }
     val disableUserPreferenceDescription: StateFlow<Boolean> by lazy {
         apiConfigDelegate.disableUserPreferenceDescription
@@ -681,6 +682,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     fun toggleTools() {
         apiConfigDelegate.toggleTools()
+    }
+
+    fun saveToolPromptVisibility(toolName: String, isVisible: Boolean) {
+        apiConfigDelegate.saveToolPromptVisibility(toolName, isVisible)
+    }
+
+    fun saveToolPromptVisibilityMap(visibilityMap: Map<String, Boolean>) {
+        apiConfigDelegate.saveToolPromptVisibilityMap(visibilityMap)
     }
 
     fun toggleDisableStreamOutput() {

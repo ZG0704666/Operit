@@ -119,38 +119,61 @@ private fun isPaginationTriggerMessage(message: ChatMessage): Boolean {
 
 private fun calculatePaginationWindow(
     chatHistory: List<ChatMessage>,
-    visibleTriggerMessages: Int
+    messagesPerPage: Int,
+    depth: Int
 ): PaginationWindow {
     if (chatHistory.isEmpty()) {
         return PaginationWindow(minVisibleIndex = 0, hasMoreMessages = false)
     }
 
-    val safeVisibleTriggerMessages = visibleTriggerMessages.coerceAtLeast(1)
-    var triggerCount = 0
+    val safeMessagesPerPage = messagesPerPage.coerceAtLeast(1)
+    val safeDepth = depth.coerceAtLeast(1)
+
+    var cursor = chatHistory.lastIndex
     var minVisibleIndex = 0
-    var hasMoreMessages = false
 
-    for (index in chatHistory.lastIndex downTo 0) {
-        if (!isPaginationTriggerMessage(chatHistory[index])) {
-            continue
+    repeat(safeDepth) {
+        if (cursor < 0) {
+            minVisibleIndex = 0
+            return@repeat
         }
 
-        triggerCount += 1
-        if (triggerCount == safeVisibleTriggerMessages) {
-            minVisibleIndex = index
-        } else if (triggerCount > safeVisibleTriggerMessages) {
-            hasMoreMessages = true
-            break
-        }
-    }
+        var triggerCountInCurrentStep = 0
+        var stepStopped = false
 
-    if (triggerCount < safeVisibleTriggerMessages) {
-        minVisibleIndex = 0
+        while (cursor >= 0) {
+            val message = chatHistory[cursor]
+            if (isPaginationTriggerMessage(message)) {
+                triggerCountInCurrentStep += 1
+
+                if (message.sender == "summary") {
+                    minVisibleIndex = cursor
+                    cursor -= 1
+                    stepStopped = true
+                    break
+                }
+
+                if (triggerCountInCurrentStep >= safeMessagesPerPage) {
+                    minVisibleIndex = cursor
+                    cursor -= 1
+                    stepStopped = true
+                    break
+                }
+            }
+
+            cursor -= 1
+        }
+
+        if (!stepStopped) {
+            minVisibleIndex = 0
+            cursor = -1
+            return@repeat
+        }
     }
 
     return PaginationWindow(
         minVisibleIndex = minVisibleIndex,
-        hasMoreMessages = hasMoreMessages
+        hasMoreMessages = cursor >= 0
     )
 }
 
@@ -220,21 +243,11 @@ fun ChatArea(
                 showLoadingIndicator && chatStyle == ChatStyle.BUBBLE && lastMessage?.sender == "ai"
 
             val messagesCount = chatHistory.size
-            val safeMessagesPerPage = messagesPerPage.coerceAtLeast(1)
-            val visibleTriggerMessages = currentDepth.value * safeMessagesPerPage
-            val chatHistoryIdentity = System.identityHashCode(chatHistory)
-            val paginationWindow = remember(
-                chatHistoryIdentity,
-                messagesCount,
-                lastMessage?.timestamp,
-                lastMessage?.sender,
-                visibleTriggerMessages
-            ) {
-                calculatePaginationWindow(
-                    chatHistory = chatHistory,
-                    visibleTriggerMessages = visibleTriggerMessages
-                )
-            }
+            val paginationWindow = calculatePaginationWindow(
+                chatHistory = chatHistory,
+                messagesPerPage = messagesPerPage,
+                depth = currentDepth.value
+            )
             val minVisibleIndex = paginationWindow.minVisibleIndex
             val hasMoreMessages = paginationWindow.hasMoreMessages
 

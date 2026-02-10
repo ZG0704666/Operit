@@ -611,6 +611,9 @@
     <string name="disable_stream_output_desc">When disabled, AI responses will be displayed all at once instead of streaming word by word</string>
     <string name="disable_settings_group">Disable Options</string>
     <string name="disable_settings_group_desc">This group manages disable toggles that affect response behavior.</string>
+    <string name="manage_tools">Manage Tools</string>
+    <string name="tool_prompt_manager_title">Tool Prompt Manager</string>
+    <string name="manage_packages">Manage Packages</string>
     <string name="disable_user_preference_description">Disable User Preference Description</string>
     <string name="disable_user_preference_description_desc">When disabled, the system prompt no longer appends the "User preference description" section</string>
     <string name="disable_latex_description">Disable LaTeX Description</string>
@@ -6184,6 +6187,7 @@
     <string name="enhanced_receiving_response">Receiving AI response...</string>
     <string name="enhanced_error_with_message">Error: %1$s</string>
     <string name="enhanced_tool_warning">Warning: Tool calls and waiting for user response cannot exist at the same time. Tool calls were processed, but this is extremely dangerous.</string>
+    <string name="enhanced_pure_thinking_only_warning">Warning: Pure thinking output detected (main content is empty after removing thinking). Please provide visible main content and do not output thinking-only responses.</string>
     <string name="enhanced_receiving_tool_result">Receiving AI response after tool execution...</string>
     <string name="enhanced_process_tool_result_failed">Failed to process tool execution result: %1$s</string>
     <string name="enhanced_memory_tools_category">Memory and Memory Library Tools</string>

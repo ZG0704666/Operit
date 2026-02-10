@@ -349,7 +349,7 @@ class ModelConfigManager(private val context: Context) {
     ): ModelConfigData {
         return updateConfigInternal(configId) {
             val resolvedEnableToolCall =
-                if (apiProviderType == ApiProviderType.MNN || apiProviderType == ApiProviderType.LLAMA_CPP) {
+                if (apiProviderType == ApiProviderType.MNN) {
                     false
                 } else {
                     enableToolCall
@@ -484,7 +484,7 @@ class ModelConfigManager(private val context: Context) {
     suspend fun updateToolCall(configId: String, enableToolCall: Boolean): ModelConfigData {
         return updateConfigInternal(configId) {
             val resolvedEnableToolCall =
-                if (it.apiProviderType == ApiProviderType.MNN || it.apiProviderType == ApiProviderType.LLAMA_CPP) {
+                if (it.apiProviderType == ApiProviderType.MNN) {
                     false
                 } else {
                     enableToolCall

@@ -682,6 +682,67 @@ object SystemToolPrompts {
             safBookmarkNames = safBookmarkNames
         ) + internalToolCategoriesCn
     }
+
+    data class ManageableToolPrompt(
+        val categoryName: String,
+        val name: String,
+        val description: String
+    )
+
+    private fun applyToolVisibility(
+        categories: List<SystemToolPromptCategory>,
+        toolVisibility: Map<String, Boolean>
+    ): List<SystemToolPromptCategory> {
+        if (toolVisibility.isEmpty()) return categories
+        return categories.mapNotNull { category ->
+            val visibleTools = category.tools.filter { tool ->
+                toolVisibility[tool.name] ?: true
+            }
+            if (visibleTools.isEmpty()) {
+                null
+            } else {
+                category.copy(tools = visibleTools)
+            }
+        }
+    }
+
+    fun getManageableToolPrompts(useEnglish: Boolean): List<ManageableToolPrompt> {
+        val baseCategories = if (useEnglish) {
+            listOf(basicTools, fileSystemTools, httpTools, memoryTools)
+        } else {
+            listOf(basicToolsCn, fileSystemToolsCn, httpToolsCn, memoryToolsCn)
+        }
+
+        return baseCategories
+            .flatMap { category ->
+                category.tools.map { tool ->
+                    ManageableToolPrompt(
+                        categoryName = category.categoryName,
+                        name = tool.name,
+                        description = tool.description
+                    )
+                }
+            }
+            .distinctBy { it.name }
+    }
+
+    fun generateMemoryToolsPromptEn(
+        toolVisibility: Map<String, Boolean> = emptyMap()
+    ): String {
+        return applyToolVisibility(listOf(memoryTools), toolVisibility)
+            .firstOrNull()
+            ?.toString()
+            .orEmpty()
+    }
+
+    fun generateMemoryToolsPromptCn(
+        toolVisibility: Map<String, Boolean> = emptyMap()
+    ): String {
+        return applyToolVisibility(listOf(memoryToolsCn), toolVisibility)
+            .firstOrNull()
+            ?.toString()
+            .orEmpty()
+    }
     
     /**
      * 生成完整的工具提示词文本（英文）
@@ -694,7 +755,8 @@ object SystemToolPrompts {
         hasBackendVideoRecognition: Boolean = false,
         chatModelHasDirectAudio: Boolean = false,
         chatModelHasDirectVideo: Boolean = false,
-        safBookmarkNames: List<String> = emptyList()
+        safBookmarkNames: List<String> = emptyList(),
+        toolVisibility: Map<String, Boolean> = emptyMap()
     ): String {
         val categories = if (includeMemoryTools) {
             getAIAllCategoriesEn(
@@ -719,7 +781,7 @@ object SystemToolPrompts {
                 .filter { it.categoryName != "Memory and Memory Library Tools" }
         }
 
-        return categories.joinToString("\n\n") { it.toString() }
+        return applyToolVisibility(categories, toolVisibility).joinToString("\n\n") { it.toString() }
     }
     
     /**
@@ -733,7 +795,8 @@ object SystemToolPrompts {
         hasBackendVideoRecognition: Boolean = false,
         chatModelHasDirectAudio: Boolean = false,
         chatModelHasDirectVideo: Boolean = false,
-        safBookmarkNames: List<String> = emptyList()
+        safBookmarkNames: List<String> = emptyList(),
+        toolVisibility: Map<String, Boolean> = emptyMap()
     ): String {
         val categories = if (includeMemoryTools) {
             getAIAllCategoriesCn(
@@ -758,6 +821,6 @@ object SystemToolPrompts {
                 .filter { it.categoryName != "记忆与记忆库工具" }
         }
 
-        return categories.joinToString("\n\n") { it.toString() }
+        return applyToolVisibility(categories, toolVisibility).joinToString("\n\n") { it.toString() }
     }
 }
