@@ -76,8 +76,14 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
             varying vec2 vTexCoord;
             void main() {
                 vec3 normal = normalize((uModelMatrix * vec4(aNormal, 0.0)).xyz);
-                vec3 lightDir = normalize(vec3(0.25, 0.55, 1.0));
-                vLight = max(dot(normal, lightDir), 0.14);
+                vec3 keyLightDir = normalize(vec3(0.35, 0.65, 1.0));
+                vec3 fillLightDir = normalize(vec3(-0.45, 0.25, 0.9));
+
+                float key = max(dot(normal, keyLightDir), 0.0);
+                float fill = max(dot(normal, fillLightDir), 0.0);
+                float ambient = 0.38;
+
+                vLight = min(ambient + key * 0.72 + fill * 0.28, 1.5);
                 vTexCoord = aTexCoord;
                 gl_Position = uMvpMatrix * vec4(aPosition, 1.0);
             }
@@ -94,7 +100,12 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
                 vec3 fallbackColor = vec3(0.86, 0.83, 0.9);
                 vec3 baseColor = mix(fallbackColor, texColor.rgb, uUseTexture);
                 float alpha = mix(1.0, texColor.a, uUseTexture);
-                gl_FragColor = vec4(baseColor * vLight, alpha);
+
+                vec3 litColor = baseColor * vLight;
+                litColor = mix(litColor, baseColor, 0.18);
+                litColor = pow(max(litColor, vec3(0.0)), vec3(0.9));
+
+                gl_FragColor = vec4(clamp(litColor, 0.0, 1.0), alpha);
             }
         """
     }
