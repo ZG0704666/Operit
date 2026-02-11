@@ -49,3 +49,4 @@ mnn/build/*
 mnn/build
 kls_database.db
 .claude
+.codex
