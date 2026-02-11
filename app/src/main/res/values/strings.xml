@@ -3038,6 +3038,13 @@
     <string name="settings_click_to_edit_pricing">点击编辑定价和计费方式</string>
     <string name="settings_edit_model_pricing">编辑模型定价 - %1$s</string>
     <string name="settings_pricing_description">设置每百万Token的人民币价格</string>
+    <string name="settings_pricing_currency_hint">当前计价币种：%1$s</string>
+    <string name="settings_pricing_description_with_currency">设置每百万Token价格（%1$s）</string>
+    <string name="settings_token_price_description_with_currency">设置每次API请求价格（%1$s）</string>
+    <string name="settings_exchange_rate_title">汇率设置</string>
+    <string name="settings_exchange_rate_subtitle">美元计费模型会按此汇率折算为人民币总费用</string>
+    <string name="settings_usd_to_cny_rate_label">USD → CNY 汇率</string>
+    <string name="settings_rate_applied_hint">总费用按 1 USD = %1$.4f CNY 折算</string>
     <string name="settings_input_price_per_million">输入价格（每百万Token）</string>
     <string name="settings_output_price_per_million">输出价格（每百万Token）</string>
     <string name="settings_cached_input_price_per_million">缓存输入价格（每百万Token）</string>
@@ -3047,7 +3054,9 @@
     <string name="settings_billing_mode_token">按Token计费</string>
     <string name="settings_billing_mode_count">按次计费</string>
     <string name="settings_price_per_request">单次请求价格（元）</string>
+    <string name="settings_price_per_request_with_currency">单次请求价格（%1$s）</string>
     <string name="settings_per_request_cost">每次 ¥%1$.4f</string>
+    <string name="settings_per_request_cost_with_currency">每次 %1$s%2$.4f</string>
     <string name="settings_switch_billing_mode">切换计费方式</string>
     <string name="settings_save">保存</string>
     <string name="settings_cancel">取消</string>

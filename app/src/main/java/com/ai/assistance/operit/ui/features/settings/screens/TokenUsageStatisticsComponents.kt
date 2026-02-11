@@ -35,7 +35,8 @@ internal fun TokenUsageSummarySection(
     totalOutputTokens: Int,
     totalCachedInputTokens: Int,
     totalRequests: Int,
-    totalCost: Double
+    totalCostText: String,
+    exchangeRateHint: String?
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -90,12 +91,21 @@ internal fun TokenUsageSummarySection(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = "¥${String.format("%.2f", totalCost)}",
+                        text = totalCostText,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
+            }
+
+            exchangeRateHint?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))

@@ -3129,12 +3129,21 @@
     <string name="settings_billing_mode_token">Token-based Billing</string>
     <string name="settings_billing_mode_count">Per-request Billing</string>
     <string name="settings_price_per_request">Price Per Request (CNY)</string>
+    <string name="settings_price_per_request_with_currency">Price per Request (%1$s)</string>
     <string name="settings_per_request_cost">¥%1$.4f per request</string>
+    <string name="settings_per_request_cost_with_currency">%1$s%2$.4f per request</string>
     <string name="settings_switch_billing_mode">Switch Billing Mode</string>
     <string name="settings_model_details">Model Details</string>
     <string name="settings_click_to_edit_pricing">Click to edit pricing</string>
     <string name="settings_edit_model_pricing">Edit Model Pricing - %1$s</string>
     <string name="settings_pricing_description">Set RMB price per million tokens</string>
+    <string name="settings_pricing_currency_hint">Current pricing currency: %1$s</string>
+    <string name="settings_pricing_description_with_currency">Set price per million tokens (%1$s)</string>
+    <string name="settings_token_price_description_with_currency">Set price per API request (%1$s)</string>
+    <string name="settings_exchange_rate_title">Exchange Rate</string>
+    <string name="settings_exchange_rate_subtitle">USD-priced models are converted to CNY total cost using this rate</string>
+    <string name="settings_usd_to_cny_rate_label">USD → CNY Rate</string>
+    <string name="settings_rate_applied_hint">Total cost converted with 1 USD = %1$.4f CNY</string>
     <string name="settings_input_price_per_million">Input Price (per million tokens)</string>
     <string name="settings_output_price_per_million">Output Price (per million tokens)</string>
     <string name="settings_cached_input_price_per_million">Cached Input Price (per million tokens)</string>

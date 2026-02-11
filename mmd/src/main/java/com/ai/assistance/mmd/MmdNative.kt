@@ -24,6 +24,13 @@ object MmdNative {
 
     @JvmStatic external fun nativeBuildPreviewAnimatedMesh(pathModel: String, pathMotion: String, frame: Float): FloatArray?
 
+    @JvmStatic external fun nativeBuildPreviewAnimatedMeshAuto(
+        pathModel: String,
+        pathMotion: String,
+        isLooping: Boolean,
+        restart: Boolean
+    ): FloatArray?
+
     @JvmStatic external fun nativeBuildPreviewMesh(pathModel: String): FloatArray?
 
     @JvmStatic external fun nativeBuildPreviewBatches(pathModel: String): IntArray?

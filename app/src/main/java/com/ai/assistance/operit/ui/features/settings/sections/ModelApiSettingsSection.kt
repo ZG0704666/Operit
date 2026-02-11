@@ -50,6 +50,7 @@ import com.ai.assistance.operit.api.chat.llmprovider.EndpointCompleter
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.api.chat.llmprovider.LlamaProvider
 import com.ai.assistance.operit.api.chat.llmprovider.ModelListFetcher
+import com.ai.assistance.operit.data.collects.ApiProviderConfigs
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.ModelOption
@@ -92,54 +93,17 @@ fun ModelApiSettingsSection(
 
     // 获取每个提供商的默认模型名称
     fun getDefaultModelName(providerType: ApiProviderType): String {
-        return when (providerType) {
-            ApiProviderType.OPENAI -> "gpt-4o"
-            ApiProviderType.OPENAI_RESPONSES -> "gpt-4o"
-            ApiProviderType.OPENAI_GENERIC -> ""
-            ApiProviderType.ANTHROPIC -> "claude-3-opus-20240229"
-            ApiProviderType.ANTHROPIC_GENERIC -> ""
-            ApiProviderType.GOOGLE -> "gemini-2.0-flash"
-            ApiProviderType.GEMINI_GENERIC -> "gemini-2.0-flash"
-            ApiProviderType.DEEPSEEK -> "deepseek-chat"
-            ApiProviderType.BAIDU -> "ernie-bot-4"
-            ApiProviderType.ALIYUN -> "qwen-max"
-            ApiProviderType.XUNFEI -> "spark3.5"
-            ApiProviderType.ZHIPU -> "glm-4.5"
-            ApiProviderType.BAICHUAN -> "baichuan4"
-            ApiProviderType.MOONSHOT -> "moonshot-v1-128k"
-            ApiProviderType.MISTRAL -> "codestral-latest"
-            ApiProviderType.SILICONFLOW -> "yi-1.5-34b"
-            ApiProviderType.OPENROUTER -> "google/gemini-pro"
-            ApiProviderType.INFINIAI -> "infini-mini"
-            ApiProviderType.ALIPAY_BAILING -> "Ling-1T"
-            ApiProviderType.DOUBAO -> "Doubao-pro-4k"
-            ApiProviderType.LMSTUDIO -> "meta-llama-3.1-8b-instruct"
-            ApiProviderType.MNN -> ""
-            ApiProviderType.LLAMA_CPP -> ""
-            ApiProviderType.PPINFRA -> "gpt-4o-mini"
-            ApiProviderType.OTHER -> ""
-        }
+        return ApiProviderConfigs.getDefaultModelName(providerType)
     }
 
     fun getEndpointOptions(providerType: ApiProviderType): List<Pair<String, String>>? {
-        return when (providerType) {
-            ApiProviderType.MOONSHOT -> listOf(
-                "https://api.moonshot.cn/v1/chat/completions" to "China (moonshot.cn)",
-                "https://api.moonshot.ai/v1/chat/completions" to "International (moonshot.ai)"
-            )
-            ApiProviderType.ZHIPU -> listOf(
-                "https://open.bigmodel.cn/api/paas/v4/chat/completions" to "CN standard",
-                "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions" to "CN coding",
-                "https://api.z.ai/api/paas/v4/chat/completions" to "International standard",
-                "https://api.z.ai/api/coding/paas/v4/chat/completions" to "International coding"
-            )
-            else -> null
-        }
+        return ApiProviderConfigs.getEndpointOptions(providerType)
+            ?.map { it.endpoint to it.label }
     }
 
     // 检查当前模型名称是否是某个提供商的默认值
     fun isDefaultModelName(modelName: String): Boolean {
-        return ApiProviderType.values().any { getDefaultModelName(it) == modelName }
+        return ApiProviderConfigs.isDefaultModelName(modelName)
     }
 
     // API编辑状态
@@ -330,42 +294,12 @@ fun ModelApiSettingsSection(
 
     // 根据API提供商获取默认的API端点URL
     fun getDefaultApiEndpoint(providerType: ApiProviderType): String {
-        return when (providerType) {
-            ApiProviderType.OPENAI -> "https://api.openai.com/v1/chat/completions"
-            ApiProviderType.OPENAI_RESPONSES -> "https://api.openai.com/v1/responses"
-            ApiProviderType.ANTHROPIC -> "https://api.anthropic.com/v1/messages"
-            ApiProviderType.ANTHROPIC_GENERIC -> ""
-            ApiProviderType.GOOGLE -> "https://generativelanguage.googleapis.com/v1beta/models"
-            // Gemini通用交给用户自定义端点
-            ApiProviderType.GEMINI_GENERIC -> ""
-            ApiProviderType.DEEPSEEK -> "https://api.deepseek.com/v1/chat/completions"
-            ApiProviderType.BAIDU ->
-                    "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions"
-            ApiProviderType.ALIYUN ->
-                    "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-            ApiProviderType.XUNFEI -> "https://spark-api-open.xf-yun.com/v2/chat/completions"
-            ApiProviderType.ZHIPU ->
-                    "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-            ApiProviderType.BAICHUAN -> "https://api.baichuan-ai.com/v1/chat/completions"
-            ApiProviderType.MOONSHOT -> "https://api.moonshot.cn/v1/chat/completions"
-            ApiProviderType.MISTRAL -> "https://codestral.mistral.ai/v1/chat/completions"
-            ApiProviderType.SILICONFLOW -> "https://api.siliconflow.cn/v1/chat/completions"
-            ApiProviderType.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
-            ApiProviderType.INFINIAI -> "https://cloud.infini-ai.com/maas/v1/chat/completions"
-            ApiProviderType.ALIPAY_BAILING -> "https://api.tbox.cn/api/llm/v1/chat/completions"
-            ApiProviderType.DOUBAO -> "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
-            ApiProviderType.LMSTUDIO -> "http://localhost:1234/v1/chat/completions"
-            ApiProviderType.MNN -> "" // MNN本地推理不需要endpoint
-            ApiProviderType.LLAMA_CPP -> "" // llama.cpp本地推理不需要endpoint
-            ApiProviderType.PPINFRA -> "https://api.ppinfra.com/openai/v1/chat/completions"
-            ApiProviderType.OPENAI_GENERIC -> ""
-            ApiProviderType.OTHER -> ""
-        }
+        return ApiProviderConfigs.getDefaultApiEndpoint(providerType)
     }
 
     // 添加一个函数检查当前API端点是否为某个提供商的默认端点
     fun isDefaultApiEndpoint(endpoint: String): Boolean {
-        return ApiProviderType.values().any { getDefaultApiEndpoint(it) == endpoint }
+        return ApiProviderConfigs.isDefaultApiEndpoint(endpoint)
     }
 
     // 当API提供商改变时更新端点

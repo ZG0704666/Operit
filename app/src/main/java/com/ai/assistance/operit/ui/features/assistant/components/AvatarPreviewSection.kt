@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
+import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.ai.assistance.operit.core.avatar.common.view.AvatarView
 import com.ai.assistance.operit.core.avatar.impl.factory.AvatarControllerFactoryImpl
 import com.ai.assistance.operit.core.avatar.impl.factory.AvatarRendererFactoryImpl
@@ -53,8 +55,37 @@ fun AvatarPreviewSection(
                 val avatarController = controllerFactory.createController(currentModel)
 
                 if (avatarController != null) {
+                    val lastEmotionAnimationMappingState =
+                        remember(avatarController) {
+                            mutableStateOf<Map<AvatarEmotion, String>>(emptyMap())
+                        }
+                    val emotionMappingInitializedState =
+                        remember(avatarController) {
+                            mutableStateOf(false)
+                        }
+
                     LaunchedEffect(avatarController, uiState.emotionAnimationMapping) {
-                        avatarController.updateEmotionAnimationMapping(uiState.emotionAnimationMapping)
+                        val latestMapping = uiState.emotionAnimationMapping
+                        val previousMapping = lastEmotionAnimationMappingState.value
+
+                        avatarController.updateEmotionAnimationMapping(latestMapping)
+
+                        if (emotionMappingInitializedState.value) {
+                            val changedEmotion =
+                                latestMapping.keys.firstOrNull { emotion ->
+                                    previousMapping[emotion] != latestMapping[emotion]
+                                } ?: previousMapping.keys.firstOrNull { emotion ->
+                                    !latestMapping.containsKey(emotion)
+                                }
+
+                            changedEmotion?.let { emotion ->
+                                avatarController.setEmotion(emotion)
+                            }
+                        } else {
+                            emotionMappingInitializedState.value = true
+                        }
+
+                        lastEmotionAnimationMappingState.value = latestMapping
                     }
 
                     val runtimeSettings =

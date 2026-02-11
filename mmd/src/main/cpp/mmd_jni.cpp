@@ -3,7 +3,9 @@
 #include <android/log.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
@@ -228,6 +230,14 @@ AnimatedRuntimeCache gAnimatedRuntimeCache;
 
 std::mutex gImageDecodeCacheMutex;
 ImageDecodeCache gImageDecodeCache;
+
+std::mutex gAutoAnimationClockMutex;
+std::string gAutoAnimationModelPath;
+std::string gAutoAnimationMotionPath;
+bool gAutoAnimationLooping = false;
+bool gAutoAnimationClockStarted = false;
+std::chrono::steady_clock::time_point gAutoAnimationStartedAt;
+std::unordered_map<std::string, int32_t> gMotionMaxFrameCache;
 
 inline void appendPreviewVertex(
     std::vector<float>* outVertices,
@@ -948,6 +958,98 @@ bool buildAnimatedPreviewMesh(
     return true;
 }
 
+bool buildAnimatedPreviewMeshAuto(
+    const std::string& modelPath,
+    const std::string& motionPath,
+    bool isLooping,
+    bool restart,
+    std::vector<float>* outVertices,
+    int32_t* outMaxMotionFrame,
+    std::string* outError
+) {
+    if (outVertices == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: animated preview output buffer is null.";
+        }
+        return false;
+    }
+
+    if (modelPath.empty()) {
+        if (outError != nullptr) {
+            *outError = "model path is empty.";
+        }
+        return false;
+    }
+
+    if (motionPath.empty()) {
+        if (outError != nullptr) {
+            *outError = "motion path is empty.";
+        }
+        return false;
+    }
+
+    int32_t maxFrame = 0;
+    {
+        std::lock_guard<std::mutex> clockLock(gAutoAnimationClockMutex);
+
+        const auto cachedMaxFrame = gMotionMaxFrameCache.find(motionPath);
+        if (cachedMaxFrame != gMotionMaxFrameCache.end()) {
+            maxFrame = cachedMaxFrame->second;
+        }
+
+        const bool shouldRestartClock =
+            restart ||
+            !gAutoAnimationClockStarted ||
+            gAutoAnimationModelPath != modelPath ||
+            gAutoAnimationMotionPath != motionPath ||
+            gAutoAnimationLooping != isLooping;
+        if (shouldRestartClock) {
+            gAutoAnimationModelPath = modelPath;
+            gAutoAnimationMotionPath = motionPath;
+            gAutoAnimationLooping = isLooping;
+            gAutoAnimationClockStarted = true;
+            gAutoAnimationStartedAt = std::chrono::steady_clock::now();
+        }
+    }
+
+    if (maxFrame <= 0) {
+        int32_t parsedMaxFrame = 0;
+        if (!readMotionMaxFrame(motionPath, &parsedMaxFrame, outError)) {
+            return false;
+        }
+
+        maxFrame = std::max(parsedMaxFrame, 0);
+        std::lock_guard<std::mutex> clockLock(gAutoAnimationClockMutex);
+        gMotionMaxFrameCache[motionPath] = maxFrame;
+    }
+
+    float sampledFrame = 0.0f;
+    {
+        std::lock_guard<std::mutex> clockLock(gAutoAnimationClockMutex);
+        const auto now = std::chrono::steady_clock::now();
+        const float elapsedSeconds = std::chrono::duration<float>(now - gAutoAnimationStartedAt).count();
+        const float elapsedFrames = std::max(elapsedSeconds, 0.0f) * 30.0f;
+        const float maxFrameFloat = static_cast<float>(maxFrame);
+
+        if (maxFrameFloat <= 0.0f) {
+            sampledFrame = 0.0f;
+        } else if (isLooping) {
+            sampledFrame = std::fmod(elapsedFrames, maxFrameFloat + 1.0f);
+        } else {
+            sampledFrame = std::min(elapsedFrames, maxFrameFloat);
+        }
+    }
+
+    return buildAnimatedPreviewMesh(
+        modelPath,
+        motionPath,
+        sampledFrame,
+        outVertices,
+        outMaxMotionFrame,
+        outError
+    );
+}
+
 bool decodeImageRgbaCached(
     const std::string& imagePath,
     int* outWidth,
@@ -1333,6 +1435,60 @@ Java_com_ai_assistance_mmd_MmdNative_nativeBuildPreviewAnimatedMesh(JNIEnv* env,
     (void) pathModel;
     (void) pathMotion;
     (void) frame;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeBuildPreviewAnimatedMeshAuto(
+    JNIEnv* env,
+    jclass,
+    jstring pathModel,
+    jstring pathMotion,
+    jboolean isLooping,
+    jboolean restart
+) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string modelPath = jstringToString(env, pathModel);
+    const std::string motionPath = jstringToString(env, pathMotion);
+    if (modelPath.empty()) {
+        setLastError("model path is empty.");
+        return nullptr;
+    }
+    if (motionPath.empty()) {
+        setLastError("motion path is empty.");
+        return nullptr;
+    }
+
+    std::vector<float> animatedVertices;
+    std::string parseError;
+    if (!buildAnimatedPreviewMeshAuto(
+            modelPath,
+            motionPath,
+            isLooping == JNI_TRUE,
+            restart == JNI_TRUE,
+            &animatedVertices,
+            nullptr,
+            &parseError)) {
+        setLastError(parseError);
+        return nullptr;
+    }
+
+    jfloatArray result = buildFloatArray(env, animatedVertices);
+    if (result == nullptr) {
+        setLastError("failed to allocate JNI float array for animated preview mesh.");
+        return nullptr;
+    }
+
+    clearLastError();
+    return result;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathModel;
+    (void) pathMotion;
+    (void) isLooping;
+    (void) restart;
     return nullptr;
 #endif
 }

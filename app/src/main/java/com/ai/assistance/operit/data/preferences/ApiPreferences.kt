@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.ParameterCategory
@@ -71,6 +72,27 @@ class ApiPreferences private constructor(private val context: Context) {
         // 按次计费价格键
         fun getPricePerRequestKey(providerModel: String) =
                 floatPreferencesKey("price_per_request_${providerModel.replace(":", "_")}")
+
+        private val providerNameCandidates =
+                ApiProviderType.values().map { it.name }.sortedByDescending { it.length }
+
+        private fun decodeProviderModelFromKeySuffix(encoded: String): String {
+                val matchedProvider = providerNameCandidates.firstOrNull {
+                        encoded == it || encoded.startsWith("${it}_")
+                }
+
+                return if (matchedProvider != null) {
+                        if (encoded.length == matchedProvider.length) {
+                                matchedProvider
+                        } else {
+                                "$matchedProvider:${encoded.substring(matchedProvider.length + 1)}"
+                        }
+                } else {
+                        encoded.replace("_", ":")
+                }
+        }
+
+        val USD_TO_CNY_EXCHANGE_RATE = floatPreferencesKey("usd_to_cny_exchange_rate")
 
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
@@ -515,7 +537,8 @@ class ApiPreferences private constructor(private val context: Context) {
         preferences.asMap().forEach { (key, value) ->
             val keyName = key.name
             if (keyName.startsWith("token_input_")) {
-                val providerModel = keyName.removePrefix("token_input_").replace("_", ":")
+                val providerModel =
+                        decodeProviderModelFromKeySuffix(keyName.removePrefix("token_input_"))
                 val inputTokens = value as? Int ?: 0
                 val outputTokens = preferences[getTokenOutputKey(providerModel)] ?: 0
                 val cachedInputTokens = preferences[getTokenCachedInputKey(providerModel)] ?: 0
@@ -540,7 +563,8 @@ class ApiPreferences private constructor(private val context: Context) {
             preferences.asMap().forEach { (key, value) ->
                 val keyName = key.name
                 if (keyName.startsWith("token_input_")) {
-                    val providerModel = keyName.removePrefix("token_input_").replace("_", ":")
+                    val providerModel =
+                            decodeProviderModelFromKeySuffix(keyName.removePrefix("token_input_"))
                     val inputTokens = value as? Int ?: 0
                     val outputTokens = preferences[getTokenOutputKey(providerModel)] ?: 0
                     val cachedInputTokens = preferences[getTokenCachedInputKey(providerModel)] ?: 0
@@ -668,7 +692,8 @@ class ApiPreferences private constructor(private val context: Context) {
         preferences.asMap().forEach { (key, value) ->
             val keyName = key.name
             if (keyName.startsWith("request_count_")) {
-                val providerModel = keyName.removePrefix("request_count_").replace("_", ":")
+                val providerModel =
+                        decodeProviderModelFromKeySuffix(keyName.removePrefix("request_count_"))
                 val count = value as? Int ?: 0
                 if (count > 0) {
                     result[providerModel] = count
@@ -716,13 +741,13 @@ class ApiPreferences private constructor(private val context: Context) {
     // ===== Price Per Request 按次计费价格相关方法 =====
 
     /**
-     * 获取指定供应商:模型的按次计费价格（人民币）
+     * 获取指定供应商:模型的按次计费价格
      * @param providerModel 供应商:模型标识符
-     * @return 每次请求的价格，默认为0.01元
+     * @return 每次请求的价格，未设置时返回0.0
      */
     suspend fun getPricePerRequestForProviderModel(providerModel: String): Double {
         val preferences = context.apiDataStore.data.first()
-        return preferences[getPricePerRequestKey(providerModel)]?.toDouble() ?: 0.01
+        return preferences[getPricePerRequestKey(providerModel)]?.toDouble() ?: 0.0
     }
 
     /**
@@ -733,6 +758,17 @@ class ApiPreferences private constructor(private val context: Context) {
     suspend fun setPricePerRequestForProviderModel(providerModel: String, price: Double) {
         context.apiDataStore.edit { preferences ->
             preferences[getPricePerRequestKey(providerModel)] = price.toFloat()
+        }
+    }
+
+    suspend fun getUsdToCnyExchangeRate(): Double {
+        val preferences = context.apiDataStore.data.first()
+        return preferences[USD_TO_CNY_EXCHANGE_RATE]?.toDouble() ?: 7.2
+    }
+
+    suspend fun setUsdToCnyExchangeRate(rate: Double) {
+        context.apiDataStore.edit { preferences ->
+            preferences[USD_TO_CNY_EXCHANGE_RATE] = rate.toFloat()
         }
     }
 

@@ -20,7 +20,6 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -97,9 +96,6 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
 
     companion object {
         private const val TAG = "MmdGlRenderer"
-        private const val MAX_ANIMATED_MESH_UPDATES_PER_SECOND = 60f
-        private const val MIN_ANIMATED_MESH_UPDATE_INTERVAL_MS =
-            (1000f / MAX_ANIMATED_MESH_UPDATES_PER_SECOND).toLong()
 
         private const val STRIDE_FLOATS = 8
         private const val POSITION_OFFSET_FLOATS = 0
@@ -179,12 +175,7 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
 
     private var activeAnimationName: String? = null
     private var activeAnimationLooping: Boolean = false
-    private var activeAnimationStartedAtMs: Long = 0L
     private var activeMotionPath: String? = null
-    private var activeMotionMaxFrame: Int = 0
-    private var lastAnimatedMeshUpdateAtMs: Long = Long.MIN_VALUE
-    private var lastAnimatedSampledFrame: Float = Float.NaN
-    private var lastAnimatedMotionPath: String? = null
 
     private var drawBatches: List<DrawBatch> = emptyList()
     private var textureIdsBySlot: IntArray = IntArray(0)
@@ -247,12 +238,7 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
         clearTextureSet()
         activeAnimationName = pendingAnimationName
         activeAnimationLooping = pendingAnimationLooping
-        activeAnimationStartedAtMs = SystemClock.uptimeMillis()
         activeMotionPath = null
-        activeMotionMaxFrame = 0
-        lastAnimatedMeshUpdateAtMs = Long.MIN_VALUE
-        lastAnimatedSampledFrame = Float.NaN
-        lastAnimatedMotionPath = null
         activeRotationX = pendingRotationX
         activeRotationY = pendingRotationY
         activeRotationZ = pendingRotationZ
@@ -320,10 +306,6 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
                 if (loaded) {
                     currentModelPath = newPath
                     activeMotionPath = null
-                    activeMotionMaxFrame = 0
-                    lastAnimatedMeshUpdateAtMs = Long.MIN_VALUE
-                    lastAnimatedSampledFrame = Float.NaN
-                    lastAnimatedMotionPath = null
                     lastFailedModelPath = null
                 } else {
                     lastFailedModelPath = newPath
@@ -334,18 +316,14 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
         val localVertexBuffer = vertexBuffer ?: return
         if (vertexCount <= 0) return
 
-        val nowMs = SystemClock.uptimeMillis()
         val requestedAnimation = pendingAnimationName
         val requestedLooping = pendingAnimationLooping
+        var shouldRestartNativeAnimationClock = false
         if (requestedAnimation != activeAnimationName || requestedLooping != activeAnimationLooping) {
             activeAnimationName = requestedAnimation
             activeAnimationLooping = requestedLooping
-            activeAnimationStartedAtMs = nowMs
             activeMotionPath = null
-            activeMotionMaxFrame = 0
-            lastAnimatedMeshUpdateAtMs = Long.MIN_VALUE
-            lastAnimatedSampledFrame = Float.NaN
-            lastAnimatedMotionPath = null
+            shouldRestartNativeAnimationClock = true
         }
 
         val stableModelPath = currentModelPath
@@ -353,44 +331,22 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
             val resolvedMotionPath = File(File(stableModelPath).parentFile, requestedAnimation).absolutePath
             if (resolvedMotionPath != activeMotionPath) {
                 activeMotionPath = resolvedMotionPath
-                activeMotionMaxFrame = MmdNative.nativeReadMotionMaxFrame(resolvedMotionPath).coerceAtLeast(0)
-                activeAnimationStartedAtMs = nowMs
-                lastAnimatedMeshUpdateAtMs = Long.MIN_VALUE
-                lastAnimatedSampledFrame = Float.NaN
-                lastAnimatedMotionPath = null
+                shouldRestartNativeAnimationClock = true
             }
 
-            if (activeMotionMaxFrame > 0) {
-                val elapsedFrames = ((nowMs - activeAnimationStartedAtMs).coerceAtLeast(0L) * 30f) / 1000f
-                val maxFrameFloat = activeMotionMaxFrame.toFloat()
-                val sampledFrame = if (activeAnimationLooping && maxFrameFloat > 0f) {
-                    elapsedFrames % (maxFrameFloat + 1f)
-                } else {
-                    min(elapsedFrames, maxFrameFloat)
-                }
-
-                if (shouldUpdateAnimatedMesh(nowMs, resolvedMotionPath, sampledFrame)) {
-                    val animatedMesh = MmdNative.nativeBuildPreviewAnimatedMesh(
-                        pathModel = stableModelPath,
-                        pathMotion = resolvedMotionPath,
-                        frame = sampledFrame
-                    )
-                    if (animatedMesh != null && animatedMesh.size == vertexCount * STRIDE_FLOATS) {
-                        localVertexBuffer.position(0)
-                        localVertexBuffer.put(animatedMesh)
-                        localVertexBuffer.position(0)
-                        lastAnimatedMeshUpdateAtMs = nowMs
-                        lastAnimatedSampledFrame = sampledFrame
-                        lastAnimatedMotionPath = resolvedMotionPath
-                    }
-                }
+            val animatedMesh = MmdNative.nativeBuildPreviewAnimatedMeshAuto(
+                pathModel = stableModelPath,
+                pathMotion = resolvedMotionPath,
+                isLooping = activeAnimationLooping,
+                restart = shouldRestartNativeAnimationClock
+            )
+            if (animatedMesh != null && animatedMesh.size == vertexCount * STRIDE_FLOATS) {
+                localVertexBuffer.position(0)
+                localVertexBuffer.put(animatedMesh)
+                localVertexBuffer.position(0)
             }
         } else {
             activeMotionPath = null
-            activeMotionMaxFrame = 0
-            lastAnimatedMeshUpdateAtMs = Long.MIN_VALUE
-            lastAnimatedSampledFrame = Float.NaN
-            lastAnimatedMotionPath = null
         }
 
         activeRotationX = pendingRotationX
@@ -735,26 +691,6 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
             1f,
             0f
         )
-    }
-
-    private fun shouldUpdateAnimatedMesh(nowMs: Long, motionPath: String, sampledFrame: Float): Boolean {
-        if (motionPath != lastAnimatedMotionPath) {
-            return true
-        }
-
-        if (lastAnimatedSampledFrame.isNaN()) {
-            return true
-        }
-
-        if (lastAnimatedMeshUpdateAtMs == Long.MIN_VALUE) {
-            return true
-        }
-
-        if (nowMs - lastAnimatedMeshUpdateAtMs < MIN_ANIMATED_MESH_UPDATE_INTERVAL_MS) {
-            return false
-        }
-
-        return abs(sampledFrame - lastAnimatedSampledFrame) > 0.0001f
     }
 
     private fun clearMesh() {
