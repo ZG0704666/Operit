@@ -27,26 +27,17 @@ class DragonBonesAvatarController(
     override val availableAnimations: List<String>
         get() = libController.animationNames
 
-    override fun setEmotion(newEmotion: AvatarEmotion) {
-        // Simple mapping from emotion to animation name.
-        // This could be made more sophisticated (e.g., using a map from the model).
-        val animationName = when (newEmotion) {
-            AvatarEmotion.IDLE -> "idle"
-            AvatarEmotion.LISTENING -> "idle" // Assuming 'idle' is the listening anim for now
-            AvatarEmotion.THINKING -> "idle_2" // Example
-            AvatarEmotion.HAPPY -> "happy"
-            AvatarEmotion.SAD -> "sad"
-            else -> "idle" // Fallback
-        }
+    private var emotionAnimationMapping: Map<AvatarEmotion, String> = emptyMap()
 
-        if (availableAnimations.contains(animationName)) {
-            libController.playAnimation(animationName, 0f) // Loop indefinitely
-            _state.value = _state.value.copy(
-                emotion = newEmotion,
-                currentAnimation = animationName,
-                isLooping = true
-            )
-        }
+    override fun setEmotion(newEmotion: AvatarEmotion) {
+        val animationName = resolveAnimationForEmotion(newEmotion) ?: return
+
+        libController.playAnimation(animationName, 0f)
+        _state.value = _state.value.copy(
+            emotion = newEmotion,
+            currentAnimation = animationName,
+            isLooping = true
+        )
     }
 
     override fun playAnimation(animationName: String, loop: Int) {
@@ -68,6 +59,38 @@ class DragonBonesAvatarController(
         settings["scale"]?.let { if (it is Number) libController.scale = it.toFloat() }
         settings["translateX"]?.let { if (it is Number) libController.translationX = it.toFloat() }
         settings["translateY"]?.let { if (it is Number) libController.translationY = it.toFloat() }
+    }
+
+    override fun updateEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>) {
+        emotionAnimationMapping = mapping
+            .mapValues { (_, animationName) -> animationName.trim() }
+            .filterValues { animationName -> animationName.isNotBlank() }
+    }
+
+    private fun resolveAnimationForEmotion(emotion: AvatarEmotion): String? {
+        val preferred = emotionAnimationMapping[emotion]
+        if (!preferred.isNullOrBlank() && availableAnimations.contains(preferred)) {
+            return preferred
+        }
+
+        val directName = emotion.name.lowercase()
+        if (availableAnimations.contains(directName)) {
+            return directName
+        }
+
+        if (emotion != AvatarEmotion.IDLE) {
+            val idleFallback = emotionAnimationMapping[AvatarEmotion.IDLE]
+            if (!idleFallback.isNullOrBlank() && availableAnimations.contains(idleFallback)) {
+                return idleFallback
+            }
+
+            val idleName = AvatarEmotion.IDLE.name.lowercase()
+            if (availableAnimations.contains(idleName)) {
+                return idleName
+            }
+        }
+
+        return null
     }
 }
 

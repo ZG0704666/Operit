@@ -39,27 +39,29 @@ class WebPAvatarController(
     override val availableAnimations: List<String>
         get() = model.emotionToFileMap.values.toList()
 
+    private var emotionAnimationMapping: Map<AvatarEmotion, String> = emptyMap()
+
     override fun setEmotion(newEmotion: AvatarEmotion) {
-        if (model.availableEmotions.contains(newEmotion)) {
-            val newModel = model.withEmotion(newEmotion)
-            model = newModel
-            _currentModel.value = newModel
-            
-            _state.value = _state.value.copy(
-                emotion = newEmotion,
-                currentAnimation = newModel.animationPath,
-                isLooping = newModel.shouldLoop
-            )
+        val mappedAnimation = emotionAnimationMapping[newEmotion]
+        val mappedModelEmotion = mappedAnimation?.let { animationName ->
+            model.emotionToFileMap.entries.find { it.value == animationName }?.key
         }
+
+        val targetEmotion = when {
+            mappedModelEmotion != null -> mappedModelEmotion
+            model.availableEmotions.contains(newEmotion) -> newEmotion
+            else -> null
+        } ?: return
+
+        applyEmotion(displayEmotion = newEmotion, modelEmotion = targetEmotion)
     }
 
     override fun playAnimation(animationName: String, loop: Int) {
-        // For WebP avatars, we look up the emotion that corresponds to this animation file
-        val emotion = model.emotionToFileMap.entries
+        val targetEmotion = model.emotionToFileMap.entries
             .find { it.value == animationName }
             ?.key ?: return
 
-        setEmotion(emotion)
+        applyEmotion(displayEmotion = targetEmotion, modelEmotion = targetEmotion)
     }
 
     override fun lookAt(x: Float, y: Float) {
@@ -73,13 +75,19 @@ class WebPAvatarController(
         settings["translateY"]?.let { if (it is Number) _translateY.value = it.toFloat() }
     }
 
+    override fun updateEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>) {
+        emotionAnimationMapping = mapping
+            .mapValues { (_, animationName) -> animationName.trim() }
+            .filterValues { animationName -> animationName.isNotBlank() }
+    }
+
     /**
      * Updates the avatar model. This is useful when switching between different WebP avatar sets.
      */
     fun updateModel(newModel: WebPAvatarModel) {
         model = newModel
         _currentModel.value = newModel
-        
+
         // Reset to current emotion with new model
         setEmotion(_state.value.emotion)
     }
@@ -89,6 +97,22 @@ class WebPAvatarController(
      */
     val currentAnimationPath: String
         get() = model.animationPath
+
+    private fun applyEmotion(displayEmotion: AvatarEmotion, modelEmotion: AvatarEmotion) {
+        if (!model.availableEmotions.contains(modelEmotion)) {
+            return
+        }
+
+        val newModel = model.withEmotion(modelEmotion)
+        model = newModel
+        _currentModel.value = newModel
+
+        _state.value = _state.value.copy(
+            emotion = displayEmotion,
+            currentAnimation = newModel.animationPath,
+            isLooping = newModel.shouldLoop
+        )
+    }
 }
 
 /**

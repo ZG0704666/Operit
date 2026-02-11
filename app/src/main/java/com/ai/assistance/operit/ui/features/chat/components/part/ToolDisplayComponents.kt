@@ -42,6 +42,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.ai.assistance.operit.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 /** 简洁样式的工具调用显示组件 使用箭头图标+工具名+参数的简洁行样式 */
 @Composable
@@ -53,20 +55,23 @@ fun CompactToolDisplay(
         enableDialog: Boolean = true  // 新增参数：是否启用弹窗功能，默认启用
 ) {
     val context = LocalContext.current
+    val (displayToolName, displayParams) = remember(toolName, params) {
+        normalizeToolDisplayForStrictProxy(toolName, params)
+    }
     // 弹窗状态
     var showDetailDialog by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
-    val hasParams = params.isNotBlank()
-    val semanticDescription = remember(toolName, params.length) {
-        buildToolSemanticDescription(context, toolName, params)
+    val hasParams = displayParams.isNotBlank()
+    val semanticDescription = remember(displayToolName, displayParams.length) {
+        buildToolSemanticDescription(context, displayToolName, displayParams)
     }
 
     // 显示详细内容的弹窗 - 仅在启用弹窗时显示
     if (showDetailDialog && hasParams && enableDialog) {
         ContentDetailDialog(
-            title = "$toolName ${context.getString(R.string.tool_call_parameters)}",
-            content = params,
-            icon = getToolIcon(toolName),
+            title = "$displayToolName ${context.getString(R.string.tool_call_parameters)}",
+            content = displayParams,
+            icon = getToolIcon(displayToolName),
             onDismiss = { showDetailDialog = false }
         )
     }
@@ -87,7 +92,7 @@ fun CompactToolDisplay(
     ) {
         // 工具图标
         Icon(
-                imageVector = getToolIcon(toolName),
+                imageVector = getToolIcon(displayToolName),
                 contentDescription = context.getString(R.string.tool_call),
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                 modifier = Modifier.size(16.dp)
@@ -97,7 +102,7 @@ fun CompactToolDisplay(
 
         // 工具名称
         Text(
-                text = toolName,
+                text = displayToolName,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary,
@@ -107,13 +112,13 @@ fun CompactToolDisplay(
         )
 
         // 参数内容（如果有）
-        if (params.isNotBlank()) {
-            val summary = remember(params.length) {
+        if (displayParams.isNotBlank()) {
+            val summary = remember(displayParams.length) {
                 // 尝试从XML中提取第一个参数的值作为摘要
                 val firstParamRegex = "<param.*?>([^<]*)<\\/param>".toRegex()
-                val match = firstParamRegex.find(params)
+                val match = firstParamRegex.find(displayParams)
                 match?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: params.replace("\n", " ").trim() // 如果没有匹配或值为空，则显示清理后的原始参数
+                    ?: displayParams.replace("\n", " ").trim() // 如果没有匹配或值为空，则显示清理后的原始参数
             }
             Text(
                     text = summary,
@@ -137,20 +142,23 @@ fun DetailedToolDisplay(
         enableDialog: Boolean = true  // 新增参数：是否启用弹窗功能，默认启用
 ) {
     val context = LocalContext.current
+    val (displayToolName, displayParams) = remember(toolName, params) {
+        normalizeToolDisplayForStrictProxy(toolName, params)
+    }
     // 弹窗状态
     var showDetailDialog by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
-    val hasParams = params.isNotBlank()
-    val semanticDescription = remember(toolName, params.length) {
-        buildToolSemanticDescription(context, toolName, params)
+    val hasParams = displayParams.isNotBlank()
+    val semanticDescription = remember(displayToolName, displayParams.length) {
+        buildToolSemanticDescription(context, displayToolName, displayParams)
     }
 
     // 显示详细内容的弹窗 - 仅在启用弹窗时显示
     if (showDetailDialog && hasParams && enableDialog) {
         ContentDetailDialog(
-            title = "$toolName ${context.getString(R.string.tool_call_parameters)}",
-            content = params,
-            icon = getToolIcon(toolName),
+            title = "$displayToolName ${context.getString(R.string.tool_call_parameters)}",
+            content = displayParams,
+            icon = getToolIcon(displayToolName),
             onDismiss = { showDetailDialog = false }
         )
     }
@@ -186,7 +194,7 @@ fun DetailedToolDisplay(
             ) {
                 // 工具图标 - 与CompactToolDisplay保持一致的大小和位置
                 Icon(
-                        imageVector = getToolIcon(toolName),
+                        imageVector = getToolIcon(displayToolName),
                         contentDescription = context.getString(R.string.tool_call),
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                         modifier = Modifier.size(16.dp)
@@ -196,7 +204,7 @@ fun DetailedToolDisplay(
 
                 // 工具名称
                 Text(
-                        text = toolName,
+                        text = displayToolName,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary,
@@ -207,7 +215,7 @@ fun DetailedToolDisplay(
 
                 // 参数行数指示
                 if (hasParams) {
-                    val lineCount = remember(params.length) { params.lines().size }
+                    val lineCount = remember(displayParams.length) { displayParams.lines().size }
                     Text(
                             text = "$lineCount ${context.getString(R.string.lines_count)}",
                             style = MaterialTheme.typography.labelSmall,
@@ -220,12 +228,12 @@ fun DetailedToolDisplay(
             }
 
             // 参数内容 - 使用代码风格显示
-            if (params.isNotBlank()) {
+            if (displayParams.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // 按行拆分参数文本，并用remember缓存，仅在params改变时重新计算
-                val lines = remember(params.length) {
-                    params.lines().map { line ->
+                val lines = remember(displayParams.length) {
+                    displayParams.lines().map { line ->
                         normalizeIndentForDisplay(unescapeXmlForDisplay(line))
                     }
                 }
@@ -484,6 +492,100 @@ private fun normalizeIndentForDisplay(line: String): String {
 
     if (levels == 0) return line
     return " ".repeat(levels) + line.substring(i)
+}
+
+private fun normalizeToolDisplayForStrictProxy(toolName: String, params: String): Pair<String, String> {
+    if (toolName != "package_proxy") {
+        return toolName to params
+    }
+
+    val toolNameRegex = "<param\\s+name=\"tool_name\">([\\s\\S]*?)<\\/param>".toRegex()
+    val paramsRegex = "<param\\s+name=\"params\">([\\s\\S]*?)<\\/param>".toRegex()
+
+    val rawTargetToolName = toolNameRegex.find(params)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+    val rawProxiedParams = paramsRegex.find(params)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+
+    val displayToolName = normalizeEscapedTextForDisplay(rawTargetToolName).ifBlank { toolName }
+    val displayParams = if (rawProxiedParams.isNotBlank()) {
+        parseProxyJsonParamsToXml(normalizeEscapedTextForDisplay(rawProxiedParams)) ?: params
+    } else {
+        params
+    }
+
+    return displayToolName to displayParams
+}
+
+private fun normalizeEscapedTextForDisplay(input: String): String {
+    val unescaped = unescapeXmlForDisplay(input).replace("\\\"", "\"")
+    val trimmed = unescaped.trim()
+
+    return if (
+        (trimmed.startsWith("\"{") && trimmed.endsWith("}\"")) ||
+        (trimmed.startsWith("\"[") && trimmed.endsWith("]\""))
+    ) {
+        trimmed.substring(1, trimmed.length - 1).replace("\\\"", "\"")
+    } else {
+        unescaped
+    }
+}
+
+private fun parseProxyJsonParamsToXml(input: String): String? {
+    val trimmed = input.trim()
+    if (trimmed.isEmpty()) {
+        return ""
+    }
+
+    return try {
+        when {
+            trimmed.startsWith("{") && trimmed.endsWith("}") -> {
+                val obj = JSONObject(trimmed)
+                val lines = mutableListOf<String>()
+                val keys = obj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val valueText = jsonValueToParamText(obj.opt(key))
+                    lines.add("<param name=\"${escapeXmlAttribute(key)}\">${escapeXmlText(valueText)}</param>")
+                }
+                lines.joinToString("\n")
+            }
+            trimmed.startsWith("[") && trimmed.endsWith("]") -> {
+                val array = JSONArray(trimmed)
+                val lines = mutableListOf<String>()
+                for (index in 0 until array.length()) {
+                    val valueText = jsonValueToParamText(array.opt(index))
+                    lines.add("<param name=\"$index\">${escapeXmlText(valueText)}</param>")
+                }
+                lines.joinToString("\n")
+            }
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun jsonValueToParamText(value: Any?): String {
+    return when (value) {
+        null, JSONObject.NULL -> "null"
+        is String -> value
+        else -> value.toString()
+    }
+}
+
+private fun escapeXmlAttribute(input: String): String {
+    return input
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&apos;")
+}
+
+private fun escapeXmlText(input: String): String {
+    return input
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
 }
 
 private fun buildToolSemanticDescription(context: android.content.Context, toolName: String, params: String): String {

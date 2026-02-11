@@ -68,8 +68,10 @@ fun CompactSwitchRow(
             if (description.isNotBlank()) {
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -91,12 +93,12 @@ fun VoiceAutoAttachGrid(
     }
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 110.dp),
+        columns = GridCells.Adaptive(minSize = 96.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 260.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .heightIn(max = 200.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         userScrollEnabled = false
     ) {
         items(items, key = { it.id }) { item ->
@@ -168,32 +170,33 @@ private fun VoiceAutoAttachTile(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(22.dp)
             )
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (keywordPreview.isNotBlank()) {
                 Text(
                     text = keywordPreview,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                Text(
+                    text = description,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -217,19 +220,19 @@ private fun VoiceAutoAttachAddTile(onClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(22.dp)
             )
             Text(
                 text = stringResource(R.string.voice_keyword_attachments_add_title),
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -251,7 +254,7 @@ private fun VoiceAutoAttachItemDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = voiceAutoAttachTypeTitle(item.type)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CompactSwitchRow(
                     title = stringResource(R.string.voice_keyword_attachments_enabled_title),
                     description = "",
@@ -265,7 +268,7 @@ private fun VoiceAutoAttachItemDialog(
                     singleLine = true,
                     label = { Text(text = voiceAutoAttachKeywordLabel(item.type)) },
                     supportingText = { Text(text = stringResource(R.string.voice_keyword_attachments_keyword_supporting)) },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent
@@ -309,7 +312,7 @@ private fun VoiceAutoAttachCreateDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.voice_keyword_attachments_add_item_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { expanded = it }

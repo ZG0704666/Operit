@@ -340,17 +340,6 @@ fun ModelConfigScreen(
 
                                                 if (configForTest.enableToolCall) {
                                                     runTest(R.string.test_item_toolcall) {
-                                                        val testHistory = mutableListOf(
-                                                            "system" to "You are a helpful assistant."
-                                                        )
-                                                        testHistory.add(
-                                                            "assistant" to
-                                                                "<tool name=\"echo\"><param name=\"text\">ping</param></tool>"
-                                                        )
-                                                        testHistory.add(
-                                                            "user" to
-                                                                "<tool_result name=\"echo\" status=\"success\"><content>pong</content></tool_result>"
-                                                        )
                                                         val availableTools =
                                                             listOf(
                                                                 ToolPrompt(
@@ -367,14 +356,40 @@ fun ModelConfigScreen(
                                                                         )
                                                                 )
                                                             )
-                                                        service.sendMessage(
-                                                            context,
-                                                            "Hi",
-                                                            testHistory,
-                                                            parameters,
-                                                            stream = false,
-                                                            availableTools = availableTools
-                                                        ).collect { }
+
+                                                        suspend fun runToolCallTest(toolName: String) {
+                                                            val testHistory = mutableListOf(
+                                                                "system" to "You are a helpful assistant."
+                                                            )
+                                                            testHistory.add(
+                                                                "assistant" to
+                                                                    "<tool name=\"$toolName\"><param name=\"text\">ping</param></tool>"
+                                                            )
+                                                            testHistory.add(
+                                                                "user" to
+                                                                    "<tool_result name=\"$toolName\" status=\"success\"><content>pong</content></tool_result>"
+                                                            )
+                                                            service.sendMessage(
+                                                                context,
+                                                                "Hi",
+                                                                testHistory,
+                                                                parameters,
+                                                                stream = false,
+                                                                availableTools = availableTools
+                                                            ).collect { }
+                                                        }
+
+                                                        if (configForTest.strictToolCall) {
+                                                            runToolCallTest("echo")
+                                                        } else {
+                                                            val strictProbeResult = runCatching {
+                                                                runToolCallTest("strict_probe_unlisted_tool")
+                                                            }
+                                                            if (strictProbeResult.isFailure) {
+                                                                showNotification("需要开启严格toolcall")
+                                                                runToolCallTest("echo")
+                                                            }
+                                                        }
                                                     }
                                                 }
 

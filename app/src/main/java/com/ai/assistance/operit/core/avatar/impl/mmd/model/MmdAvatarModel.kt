@@ -9,7 +9,8 @@ data class MmdAvatarModel(
     override val name: String,
     val basePath: String,
     val modelFile: String,
-    val motionFile: String? = null
+    val motionFile: String? = null,
+    val motionFiles: List<String> = emptyList()
 ) : AvatarModel {
 
     override val type: AvatarType
@@ -18,9 +19,25 @@ data class MmdAvatarModel(
     val modelPath: String
         get() = File(basePath, modelFile).absolutePath
 
+    val availableMotionFiles: List<String>
+        get() {
+            val normalized = motionFiles.filter { it.isNotBlank() }.distinct()
+            return if (normalized.isNotEmpty()) {
+                normalized
+            } else {
+                motionFile?.takeIf { it.isNotBlank() }?.let { listOf(it) } ?: emptyList()
+            }
+        }
+
     val motionPath: String?
-        get() = motionFile?.takeIf { it.isNotBlank() }?.let { File(basePath, it).absolutePath }
+        get() = availableMotionFiles.firstOrNull()?.let { File(basePath, it).absolutePath }
+
+    val motionPaths: List<String>
+        get() = availableMotionFiles.map { File(basePath, it).absolutePath }
 
     val displayMotionName: String?
-        get() = motionFile?.takeIf { it.isNotBlank() }
+        get() = availableMotionFiles.firstOrNull()
+
+    val displayMotionNames: List<String>
+        get() = availableMotionFiles
 }

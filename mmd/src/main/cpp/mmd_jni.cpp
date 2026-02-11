@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -14,7 +15,10 @@
 
 #if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
 #include "Saba/Model/MMD/PMDFile.h"
+#include "Saba/Model/MMD/PMDModel.h"
 #include "Saba/Model/MMD/PMXFile.h"
+#include "Saba/Model/MMD/PMXModel.h"
+#include "Saba/Model/MMD/VMDAnimation.h"
 #include "Saba/Model/MMD/VMDFile.h"
 
 #ifndef STB_IMAGE_IMPLEMENTATION
@@ -190,11 +194,20 @@ struct PreviewRenderData {
     std::vector<float> vertices;
     std::vector<int32_t> batches;
     std::vector<std::string> texturePaths;
+    std::vector<uint32_t> vertexIndices;
 };
 
 struct PreviewRenderCache {
     std::string modelPath;
     PreviewRenderData data;
+};
+
+struct AnimatedRuntimeCache {
+    std::string modelPath;
+    std::string motionPath;
+    std::shared_ptr<saba::MMDModel> model;
+    std::unique_ptr<saba::VMDAnimation> animation;
+    int32_t maxMotionFrame = 0;
 };
 
 struct ImageDecodeCache {
@@ -209,6 +222,9 @@ constexpr size_t kMaxPreviewTriangles = 500000;
 
 std::mutex gPreviewCacheMutex;
 PreviewRenderCache gPreviewCache;
+
+std::mutex gAnimatedRuntimeCacheMutex;
+AnimatedRuntimeCache gAnimatedRuntimeCache;
 
 std::mutex gImageDecodeCacheMutex;
 ImageDecodeCache gImageDecodeCache;
@@ -425,8 +441,10 @@ bool buildPreviewRenderDataFromPmd(
     outData->vertices.clear();
     outData->batches.clear();
     outData->texturePaths.clear();
+    outData->vertexIndices.clear();
 
     outData->vertices.reserve(pmdFile.m_faces.size() * 3 * kPreviewVertexStride);
+    outData->vertexIndices.reserve(pmdFile.m_faces.size() * 3);
 
     std::unordered_map<std::string, int> textureSlotMap;
     size_t faceCursor = 0;
@@ -460,6 +478,7 @@ bool buildPreviewRenderDataFromPmd(
 
                 const auto& vertex = pmdFile.m_vertices[vertexIndex];
                 appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+                outData->vertexIndices.push_back(static_cast<uint32_t>(vertexIndex));
             }
         }
 
@@ -484,6 +503,7 @@ bool buildPreviewRenderDataFromPmd(
 
                 const auto& vertex = pmdFile.m_vertices[vertexIndex];
                 appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+                outData->vertexIndices.push_back(static_cast<uint32_t>(vertexIndex));
             }
         }
 
@@ -521,8 +541,10 @@ bool buildPreviewRenderDataFromPmx(
     outData->vertices.clear();
     outData->batches.clear();
     outData->texturePaths.clear();
+    outData->vertexIndices.clear();
 
     outData->vertices.reserve(pmxFile.m_faces.size() * 3 * kPreviewVertexStride);
+    outData->vertexIndices.reserve(pmxFile.m_faces.size() * 3);
 
     std::unordered_map<std::string, int> textureSlotMap;
     size_t faceCursor = 0;
@@ -553,6 +575,7 @@ bool buildPreviewRenderDataFromPmx(
 
                 const auto& vertex = pmxFile.m_vertices[vertexIndex];
                 appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+                outData->vertexIndices.push_back(vertexIndex);
             }
         }
 
@@ -577,6 +600,7 @@ bool buildPreviewRenderDataFromPmx(
 
                 const auto& vertex = pmxFile.m_vertices[vertexIndex];
                 appendPreviewVertex(&outData->vertices, vertex.m_position, vertex.m_normal, vertex.m_uv);
+                outData->vertexIndices.push_back(vertexIndex);
             }
         }
 
@@ -629,6 +653,13 @@ bool buildPreviewRenderData(const std::string& modelPath, PreviewRenderData* out
         return false;
     }
 
+    if (outData->vertexIndices.size() * kPreviewVertexStride != outData->vertices.size()) {
+        if (outError != nullptr) {
+            *outError = "preview mesh index mapping size is inconsistent.";
+        }
+        return false;
+    }
+
     return true;
 }
 
@@ -658,6 +689,260 @@ bool getPreviewRenderDataCached(const std::string& modelPath, PreviewRenderData*
         gPreviewCache.modelPath = modelPath;
         gPreviewCache.data = std::move(newData);
         *outData = gPreviewCache.data;
+    }
+
+    return true;
+}
+
+bool readMotionMaxFrame(
+    const std::string& motionPath,
+    int32_t* outMaxFrame,
+    std::string* outError
+) {
+    if (outMaxFrame == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: max motion frame output buffer is null.";
+        }
+        return false;
+    }
+
+    const std::string extension = getFileExtension(motionPath);
+    if (extension != "vmd") {
+        if (outError != nullptr) {
+            *outError = "unsupported motion extension; expected .vmd.";
+        }
+        return false;
+    }
+
+    saba::VMDFile vmdFile;
+    if (!saba::ReadVMDFile(&vmdFile, motionPath.c_str())) {
+        if (outError != nullptr) {
+            *outError = "failed to parse VMD file: " + motionPath;
+        }
+        return false;
+    }
+
+    uint32_t maxFrame = 0;
+    for (const auto& motion : vmdFile.m_motions) {
+        maxFrame = std::max(maxFrame, motion.m_frame);
+    }
+    for (const auto& morph : vmdFile.m_morphs) {
+        maxFrame = std::max(maxFrame, morph.m_frame);
+    }
+    for (const auto& camera : vmdFile.m_cameras) {
+        maxFrame = std::max(maxFrame, camera.m_frame);
+    }
+    for (const auto& light : vmdFile.m_lights) {
+        maxFrame = std::max(maxFrame, light.m_frame);
+    }
+    for (const auto& shadow : vmdFile.m_shadows) {
+        maxFrame = std::max(maxFrame, shadow.m_frame);
+    }
+    for (const auto& ik : vmdFile.m_iks) {
+        maxFrame = std::max(maxFrame, ik.m_frame);
+    }
+
+    *outMaxFrame = static_cast<int32_t>(maxFrame);
+    return true;
+}
+
+bool createMmdModelForAnimation(
+    const std::string& modelPath,
+    std::shared_ptr<saba::MMDModel>* outModel,
+    std::string* outError
+) {
+    if (outModel == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: model output buffer is null.";
+        }
+        return false;
+    }
+
+    const ModelFileType modelFileType = detectModelFileType(modelPath);
+    const std::string modelDir = getParentDirectory(normalizePathSeparators(modelPath));
+
+    if (modelFileType == ModelFileType::Pmd) {
+        auto pmdModel = std::make_shared<saba::PMDModel>();
+        if (!pmdModel->Load(modelPath, modelDir)) {
+            if (outError != nullptr) {
+                *outError = "failed to load PMD model for animation: " + modelPath;
+            }
+            return false;
+        }
+        *outModel = pmdModel;
+        return true;
+    }
+
+    if (modelFileType == ModelFileType::Pmx) {
+        auto pmxModel = std::make_shared<saba::PMXModel>();
+        if (!pmxModel->Load(modelPath, modelDir)) {
+            if (outError != nullptr) {
+                *outError = "failed to load PMX model for animation: " + modelPath;
+            }
+            return false;
+        }
+        *outModel = pmxModel;
+        return true;
+    }
+
+    if (outError != nullptr) {
+        *outError = "unsupported model extension; expected .pmd or .pmx.";
+    }
+    return false;
+}
+
+bool loadAnimatedRuntimeCache(
+    const std::string& modelPath,
+    const std::string& motionPath,
+    AnimatedRuntimeCache* outCache,
+    std::string* outError
+) {
+    if (outCache == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: animation cache output buffer is null.";
+        }
+        return false;
+    }
+
+    std::shared_ptr<saba::MMDModel> model;
+    if (!createMmdModelForAnimation(modelPath, &model, outError)) {
+        return false;
+    }
+
+    saba::VMDFile vmdFile;
+    if (!saba::ReadVMDFile(&vmdFile, motionPath.c_str())) {
+        if (outError != nullptr) {
+            *outError = "failed to parse VMD file: " + motionPath;
+        }
+        return false;
+    }
+
+    auto animation = std::make_unique<saba::VMDAnimation>();
+    if (!animation->Create(model)) {
+        if (outError != nullptr) {
+            *outError = "failed to initialize VMD animation controller for model.";
+        }
+        return false;
+    }
+
+    if (!animation->Add(vmdFile)) {
+        if (outError != nullptr) {
+            *outError = "failed to bind VMD data to model animation controller.";
+        }
+        return false;
+    }
+
+    model->InitializeAnimation();
+    model->UpdateAllAnimation(animation.get(), 0.0f, 1.0f / 60.0f);
+    model->Update();
+
+    outCache->modelPath = modelPath;
+    outCache->motionPath = motionPath;
+    outCache->model = std::move(model);
+    outCache->animation = std::move(animation);
+    outCache->maxMotionFrame = static_cast<int32_t>(outCache->animation->GetMaxKeyTime());
+    return true;
+}
+
+bool buildAnimatedPreviewMesh(
+    const std::string& modelPath,
+    const std::string& motionPath,
+    float frame,
+    std::vector<float>* outVertices,
+    int32_t* outMaxMotionFrame,
+    std::string* outError
+) {
+    if (outVertices == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: animated preview output buffer is null.";
+        }
+        return false;
+    }
+
+    if (modelPath.empty()) {
+        if (outError != nullptr) {
+            *outError = "model path is empty.";
+        }
+        return false;
+    }
+
+    if (motionPath.empty()) {
+        if (outError != nullptr) {
+            *outError = "motion path is empty.";
+        }
+        return false;
+    }
+
+    PreviewRenderData previewData;
+    if (!getPreviewRenderDataCached(modelPath, &previewData, outError)) {
+        return false;
+    }
+
+    if (previewData.vertexIndices.empty()) {
+        if (outError != nullptr) {
+            *outError = "preview mesh index mapping is empty.";
+        }
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(gAnimatedRuntimeCacheMutex);
+
+    const bool cacheHit =
+        gAnimatedRuntimeCache.modelPath == modelPath &&
+        gAnimatedRuntimeCache.motionPath == motionPath &&
+        gAnimatedRuntimeCache.model != nullptr &&
+        gAnimatedRuntimeCache.animation != nullptr;
+
+    if (!cacheHit) {
+        AnimatedRuntimeCache newCache;
+        if (!loadAnimatedRuntimeCache(modelPath, motionPath, &newCache, outError)) {
+            return false;
+        }
+        gAnimatedRuntimeCache = std::move(newCache);
+    }
+
+    auto* animation = gAnimatedRuntimeCache.animation.get();
+    const auto& model = gAnimatedRuntimeCache.model;
+    if (animation == nullptr || model == nullptr) {
+        if (outError != nullptr) {
+            *outError = "animated runtime cache is not initialized.";
+        }
+        return false;
+    }
+
+    const float safeFrame = frame < 0.0f ? 0.0f : frame;
+    model->UpdateAllAnimation(animation, safeFrame, 1.0f / 60.0f);
+    model->Update();
+
+    const auto* positions = model->GetUpdatePositions();
+    const auto* normals = model->GetUpdateNormals();
+    const auto* uvs = model->GetUpdateUVs();
+    const size_t modelVertexCount = model->GetVertexCount();
+
+    if (positions == nullptr || normals == nullptr || uvs == nullptr || modelVertexCount == 0) {
+        if (outError != nullptr) {
+            *outError = "animated model has no renderable vertices.";
+        }
+        return false;
+    }
+
+    outVertices->clear();
+    outVertices->reserve(previewData.vertexIndices.size() * kPreviewVertexStride);
+
+    for (size_t index = 0; index < previewData.vertexIndices.size(); ++index) {
+        const uint32_t sourceIndex = previewData.vertexIndices[index];
+        if (sourceIndex >= modelVertexCount) {
+            if (outError != nullptr) {
+                *outError = "animated preview source index out of range.";
+            }
+            return false;
+        }
+
+        appendPreviewVertex(outVertices, positions[sourceIndex], normals[sourceIndex], uvs[sourceIndex]);
+    }
+
+    if (outMaxMotionFrame != nullptr) {
+        *outMaxMotionFrame = gAnimatedRuntimeCache.maxMotionFrame;
     }
 
     return true;
@@ -983,6 +1268,71 @@ Java_com_ai_assistance_mmd_MmdNative_nativeReadMotionSummary(JNIEnv* env, jclass
     setLastError(kUnavailableReason);
     (void) env;
     (void) pathMotion;
+    return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeReadMotionMaxFrame(JNIEnv* env, jclass, jstring pathMotion) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string motionPath = jstringToString(env, pathMotion);
+    if (motionPath.empty()) {
+        setLastError("motion path is empty.");
+        return -1;
+    }
+
+    int32_t maxFrame = 0;
+    std::string parseError;
+    if (!readMotionMaxFrame(motionPath, &maxFrame, &parseError)) {
+        setLastError(parseError);
+        return -1;
+    }
+
+    clearLastError();
+    return static_cast<jint>(maxFrame);
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathMotion;
+    return -1;
+#endif
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeBuildPreviewAnimatedMesh(JNIEnv* env, jclass, jstring pathModel, jstring pathMotion, jfloat frame) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string modelPath = jstringToString(env, pathModel);
+    const std::string motionPath = jstringToString(env, pathMotion);
+    if (modelPath.empty()) {
+        setLastError("model path is empty.");
+        return nullptr;
+    }
+    if (motionPath.empty()) {
+        setLastError("motion path is empty.");
+        return nullptr;
+    }
+
+    std::vector<float> animatedVertices;
+    std::string parseError;
+    if (!buildAnimatedPreviewMesh(modelPath, motionPath, static_cast<float>(frame), &animatedVertices, nullptr, &parseError)) {
+        setLastError(parseError);
+        return nullptr;
+    }
+
+    jfloatArray result = buildFloatArray(env, animatedVertices);
+    if (result == nullptr) {
+        setLastError("failed to allocate JNI float array for animated preview mesh.");
+        return nullptr;
+    }
+
+    clearLastError();
+    return result;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathModel;
+    (void) pathMotion;
+    (void) frame;
     return nullptr;
 #endif
 }

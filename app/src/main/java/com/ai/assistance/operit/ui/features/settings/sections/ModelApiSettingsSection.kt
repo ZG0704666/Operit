@@ -168,10 +168,18 @@ fun ModelApiSettingsSection(
     
     // Tool Call配置状态
     var enableToolCallInput by remember(config.id) { mutableStateOf(config.enableToolCall) }
+    var strictToolCallInput by remember(config.id) { mutableStateOf(config.strictToolCall) }
 
     LaunchedEffect(config.id, selectedApiProvider) {
         if (selectedApiProvider == ApiProviderType.MNN) {
             enableToolCallInput = false
+            strictToolCallInput = false
+        }
+    }
+
+    LaunchedEffect(enableToolCallInput) {
+        if (!enableToolCallInput) {
+            strictToolCallInput = false
         }
     }
 
@@ -189,6 +197,7 @@ fun ModelApiSettingsSection(
         val enableDirectVideoProcessing: Boolean,
         val enableGoogleSearch: Boolean,
         val enableToolCall: Boolean,
+        val strictToolCall: Boolean,
     )
 
     // 保存设置的通用函数
@@ -210,6 +219,7 @@ fun ModelApiSettingsSection(
                     enableDirectVideoProcessing = state.enableDirectVideoProcessing,
                     enableGoogleSearch = state.enableGoogleSearch,
                     enableToolCall = state.enableToolCall,
+                    strictToolCall = state.strictToolCall,
                 )
 
                 EnhancedAIService.refreshAllServices(
@@ -234,6 +244,7 @@ fun ModelApiSettingsSection(
             enableDirectVideoProcessing = enableDirectVideoProcessingInput,
             enableGoogleSearch = enableGoogleSearchInput,
             enableToolCall = enableToolCallInput,
+            strictToolCall = strictToolCallInput,
         )
 
         modelApiSettingsSaveScope.launch {
@@ -286,6 +297,7 @@ fun ModelApiSettingsSection(
                 enableDirectVideoProcessing = enableDirectVideoProcessingInput,
                 enableGoogleSearch = enableGoogleSearchInput,
                 enableToolCall = enableToolCallInput,
+                strictToolCall = strictToolCallInput,
             )
         }
             .drop(1)
@@ -795,9 +807,23 @@ fun ModelApiSettingsSection(
                 title = stringResource(R.string.enable_tool_call),
                 subtitle = stringResource(R.string.enable_tool_call_desc),
                 checked = enableToolCallInput,
-                onCheckedChange = { enableToolCallInput = it },
+                onCheckedChange = {
+                    enableToolCallInput = it
+                    if (!it) {
+                        strictToolCallInput = false
+                    }
+                },
                 enabled = selectedApiProvider != ApiProviderType.MNN
             )
+
+            if (enableToolCallInput && selectedApiProvider != ApiProviderType.MNN) {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.strict_tool_call),
+                    subtitle = stringResource(R.string.strict_tool_call_desc),
+                    checked = strictToolCallInput,
+                    onCheckedChange = { strictToolCallInput = it }
+                )
+            }
             
         }
     }

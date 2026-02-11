@@ -51,4 +51,10 @@ interface AvatarController {
      * @param settings A map of setting keys to values.
      */
     fun updateSettings(settings: Map<String, Any>) {}
+
+    /**
+     * Updates an optional mapping from high-level emotions to model-specific animation names.
+     * Controllers that don't need this behavior can ignore it.
+     */
+    fun updateEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>) {}
 } 

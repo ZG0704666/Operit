@@ -8,6 +8,7 @@ import androidx.core.content.edit
 import com.ai.assistance.operit.core.avatar.common.factory.AvatarModelFactory
 import com.ai.assistance.operit.core.avatar.common.model.AvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
+import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -36,13 +37,74 @@ data class AvatarConfig(
     }
 }
 
+private const val DATA_KEY_EMOTION_ANIMATION_MAPPING = "emotionAnimationMapping"
+
+fun AvatarConfig.getEmotionAnimationMapping(): Map<AvatarEmotion, String> {
+    val rawMapping = data[DATA_KEY_EMOTION_ANIMATION_MAPPING] as? Map<*, *> ?: return emptyMap()
+
+    return rawMapping.entries.mapNotNull { (rawEmotion, rawAnimationName) ->
+        val emotionName = rawEmotion as? String ?: return@mapNotNull null
+        val emotion = try {
+            AvatarEmotion.valueOf(emotionName)
+        } catch (_: IllegalArgumentException) {
+            return@mapNotNull null
+        }
+
+        val animationName = rawAnimationName?.toString()?.trim().orEmpty()
+        if (animationName.isBlank()) {
+            return@mapNotNull null
+        }
+
+        emotion to animationName
+    }.toMap()
+}
+
+fun AvatarConfig.withEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>): AvatarConfig {
+    val normalized = mapping
+        .mapValues { (_, animationName) -> animationName.trim() }
+        .filterValues { animationName -> animationName.isNotBlank() }
+        .mapKeys { (emotion, _) -> emotion.name }
+
+    val updatedData = data.toMutableMap()
+    if (normalized.isEmpty()) {
+        updatedData.remove(DATA_KEY_EMOTION_ANIMATION_MAPPING)
+    } else {
+        updatedData[DATA_KEY_EMOTION_ANIMATION_MAPPING] = normalized
+    }
+
+    return copy(data = updatedData)
+}
+
+private fun normalizeAvatarPath(path: String): String {
+    return runCatching { File(path).canonicalPath }
+        .getOrElse { path }
+        .replace('\\', '/')
+        .lowercase()
+}
+
+private fun buildAvatarConfigId(type: AvatarType, directory: File, isBuiltIn: Boolean): String {
+    if (isBuiltIn) {
+        return "built_in_${type.name.lowercase()}_${directory.name.lowercase()}"
+    }
+
+    val normalizedPath = normalizeAvatarPath(directory.absolutePath)
+    val pathHash = normalizedPath.hashCode().toUInt().toString(16)
+    return "user_${type.name.lowercase()}_$pathHash"
+}
+
+private fun avatarSourceKey(config: AvatarConfig): String? {
+    val basePath = config.getBasePath() ?: return null
+    return "${config.type.name}|${normalizeAvatarPath(basePath)}"
+}
+
 /**
  * Data class for avatar instance settings like scale and position.
  */
 data class AvatarInstanceSettings(
     val scale: Float = 1.0f,
     val translateX: Float = 0f,
-    val translateY: Float = 0f
+    val translateY: Float = 0f,
+    val customSettings: Map<String, Float> = emptyMap()
 )
 
 /**
@@ -110,7 +172,7 @@ class DragonBonesPersistenceDelegate : AvatarPersistenceDelegate {
         }
 
         val config = AvatarConfig(
-            id = if (isBuiltIn) "built_in_db_${directory.name}" else "user_db_${directory.name}_${System.currentTimeMillis()}",
+            id = buildAvatarConfigId(AvatarType.DRAGONBONES, directory, isBuiltIn),
             name = directory.name,
             type = AvatarType.DRAGONBONES,
             isBuiltIn = isBuiltIn,
@@ -150,7 +212,7 @@ class WebPPersistenceDelegate : AvatarPersistenceDelegate {
         }
 
         val config = AvatarConfig(
-            id = if (isBuiltIn) "built_in_webp_${directory.name}" else "user_webp_${directory.name}_${System.currentTimeMillis()}",
+            id = buildAvatarConfigId(AvatarType.WEBP, directory, isBuiltIn),
             name = directory.name,
             type = AvatarType.WEBP,
             isBuiltIn = isBuiltIn,
@@ -183,18 +245,21 @@ class MmdPersistenceDelegate : AvatarPersistenceDelegate {
         } ?: emptyArray()
         val modelFile = modelCandidates.firstOrNull() ?: return allConfigs
 
-        val motionFile = directory.listFiles { file ->
+        val motionFiles = directory.listFiles { file ->
             file.isFile && file.extension.equals("vmd", ignoreCase = true)
-        }?.firstOrNull()
+        }?.sortedBy { it.name.lowercase() }.orEmpty()
 
         val data = mutableMapOf<String, Any>(
             "basePath" to directory.absolutePath,
             "modelFile" to modelFile.name
         )
-        motionFile?.let { data["motionFile"] = it.name }
+        if (motionFiles.isNotEmpty()) {
+            data["motionFile"] = motionFiles.first().name
+            data["motionFiles"] = motionFiles.map { it.name }
+        }
 
         val config = AvatarConfig(
-            id = if (isBuiltIn) "built_in_mmd_${directory.name}" else "user_mmd_${directory.name}_${System.currentTimeMillis()}",
+            id = buildAvatarConfigId(AvatarType.MMD, directory, isBuiltIn),
             name = directory.name,
             type = AvatarType.MMD,
             isBuiltIn = isBuiltIn,
@@ -202,7 +267,7 @@ class MmdPersistenceDelegate : AvatarPersistenceDelegate {
         )
         AppLogger.i(
             "AvatarRepository",
-            "MMD config recognized: ${directory.absolutePath}, model=${modelFile.name}, motion=${motionFile?.name ?: "<none>"}"
+            "MMD config recognized: ${directory.absolutePath}, model=${modelFile.name}, motions=${if (motionFiles.isEmpty()) "<none>" else motionFiles.joinToString { it.name }}"
         )
         allConfigs.add(config)
         return allConfigs
@@ -296,10 +361,38 @@ class AvatarRepository(
     private fun loadAvatars() {
         val configsFromPrefs = loadConfigsFromPrefs()
         val configsFromDisk = scanUserAvatarDirectory()
-        
-        val finalConfigs = (configsFromDisk.map { disk -> configsFromPrefs.find { it.id == disk.id } ?: disk } +
-                configsFromPrefs.filter { pref -> configsFromDisk.none { it.id == pref.id } && pref.getBasePath()?.let { File(it).exists() } == true })
-            .distinctBy { it.id }
+
+        val mergedFromDisk = configsFromDisk.map { disk ->
+            val diskSourceKey = avatarSourceKey(disk)
+            val matchedPref =
+                configsFromPrefs.firstOrNull { pref ->
+                    diskSourceKey != null && avatarSourceKey(pref) == diskSourceKey
+                }
+
+            if (matchedPref != null) {
+                disk.copy(
+                    name = matchedPref.name,
+                    data = matchedPref.data + disk.data
+                )
+            } else {
+                disk
+            }
+        }
+
+        val preservedPrefs =
+            configsFromPrefs.filter { pref ->
+                val prefSourceKey = avatarSourceKey(pref)
+                val existsOnDisk =
+                    configsFromDisk.any { disk ->
+                        prefSourceKey != null && avatarSourceKey(disk) == prefSourceKey
+                    }
+
+                !existsOnDisk && pref.getBasePath()?.let { File(it).exists() } == true
+            }
+
+        val finalConfigs =
+            (mergedFromDisk + preservedPrefs)
+                .distinctBy { config -> avatarSourceKey(config) ?: "id:${config.id}" }
 
         _configs.value = finalConfigs
         saveConfigsToPrefs(finalConfigs)
@@ -395,12 +488,57 @@ class AvatarRepository(
             false
         }
     }
+
+    suspend fun renameAvatar(avatarId: String, newName: String): Boolean = withContext(Dispatchers.IO) {
+        val normalizedName = newName.trim()
+        if (normalizedName.isBlank()) {
+            return@withContext false
+        }
+
+        val targetConfig = _configs.value.find { it.id == avatarId } ?: return@withContext false
+        if (targetConfig.name == normalizedName) {
+            return@withContext true
+        }
+
+        val updatedConfigs = _configs.value.map { config ->
+            if (config.id == avatarId) {
+                config.copy(name = normalizedName)
+            } else {
+                config
+            }
+        }
+
+        _configs.value = updatedConfigs
+        saveConfigsToPrefs(updatedConfigs)
+
+        if (_currentAvatar.value?.id == avatarId) {
+            updateCurrentAvatar(avatarId)
+        }
+
+        true
+    }
     
     fun updateAvatarSettings(avatarId: String, newSettings: AvatarInstanceSettings) {
         val updatedSettings = _instanceSettings.value.toMutableMap()
         updatedSettings[avatarId] = newSettings
         _instanceSettings.value = updatedSettings
         saveInstanceSettingsToPrefs(updatedSettings)
+    }
+
+    fun updateAvatarEmotionAnimationMapping(
+        avatarId: String,
+        mapping: Map<AvatarEmotion, String>
+    ) {
+        val updatedConfigs = _configs.value.map { config ->
+            if (config.id == avatarId) {
+                config.withEmotionAnimationMapping(mapping)
+            } else {
+                config
+            }
+        }
+
+        _configs.value = updatedConfigs
+        saveConfigsToPrefs(updatedConfigs)
     }
 
     fun getAvatarSettings(avatarId: String): AvatarInstanceSettings {

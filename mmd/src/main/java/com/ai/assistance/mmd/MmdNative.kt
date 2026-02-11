@@ -20,6 +20,10 @@ object MmdNative {
 
     @JvmStatic external fun nativeReadMotionSummary(pathMotion: String): LongArray?
 
+    @JvmStatic external fun nativeReadMotionMaxFrame(pathMotion: String): Int
+
+    @JvmStatic external fun nativeBuildPreviewAnimatedMesh(pathModel: String, pathMotion: String, frame: Float): FloatArray?
+
     @JvmStatic external fun nativeBuildPreviewMesh(pathModel: String): FloatArray?
 
     @JvmStatic external fun nativeBuildPreviewBatches(pathModel: String): IntArray?

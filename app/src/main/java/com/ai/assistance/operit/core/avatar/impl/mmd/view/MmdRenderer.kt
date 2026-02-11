@@ -42,6 +42,10 @@ fun MmdRenderer(
     val scale by mmdController.scale.collectAsState()
     val translateX by mmdController.translateX.collectAsState()
     val translateY by mmdController.translateY.collectAsState()
+    val initialRotationX by mmdController.initialRotationX.collectAsState()
+    val initialRotationY by mmdController.initialRotationY.collectAsState()
+    val initialRotationZ by mmdController.initialRotationZ.collectAsState()
+    val avatarState by mmdController.state.collectAsState()
 
     val safeScale = scale.coerceIn(0.2f, 5.0f)
 
@@ -89,21 +93,17 @@ fun MmdRenderer(
                         }
                     }
                     setModelPath(model.modelPath)
+                    setAnimationState(avatarState.currentAnimation, avatarState.isLooping)
+                    setModelRotation(initialRotationX, initialRotationY, initialRotationZ)
                     onResume()
                 }
             },
             update = { view ->
                 surfaceViewState.value = view
                 view.setModelPath(model.modelPath)
+                view.setAnimationState(avatarState.currentAnimation, avatarState.isLooping)
+                view.setModelRotation(initialRotationX, initialRotationY, initialRotationZ)
             }
-        )
-
-        Text(
-            text = "MMD - ${model.modelFile}",
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
         )
 
         renderErrorState.value?.let { error ->

@@ -22,6 +22,7 @@ import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ModelConfigData
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
@@ -54,6 +55,7 @@ import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.core.config.SystemToolPrompts
 import com.ai.assistance.operit.data.model.ToolPrompt
+import com.ai.assistance.operit.data.model.ToolParameterSchema
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.LocaleUtils
 
@@ -1056,7 +1058,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         if (!isSubTask && toolInvocations.isNotEmpty()) {
             withContext(Dispatchers.Main) {
-                val toolNames = toolInvocations.joinToString(", ") { it.tool.name }
+                val toolNames = toolInvocations.joinToString(", ") { resolveToolDisplayName(it.tool) }
                 _inputProcessingState.value = InputProcessingState.ExecutingTool(toolNames)
             }
         }
@@ -1390,6 +1392,18 @@ class EnhancedAIService private constructor(private val context: Context) {
         return Companion.getCurrentOutputTokenCountForFunction(context, functionType)
     }
 
+    private fun resolveToolDisplayName(tool: AITool): String {
+        if (tool.name != "package_proxy") {
+            return tool.name
+        }
+        val targetToolName = tool.parameters
+            .firstOrNull { it.name == "tool_name" }
+            ?.value
+            ?.trim()
+            .orEmpty()
+        return if (targetToolName.isNotBlank()) targetToolName else tool.name
+    }
+
     /** Prepare the conversation history with system prompt */
     private suspend fun prepareConversationHistory(
             chatHistory: List<Pair<String, String>>,
@@ -1414,6 +1428,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         // 获取当前功能类型（通常是聊天模型）的模型配置，用于判断聊天模型是否自带识图能力
         val config = multiServiceManager.getModelConfigForFunction(functionType)
         val useToolCallApi = config.enableToolCall
+        val strictToolCall = config.strictToolCall
         val chatModelHasDirectImage = config.enableDirectImageProcessing
         val chatModelHasDirectAudio = config.enableDirectAudioProcessing
         val chatModelHasDirectVideo = config.enableDirectVideoProcessing
@@ -1436,6 +1451,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 chatModelHasDirectAudio,
                 chatModelHasDirectVideo,
                 useToolCallApi,
+                strictToolCall,
                 chatModelHasDirectImage
         )
     }
@@ -1569,6 +1585,29 @@ class EnhancedAIService private constructor(private val context: Context) {
             }
             if (enableMemoryQuery) {
                 selectedTools.addAll(memoryTools)
+            }
+
+            if (config.strictToolCall) {
+                selectedTools.add(
+                    ToolPrompt(
+                        name = "package_proxy",
+                        description = "Proxy tool for package tools activated by use_package.",
+                        parametersStructured = listOf(
+                            ToolParameterSchema(
+                                name = "tool_name",
+                                type = "string",
+                                description = "Target tool name from an activated package (for example: packageName:toolName)",
+                                required = true
+                            ),
+                            ToolParameterSchema(
+                                name = "params",
+                                type = "object",
+                                description = "JSON object of parameters to forward to the target tool",
+                                required = true
+                            )
+                        )
+                    )
+                )
             }
 
             if (selectedTools.isEmpty()) {

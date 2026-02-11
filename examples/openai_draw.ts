@@ -53,7 +53,7 @@
 /// <reference path="./types/index.d.ts" />
 
 const openaiDraw = (function () {
-    const HTTP_TIMEOUT_MS = 180000;
+    const HTTP_TIMEOUT_MS = 600000;
     const client = OkHttp.newBuilder()
         .connectTimeout(HTTP_TIMEOUT_MS)
         .readTimeout(HTTP_TIMEOUT_MS)

@@ -94,6 +94,24 @@ PACKAGE SYSTEM
 - If use_package for a package has appeared earlier in this chat, treat that package as activated
 - After a package is activated, call its tools directly using function names like packageName:toolName
 - Package tools may not appear in the current system/tool list, but they are still callable after activation"""
+    private const val PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_STRICT_EN = """
+PACKAGE SYSTEM
+- Some additional functionality is available through packages
+- To use a package, call the use_package function with the package_name parameter
+- If use_package for a package has appeared earlier in this chat, treat that package as activated
+- For package tools, call package_proxy:
+  - Set tool_name to the actual package tool name (e.g. packageName:toolName)
+  - Put target tool arguments in params as a JSON object"""
+
+    private const val PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_STRICT_CN = """
+包系统：
+- 一些额外功能通过包提供
+- 要使用包，调用 use_package 函数并传入 package_name 参数
+- 只要本次聊天中该包曾出现过 use_package，就视为该包已激活
+- 调用包工具请使用 package_proxy：
+  - tool_name 填写真实工具名（例如 packageName:toolName）
+  - 将目标工具参数放入 params（JSON对象）"""
+
     private const val PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_CN = """
 包系统：
 - 一些额外功能通过包提供
@@ -102,6 +120,24 @@ PACKAGE SYSTEM
 - 只要本次聊天中该包曾出现过 use_package，就视为该包已激活
 - 包激活后，请直接使用 packageName:toolName 形式的函数名调用包内工具
 - 包内工具可能不会出现在当前系统/工具列表中，但激活后依然可以直接调用"""
+
+    private const val PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_PROXY_EN = """
+PACKAGE SYSTEM
+- Some additional functionality is available through packages
+- To use a package, call the use_package function with the package_name parameter
+- If use_package for a package has appeared earlier in this chat, treat that package as activated
+- For package tools, call package_proxy:
+  - Set tool_name to the actual package tool name (e.g. packageName:toolName)
+  - Put target tool arguments in params as a JSON object"""
+
+    private const val PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_PROXY_CN = """
+包系统：
+- 一些额外功能通过包提供
+- 要使用包，调用 use_package 函数并传入 package_name 参数
+- 只要本次聊天中该包曾出现过 use_package，就视为该包已激活
+- 调用包工具请使用 package_proxy：
+  - tool_name 填写真实工具名（例如 packageName:toolName）
+  - 将目标工具参数放入 params（JSON对象）"""
 
     private fun getAvailableToolsEn(
         hasImageRecognition: Boolean,
@@ -309,6 +345,7 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
           chatModelHasDirectAudio: Boolean = false,
           chatModelHasDirectVideo: Boolean = false,
           useToolCallApi: Boolean = false,
+          strictToolCall: Boolean = false,
           disableLatexDescription: Boolean = false,
           toolVisibility: Map<String, Boolean> = emptyMap()
   ): String {
@@ -457,9 +494,23 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
     if (enableTools) {
         // 当使用Tool Call API时，使用简化的工具使用指南（保留"调用前描述"的重要指示），移除XML格式说明和工具列表
         if (useToolCallApi) {
+            val packageGuidelines =
+                if (useEnglish) {
+                    if (strictToolCall) {
+                        PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_PROXY_EN
+                    } else {
+                        PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_EN
+                    }
+                } else {
+                    if (strictToolCall) {
+                        PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_PROXY_CN
+                    } else {
+                        PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_CN
+                    }
+                }
             prompt = prompt
                 .replace("TOOL_USAGE_GUIDELINES_SECTION", if (useEnglish) TOOL_USAGE_BRIEF_EN else TOOL_USAGE_BRIEF_CN)
-                .replace("PACKAGE_SYSTEM_GUIDELINES_SECTION", if (useEnglish) PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_EN else PACKAGE_SYSTEM_GUIDELINES_TOOL_CALL_CN)
+                .replace("PACKAGE_SYSTEM_GUIDELINES_SECTION", packageGuidelines)
                 .replace("AVAILABLE_TOOLS_SECTION", "")
         } else {
             prompt = prompt
@@ -585,6 +636,7 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
           chatModelHasDirectAudio: Boolean = false,
           chatModelHasDirectVideo: Boolean = false,
           useToolCallApi: Boolean = false,
+          strictToolCall: Boolean = false,
           disableLatexDescription: Boolean = false,
           toolVisibility: Map<String, Boolean> = emptyMap()
   ): String {
@@ -606,6 +658,7 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
         chatModelHasDirectAudio = chatModelHasDirectAudio,
         chatModelHasDirectVideo = chatModelHasDirectVideo,
         useToolCallApi = useToolCallApi,
+        strictToolCall = strictToolCall,
         disableLatexDescription = disableLatexDescription,
         toolVisibility = toolVisibility
     )
@@ -633,6 +686,7 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
         chatModelHasDirectAudio = false,
         chatModelHasDirectVideo = false,
         useToolCallApi = false,
+        strictToolCall = false,
         disableLatexDescription = false
     )
   }

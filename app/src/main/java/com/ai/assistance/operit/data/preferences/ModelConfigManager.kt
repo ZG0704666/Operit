@@ -345,7 +345,8 @@ class ModelConfigManager(private val context: Context) {
             enableDirectAudioProcessing: Boolean,
             enableDirectVideoProcessing: Boolean,
             enableGoogleSearch: Boolean,
-            enableToolCall: Boolean
+            enableToolCall: Boolean,
+            strictToolCall: Boolean
     ): ModelConfigData {
         return updateConfigInternal(configId) {
             val resolvedEnableToolCall =
@@ -353,6 +354,12 @@ class ModelConfigManager(private val context: Context) {
                     false
                 } else {
                     enableToolCall
+                }
+            val resolvedStrictToolCall =
+                if (resolvedEnableToolCall) {
+                    strictToolCall
+                } else {
+                    false
                 }
             it.copy(
                     apiKey = apiKey,
@@ -367,7 +374,8 @@ class ModelConfigManager(private val context: Context) {
                     enableDirectAudioProcessing = enableDirectAudioProcessing,
                     enableDirectVideoProcessing = enableDirectVideoProcessing,
                     enableGoogleSearch = enableGoogleSearch,
-                    enableToolCall = resolvedEnableToolCall
+                    enableToolCall = resolvedEnableToolCall,
+                    strictToolCall = resolvedStrictToolCall
             )
         }
     }
@@ -489,7 +497,10 @@ class ModelConfigManager(private val context: Context) {
                 } else {
                     enableToolCall
                 }
-            it.copy(enableToolCall = resolvedEnableToolCall)
+            it.copy(
+                    enableToolCall = resolvedEnableToolCall,
+                    strictToolCall = if (resolvedEnableToolCall) it.strictToolCall else false
+            )
         }
     }
 

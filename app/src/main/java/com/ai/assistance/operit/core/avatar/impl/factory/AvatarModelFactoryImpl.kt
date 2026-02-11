@@ -181,13 +181,22 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
             val basePath = data["basePath"] as? String ?: return null
             val modelFile = data["modelFile"] as? String ?: return null
             val motionFile = data["motionFile"] as? String
+            val motionFiles = (data["motionFiles"] as? List<*>)
+                ?.mapNotNull { it as? String }
+                ?.filter { it.isNotBlank() }
+                .orEmpty()
 
             MmdAvatarModel(
                 id = id,
                 name = name,
                 basePath = basePath,
                 modelFile = modelFile,
-                motionFile = motionFile
+                motionFile = motionFile,
+                motionFiles = if (motionFiles.isNotEmpty()) {
+                    motionFiles
+                } else {
+                    motionFile?.takeIf { it.isNotBlank() }?.let { listOf(it) }.orEmpty()
+                }
             )
         } catch (e: Exception) {
             null

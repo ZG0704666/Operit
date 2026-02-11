@@ -242,6 +242,7 @@ class ConversationService(
             chatModelHasDirectAudio: Boolean = false,
             chatModelHasDirectVideo: Boolean = false,
             useToolCallApi: Boolean = false,
+            strictToolCall: Boolean = false,
             chatModelHasDirectImage: Boolean = false
     ): List<Pair<String, String>> {
         val preparedHistory = mutableListOf<Pair<String, String>>()
@@ -319,6 +320,7 @@ class ConversationService(
                     chatModelHasDirectAudio = chatModelHasDirectAudio,
                     chatModelHasDirectVideo = chatModelHasDirectVideo,
                     useToolCallApi = useToolCallApi,
+                    strictToolCall = strictToolCall,
                     disableLatexDescription = disableLatexDescription,
                     toolVisibility = toolPromptVisibility
                 )

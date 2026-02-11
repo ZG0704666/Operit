@@ -32,6 +32,18 @@ object ToolExecutionManager {
         return if (content.endsWith("\n")) content else "$content\n"
     }
 
+    private fun resolveDisplayToolName(tool: AITool): String {
+        if (tool.name != "package_proxy") {
+            return tool.name
+        }
+        val targetToolName = tool.parameters
+            .firstOrNull { it.name == "tool_name" }
+            ?.value
+            ?.trim()
+            .orEmpty()
+        return if (targetToolName.isNotBlank()) targetToolName else tool.name
+    }
+
     /**
      * 从 AI 响应中提取工具调用。
      * @param response AI 的响应字符串。
@@ -72,7 +84,7 @@ object ToolExecutionManager {
 
         AppLogger.d(
             TAG,
-            "Found ${invocations.size} tool invocations: ${invocations.map { it.tool.name }}"
+            "Found ${invocations.size} tool invocations: ${invocations.map { resolveDisplayToolName(it.tool) }}"
         )
         return invocations
     }
@@ -305,6 +317,7 @@ object ToolExecutionManager {
         collector: StreamCollector<String>
     ): ToolResult {
         val toolName = invocation.tool.name
+        val displayToolName = resolveDisplayToolName(invocation.tool)
         val executor = toolHandler.getToolExecutorOrActivate(toolName)
         if (executor == null) {
             // 如果仍然为 null，则构建错误消息
@@ -314,7 +327,7 @@ object ToolExecutionManager {
                 ConversationMarkupManager.createToolNotAvailableError(toolName, errorMessage)
             collector.emit(ensureEndsWithNewline(notAvailableContent))
             return ToolResult(
-                toolName = toolName,
+                toolName = displayToolName,
                 success = false,
                 result = StringResultData(""),
                 error = errorMessage
@@ -333,7 +346,7 @@ object ToolExecutionManager {
         // 为此调用聚合最终结果
         if (collectedResults.isEmpty()) {
             return ToolResult(
-                toolName = invocation.tool.name,
+                toolName = displayToolName,
                 success = false,
                 result = StringResultData(""),
                 error = "The tool execution returned no results."
@@ -346,7 +359,7 @@ object ToolExecutionManager {
         }.trim()
 
         return ToolResult(
-            toolName = invocation.tool.name,
+            toolName = displayToolName,
             success = lastResult.success,
             result = StringResultData(combinedResultString),
             error = lastResult.error

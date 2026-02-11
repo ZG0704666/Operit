@@ -181,6 +181,20 @@ class CustomXmlRenderer(
         return params
     }
 
+    private fun resolveToolDisplayNameForRender(toolName: String, params: Map<String, String>): String {
+        if (toolName != "package_proxy") {
+            return toolName
+        }
+
+        val targetToolName = params["tool_name"]
+            ?.replace("&quot;", "\"")
+            ?.replace("&amp;", "&")
+            ?.trim()
+            .orEmpty()
+
+        return if (targetToolName.isNotBlank()) targetToolName else toolName
+    }
+
     /** 渲染 <search> 标签内容 (Google Search Grounding 来源) */
     @Composable
     private fun renderSearchContent(content: String, modifier: Modifier, textColor: Color) {
@@ -409,14 +423,14 @@ class CustomXmlRenderer(
         // 提取工具名称
         val nameRegex = "name=\"([^\"]+)\"".toRegex()
         val nameMatch = nameRegex.find(content)
-        val toolName = nameMatch?.groupValues?.get(1) ?: "Unknown tool"
+        val rawToolName = nameMatch?.groupValues?.get(1) ?: "Unknown tool"
 
         // 提取参数
         val params = extractParamsFromTool(content)
 
         // 构建参数显示文本
         val paramText = extractContentFromXml(content, "tool").trim()
-        val paramsText = params.entries.joinToString("\n") { (name, value) -> "$name: $value" }
+        val displayToolName = resolveToolDisplayNameForRender(rawToolName, params)
 
         // 定义短内容和长内容的阈值
         val contentLengthThreshold = 200
@@ -425,12 +439,12 @@ class CustomXmlRenderer(
         val isClosed = isXmlFullyClosed(content)
 
         // 特殊处理 apply_file 工具
-        if (toolName == "apply_file") {
+        if (displayToolName == "apply_file") {
             if (isClosed) {
                 // 调用完成后，使用紧凑视图
                 CompactToolDisplay(
-                    toolName = toolName,
-                    params = paramText, // 传递完整的原始参数
+                    toolName = rawToolName,
+                    params = paramText,
                     textColor = textColor,
                     modifier = modifier,
                     enableDialog = enableDialogs
@@ -438,7 +452,7 @@ class CustomXmlRenderer(
             } else {
                 // 调用过程中，使用详细视图
                 DetailedToolDisplay(
-                    toolName = toolName,
+                    toolName = rawToolName,
                     params = paramText,
                     textColor = textColor,
                     modifier = modifier,
@@ -450,7 +464,7 @@ class CustomXmlRenderer(
             if (isLongContent) {
                 // 使用详细工具显示组件
                 DetailedToolDisplay(
-                        toolName = toolName,
+                        toolName = rawToolName,
                         params = paramText,
                         textColor = textColor,
                         modifier = modifier,
@@ -459,8 +473,8 @@ class CustomXmlRenderer(
             } else {
                 // 使用简洁工具显示组件
                 CompactToolDisplay(
-                        toolName = toolName,
-                        params = paramText, // 传递原始XML文本
+                        toolName = rawToolName,
+                        params = paramText,
                         textColor = textColor,
                         modifier = modifier,
                         enableDialog = enableDialogs  // 传递弹窗启用状态
@@ -519,12 +533,11 @@ class CustomXmlRenderer(
             // 使用ToolResultDisplay组件显示结果
             ToolResultDisplay(
                     toolName = toolName,
-                    result = if (isSuccess) errorContent else errorContent, // now errorContent contains the cleaned result for success case
+                    result = errorContent,
                     isSuccess = isSuccess,
                     onCopyResult = {
-                        val textToCopy = if (isSuccess) errorContent else errorContent
-                        if (textToCopy.isNotBlank()) {
-                            clipboardManager.setText(AnnotatedString(textToCopy))
+                        if (errorContent.isNotBlank()) {
+                            clipboardManager.setText(AnnotatedString(errorContent))
                         }
                     },
                     enableDialog = enableDialogs  // 传递弹窗启用状态

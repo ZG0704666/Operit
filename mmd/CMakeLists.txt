@@ -30,12 +30,23 @@ if (DEFINED OPERIT_SABA_DIR)
     target_sources(MmdWrapper PRIVATE
         "${OPERIT_SABA_DIR}/src/Saba/Base/File.cpp"
         "${OPERIT_SABA_DIR}/src/Saba/Base/Log.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Base/Path.cpp"
         "${OPERIT_SABA_DIR}/src/Saba/Base/Singleton.cpp"
         "${OPERIT_SABA_DIR}/src/Saba/Base/UnicodeUtil.cpp"
         "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/SjisToUnicode.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/MMDIkSolver.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/MMDMaterial.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/MMDModel.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/MMDMorph.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/MMDNode.cpp"
         "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/PMDFile.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/PMDModel.cpp"
         "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/PMXFile.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/PMXModel.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/VMDAnimation.cpp"
         "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/VMDFile.cpp"
+        "${OPERIT_SABA_DIR}/src/Saba/Model/MMD/VPDFile.cpp"
+        "src/main/cpp/mmd_physics_stub.cpp"
     )
 else()
     target_compile_definitions(MmdWrapper PRIVATE OPERIT_HAS_SABA=0)

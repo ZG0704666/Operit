@@ -344,6 +344,9 @@
     <string name="y_translation">Y轴位移: %1$s</string>
     <string name="confirm_delete_model_title">确认删除模型？</string>
     <string name="confirm_delete_model_message">删除后不可恢复，确定要删除该模型吗？</string>
+    <string name="rename_avatar_model_title">重命名模型</string>
+    <string name="rename_avatar_model_message">输入新的模型显示名称</string>
+    <string name="avatar_model_name_label">模型名称</string>
     <string name="no_models_available">没有可用的模型</string>
     <string name="please_select_model">请选择一个模型</string>
     <string name="unsupported_model_type">不支持的模型类型: %1$s</string>
@@ -3309,6 +3312,8 @@
     <string name="enable_google_search_desc">启用后，Gemini 将使用 Google 搜索来增强回答（可能产生额外费用）</string>
     <string name="enable_tool_call">模型支持ToolCall</string>
     <string name="enable_tool_call_desc">关闭时，会使用软件内工具调用机制，也可以完成工具调用。开启后，将会使用API的专用接口进行原生工具调用（需要模型支持）</string>
+    <string name="strict_tool_call">严格toolcall</string>
+    <string name="strict_tool_call_desc">严格toolcall请在toolcall支持但报错的情况下开启，该选项一定程度上会改变toolcall运行稳定性。非必要不开启。</string>
     <string name="enable_deepseek_reasoning">启用 DeepSeek 推理模式</string>
     <string name="enable_deepseek_reasoning_desc">启用后，&lt;think&gt;标签内的内容将作为reasoning_content发送给DeepSeek模型，用于支持DeepSeek-R1等推理模型的工具调用</string>
     <string name="search_sources">搜索来源</string>

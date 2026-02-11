@@ -345,6 +345,9 @@
     <string name="y_translation">Y Translation: %1$s</string>
     <string name="confirm_delete_model_title">Confirm Delete Model?</string>
     <string name="confirm_delete_model_message">This action cannot be undone. Are you sure you want to delete this model?</string>
+    <string name="rename_avatar_model_title">Rename Model</string>
+    <string name="rename_avatar_model_message">Enter a new display name for this model</string>
+    <string name="avatar_model_name_label">Model Name</string>
     <string name="no_models_available">No models available</string>
     <string name="please_select_model">Please select a model</string>
     <string name="unsupported_model_type">Unsupported model type: %1$s</string>
@@ -3392,6 +3395,8 @@
     <string name="enable_google_search_desc">When enabled, Gemini will use Google Search to enhance responses (may incur additional charges)</string>
     <string name="enable_tool_call">Model supports ToolCall</string>
     <string name="enable_tool_call_desc">When disabled, uses the built-in tool invocation mechanism which also supports tool calls. When enabled, uses the API\'s dedicated native interface (requires model support)</string>
+    <string name="strict_tool_call">Strict ToolCall</string>
+    <string name="strict_tool_call_desc">Enable this only when ToolCall is supported but still failing. This option may alter ToolCall runtime stability. Keep it off unless necessary.</string>
     <string name="enable_deepseek_reasoning">Enable DeepSeek Reasoning Mode</string>
     <string name="enable_deepseek_reasoning_desc">When enabled, content within &lt;think&gt; tags will be sent as reasoning_content to DeepSeek models, supporting tool invocation for reasoning models like DeepSeek-R1</string>
     <string name="search_sources">Search Sources</string>
