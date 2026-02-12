@@ -1,7 +1,6 @@
 package com.ai.assistance.operit.ui.features.chat.webview.workspace
 
 import android.content.Context
-import android.os.SystemClock
 import android.util.Base64
 import com.ai.assistance.operit.core.tools.BinaryFileContentData
 import com.ai.assistance.operit.core.tools.DirectoryListingData
@@ -10,6 +9,8 @@ import com.ai.assistance.operit.core.tools.FileExistsData
 import com.ai.assistance.operit.core.tools.FileInfoData
 import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.AIToolHook
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.util.AppLogger
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -22,9 +23,11 @@ import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.github.difflib.DiffUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Serializable
 data class FileStat(
@@ -45,6 +48,10 @@ class WorkspaceBackupManager(private val context: Context) {
         private const val TAG = "WorkspaceBackupManager"
         private const val BACKUP_DIR_NAME = ".backup"
         private const val OBJECTS_DIR_NAME = "objects"
+        private const val CURRENT_STATE_FILE_NAME = "current_state.json"
+
+        private val WORKSPACE_MUTATING_TOOLS =
+            setOf("apply_file", "move_file", "delete_file", "copy_file")
 
         @Volatile
         private var INSTANCE: WorkspaceBackupManager? = null
@@ -77,6 +84,459 @@ class WorkspaceBackupManager(private val context: Context) {
      */
     suspend fun syncState(workspacePath: String, messageTimestamp: Long, workspaceEnv: String? = null) {
         syncStateProvider(workspacePath, workspaceEnv, messageTimestamp)
+    }
+
+    private data class HookSessionInit(
+        val backupDir: String,
+        val objectsDir: String,
+        val currentState: BackupManifest,
+        val gitignoreRules: List<String>
+    )
+
+    fun createWorkspaceToolHookSession(
+        workspacePath: String,
+        workspaceEnv: String?,
+        messageTimestamp: Long
+    ): WorkspaceToolHookSession {
+        return WorkspaceToolHookSession(workspacePath, workspaceEnv, messageTimestamp)
+    }
+
+    inner class WorkspaceToolHookSession(
+        private val workspacePath: String,
+        private val workspaceEnv: String?,
+        private val messageTimestamp: Long
+    ) : AIToolHook {
+        private val closed = AtomicBoolean(false)
+        private var initialized = false
+        private var backupDir: String? = null
+        private var objectsDir: String? = null
+        private var currentState: BackupManifest? = null
+        private var gitignoreRules: List<String> = emptyList()
+
+        override fun onToolExecutionStarted(tool: AITool) {
+            if (closed.get()) return
+            if (!isWorkspaceMutatingTool(tool.name)) return
+
+            val affectedPaths = extractWorkspaceAffectedPaths(tool, workspacePath, workspaceEnv)
+            if (affectedPaths.isEmpty()) return
+
+            runBlocking(Dispatchers.IO) {
+                if (initialized) return@runBlocking
+
+                val init = initializeHookSessionProvider(workspacePath, workspaceEnv, messageTimestamp)
+                if (init != null) {
+                    backupDir = init.backupDir
+                    objectsDir = init.objectsDir
+                    currentState = init.currentState
+                    gitignoreRules = init.gitignoreRules
+                    initialized = true
+                    AppLogger.d(
+                        TAG,
+                        "Workspace tool hook session initialized at timestamp=$messageTimestamp"
+                    )
+                }
+            }
+        }
+
+        override fun onToolExecutionResult(tool: AITool, result: ToolResult) {
+            if (closed.get() || !initialized || !result.success) return
+            if (!isWorkspaceMutatingTool(tool.name)) return
+
+            val affectedPaths =
+                extractWorkspaceAffectedPaths(tool, workspacePath, workspaceEnv).distinct()
+            if (affectedPaths.isEmpty()) return
+
+            runBlocking(Dispatchers.IO) {
+                val state = currentState ?: return@runBlocking
+                val sessionObjectsDir = objectsDir ?: return@runBlocking
+
+                val updatedFiles = state.files.toMutableMap()
+                val updatedStats = state.fileStats.toMutableMap()
+
+                for (affectedPath in affectedPaths) {
+                    refreshPathInStateProvider(
+                        workspacePath = workspacePath,
+                        workspaceEnv = workspaceEnv,
+                        targetPath = affectedPath,
+                        objectsDir = sessionObjectsDir,
+                        gitignoreRules = gitignoreRules,
+                        files = updatedFiles,
+                        stats = updatedStats
+                    )
+                }
+
+                currentState =
+                    BackupManifest(
+                        timestamp = System.currentTimeMillis(),
+                        files = updatedFiles,
+                        fileStats = updatedStats
+                    )
+            }
+        }
+
+        fun close() {
+            if (!closed.compareAndSet(false, true)) return
+            if (!initialized) return
+
+            runBlocking(Dispatchers.IO) {
+                val state = currentState ?: return@runBlocking
+                val sessionBackupDir = backupDir ?: return@runBlocking
+                saveCurrentStateManifestProvider(sessionBackupDir, workspaceEnv, state)
+            }
+        }
+    }
+
+    private fun isWorkspaceMutatingTool(toolName: String): Boolean {
+        return WORKSPACE_MUTATING_TOOLS.contains(toolName)
+    }
+
+    private fun isEnvironmentMatchForWorkspace(toolEnv: String?, workspaceEnv: String?): Boolean {
+        val normalizedToolEnv = toolEnv?.trim().orEmpty()
+        val normalizedWorkspaceEnv = workspaceEnv?.trim().orEmpty()
+
+        if (normalizedWorkspaceEnv.isBlank()) {
+            return normalizedToolEnv.isBlank() || normalizedToolEnv.equals("android", ignoreCase = true)
+        }
+
+        return normalizedToolEnv.equals(normalizedWorkspaceEnv, ignoreCase = true)
+    }
+
+    private fun extractWorkspaceAffectedPaths(
+        tool: AITool,
+        workspacePath: String,
+        workspaceEnv: String?
+    ): List<String> {
+        val result = mutableListOf<String>()
+
+        fun collectPath(path: String?, toolEnv: String?) {
+            var normalizedPath = path?.trim()?.trimEnd('/').orEmpty()
+            if (normalizedPath.isBlank()) return
+            if (!isEnvironmentMatchForWorkspace(toolEnv, workspaceEnv)) return
+
+            if (makeRelativePath(workspacePath, normalizedPath) == null && !normalizedPath.startsWith("/")) {
+                normalizedPath = joinPath(workspacePath, normalizedPath)
+            }
+
+            if (makeRelativePath(workspacePath, normalizedPath) == null) return
+            result.add(normalizedPath)
+        }
+
+        val defaultEnvironment = tool.parameters.find { it.name == "environment" }?.value
+
+        when (tool.name) {
+            "apply_file", "delete_file" -> {
+                collectPath(
+                    tool.parameters.find { it.name == "path" }?.value,
+                    defaultEnvironment
+                )
+            }
+
+            "move_file" -> {
+                collectPath(
+                    tool.parameters.find { it.name == "source" }?.value,
+                    defaultEnvironment
+                )
+                collectPath(
+                    tool.parameters.find { it.name == "destination" }?.value,
+                    defaultEnvironment
+                )
+            }
+
+            "copy_file" -> {
+                val sourceEnvironment =
+                    tool.parameters.find { it.name == "source_environment" }?.value
+                        ?: defaultEnvironment
+                val destinationEnvironment =
+                    tool.parameters.find { it.name == "dest_environment" }?.value
+                        ?: defaultEnvironment
+                collectPath(
+                    tool.parameters.find { it.name == "source" }?.value,
+                    sourceEnvironment
+                )
+                collectPath(
+                    tool.parameters.find { it.name == "destination" }?.value,
+                    destinationEnvironment
+                )
+            }
+        }
+
+        return result
+    }
+
+    private suspend fun initializeHookSessionProvider(
+        workspacePath: String,
+        workspaceEnv: String?,
+        messageTimestamp: Long
+    ): HookSessionInit? {
+        val workspaceInfo = fileExistsProvider(workspacePath, workspaceEnv)
+        if (workspaceInfo == null || !workspaceInfo.exists || !workspaceInfo.isDirectory) {
+            AppLogger.w(TAG, "Workspace hook ignored: invalid workspace path $workspacePath")
+            return null
+        }
+
+        val backupDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+        ensureDirectory(backupDir, workspaceEnv)
+
+        val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
+        ensureDirectory(objectsDir, workspaceEnv)
+
+        val existingBackups = listBackupsInBackupDir(backupDir, workspaceEnv)
+        val targetManifestPath = joinPath(backupDir, "$messageTimestamp.json")
+        val hasTargetManifest =
+            fileExistsProvider(targetManifestPath, workspaceEnv)?.exists == true
+
+        var currentState = loadCurrentStateManifestProvider(backupDir, workspaceEnv)
+        if (currentState == null) {
+            if (hasTargetManifest) {
+                currentState = loadBackupManifestProvider(backupDir, messageTimestamp, workspaceEnv)
+            }
+            if (currentState == null) {
+                val latestTimestamp = existingBackups.lastOrNull()
+                if (latestTimestamp != null) {
+                    currentState = loadBackupManifestProvider(backupDir, latestTimestamp, workspaceEnv)
+                }
+            }
+            if (currentState == null) {
+                currentState = BackupManifest(timestamp = messageTimestamp, files = emptyMap(), fileStats = emptyMap())
+            }
+        }
+
+        if (!hasTargetManifest) {
+            writeBackupManifestProvider(
+                backupDir = backupDir,
+                timestamp = messageTimestamp,
+                workspaceEnv = workspaceEnv,
+                manifest = currentState.copy(timestamp = messageTimestamp)
+            )
+        }
+
+        saveCurrentStateManifestProvider(backupDir, workspaceEnv, currentState)
+
+        val gitignoreRules = loadGitignoreRulesProvider(workspacePath, workspaceEnv)
+        return HookSessionInit(
+            backupDir = backupDir,
+            objectsDir = objectsDir,
+            currentState = currentState,
+            gitignoreRules = gitignoreRules
+        )
+    }
+
+    private suspend fun loadCurrentStateManifestProvider(
+        backupDir: String,
+        workspaceEnv: String?
+    ): BackupManifest? {
+        val statePath = joinPath(backupDir, CURRENT_STATE_FILE_NAME)
+        val readRes =
+            toolHandler.executeTool(
+                AITool(
+                    name = "read_file_full",
+                    parameters =
+                        withWorkspaceEnvParams(
+                            listOf(
+                                ToolParameter("path", statePath),
+                                ToolParameter("text_only", "true")
+                            ),
+                            workspaceEnv
+                        )
+                )
+            )
+        val content = (readRes.result as? FileContentData)?.content
+        if (!readRes.success || content.isNullOrBlank()) {
+            return null
+        }
+
+        return runCatching { json.decodeFromString<BackupManifest>(content) }.getOrNull()
+    }
+
+    private suspend fun saveCurrentStateManifestProvider(
+        backupDir: String,
+        workspaceEnv: String?,
+        manifest: BackupManifest
+    ) {
+        val statePath = joinPath(backupDir, CURRENT_STATE_FILE_NAME)
+        toolHandler.executeTool(
+            AITool(
+                name = "write_file",
+                parameters =
+                    withWorkspaceEnvParams(
+                        listOf(
+                            ToolParameter("path", statePath),
+                            ToolParameter("content", json.encodeToString(manifest)),
+                            ToolParameter("append", "false")
+                        ),
+                        workspaceEnv
+                    )
+            )
+        )
+    }
+
+    private suspend fun writeBackupManifestProvider(
+        backupDir: String,
+        timestamp: Long,
+        workspaceEnv: String?,
+        manifest: BackupManifest
+    ) {
+        val manifestPath = joinPath(backupDir, "$timestamp.json")
+        toolHandler.executeTool(
+            AITool(
+                name = "write_file",
+                parameters =
+                    withWorkspaceEnvParams(
+                        listOf(
+                            ToolParameter("path", manifestPath),
+                            ToolParameter("content", json.encodeToString(manifest)),
+                            ToolParameter("append", "false")
+                        ),
+                        workspaceEnv
+                    )
+            )
+        )
+    }
+
+    private suspend fun refreshPathInStateProvider(
+        workspacePath: String,
+        workspaceEnv: String?,
+        targetPath: String,
+        objectsDir: String,
+        gitignoreRules: List<String>,
+        files: MutableMap<String, String>,
+        stats: MutableMap<String, FileStat>
+    ) {
+        val normalizedTargetPath = targetPath.trim().trimEnd('/').ifBlank { targetPath }
+        val relativeTarget = makeRelativePath(workspacePath, normalizedTargetPath) ?: return
+
+        removePathFromState(relativeTarget, files, stats)
+
+        val existsData = fileExistsProvider(normalizedTargetPath, workspaceEnv)
+        if (existsData == null || !existsData.exists) {
+            return
+        }
+
+        if (existsData.isDirectory) {
+            val childFiles =
+                listWorkspaceTextFilesUnderPathProvider(
+                    workspacePath = workspacePath,
+                    startPath = normalizedTargetPath,
+                    workspaceEnv = workspaceEnv,
+                    gitignoreRules = gitignoreRules
+                )
+            for (childPath in childFiles) {
+                val relativeChildPath = makeRelativePath(workspacePath, childPath) ?: continue
+                val snapshot =
+                    snapshotFileForStateProvider(childPath, workspaceEnv, objectsDir)
+                        ?: continue
+                files[relativeChildPath] = snapshot.first
+                stats[relativeChildPath] = snapshot.second
+            }
+            return
+        }
+
+        val fileName = relativeTarget.substringAfterLast('/')
+        if (!FileUtils.isTextBasedFileName(fileName)) {
+            return
+        }
+        if (GitIgnoreFilter.shouldIgnore(relativeTarget, fileName, isDirectory = false, rules = gitignoreRules)) {
+            return
+        }
+
+        val snapshot = snapshotFileForStateProvider(normalizedTargetPath, workspaceEnv, objectsDir)
+            ?: return
+        files[relativeTarget] = snapshot.first
+        stats[relativeTarget] = snapshot.second
+    }
+
+    private suspend fun listWorkspaceTextFilesUnderPathProvider(
+        workspacePath: String,
+        startPath: String,
+        workspaceEnv: String?,
+        gitignoreRules: List<String>
+    ): List<String> {
+        val res =
+            toolHandler.executeTool(
+                AITool(
+                    name = "find_files",
+                    parameters =
+                        withWorkspaceEnvParams(
+                            listOf(
+                                ToolParameter("path", startPath),
+                                ToolParameter("pattern", "*"),
+                                ToolParameter("use_path_pattern", "false"),
+                                ToolParameter("case_insensitive", "false")
+                            ),
+                            workspaceEnv
+                        )
+                )
+            )
+
+        val allFiles = (res.result as? FindFilesResultData)?.files.orEmpty()
+        val normalizedWorkspaceRoot = workspacePath.trimEnd('/')
+
+        return allFiles
+            .asSequence()
+            .mapNotNull { fullPath ->
+                val relative = makeRelativePath(normalizedWorkspaceRoot, fullPath) ?: return@mapNotNull null
+                if (relative.isBlank()) return@mapNotNull null
+
+                val fileName = relative.substringAfterLast('/')
+                if (!FileUtils.isTextBasedFileName(fileName)) return@mapNotNull null
+                if (GitIgnoreFilter.shouldIgnore(relative, fileName, isDirectory = false, rules = gitignoreRules)) {
+                    return@mapNotNull null
+                }
+
+                fullPath
+            }
+            .toList()
+    }
+
+    private fun removePathFromState(
+        relativePath: String,
+        files: MutableMap<String, String>,
+        stats: MutableMap<String, FileStat>
+    ) {
+        if (relativePath.isBlank()) {
+            files.clear()
+            stats.clear()
+            return
+        }
+
+        val prefix = "$relativePath/"
+        files.keys
+            .filter { it == relativePath || it.startsWith(prefix) }
+            .forEach { files.remove(it) }
+        stats.keys
+            .filter { it == relativePath || it.startsWith(prefix) }
+            .forEach { stats.remove(it) }
+    }
+
+    private suspend fun snapshotFileForStateProvider(
+        filePath: String,
+        workspaceEnv: String?,
+        objectsDir: String
+    ): Pair<String, FileStat>? {
+        val base64 = readBinaryBase64(filePath, workspaceEnv) ?: return null
+        val bytes = Base64.decode(base64, Base64.DEFAULT)
+        val md = MessageDigest.getInstance("SHA-256")
+        val hash = md.digest(bytes).joinToString("") { "%02x".format(it) }
+
+        val info = fileInfoProvider(filePath, workspaceEnv)
+        val infoSize = info?.size
+        val infoLastModifiedMs = info?.lastModified?.let { parseLastModifiedToMillis(it) }
+        val stat =
+            if (infoSize != null && infoLastModifiedMs != null) {
+                FileStat(size = infoSize, lastModified = infoLastModifiedMs)
+            } else {
+                FileStat(size = bytes.size.toLong(), lastModified = 0L)
+            }
+
+        val objectPath = buildShardedObjectPath(objectsDir, hash)
+        val objectExists = fileExistsProvider(objectPath, workspaceEnv)?.exists == true
+        if (!objectExists) {
+            val bucketDir = joinPath(objectsDir, objectBucketPrefix(hash))
+            ensureDirectory(bucketDir, workspaceEnv)
+            writeBinaryBase64(objectPath, base64, workspaceEnv)
+        }
+
+        return hash to stat
     }
 
     private fun withWorkspaceEnvParams(base: List<ToolParameter>, workspaceEnv: String?): List<ToolParameter> {
@@ -283,38 +743,6 @@ class WorkspaceBackupManager(private val context: Context) {
         return rules
     }
 
-    private suspend fun listWorkspaceTextFilesProvider(workspacePath: String, workspaceEnv: String?, gitignoreRules: List<String>): List<String> {
-        val res =
-            toolHandler.executeTool(
-                AITool(
-                    name = "find_files",
-                    parameters = withWorkspaceEnvParams(
-                        listOf(
-                            ToolParameter("path", workspacePath),
-                            ToolParameter("pattern", "*"),
-                            ToolParameter("use_path_pattern", "false"),
-                            ToolParameter("case_insensitive", "false")
-                        ),
-                        workspaceEnv
-                    )
-                )
-            )
-        val all = (res.result as? FindFilesResultData)?.files.orEmpty()
-
-        val normalizedRoot = workspacePath.trimEnd('/')
-        return all
-            .asSequence()
-            .mapNotNull { fullPath ->
-                val rel = makeRelativePath(normalizedRoot, fullPath) ?: return@mapNotNull null
-                if (rel.isBlank()) return@mapNotNull null
-                val name = rel.substringAfterLast('/')
-                if (!FileUtils.isTextBasedFileName(name)) return@mapNotNull null
-                if (GitIgnoreFilter.shouldIgnore(rel, name, isDirectory = false, rules = gitignoreRules)) return@mapNotNull null
-                fullPath
-            }
-            .toList()
-    }
-
     private suspend fun syncStateProvider(workspacePath: String, workspaceEnv: String?, messageTimestamp: Long) {
         withContext(Dispatchers.IO) {
             val exists = fileExistsProvider(workspacePath, workspaceEnv)
@@ -325,15 +753,47 @@ class WorkspaceBackupManager(private val context: Context) {
 
             val backupDir = joinPath(workspacePath, BACKUP_DIR_NAME)
             ensureDirectory(backupDir, workspaceEnv)
+            val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
+            ensureDirectory(objectsDir, workspaceEnv)
+
             val existingBackups = listBackupsInBackupDir(backupDir, workspaceEnv)
             AppLogger.d(TAG, "syncState called for timestamp: $messageTimestamp. Existing backups: $existingBackups")
+
+            var currentState = loadCurrentStateManifestProvider(backupDir, workspaceEnv)
+            if (currentState == null) {
+                val latestTimestamp = existingBackups.lastOrNull()
+                if (latestTimestamp != null) {
+                    currentState = loadBackupManifestProvider(backupDir, latestTimestamp, workspaceEnv)
+                }
+                if (currentState == null) {
+                    currentState = BackupManifest(timestamp = messageTimestamp, files = emptyMap(), fileStats = emptyMap())
+                }
+                saveCurrentStateManifestProvider(backupDir, workspaceEnv, currentState)
+            }
 
             val newerBackups = existingBackups.filter { it > messageTimestamp }
             if (newerBackups.isNotEmpty()) {
                 val restoreTimestamp = newerBackups.first()
                 AppLogger.i(TAG, "Newer backups found. Rewinding workspace to state at $restoreTimestamp")
                 AppLogger.d(TAG, "[Rewind] Calculated restoreTimestamp: $restoreTimestamp")
-                restoreToStateProvider(workspacePath, workspaceEnv, backupDir, restoreTimestamp)
+
+                val targetManifest = loadBackupManifestProvider(backupDir, restoreTimestamp, workspaceEnv)
+                restoreFromManifestsProvider(
+                    workspacePath = workspacePath,
+                    workspaceEnv = workspaceEnv,
+                    objectsDir = objectsDir,
+                    currentState = currentState,
+                    targetManifest = targetManifest
+                )
+
+                val restoredState =
+                    targetManifest
+                        ?: BackupManifest(
+                            timestamp = restoreTimestamp,
+                            files = emptyMap(),
+                            fileStats = emptyMap()
+                        )
+                saveCurrentStateManifestProvider(backupDir, workspaceEnv, restoredState)
 
                 val backupsToDelete = newerBackups.filter { it >= restoreTimestamp }
                 AppLogger.d(TAG, "[Rewind] Backups to be deleted: $backupsToDelete")
@@ -342,175 +802,54 @@ class WorkspaceBackupManager(private val context: Context) {
                     deleteFileProvider(joinPath(backupDir, "$ts.json"), workspaceEnv)
                 }
                 AppLogger.i(TAG, "Deleted ${backupsToDelete.size} newer backup manifests.")
-            } else {
+                return@withContext
+            }
+
+            val existingManifest =
                 if (existingBackups.contains(messageTimestamp)) {
-                    AppLogger.d(TAG, "Backup for timestamp $messageTimestamp already exists. Skipping creation.")
-                    return@withContext
-                }
-                AppLogger.i(TAG, "No newer backups found for timestamp $messageTimestamp. Creating a new backup.")
-                createNewBackupProvider(workspacePath, workspaceEnv, backupDir, messageTimestamp, existingBackups)
-            }
-        }
-    }
-
-    private suspend fun createNewBackupProvider(
-        workspacePath: String,
-        workspaceEnv: String?,
-        backupDir: String,
-        newTimestamp: Long,
-        existingBackups: List<Long>
-    ) {
-        val startMs = SystemClock.elapsedRealtime()
-        val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
-        ensureDirectory(objectsDir, workspaceEnv)
-
-        val newManifestFiles = mutableMapOf<String, String>()
-        val newManifestFileStats = mutableMapOf<String, FileStat>()
-
-        val previousManifest = existingBackups.lastOrNull()?.let { loadBackupManifestProvider(backupDir, it, workspaceEnv) }
-        val previousFiles = previousManifest?.files ?: emptyMap()
-        val previousStats = previousManifest?.fileStats ?: emptyMap()
-
-        val gitignoreRules = loadGitignoreRulesProvider(workspacePath, workspaceEnv)
-        val workspaceFiles = listWorkspaceTextFilesProvider(workspacePath, workspaceEnv, gitignoreRules)
-
-        var reusedCount = 0
-        var hashedCount = 0
-        var objectsWrittenCount = 0
-        var statMissingCount = 0
-
-        for (filePath in workspaceFiles) {
-            try {
-                val relativePath = makeRelativePath(workspacePath, filePath) ?: continue
-
-                val info = fileInfoProvider(filePath, workspaceEnv)
-                val infoSize = info?.size
-                val infoLastModifiedMs = info?.lastModified?.let { parseLastModifiedToMillis(it) }
-                val currentStat =
-                    if (infoSize != null && infoLastModifiedMs != null) {
-                        FileStat(size = infoSize, lastModified = infoLastModifiedMs)
-                    } else {
-                        statMissingCount += 1
-                        null
-                    }
-
-                val previousHash = previousFiles[relativePath]
-                val previousStat = previousStats[relativePath]
-
-                val canReuse =
-                    previousHash != null &&
-                        currentStat != null &&
-                        previousStat != null &&
-                        currentStat.size == previousStat.size &&
-                        currentStat.lastModified == previousStat.lastModified
-
-                val hash: String
-                val stat: FileStat
-                if (canReuse) {
-                    hash = requireNotNull(previousHash)
-                    stat = requireNotNull(currentStat)
-                    reusedCount += 1
+                    loadBackupManifestProvider(backupDir, messageTimestamp, workspaceEnv)
                 } else {
-                    val base64 = readBinaryBase64(filePath, workspaceEnv) ?: continue
-                    val bytes = Base64.decode(base64, Base64.DEFAULT)
-                    val md = MessageDigest.getInstance("SHA-256")
-                    hash = md.digest(bytes).joinToString("") { "%02x".format(it) }
-                    stat = currentStat ?: FileStat(size = bytes.size.toLong(), lastModified = 0L)
-                    hashedCount += 1
-
-                    val objectPath = buildShardedObjectPath(objectsDir, hash)
-                    val objectExists = fileExistsProvider(objectPath, workspaceEnv)?.exists == true
-                    if (!objectExists) {
-                        val bucketDir = joinPath(objectsDir, objectBucketPrefix(hash))
-                        ensureDirectory(bucketDir, workspaceEnv)
-                        writeBinaryBase64(objectPath, base64, workspaceEnv)
-                        objectsWrittenCount += 1
-                    }
+                    null
                 }
 
-                newManifestFiles[relativePath] = hash
-                newManifestFileStats[relativePath] = stat
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Failed to process file for backup: $filePath", e)
+            if (existingManifest != null) {
+                saveCurrentStateManifestProvider(backupDir, workspaceEnv, existingManifest)
+                AppLogger.d(TAG, "Backup for timestamp $messageTimestamp already exists. Synced current state.")
+                return@withContext
             }
+
+            AppLogger.i(TAG, "No newer backups found for timestamp $messageTimestamp. Recording current state snapshot.")
+            writeBackupManifestProvider(
+                backupDir = backupDir,
+                timestamp = messageTimestamp,
+                workspaceEnv = workspaceEnv,
+                manifest = currentState.copy(timestamp = messageTimestamp)
+            )
         }
-
-        val manifest =
-            BackupManifest(
-                timestamp = newTimestamp,
-                files = newManifestFiles,
-                fileStats = newManifestFileStats
-            )
-        val manifestPath = joinPath(backupDir, "$newTimestamp.json")
-        toolHandler.executeTool(
-            AITool(
-                name = "write_file",
-                parameters = withWorkspaceEnvParams(
-                    listOf(
-                        ToolParameter("path", manifestPath),
-                        ToolParameter("content", json.encodeToString(manifest)),
-                        ToolParameter("append", "false")
-                    ),
-                    workspaceEnv
-                )
-            )
-        )
-
-        val elapsedMs = SystemClock.elapsedRealtime() - startMs
-        AppLogger.i(
-            TAG,
-            "Workspace backup completed in ${elapsedMs}ms (timestamp=$newTimestamp, files=${workspaceFiles.size}, reused=$reusedCount, hashed=$hashedCount, objectsWritten=$objectsWrittenCount, statMissing=$statMissingCount)"
-        )
     }
 
-    private suspend fun restoreToStateProvider(
+    private suspend fun restoreFromManifestsProvider(
         workspacePath: String,
         workspaceEnv: String?,
-        backupDir: String,
-        targetTimestamp: Long?
+        objectsDir: String,
+        currentState: BackupManifest,
+        targetManifest: BackupManifest?
     ) {
-        val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
-        AppLogger.d(TAG, "Attempting to restore workspace to timestamp: $targetTimestamp")
-        val targetManifest = if (targetTimestamp != null) {
-            loadBackupManifestProvider(backupDir, targetTimestamp, workspaceEnv)
-        } else {
-            null
-        }
-
-        val manifestFiles = targetManifest?.files ?: emptyMap()
-        val manifestRelativePaths = manifestFiles.keys
-
-        val gitignoreRules = loadGitignoreRulesProvider(workspacePath, workspaceEnv)
-        val workspaceFiles = listWorkspaceTextFilesProvider(workspacePath, workspaceEnv, gitignoreRules)
+        val currentFiles = currentState.files
+        val targetFiles = targetManifest?.files ?: emptyMap()
 
         AppLogger.d(TAG, "Step 1: Deleting tracked files not present in the target manifest...")
-        for (currentFilePath in workspaceFiles) {
-            val rel = makeRelativePath(workspacePath, currentFilePath) ?: continue
-            if (rel !in manifestRelativePaths) {
-                AppLogger.i(TAG, "Deleting tracked text file not in manifest: $rel")
-                deleteFileProvider(currentFilePath, workspaceEnv)
-            }
+        for ((relativePath, _) in currentFiles) {
+            if (targetFiles.containsKey(relativePath)) continue
+            val currentFilePath = joinPath(workspacePath, relativePath)
+            AppLogger.i(TAG, "Deleting tracked text file not in manifest: $relativePath")
+            deleteFileProvider(currentFilePath, workspaceEnv)
         }
 
         AppLogger.d(TAG, "Step 2: Restoring and updating files from the target manifest...")
-        for ((relativePath, hash) in manifestFiles) {
-            val targetPath = joinPath(workspacePath, relativePath)
-
-            val needsCopy =
-                run {
-                    val targetExists = fileExistsProvider(targetPath, workspaceEnv)?.exists == true
-                    if (!targetExists) {
-                        true
-                    } else {
-                        val targetBase64 = readBinaryBase64(targetPath, workspaceEnv) ?: return@run true
-                        val bytes = Base64.decode(targetBase64, Base64.DEFAULT)
-                        val md = MessageDigest.getInstance("SHA-256")
-                        val currentHash = md.digest(bytes).joinToString("") { "%02x".format(it) }
-                        currentHash != hash
-                    }
-                }
-
-            if (!needsCopy) continue
+        for ((relativePath, hash) in targetFiles) {
+            val currentHash = currentFiles[relativePath]
+            if (currentHash == hash) continue
 
             val objectPath = resolveObjectPathForRead(objectsDir, hash, workspaceEnv)
             if (objectPath == null) {
@@ -518,10 +857,12 @@ class WorkspaceBackupManager(private val context: Context) {
                 continue
             }
 
+            val targetPath = joinPath(workspacePath, relativePath)
             val parent = targetPath.substringBeforeLast('/', "")
             if (parent.isNotBlank()) {
                 ensureDirectory(parent, workspaceEnv)
             }
+
             AppLogger.i(TAG, "Restoring file: $relativePath")
             val objectBase64 = readBinaryBase64(objectPath, workspaceEnv) ?: continue
             writeBinaryBase64(targetPath, objectBase64, workspaceEnv)
@@ -573,6 +914,63 @@ class WorkspaceBackupManager(private val context: Context) {
         return previewChangesProvider(workspacePath, workspaceEnv, restoreTimestamp)
     }
 
+    private suspend fun loadCurrentStateForDiffProvider(
+        backupDir: String,
+        workspaceEnv: String?
+    ): BackupManifest {
+        val currentState = loadCurrentStateManifestProvider(backupDir, workspaceEnv)
+        if (currentState != null) {
+            return currentState
+        }
+
+        val latestTimestamp = listBackupsInBackupDir(backupDir, workspaceEnv).lastOrNull()
+        if (latestTimestamp != null) {
+            val latestManifest = loadBackupManifestProvider(backupDir, latestTimestamp, workspaceEnv)
+            if (latestManifest != null) {
+                return latestManifest
+            }
+        }
+
+        return BackupManifest(
+            timestamp = System.currentTimeMillis(),
+            files = emptyMap(),
+            fileStats = emptyMap()
+        )
+    }
+
+    private suspend fun readTextFromObjectHashProvider(
+        objectsDir: String,
+        hash: String,
+        workspaceEnv: String?
+    ): String? {
+        val objectPath = resolveObjectPathForRead(objectsDir, hash, workspaceEnv) ?: return null
+        val objectBase64 = readBinaryBase64(objectPath, workspaceEnv) ?: return null
+        return runCatching {
+            String(Base64.decode(objectBase64, Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrNull()
+    }
+
+    private suspend fun estimateLineCountFromHashProvider(
+        objectsDir: String,
+        hash: String,
+        workspaceEnv: String?
+    ): Int {
+        val text = readTextFromObjectHashProvider(objectsDir, hash, workspaceEnv) ?: return 0
+        return normalizeTextLinesForDiff(text).size
+    }
+
+    private suspend fun estimateChangedLinesBetweenHashesProvider(
+        objectsDir: String,
+        currentHash: String,
+        targetHash: String,
+        workspaceEnv: String?
+    ): Int {
+        if (currentHash == targetHash) return 0
+        val currentText = readTextFromObjectHashProvider(objectsDir, currentHash, workspaceEnv) ?: return 0
+        val targetText = readTextFromObjectHashProvider(objectsDir, targetHash, workspaceEnv) ?: return 0
+        return estimateChangedLines(currentText, targetText)
+    }
+
     private suspend fun previewChangesProvider(workspacePath: String, workspaceEnv: String?, targetTimestamp: Long): List<WorkspaceFileChange> {
         return withContext(Dispatchers.IO) {
             val exists = fileExistsProvider(workspacePath, workspaceEnv)
@@ -583,66 +981,49 @@ class WorkspaceBackupManager(private val context: Context) {
 
             val backupDir = joinPath(workspacePath, BACKUP_DIR_NAME)
             val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
-            val gitignoreRules = loadGitignoreRulesProvider(workspacePath, workspaceEnv)
 
-            val targetManifest = loadBackupManifestProvider(backupDir, targetTimestamp, workspaceEnv)
-            val manifestFiles = targetManifest?.files ?: emptyMap()
-            val manifestRelativePaths = manifestFiles.keys
+            val currentState = loadCurrentStateForDiffProvider(backupDir, workspaceEnv)
+            val targetManifest =
+                loadBackupManifestProvider(backupDir, targetTimestamp, workspaceEnv)
+                    ?: BackupManifest(
+                        timestamp = targetTimestamp,
+                        files = emptyMap(),
+                        fileStats = emptyMap()
+                    )
 
+            val currentFiles = currentState.files
+            val targetFiles = targetManifest.files
             val changes = mutableListOf<WorkspaceFileChange>()
 
-            val workspaceFiles = listWorkspaceTextFilesProvider(workspacePath, workspaceEnv, gitignoreRules)
-            for (currentFilePath in workspaceFiles) {
-                val relativePath = makeRelativePath(workspacePath, currentFilePath) ?: continue
-                if (relativePath !in manifestRelativePaths) {
-                    val currentBase64 = readBinaryBase64(currentFilePath, workspaceEnv)
-                    val currentText =
-                        currentBase64
-                            ?.let { runCatching { String(Base64.decode(it, Base64.DEFAULT), Charsets.UTF_8) }.getOrNull() }
-                    val lines = currentText?.let { normalizeTextLinesForDiff(it).size } ?: 0
-                    changes.add(WorkspaceFileChange(relativePath, ChangeType.DELETED, lines))
-                } else {
-                    val objectFileName = manifestFiles[relativePath] ?: continue
-                    val objectPath = resolveObjectPathForRead(objectsDir, objectFileName, workspaceEnv)
-                    if (objectPath != null) {
-                        val currentBase64 = readBinaryBase64(currentFilePath, workspaceEnv)
-                        val objectBase64 = readBinaryBase64(objectPath, workspaceEnv)
-                        if (currentBase64 != null && objectBase64 != null && currentBase64 != objectBase64) {
-                            val currentText =
-                                runCatching { String(Base64.decode(currentBase64, Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
-                            val objectText =
-                                runCatching { String(Base64.decode(objectBase64, Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
-                            val changedLines =
-                                if (currentText != null && objectText != null) {
-                                    estimateChangedLines(currentText, objectText)
-                                } else {
-                                    0
-                                }
-                            if (changedLines > 0) {
-                                changes.add(WorkspaceFileChange(relativePath, ChangeType.MODIFIED, changedLines))
-                            }
-                        }
+            for ((relativePath, currentHash) in currentFiles) {
+                val targetHash = targetFiles[relativePath]
+                if (targetHash == null) {
+                    val deletedLines = estimateLineCountFromHashProvider(objectsDir, currentHash, workspaceEnv)
+                    changes.add(WorkspaceFileChange(relativePath, ChangeType.DELETED, deletedLines))
+                    continue
+                }
+
+                if (targetHash != currentHash) {
+                    val changedLines =
+                        estimateChangedLinesBetweenHashesProvider(
+                            objectsDir = objectsDir,
+                            currentHash = currentHash,
+                            targetHash = targetHash,
+                            workspaceEnv = workspaceEnv
+                        )
+                    if (changedLines > 0) {
+                        changes.add(WorkspaceFileChange(relativePath, ChangeType.MODIFIED, changedLines))
                     }
                 }
             }
 
-            for ((relativePath, hash) in manifestFiles) {
-                val targetPath = joinPath(workspacePath, relativePath)
-                val targetExists = fileExistsProvider(targetPath, workspaceEnv)?.exists == true
-                if (!targetExists) {
-                    val objectPath = resolveObjectPathForRead(objectsDir, hash, workspaceEnv)
-                    if (objectPath != null) {
-                        val objectBase64 = readBinaryBase64(objectPath, workspaceEnv)
-                        val objectText =
-                            objectBase64
-                                ?.let { runCatching { String(Base64.decode(it, Base64.DEFAULT), Charsets.UTF_8) }.getOrNull() }
-                        val lines = objectText?.let { normalizeTextLinesForDiff(it).size } ?: 0
-                        changes.add(WorkspaceFileChange(relativePath, ChangeType.ADDED, lines))
-                    }
-                }
+            for ((relativePath, targetHash) in targetFiles) {
+                if (currentFiles.containsKey(relativePath)) continue
+                val addedLines = estimateLineCountFromHashProvider(objectsDir, targetHash, workspaceEnv)
+                changes.add(WorkspaceFileChange(relativePath, ChangeType.ADDED, addedLines))
             }
 
-            changes
+            changes.sortedBy { it.path }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.demo.wizards
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -165,10 +166,11 @@ fun ShizukuWizardCard(
             }
 
             // 详细设置内容，仅在展开时显示
-            if (showWizard) {
-                Spacer(modifier = Modifier.height(16.dp))
+            AnimatedVisibility(visible = showWizard) {
+                Column {
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                when {
+                    when {
                     // 第一步：安装Shizuku
                     !isShizukuInstalled -> {
                         Column {

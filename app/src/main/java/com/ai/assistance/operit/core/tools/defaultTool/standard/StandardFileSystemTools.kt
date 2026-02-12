@@ -246,6 +246,58 @@ open class StandardFileSystemTools(protected val context: Context) {
         return seen.toList()
     }
 
+    private suspend fun resolveGrepIgnoreEntryDirectory(path: String, environment: String?): String {
+        if (path.isBlank()) return "/"
+
+        val params = mutableListOf(ToolParameter("path", path))
+        if (!environment.isNullOrBlank()) {
+            params.add(ToolParameter("environment", environment))
+        }
+
+        val existsRes = runCatching {
+            fileExists(AITool(name = "file_exists", parameters = params))
+        }.getOrNull()
+        val existsData = existsRes?.result as? FileExistsData
+
+        return if (existsRes?.success == true && existsData?.exists == true && !existsData.isDirectory) {
+            com.ai.assistance.operit.ui.features.chat.webview.workspace.process.GitIgnoreFilter.parentPath(path)
+        } else {
+            com.ai.assistance.operit.ui.features.chat.webview.workspace.process.GitIgnoreFilter.normalizePath(path)
+        }
+    }
+
+    private suspend fun loadGrepIgnoreRules(entryDir: String, environment: String?): List<String> {
+        val gitignorePath = com.ai.assistance.operit.ui.features.chat.webview.workspace.process.GitIgnoreFilter.joinPath(entryDir, ".gitignore")
+        val params = mutableListOf(
+            ToolParameter("path", gitignorePath),
+            ToolParameter("text_only", "true")
+        )
+        if (!environment.isNullOrBlank()) {
+            params.add(ToolParameter("environment", environment))
+        }
+
+        val readRes = runCatching {
+            readFileFull(AITool(name = "read_file_full", parameters = params))
+        }.getOrNull()
+        val content = (readRes?.result as? FileContentData)?.content
+        return com.ai.assistance.operit.ui.features.chat.webview.workspace.process.GitIgnoreFilter.buildRulesFromContent(content)
+    }
+
+    protected suspend fun filterFilesByEntryIgnore(path: String, environment: String?, files: List<String>): List<String> {
+        if (files.isEmpty()) return files
+
+        val entryDir = resolveGrepIgnoreEntryDirectory(path, environment)
+        val rules = loadGrepIgnoreRules(entryDir, environment)
+        if (rules.isEmpty()) return files
+
+        return files.filter { filePath ->
+            val rel = com.ai.assistance.operit.ui.features.chat.webview.workspace.process.GitIgnoreFilter.toRelativePath(entryDir, filePath)
+                ?: return@filter true
+            if (rel.isBlank()) return@filter true
+            !com.ai.assistance.operit.ui.features.chat.webview.workspace.process.GitIgnoreFilter.shouldIgnoreFileRelativePath(rel, rules)
+        }
+    }
+
     protected fun buildCandidateDigestForModel(
         candidates: List<GrepContextCandidate>,
         maxCharsPerItem: Int
@@ -344,7 +396,7 @@ open class StandardFileSystemTools(protected val context: Context) {
             return Pair(emptyList(), 0)
         }
 
-        val foundFiles =
+        var foundFiles =
             if (prefetchedFiles != null) {
                 prefetchedFiles
             } else {
@@ -368,6 +420,9 @@ open class StandardFileSystemTools(protected val context: Context) {
 
                 (findFilesResult.result as? FindFilesResultData)?.files.orEmpty()
             }
+
+        foundFiles = filterFilesByEntryIgnore(searchPath, environment, foundFiles)
+
         if (foundFiles.isEmpty()) {
             return Pair(emptyList(), 0)
         }
@@ -4546,7 +4601,8 @@ open class StandardFileSystemTools(protected val context: Context) {
                     )
                 }
 
-                val foundFiles = (findFilesResult.result as FindFilesResultData).files
+                var foundFiles = (findFilesResult.result as FindFilesResultData).files
+                foundFiles = filterFilesByEntryIgnore(path, environment, foundFiles)
                 AppLogger.d(TAG, "grep_code: Found ${foundFiles.size} files to search")
 
                 if (foundFiles.isNotEmpty()) {

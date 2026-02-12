@@ -9,6 +9,8 @@ import com.ai.assistance.operit.core.avatar.common.model.AvatarType
 import com.ai.assistance.operit.core.avatar.common.model.IFrameSequenceAvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.ISkeletalAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.dragonbones.view.DragonBonesRenderer
+import com.ai.assistance.operit.core.avatar.impl.gltf.model.GltfAvatarModel
+import com.ai.assistance.operit.core.avatar.impl.gltf.view.GltfRenderer
 import com.ai.assistance.operit.core.avatar.impl.mmd.model.MmdAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.mmd.view.MmdRenderer
 import com.ai.assistance.operit.core.avatar.impl.webp.view.WebPRenderer
@@ -55,6 +57,21 @@ class AvatarRendererFactoryImpl : AvatarRendererFactory {
                         MmdRenderer(
                             modifier = modifier,
                             model = mmdModel,
+                            controller = controller,
+                            onError = { }
+                        )
+                    }
+                } else {
+                    null
+                }
+            }
+            AvatarType.GLTF -> {
+                val gltfModel = model as? GltfAvatarModel
+                if (gltfModel != null) {
+                    { modifier, controller ->
+                        GltfRenderer(
+                            modifier = modifier,
+                            model = gltfModel,
                             controller = controller,
                             onError = { }
                         )

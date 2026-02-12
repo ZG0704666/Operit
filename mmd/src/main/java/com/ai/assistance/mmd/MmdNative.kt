@@ -1,5 +1,8 @@
 package com.ai.assistance.mmd
 
+import java.nio.FloatBuffer
+import java.nio.IntBuffer
+
 object MmdNative {
 
     init {
@@ -30,6 +33,37 @@ object MmdNative {
         isLooping: Boolean,
         restart: Boolean
     ): FloatArray?
+
+    @JvmStatic external fun nativeRenderPreviewFrame(
+        pathModel: String?,
+        pathMotion: String?,
+        isLooping: Boolean,
+        restart: Boolean,
+        rotationX: Float,
+        rotationY: Float,
+        rotationZ: Float,
+        centerX: Float,
+        centerY: Float,
+        centerZ: Float,
+        fitScale: Float,
+        cameraDistance: Float,
+        cameraTargetHeight: Float,
+        aspectRatio: Float,
+        nearClip: Float,
+        farClip: Float,
+        vertexBuffer: FloatBuffer?,
+        vertexCount: Int,
+        drawBatchData: IntBuffer?,
+        textureIdsBySlot: IntBuffer?,
+        program: Int,
+        positionHandle: Int,
+        normalHandle: Int,
+        texCoordHandle: Int,
+        mvpHandle: Int,
+        modelHandle: Int,
+        useTextureHandle: Int,
+        textureSamplerHandle: Int
+    ): Boolean
 
     @JvmStatic external fun nativeBuildPreviewMesh(pathModel: String): FloatArray?
 

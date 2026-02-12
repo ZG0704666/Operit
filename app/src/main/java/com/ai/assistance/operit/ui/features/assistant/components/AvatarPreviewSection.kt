@@ -27,7 +27,8 @@ import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigV
 @Composable
 fun AvatarPreviewSection(
     modifier: Modifier = Modifier,
-    uiState: AssistantConfigViewModel.UiState
+    uiState: AssistantConfigViewModel.UiState,
+    showPreviewContent: Boolean = true
 ) {
     val controllerFactory = remember { AvatarControllerFactoryImpl() }
     val rendererFactory = remember { AvatarRendererFactoryImpl() }
@@ -49,94 +50,99 @@ fun AvatarPreviewSection(
                     )
             )
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            val currentModel = uiState.currentAvatarModel
-            if (currentModel != null) {
-                val avatarController = controllerFactory.createController(currentModel)
+        if (showPreviewContent) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                val currentModel = uiState.currentAvatarModel
+                if (currentModel != null) {
+                    val avatarController = controllerFactory.createController(currentModel)
 
-                if (avatarController != null) {
-                    val lastEmotionAnimationMappingState =
-                        remember(avatarController) {
-                            mutableStateOf<Map<AvatarEmotion, String>>(emptyMap())
-                        }
-                    val emotionMappingInitializedState =
-                        remember(avatarController) {
-                            mutableStateOf(false)
-                        }
-
-                    LaunchedEffect(avatarController, uiState.emotionAnimationMapping) {
-                        val latestMapping = uiState.emotionAnimationMapping
-                        val previousMapping = lastEmotionAnimationMappingState.value
-
-                        avatarController.updateEmotionAnimationMapping(latestMapping)
-
-                        if (emotionMappingInitializedState.value) {
-                            val changedEmotion =
-                                latestMapping.keys.firstOrNull { emotion ->
-                                    previousMapping[emotion] != latestMapping[emotion]
-                                } ?: previousMapping.keys.firstOrNull { emotion ->
-                                    !latestMapping.containsKey(emotion)
-                                }
-
-                            changedEmotion?.let { emotion ->
-                                avatarController.setEmotion(emotion)
+                    if (avatarController != null) {
+                        val lastEmotionAnimationMappingState =
+                            remember(avatarController) {
+                                mutableStateOf<Map<AvatarEmotion, String>>(emptyMap())
                             }
-                        } else {
-                            emotionMappingInitializedState.value = true
+                        val emotionMappingInitializedState =
+                            remember(avatarController) {
+                                mutableStateOf(false)
+                            }
+
+                        LaunchedEffect(avatarController, uiState.emotionAnimationMapping) {
+                            val latestMapping = uiState.emotionAnimationMapping
+                            val previousMapping = lastEmotionAnimationMappingState.value
+
+                            avatarController.updateEmotionAnimationMapping(latestMapping)
+
+                            if (emotionMappingInitializedState.value) {
+                                val changedEmotion =
+                                    latestMapping.keys.firstOrNull { emotion ->
+                                        previousMapping[emotion] != latestMapping[emotion]
+                                    } ?: previousMapping.keys.firstOrNull { emotion ->
+                                        !latestMapping.containsKey(emotion)
+                                    }
+
+                                changedEmotion?.let { emotion ->
+                                    avatarController.setEmotion(emotion)
+                                }
+                            } else {
+                                emotionMappingInitializedState.value = true
+                            }
+
+                            lastEmotionAnimationMappingState.value = latestMapping
                         }
 
-                        lastEmotionAnimationMappingState.value = latestMapping
-                    }
-
-                    val runtimeSettings =
-                        remember(uiState.config) {
-                            uiState.config?.let { settings ->
-                                mutableMapOf<String, Any>(
-                                    AvatarSettingKeys.SCALE to settings.scale,
-                                    AvatarSettingKeys.TRANSLATE_X to settings.translateX,
-                                    AvatarSettingKeys.TRANSLATE_Y to settings.translateY
-                                ).apply {
-                                    settings.customSettings.forEach { (key, value) ->
-                                        this[key] = value
+                        val runtimeSettings =
+                            remember(uiState.config) {
+                                uiState.config?.let { settings ->
+                                    mutableMapOf<String, Any>(
+                                        AvatarSettingKeys.SCALE to settings.scale,
+                                        AvatarSettingKeys.TRANSLATE_X to settings.translateX,
+                                        AvatarSettingKeys.TRANSLATE_Y to settings.translateY
+                                    ).apply {
+                                        settings.customSettings.forEach { (key, value) ->
+                                            this[key] = value
+                                        }
                                     }
                                 }
                             }
+
+                        LaunchedEffect(avatarController, runtimeSettings) {
+                            runtimeSettings?.let { avatarController.updateSettings(it) }
                         }
 
-                    LaunchedEffect(avatarController, runtimeSettings) {
-                        runtimeSettings?.let { avatarController.updateSettings(it) }
-                    }
+                        AvatarView(
+                            modifier = Modifier.fillMaxSize(),
+                            model = currentModel,
+                            controller = avatarController,
+                            rendererFactory = rendererFactory,
+                            onError = { error -> println("Avatar error: $error") }
+                        )
 
-                    AvatarView(
-                        modifier = Modifier.fillMaxSize(),
-                        model = currentModel,
-                        controller = avatarController,
-                        rendererFactory = rendererFactory,
-                        onError = { error -> println("Avatar error: $error") }
-                    )
+                    } else {
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string.unsupported_model_type,
+                                    currentModel.type.name
+                                ),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
                 } else {
                     Text(
                         text =
-                            stringResource(
-                                R.string.unsupported_model_type,
-                                currentModel.type.name
-                            ),
+                            if (uiState.avatarConfigs.isEmpty()) {
+                                stringResource(R.string.no_models_available)
+                            } else {
+                                stringResource(R.string.please_select_model)
+                            },
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
-            } else {
-                Text(
-                    text =
-                        if (uiState.avatarConfigs.isEmpty()) {
-                            stringResource(R.string.no_models_available)
-                        } else {
-                            stringResource(R.string.please_select_model)
-                        },
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.align(Alignment.Center)
-                )
+
             }
         }
     }
 }
+

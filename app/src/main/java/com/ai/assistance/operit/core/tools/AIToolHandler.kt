@@ -13,6 +13,7 @@ import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import com.ai.assistance.operit.util.stream.splitBy
 import com.ai.assistance.operit.util.stream.stream
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -38,6 +39,7 @@ class AIToolHandler private constructor(private val context: Context) {
 
     // Available tools registry
     private val availableTools = ConcurrentHashMap<String, ToolExecutor>()
+    private val toolHooks = CopyOnWriteArrayList<AIToolHook>()
 
     private val defaultToolsRegistered = AtomicBoolean(false)
     private val registrationLock = Any()
@@ -52,6 +54,69 @@ class AIToolHandler private constructor(private val context: Context) {
     
     fun unregisterTool(toolName: String) {
         availableTools.remove(toolName)
+    }
+
+    /**
+     * Registers a notify-only hook for tool call requests.
+     * Hook callbacks must be lightweight and non-blocking.
+     */
+    fun addToolHook(hook: AIToolHook) {
+        if (!toolHooks.contains(hook)) {
+            toolHooks.add(hook)
+        }
+    }
+
+    /** Removes a previously registered tool hook. */
+    fun removeToolHook(hook: AIToolHook) {
+        toolHooks.remove(hook)
+    }
+
+    /** Clears all registered tool hooks. */
+    fun clearToolHooks() {
+        toolHooks.clear()
+    }
+
+    /**
+     * Dispatches hook callbacks in a safe, notify-only way.
+     */
+    private inline fun notifyHooks(eventName: String, action: (AIToolHook) -> Unit) {
+        toolHooks.forEach { hook ->
+            try {
+                action(hook)
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "AIToolHook callback failed at $eventName", e)
+            }
+        }
+    }
+
+    /** Notify that a tool call request is received. */
+    fun notifyToolCallRequested(tool: AITool) {
+        notifyHooks("onToolCallRequested") { it.onToolCallRequested(tool) }
+    }
+
+    /** Notify that permission check finished for a tool call. */
+    fun notifyToolPermissionChecked(tool: AITool, granted: Boolean, reason: String? = null) {
+        notifyHooks("onToolPermissionChecked") { it.onToolPermissionChecked(tool, granted, reason) }
+    }
+
+    /** Notify that actual tool execution starts. */
+    fun notifyToolExecutionStarted(tool: AITool) {
+        notifyHooks("onToolExecutionStarted") { it.onToolExecutionStarted(tool) }
+    }
+
+    /** Notify that a tool execution result is produced. */
+    fun notifyToolExecutionResult(tool: AITool, result: ToolResult) {
+        notifyHooks("onToolExecutionResult") { it.onToolExecutionResult(tool, result) }
+    }
+
+    /** Notify that tool execution throws an exception. */
+    fun notifyToolExecutionError(tool: AITool, throwable: Throwable) {
+        notifyHooks("onToolExecutionError") { it.onToolExecutionError(tool, throwable) }
+    }
+
+    /** Notify that a tool request lifecycle is finished. */
+    fun notifyToolExecutionFinished(tool: AITool) {
+        notifyHooks("onToolExecutionFinished") { it.onToolExecutionFinished(tool) }
     }
 
     /**
@@ -231,30 +296,48 @@ class AIToolHandler private constructor(private val context: Context) {
 
     /** Executes a tool directly */
     fun executeTool(tool: AITool): ToolResult {
+        notifyToolCallRequested(tool)
         val executor = getToolExecutorOrActivate(tool.name)
 
         if (executor == null) {
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Tool not found: ${tool.name}"
-            )
+            val notFoundResult =
+                    ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Tool not found: ${tool.name}"
+                    )
+            notifyToolExecutionResult(tool, notFoundResult)
+            notifyToolExecutionFinished(tool)
+            return notFoundResult
         }
 
         // Validate parameters
         val validationResult = executor.validateParameters(tool)
         if (!validationResult.valid) {
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = validationResult.errorMessage
-            )
+            val validationFailedResult =
+                    ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = validationResult.errorMessage
+                    )
+            notifyToolExecutionResult(tool, validationFailedResult)
+            notifyToolExecutionFinished(tool)
+            return validationFailedResult
         }
 
-        // Execute the tool
-        return executor.invoke(tool)
+        notifyToolExecutionStarted(tool)
+        return try {
+            val result = executor.invoke(tool)
+            notifyToolExecutionResult(tool, result)
+            result
+        } catch (e: Exception) {
+            notifyToolExecutionError(tool, e)
+            throw e
+        } finally {
+            notifyToolExecutionFinished(tool)
+        }
     }
 }
 

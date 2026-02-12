@@ -84,8 +84,14 @@ object DefaultModelPricingCollect {
         )
     }
 
-    private val scrapedModelDefaults: Map<String, ModelPricingDefaults> by lazy {
-        buildMap {
+    private data class ScrapedPricingRow(
+        val provider: String,
+        val model: String,
+        val defaults: ModelPricingDefaults
+    )
+
+    private val scrapedPricingRows: List<ScrapedPricingRow> by lazy {
+        buildList {
             ScrapedModelPricingRowsCollect.rows
                 .lineSequence()
                 .map { it.trim() }
@@ -121,9 +127,26 @@ object DefaultModelPricingCollect {
                         )
                     }
 
-                    put("$provider:$model", defaults)
+                    add(
+                        ScrapedPricingRow(
+                            provider = provider,
+                            model = model,
+                            defaults = defaults
+                        )
+                    )
                 }
         }
+    }
+
+    private val scrapedModelDefaults: Map<String, ModelPricingDefaults> by lazy {
+        scrapedPricingRows.associate { "${it.provider}:${it.model}" to it.defaults }
+    }
+
+    private val scrapedModelNameFallbacks: Map<String, List<ModelPricingDefaults>> by lazy {
+        scrapedPricingRows.groupBy(
+            keySelector = { it.model.lowercase() },
+            valueTransform = { it.defaults }
+        )
     }
 
     private val providerFallbacks = mapOf(
@@ -172,7 +195,24 @@ object DefaultModelPricingCollect {
         val normalized = providerModel.trim().lowercase()
         scrapedModelDefaults[normalized]?.let { return it }
 
-        val (provider, _) = splitProviderModel(providerModel)
+        val (provider, model) = splitProviderModel(providerModel)
+
+        if (model.isNotBlank()) {
+            val modelCandidates = scrapedModelNameFallbacks[model.lowercase()]
+            if (!modelCandidates.isNullOrEmpty()) {
+                val preferredCurrency = if (isDomesticProvider(provider)) {
+                    PricingCurrency.CNY
+                } else {
+                    PricingCurrency.USD
+                }
+
+                modelCandidates.firstOrNull { it.currency == preferredCurrency }?.let {
+                    return it
+                }
+
+                return modelCandidates.first()
+            }
+        }
 
         return providerFallbacks[provider]
             ?: if (isDomesticProvider(provider)) {

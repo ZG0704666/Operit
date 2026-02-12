@@ -7,6 +7,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.chat.AIMessageManager
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.agent.PhoneAgentJobRegistry
 import com.ai.assistance.operit.data.model.*
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
@@ -312,24 +313,28 @@ class MessageProcessingDelegate(
                 roleName = context.getString(R.string.message_role_user) // 用户消息的角色名固定为"用户"
             )
 
-            // 在发送消息前，同步工作区状态
+            val toolHandler = AIToolHandler.getInstance(context)
+            var workspaceToolHookSession: WorkspaceBackupManager.WorkspaceToolHookSession? = null
+
+            // 在消息发送期间临时挂载 workspace hook，结束后卸载
             if (!workspacePath.isNullOrBlank()) {
-                setChatInputProcessingState(
-                    chatId,
-                    EnhancedInputProcessingState.Processing(context.getString(R.string.message_workspace_backing_up))
-                )
                 try {
-                    AppLogger.d(TAG, "Syncing workspace state for timestamp ${userMessage.timestamp}")
-                    WorkspaceBackupManager.getInstance(context).syncState(workspacePath, userMessage.timestamp, workspaceEnv)
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "Workspace sync failed", e)
-                    // 报告一个非致命错误，不会中断消息流程
-                    _nonFatalErrorEvent.emit(context.getString(R.string.message_workspace_sync_failed, e.message))
-                } finally {
-                    setChatInputProcessingState(
-                        chatId,
-                        EnhancedInputProcessingState.Processing(context.getString(R.string.message_processing))
+                    val session =
+                        WorkspaceBackupManager.getInstance(context)
+                            .createWorkspaceToolHookSession(
+                                workspacePath = workspacePath,
+                                workspaceEnv = workspaceEnv,
+                                messageTimestamp = userMessage.timestamp
+                            )
+                    workspaceToolHookSession = session
+                    toolHandler.addToolHook(session)
+                    AppLogger.d(
+                        TAG,
+                        "Workspace hook attached for timestamp=${userMessage.timestamp}, path=$workspacePath"
                     )
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "Failed to attach workspace hook", e)
+                    _nonFatalErrorEvent.emit(context.getString(R.string.message_workspace_sync_failed, e.message))
                 }
             }
 
@@ -623,6 +628,14 @@ class MessageProcessingDelegate(
                     skipFinalAutoRead = didStreamAutoRead && !isWaifuModeEnabled,
                     roleCardId = effectiveRoleCardId
                 )
+
+                workspaceToolHookSession?.let { session ->
+                    runCatching { toolHandler.removeToolHook(session) }
+                        .onFailure { AppLogger.w(TAG, "Failed to remove workspace hook", it) }
+                    runCatching { session.close() }
+                        .onFailure { AppLogger.w(TAG, "Failed to close workspace hook session", it) }
+                }
+
                 cleanupRuntimeAfterSend(chatRuntime)
             }
         }

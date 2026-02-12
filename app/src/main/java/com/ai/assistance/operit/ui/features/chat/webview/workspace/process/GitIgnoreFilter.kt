@@ -9,26 +9,99 @@ import java.io.File
  */
 object GitIgnoreFilter {
     private const val TAG = "GitIgnoreFilter"
-    
+
     // 默认需要排除的目录（即使 .gitignore 中没有）
-    private val DEFAULT_EXCLUDES = setOf(".backup", ".operit")
-    
+    private val DEFAULT_EXCLUDES = setOf("backup", ".backup", ".operit")
+
+    fun defaultRules(): List<String> = DEFAULT_EXCLUDES.toList()
+
+    fun normalizePath(path: String): String {
+        var p = path.trim().replace('\\', '/')
+        if (p.isEmpty()) return "/"
+        while (p.contains("//")) p = p.replace("//", "/")
+        return p
+    }
+
+    fun parentPath(path: String): String {
+        val normalized = normalizePath(path).trimEnd('/')
+        if (normalized.isBlank() || normalized == "/") return "/"
+        val idx = normalized.lastIndexOf('/')
+        if (idx < 0) return normalized
+        if (idx == 0) return "/"
+        return normalized.substring(0, idx)
+    }
+
+    fun joinPath(base: String, child: String): String {
+        val normalized = normalizePath(base)
+        return if (normalized == "/") {
+            "/$child"
+        } else {
+            normalized.trimEnd('/') + "/" + child
+        }
+    }
+
+    fun toRelativePath(basePath: String, fullPath: String): String? {
+        val base = normalizePath(basePath).trimEnd('/').ifBlank { "/" }
+        val full = normalizePath(fullPath)
+        if (full == base) return ""
+
+        val prefix = if (base == "/") "/" else "$base/"
+        if (!full.startsWith(prefix)) return null
+        return full.removePrefix(prefix).trimStart('/')
+    }
+
+    fun parseRulesFromContent(content: String?): List<String> {
+        if (content.isNullOrBlank()) return emptyList()
+
+        val rules = LinkedHashSet<String>()
+        content
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .forEach { rule ->
+                rules.add(rule)
+                if (rule.endsWith('/')) {
+                    val withoutTrailingSlash = rule.removeSuffix("/").trim()
+                    if (withoutTrailingSlash.isNotEmpty()) {
+                        rules.add(withoutTrailingSlash)
+                    }
+                }
+            }
+
+        return rules.toList()
+    }
+
+    fun mergeWithDefaults(rules: List<String>): List<String> {
+        val merged = LinkedHashSet<String>()
+        merged.addAll(DEFAULT_EXCLUDES)
+        merged.addAll(rules)
+        return merged.toList()
+    }
+
+    fun buildRulesFromContent(content: String?): List<String> {
+        return mergeWithDefaults(parseRulesFromContent(content))
+    }
+
+    fun shouldIgnoreFileRelativePath(relativePath: String, rules: List<String>): Boolean {
+        val rel = relativePath.replace('\\', '/').trimStart('/')
+        if (rel.isBlank()) return false
+        val fileName = rel.substringAfterLast('/')
+        return shouldIgnore(rel, fileName, isDirectory = false, rules = rules)
+    }
+
     /**
      * 从工作区目录加载 .gitignore 规则
      */
     fun loadRules(workspaceDir: File): List<String> {
-        val rules = mutableListOf<String>()
-        
+        val rules = LinkedHashSet<String>()
+
         // 添加默认排除规则
         rules.addAll(DEFAULT_EXCLUDES)
-        
+
         try {
             val gitignoreFile = File(workspaceDir, ".gitignore")
             if (gitignoreFile.exists() && gitignoreFile.isFile) {
-                gitignoreFile.readLines()
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() && !it.startsWith("#") } // 排除空行和注释
-                    .forEach { rules.add(it) }
+                rules.addAll(parseRulesFromContent(gitignoreFile.readText()))
                 AppLogger.d(TAG, "已加载 ${rules.size} 条规则 from ${gitignoreFile.absolutePath}")
             } else {
                 AppLogger.d(TAG, ".gitignore 文件不存在，仅使用默认排除规则")
@@ -36,8 +109,8 @@ object GitIgnoreFilter {
         } catch (e: Exception) {
             AppLogger.e(TAG, "加载 .gitignore 文件失败", e)
         }
-        
-        return rules
+
+        return rules.toList()
     }
     
     /**

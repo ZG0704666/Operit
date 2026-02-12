@@ -97,6 +97,7 @@ fun MCPConfigScreen(
     val installResult by viewModel.installResult.collectAsState()
     val currentInstallingPlugin by viewModel.currentServer.collectAsState()
     val mcpConfigSnapshot = mcpLocalServer.mcpConfig.collectAsState().value
+    val discoveredInstalledPluginIds = mcpRepository.installedPluginIds.collectAsState().value
     val configuredPluginIds = remember(mcpConfigSnapshot) {
         mcpConfigSnapshot.mcpServers.keys.toSet()
     }
@@ -106,8 +107,8 @@ fun MCPConfigScreen(
             .keys
             .toSet()
     }
-    val visiblePluginIds = remember(configuredPluginIds, remotePluginIds) {
-        configuredPluginIds + remotePluginIds
+    val visiblePluginIds = remember(configuredPluginIds, remotePluginIds, discoveredInstalledPluginIds) {
+        configuredPluginIds + remotePluginIds + discoveredInstalledPluginIds
     }
 
     // 部署状态
@@ -1203,7 +1204,13 @@ fun MCPConfigScreen(
                                     onClick = {
                                         selectedPluginId = pluginId
                                         pluginConfigJson = mcpLocalServer.getPluginConfig(pluginId)
-                                        selectedPluginForDetails = getPluginAsServer(pluginId, mcpRepository, mcpConfigSnapshot, context)
+                                        selectedPluginForDetails = getPluginAsServer(
+                                            pluginId,
+                                            mcpRepository,
+                                            mcpConfigSnapshot,
+                                            discoveredInstalledPluginIds,
+                                            context
+                                        )
                                     },
                                     onDeploy = {
                                         pluginToDeploy = pluginId
@@ -1211,7 +1218,13 @@ fun MCPConfigScreen(
                                     },
                                     onEdit = {
                                         // 设置要编辑的服务器并显示对话框
-                                        val serverToEdit = getPluginAsServer(pluginId, mcpRepository, mcpConfigSnapshot, context)
+                                        val serverToEdit = getPluginAsServer(
+                                            pluginId,
+                                            mcpRepository,
+                                            mcpConfigSnapshot,
+                                            discoveredInstalledPluginIds,
+                                            context
+                                        )
                                         if(serverToEdit != null){
                                             editingRemoteServer = serverToEdit
                                             showRemoteEditDialog = true
@@ -1299,20 +1312,23 @@ private fun getPluginAsServer(
     pluginId: String,
     mcpRepository: MCPRepository,
     mcpConfigSnapshot: MCPLocalServer.MCPConfig,
+    discoveredInstalledPluginIds: Set<String>,
     context: Context
 ): MCPLocalServer.PluginMetadata? {
     val metadataFromConfig = mcpConfigSnapshot.pluginMetadata[pluginId]
     val pluginInfo = metadataFromConfig ?: mcpRepository.getInstalledPluginInfo(pluginId)
-    val serverConfigExists = mcpConfigSnapshot.mcpServers.containsKey(pluginId)
     val isRemote = pluginInfo?.type == "remote"
-    val isConfigured = serverConfigExists || isRemote || (pluginInfo?.isInstalled == true)
+    val isInstalled =
+        pluginId in discoveredInstalledPluginIds ||
+            isRemote ||
+            (pluginInfo?.isInstalled == true)
 
     // 尝试从内存中的服务器列表查找
     val existingServer = mcpRepository.mcpServers.value.find { it.id == pluginId }
 
     // 如果在列表中找到，直接使用
     if (existingServer != null) {
-        return existingServer.copy(isInstalled = isConfigured)
+        return existingServer.copy(isInstalled = existingServer.isInstalled || isInstalled)
     }
 
     val displayName = getPluginDisplayName(pluginId, mcpRepository)
@@ -1323,7 +1339,7 @@ private fun getPluginAsServer(
         description = pluginInfo?.description ?: context.getString(R.string.local_installed_plugin),
         logoUrl = "",
         author = pluginInfo?.author ?: context.getString(R.string.local_installation),
-        isInstalled = isConfigured,
+        isInstalled = isInstalled,
         version = pluginInfo?.version ?: context.getString(R.string.local_version),
         updatedAt = "",
         longDescription = pluginInfo?.longDescription

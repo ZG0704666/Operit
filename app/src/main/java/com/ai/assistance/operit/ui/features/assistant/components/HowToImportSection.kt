@@ -88,6 +88,28 @@ fun HowToImportSection() {
                     }
                     
                     withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                        append("Supported formats")
+                    }
+                    append("\n")
+                    append("- DragonBones: skeleton .json + *_tex.json + *_tex.png")
+                    append("\n")
+                    append("- WebP: one or more .webp files")
+                    append("\n")
+                    append("- MMD: .pmx or .pmd model, optional .vmd motions")
+                    append("\n")
+                    append("- glTF: .glb or .gltf (plus referenced .bin/textures when needed)")
+                    append("\n\n")
+
+                    withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                        append("Import methods")
+                    }
+                    append("\n")
+                    append("- Direct file picker: .glb / .gltf")
+                    append("\n")
+                    append("- ZIP import: DragonBones, WebP, MMD, or multi-file glTF packages")
+                    append("\n\n")
+
+                    withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
                         append(stringResource(R.string.making_models))
                     }
                     append("\n")

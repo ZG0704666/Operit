@@ -561,8 +561,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
    * @return A string containing the appropriate workspace guidelines.
    */
   private fun getWorkspaceGuidelines(workspacePath: String?, workspaceEnv: String?, useEnglish: Boolean): String {
-      val envLabel = workspaceEnv?.trim().orEmpty()
-      val shouldShowEnv = envLabel.isNotBlank() && !envLabel.equals("android", ignoreCase = true)
+      val envLabel = workspaceEnv?.trim().orEmpty().ifBlank { "android" }
+      val shouldShowEnv = envLabel.isNotBlank()
       return if (workspacePath != null) {
           if (useEnglish) {
               """
@@ -574,6 +574,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
               - For more complex projects, consider creating `js` and `css` folders and organizing files accordingly.
               - Always use relative paths for file references.
               ${if (shouldShowEnv) "- When reading/writing workspace files via tools, pass `environment=\"$envLabel\"` and use absolute paths like `/...`." else ""}
+              - Terminal mount note: common mounts include `/storage/emulated/0 -> /sdcard`, `/storage/emulated/0 -> /storage/emulated/0`, and app sandbox `/data/user/0/com.ai.assistance.operit/files -> same path`.
+              - If the workspace is under mounted paths, execute workspace files directly in the Linux terminal environment; do not copy files before execution.
               - **Best Practice for Code Modifications**: Before modifying any file, use `grep_code` and `grep_context` to locate and understand relevant code with surrounding context. This ensures you understand the codebase structure before making changes.
               """.trimIndent()
           } else {
@@ -586,6 +588,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
               - 如果项目较为复杂，可以考虑新建js文件夹和css文件夹并创建多个文件。
               - 文件引用请使用相对路径。
               ${if (shouldShowEnv) "- 通过工具读写工作区文件时，请带上 `environment=\"$envLabel\"`，并使用 `/...` 形式的绝对路径。" else ""}
+              - 终端挂载说明：常见挂载包括 `/storage/emulated/0 -> /sdcard`、`/storage/emulated/0 -> /storage/emulated/0`，以及应用沙箱 `/data/user/0/com.ai.assistance.operit/files -> 同路径`。
+              - 若工作区位于已挂载路径中，直接在 Linux 终端环境中执行工作区文件；无需先复制再执行。
               - **代码修改最佳实践**：修改任何文件之前，建议组合使用 `grep_code` 与 `grep_context` 定位并理解相关代码及其上下文，避免在未理解项目结构时盲改。
               """.trimIndent()
           }

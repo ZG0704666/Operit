@@ -56,6 +56,7 @@ target_link_libraries(
     MmdWrapper
     android
     log
+    GLESv2
 )
 
 # 16KB page size support (Android 15+ requirement)

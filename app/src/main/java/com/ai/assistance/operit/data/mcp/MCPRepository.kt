@@ -114,12 +114,11 @@ class MCPRepository(private val context: Context) {
     private fun loadPluginsFromMCPLocalServer() {
         try {
             val pluginMetadata = mcpLocalServer.getAllPluginMetadata()
-            val mcpServers = mcpLocalServer.getAllMCPServers()
-            
+
             // 构建插件列表
             val servers = mutableListOf<MCPLocalServer.PluginMetadata>()
             val installedIds = mutableSetOf<String>()
-            
+
             pluginMetadata.values.forEach { metadata ->
                 // 统一检查：根据 command 判断是否需要物理安装
                 val isInstalled = if (metadata.type == "remote") {
@@ -127,19 +126,46 @@ class MCPRepository(private val context: Context) {
                 } else {
                     isPluginPhysicallyInstalled(metadata.id) // 自动处理 npx/uvx/uv
                 }
-                
+
                 if (isInstalled) {
                     installedIds.add(metadata.id)
                 }
-                
+
                 // 创建更新的metadata，确保isInstalled字段正确
                 val updatedMetadata = metadata.copy(isInstalled = isInstalled)
                 servers.add(updatedMetadata)
             }
-            
+
+            // 补充扫描 mcp_plugins 目录中的本地插件（即使它们尚未写入 JSON 配置）
+            val physicallyInstalledIds = scanPhysicallyInstalledPlugins()
+            installedIds.addAll(physicallyInstalledIds)
+
+            val missingMetadataPluginIds = physicallyInstalledIds - pluginMetadata.keys
+            if (missingMetadataPluginIds.isNotEmpty()) {
+                AppLogger.d(
+                    TAG,
+                    "发现 ${missingMetadataPluginIds.size} 个仅存在于 mcp_plugins 的插件: ${missingMetadataPluginIds.joinToString()}"
+                )
+            }
+
+            missingMetadataPluginIds.forEach { pluginId ->
+                servers.add(
+                    MCPLocalServer.PluginMetadata(
+                        id = pluginId,
+                        name = pluginId,
+                        description = context.getString(R.string.local_installed_plugin),
+                        author = context.getString(R.string.local_installation),
+                        isInstalled = true,
+                        version = context.getString(R.string.local_version),
+                        longDescription = context.getString(R.string.local_installed_plugin),
+                        type = "local"
+                    )
+                )
+            }
+
             _mcpServers.value = servers.sortedBy { it.name }
             _installedPluginIds.value = installedIds
-            
+
         } catch (e: Exception) {
             AppLogger.e(TAG, "从MCPLocalServer加载插件失败", e)
         }

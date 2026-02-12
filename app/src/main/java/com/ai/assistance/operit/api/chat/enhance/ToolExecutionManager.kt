@@ -125,7 +125,11 @@ object ToolExecutionManager {
      * @param executor The tool executor to use
      * @return The result of the tool execution
      */
-    fun executeToolSafely(invocation: ToolInvocation, executor: ToolExecutor): Flow<ToolResult> {
+    fun executeToolSafely(
+        invocation: ToolInvocation,
+        executor: ToolExecutor,
+        toolHandler: AIToolHandler? = null
+    ): Flow<ToolResult> {
         val validationResult = executor.validateParameters(invocation.tool)
         if (!validationResult.valid) {
             return flow {
@@ -142,6 +146,7 @@ object ToolExecutionManager {
 
         return executor.invokeAndStream(invocation.tool).catch { e ->
             AppLogger.e(TAG, "Tool execution error: ${invocation.tool.name}", e)
+            toolHandler?.notifyToolExecutionError(invocation.tool, e)
             emit(
                 ToolResult(
                     toolName = invocation.tool.name,
@@ -181,12 +186,23 @@ object ToolExecutionManager {
                         result = StringResultData(""),
                         error = "User cancelled the tool execution."
                     )
-
+                toolHandler.notifyToolPermissionChecked(
+                    invocation.tool,
+                    granted = false,
+                    reason = errorResult.error
+                )
                 return Pair(false, errorResult)
             }
+
+            toolHandler.notifyToolPermissionChecked(invocation.tool, granted = true)
+            return Pair(true, null)
         }
 
-        // 有权限
+        toolHandler.notifyToolPermissionChecked(
+            invocation.tool,
+            granted = true,
+            reason = "Permission check bypassed by deny_tool tag."
+        )
         return Pair(true, null)
     }
 
@@ -218,6 +234,7 @@ object ToolExecutionManager {
         val permittedInvocations = mutableListOf<ToolInvocation>()
         val permissionDeniedResults = mutableListOf<ToolResult>()
         for (invocation in invocations) {
+            toolHandler.notifyToolCallRequested(invocation.tool)
             val (hasPermission, errorResult) = checkToolPermission(toolHandler, invocation)
             if (hasPermission) {
                 permittedInvocations.add(invocation)
@@ -318,52 +335,68 @@ object ToolExecutionManager {
     ): ToolResult {
         val toolName = invocation.tool.name
         val displayToolName = resolveDisplayToolName(invocation.tool)
-        val executor = toolHandler.getToolExecutorOrActivate(toolName)
-        if (executor == null) {
-            // 如果仍然为 null，则构建错误消息
-            val errorMessage =
-                buildToolNotAvailableErrorMessage(toolName, packageManager, toolHandler)
-            val notAvailableContent =
-                ConversationMarkupManager.createToolNotAvailableError(toolName, errorMessage)
-            collector.emit(ensureEndsWithNewline(notAvailableContent))
-            return ToolResult(
-                toolName = displayToolName,
-                success = false,
-                result = StringResultData(""),
-                error = errorMessage
-            )
+
+        return try {
+            val executor = toolHandler.getToolExecutorOrActivate(toolName)
+            if (executor == null) {
+                // 如果仍然为 null，则构建错误消息
+                val errorMessage =
+                    buildToolNotAvailableErrorMessage(toolName, packageManager, toolHandler)
+                val notAvailableContent =
+                    ConversationMarkupManager.createToolNotAvailableError(toolName, errorMessage)
+                collector.emit(ensureEndsWithNewline(notAvailableContent))
+                val notAvailableResult =
+                    ToolResult(
+                        toolName = displayToolName,
+                        success = false,
+                        result = StringResultData(""),
+                        error = errorMessage
+                    )
+                toolHandler.notifyToolExecutionResult(invocation.tool, notAvailableResult)
+                return notAvailableResult
+            }
+
+            toolHandler.notifyToolExecutionStarted(invocation.tool)
+
+            val collectedResults = mutableListOf<ToolResult>()
+            executeToolSafely(invocation, executor, toolHandler).collect { result ->
+                collectedResults.add(result)
+                // 实时输出每个结果
+                val toolResultStatusContent =
+                    ConversationMarkupManager.formatToolResultForMessage(result)
+                collector.emit(ensureEndsWithNewline(toolResultStatusContent))
+            }
+
+            // 为此调用聚合最终结果
+            if (collectedResults.isEmpty()) {
+                val emptyResult =
+                    ToolResult(
+                        toolName = displayToolName,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "The tool execution returned no results."
+                    )
+                toolHandler.notifyToolExecutionResult(invocation.tool, emptyResult)
+                return emptyResult
+            }
+
+            val lastResult = collectedResults.last()
+            val combinedResultString = collectedResults.joinToString("\n") { res ->
+                (if (res.success) res.result.toString() else "Step error: ${res.error ?: "Unknown error"}").trim()
+            }.trim()
+
+            val finalResult =
+                ToolResult(
+                    toolName = displayToolName,
+                    success = lastResult.success,
+                    result = StringResultData(combinedResultString),
+                    error = lastResult.error
+                )
+            toolHandler.notifyToolExecutionResult(invocation.tool, finalResult)
+            return finalResult
+        } finally {
+            toolHandler.notifyToolExecutionFinished(invocation.tool)
         }
-
-        val collectedResults = mutableListOf<ToolResult>()
-        executeToolSafely(invocation, executor).collect { result ->
-            collectedResults.add(result)
-            // 实时输出每个结果
-            val toolResultStatusContent =
-                ConversationMarkupManager.formatToolResultForMessage(result)
-            collector.emit(ensureEndsWithNewline(toolResultStatusContent))
-        }
-
-        // 为此调用聚合最终结果
-        if (collectedResults.isEmpty()) {
-            return ToolResult(
-                toolName = displayToolName,
-                success = false,
-                result = StringResultData(""),
-                error = "The tool execution returned no results."
-            )
-        }
-
-        val lastResult = collectedResults.last()
-        val combinedResultString = collectedResults.joinToString("\n") { res ->
-            (if (res.success) res.result.toString() else "Step error: ${res.error ?: "Unknown error"}").trim()
-        }.trim()
-
-        return ToolResult(
-            toolName = displayToolName,
-            success = lastResult.success,
-            result = StringResultData(combinedResultString),
-            error = lastResult.error
-        )
     }
 
     /**

@@ -1217,7 +1217,8 @@ class LinuxFileSystemTools(context: Context) : StandardFileSystemTools(context) 
                     )
                 }
 
-                val foundFiles = (findFilesResult.result as FindFilesResultData).files
+                var foundFiles = (findFilesResult.result as FindFilesResultData).files
+                foundFiles = filterFilesByEntryIgnore(path, "linux", foundFiles)
                 if (foundFiles.isEmpty()) {
                     ToolProgressBus.update(tool.name, 1f, "Search completed")
                     return@withContext ToolResult(

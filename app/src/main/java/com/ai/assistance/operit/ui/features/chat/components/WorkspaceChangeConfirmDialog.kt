@@ -121,7 +121,6 @@ fun WorkspaceChangeConfirmDialog(
                                 }
 
                                 val fileName = change.path.substringAfterLast('/', change.path)
-                                val directory = change.path.substringBeforeLast('/', "").takeIf { it.isNotEmpty() }
 
                                 Row(
                                     modifier = Modifier
@@ -142,13 +141,6 @@ fun WorkspaceChangeConfirmDialog(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        if (directory != null) {
-                                            Text(
-                                                text = directory,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
                                     }
 
                                     Spacer(modifier = Modifier.width(8.dp))

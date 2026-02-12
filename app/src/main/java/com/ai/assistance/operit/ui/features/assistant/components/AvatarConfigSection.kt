@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.assistant.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -142,6 +143,19 @@ fun AvatarConfigSection(
                 }
             }
 
+            Text(
+                text = "Supported: DragonBones (.json + _tex.json + _tex.png), WebP (.webp), MMD (.pmx/.pmd + optional .vmd), glTF (.glb/.gltf).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Text(
+                text = "Direct file import supports .glb/.gltf; import .zip for DragonBones, WebP, MMD, or multi-file glTF resources.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+
             if (currentAvatarConfig != null && currentSettings != null) {
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -179,11 +193,33 @@ fun AvatarConfigSection(
                 )
 
                 if (currentAvatarConfig.type == AvatarType.MMD) {
+                    val cameraPitch =
+                        currentSettings.customSettings[AvatarSettingKeys.MMD_INITIAL_ROTATION_X] ?: 0f
                     val initialRotationY =
                         currentSettings.customSettings[AvatarSettingKeys.MMD_INITIAL_ROTATION_Y] ?: 0f
+                    val cameraDistanceScale =
+                        currentSettings.customSettings[AvatarSettingKeys.MMD_CAMERA_DISTANCE_SCALE] ?: 1f
+                    val cameraTargetHeight =
+                        currentSettings.customSettings[AvatarSettingKeys.MMD_CAMERA_TARGET_HEIGHT] ?: 0f
 
                     Text(
-                        text = "MMD Initial Rotation Y (${String.format("%.1f deg", initialRotationY)})",
+                        text = "MMD Camera Pitch (${String.format("%.1f deg", cameraPitch)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = cameraPitch,
+                        onValueChange = {
+                            viewModel.updateCustomSetting(
+                                AvatarSettingKeys.MMD_INITIAL_ROTATION_X,
+                                it
+                            )
+                        },
+                        valueRange = -90f..90f
+                    )
+
+                    Text(
+                        text = "MMD Camera Yaw (${String.format("%.1f deg", initialRotationY)})",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -197,11 +233,120 @@ fun AvatarConfigSection(
                         },
                         valueRange = -180f..180f
                     )
+
+                    Text(
+                        text = "MMD Camera Distance (${String.format("%.2fx", cameraDistanceScale)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = cameraDistanceScale,
+                        onValueChange = {
+                            viewModel.updateCustomSetting(
+                                AvatarSettingKeys.MMD_CAMERA_DISTANCE_SCALE,
+                                it
+                            )
+                        },
+                        valueRange = 0.02f..12.0f
+                    )
+
+                    Text(
+                        text = "MMD Orbit Pivot Height (${String.format("%.2f", cameraTargetHeight)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = cameraTargetHeight.coerceIn(-2.0f, 2.0f),
+                        onValueChange = {
+                            viewModel.updateCustomSetting(
+                                AvatarSettingKeys.MMD_CAMERA_TARGET_HEIGHT,
+                                it
+                            )
+                        },
+                        valueRange = -2.0f..2.0f
+                    )
+                }
+
+                if (currentAvatarConfig.type == AvatarType.GLTF) {
+                    val cameraPitch =
+                        currentSettings.customSettings[AvatarSettingKeys.GLTF_CAMERA_PITCH] ?: 8f
+                    val cameraYaw =
+                        currentSettings.customSettings[AvatarSettingKeys.GLTF_CAMERA_YAW] ?: 0f
+                    val cameraDistanceScale =
+                        currentSettings.customSettings[AvatarSettingKeys.GLTF_CAMERA_DISTANCE_SCALE] ?: 0.5f
+                    val cameraTargetHeight =
+                        currentSettings.customSettings[AvatarSettingKeys.GLTF_CAMERA_TARGET_HEIGHT] ?: 0f
+
+                    Text(
+                        text = "glTF Camera Pitch (${String.format("%.1f deg", cameraPitch)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = cameraPitch,
+                        onValueChange = {
+                            viewModel.updateCustomSetting(
+                                AvatarSettingKeys.GLTF_CAMERA_PITCH,
+                                it
+                            )
+                        },
+                        valueRange = -89f..89f
+                    )
+
+                    Text(
+                        text = "glTF Camera Yaw (${String.format("%.1f deg", cameraYaw)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = cameraYaw,
+                        onValueChange = {
+                            viewModel.updateCustomSetting(
+                                AvatarSettingKeys.GLTF_CAMERA_YAW,
+                                it
+                            )
+                        },
+                        valueRange = -180f..180f
+                    )
+
+                    Text(
+                        text = "glTF Camera Distance (${String.format("%.3fx", cameraDistanceScale)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = cameraDistanceScale.coerceIn(0.0f, 10.0f),
+                        onValueChange = {
+                            viewModel.updateCustomSetting(
+                                AvatarSettingKeys.GLTF_CAMERA_DISTANCE_SCALE,
+                                it
+                            )
+                        },
+                        valueRange = 0.0f..10.0f
+                    )
+
+                    Text(
+                        text = "glTF Orbit Pivot Height (${String.format("%.2f", cameraTargetHeight)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = cameraTargetHeight.coerceIn(-2.0f, 2.0f),
+                        onValueChange = {
+                            viewModel.updateCustomSetting(
+                                AvatarSettingKeys.GLTF_CAMERA_TARGET_HEIGHT,
+                                it
+                            )
+                        },
+                        valueRange = -2.0f..2.0f
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
             HowToImportSection()
+            Spacer(modifier = Modifier.height(8.dp))
+            AllAvatarImportGuideSection()
         }
     }
 }
@@ -377,6 +522,85 @@ private fun EmotionAnimationMappingSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+@Composable
+private fun AllAvatarImportGuideSection(modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                RoundedCornerShape(10.dp)
+            )
+            .padding(10.dp)
+    ) {
+        Text(
+            text =
+                if (expanded) {
+                    "Import structure guide (tap to collapse)"
+                } else {
+                    "Import structure guide (tap to expand)"
+                },
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { expanded = !expanded }
+        )
+
+        if (expanded) {
+            Text(
+                text = allAvatarImportGuideText(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}
+
+private fun allAvatarImportGuideText(): String {
+    return """
+DragonBones
+  hero/
+    hero_ske.json
+    hero_tex.json
+    hero_tex.png
+  Requirement: keep the same filename prefix for all 3 files.
+  Import tip: package this folder as .zip before import.
+
+WebP
+  webp_avatar/
+    idle.webp
+    talking.webp
+    happy.webp
+  Requirement: at least one .webp file.
+  Import tip: when using multiple WebP files, keep them in one folder and zip it.
+
+MMD
+  character/
+    character.pmx (or character.pmd)
+    idle.vmd / walk.vmd (optional motions)
+    textures/...
+  Requirement: keep model, motions, and textures in one folder with relative paths unchanged.
+  Import tip: zip the whole character folder for import.
+
+glTF
+  avatar/
+    avatar.glb (single file, direct import supported)
+    or avatar.gltf + avatar.bin + textures/...
+  Requirement: for multi-file .gltf, keep referenced .bin/textures in original relative paths.
+  Import tip: use .glb for easiest import, or zip the full .gltf folder.
+
+Live2D
+  live2d_avatar/
+    avatar.model3.json
+    avatar.moc3
+    expressions/... motions/... textures/...
+  Requirement: include all files referenced by model3.json.
+  Note: exact runtime support depends on current Live2D renderer implementation.
+""".trimIndent()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

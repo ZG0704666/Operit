@@ -3,6 +3,7 @@ package com.ai.assistance.operit.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import android.provider.OpenableColumns
 import com.ai.assistance.operit.util.AppLogger
 import androidx.core.content.edit
 import com.ai.assistance.operit.core.avatar.common.factory.AvatarModelFactory
@@ -12,6 +13,7 @@ import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import java.nio.charset.Charset
 import com.ai.assistance.operit.util.AssetCopyUtils
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.Dispatchers
@@ -274,6 +276,44 @@ class MmdPersistenceDelegate : AvatarPersistenceDelegate {
     }
 }
 
+class GltfPersistenceDelegate : AvatarPersistenceDelegate {
+    override val type = AvatarType.GLTF
+
+    override fun scanDirectory(directory: File, isBuiltIn: Boolean): List<AvatarConfig> {
+        val allConfigs = mutableListOf<AvatarConfig>()
+        if (!directory.exists() || !directory.isDirectory) {
+            AppLogger.d("AvatarRepository", "glTF scan skipped (not dir): ${directory.absolutePath}")
+            return allConfigs
+        }
+
+        val modelCandidates = directory.listFiles { file ->
+            file.isFile && (file.extension.equals("glb", ignoreCase = true) || file.extension.equals("gltf", ignoreCase = true))
+        }?.sortedWith(
+            compareBy<File> { !it.extension.equals("glb", ignoreCase = true) }
+                .thenBy { it.name.lowercase() }
+        ).orEmpty()
+
+        val modelFile = modelCandidates.firstOrNull() ?: return allConfigs
+
+        val config = AvatarConfig(
+            id = buildAvatarConfigId(AvatarType.GLTF, directory, isBuiltIn),
+            name = directory.name,
+            type = AvatarType.GLTF,
+            isBuiltIn = isBuiltIn,
+            data = mapOf(
+                "basePath" to directory.absolutePath,
+                "modelFile" to modelFile.name
+            )
+        )
+        AppLogger.i(
+            "AvatarRepository",
+            "glTF config recognized: ${directory.absolutePath}, model=${modelFile.name}"
+        )
+        allConfigs.add(config)
+        return allConfigs
+    }
+}
+
 /**
  * A generic repository for managing all types of virtual avatars.
  * It handles loading, saving, and managing avatar configurations from both
@@ -293,6 +333,10 @@ class AvatarRepository(
 
         private const val ASSETS_AVATAR_DIR = "pets"
         private const val USER_AVATAR_DIR = "avatars"
+        private val ZIP_IMPORT_CHARSETS: List<Charset> =
+            listOf("UTF-8", "GBK", "GB18030", "CP437").mapNotNull { name ->
+                runCatching { Charset.forName(name) }.getOrNull()
+            }
 
         @Volatile private var INSTANCE: AvatarRepository? = null
 
@@ -309,7 +353,8 @@ class AvatarRepository(
     private val delegates: Map<AvatarType, AvatarPersistenceDelegate> = listOf(
         DragonBonesPersistenceDelegate(),
         WebPPersistenceDelegate(),
-        MmdPersistenceDelegate()
+        MmdPersistenceDelegate(),
+        GltfPersistenceDelegate()
     ).associateBy { it.type }
 
     private val _configs = MutableStateFlow<List<AvatarConfig>>(emptyList())
@@ -544,46 +589,228 @@ class AvatarRepository(
     fun getAvatarSettings(avatarId: String): AvatarInstanceSettings {
         return _instanceSettings.value[avatarId] ?: AvatarInstanceSettings()
     }
+
+    private enum class AvatarImportKind {
+        ZIP,
+        MODEL_FILE,
+        UNSUPPORTED
+    }
+
+    suspend fun importAvatarFromUri(uri: Uri): Boolean {
+        return when (detectImportKind(uri)) {
+            AvatarImportKind.ZIP -> importAvatarFromZip(uri)
+            AvatarImportKind.MODEL_FILE -> importAvatarFromModelFile(uri)
+            AvatarImportKind.UNSUPPORTED -> {
+                AppLogger.w(TAG, "Unsupported avatar import file type: uri=$uri")
+                false
+            }
+        }
+    }
+
+    private fun detectImportKind(uri: Uri): AvatarImportKind {
+        val fileName = (resolveImportDisplayName(uri) ?: uri.lastPathSegment)
+            .orEmpty()
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .lowercase()
+        if (fileName.endsWith(".zip")) {
+            return AvatarImportKind.ZIP
+        }
+        if (fileName.endsWith(".glb") || fileName.endsWith(".gltf")) {
+            return AvatarImportKind.MODEL_FILE
+        }
+
+        val mimeType = context.contentResolver.getType(uri)?.lowercase().orEmpty()
+        if (mimeType.contains("zip")) {
+            return AvatarImportKind.ZIP
+        }
+        if (mimeType.contains("gltf")) {
+            return AvatarImportKind.MODEL_FILE
+        }
+
+        return AvatarImportKind.UNSUPPORTED
+    }
+
+    private fun resolveImportDisplayName(uri: Uri): String? {
+        return runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) {
+                    return@use null
+                }
+
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index < 0) {
+                    return@use null
+                }
+
+                cursor.getString(index)
+            }
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun sanitizeImportFileName(rawName: String): String {
+        val normalized = rawName
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .trim()
+            .ifBlank { "imported_avatar" }
+
+        val sanitized = normalized.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        return sanitized.ifBlank { "imported_avatar" }
+    }
+
+    private fun sanitizeImportDirectoryName(rawName: String): String {
+        val sanitized = rawName
+            .trim()
+            .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            .trim('_')
+            .ifBlank { "imported_avatar" }
+
+        return sanitized
+    }
+
+    private fun createUniqueImportDirectory(baseName: String): File {
+        val safeBaseName = sanitizeImportDirectoryName(baseName)
+
+        var targetDir = File(userAvatarDir, safeBaseName)
+        var suffix = 1
+        while (targetDir.exists()) {
+            targetDir = File(userAvatarDir, "${safeBaseName}_$suffix")
+            suffix += 1
+        }
+
+        targetDir.mkdirs()
+        return targetDir
+    }
+
+    private suspend fun importAvatarFromModelFile(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val displayName = resolveImportDisplayName(uri)
+                ?: uri.lastPathSegment
+                ?: "imported_avatar.glb"
+            val safeFileName = sanitizeImportFileName(displayName)
+            val mimeType = context.contentResolver.getType(uri)?.lowercase().orEmpty()
+            val currentExt = File(safeFileName).extension.lowercase()
+            val normalizedExt = when {
+                currentExt == "glb" || currentExt == "gltf" -> currentExt
+                mimeType.contains("gltf+json") -> "gltf"
+                mimeType.contains("gltf") -> "glb"
+                else -> {
+                    AppLogger.w(TAG, "Unable to determine model extension for uri=$uri mime=$mimeType name=$displayName")
+                    return@withContext false
+                }
+            }
+
+            val baseName = File(safeFileName).nameWithoutExtension
+                .ifBlank { "imported_avatar" }
+            val targetDir = createUniqueImportDirectory(baseName)
+            val targetFile = File(targetDir, "$baseName.$normalizedExt")
+
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                targetFile.outputStream().use(inputStream::copyTo)
+            } ?: run {
+                AppLogger.w(TAG, "Import failed: unable to open model stream for uri=$uri")
+                return@withContext false
+            }
+
+            if (normalizedExt == "gltf") {
+                AppLogger.w(
+                    TAG,
+                    "Imported a standalone .gltf file. If it references external .bin/textures, import as ZIP instead."
+                )
+            }
+
+            refreshAvatars()
+            AppLogger.i(TAG, "Imported avatar model file: ${targetFile.absolutePath}")
+            true
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to import avatar model file", e)
+            false
+        }
+    }
     
     suspend fun importAvatarFromZip(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         val tempDir = File(context.cacheDir, "avatar_import_${System.currentTimeMillis()}")
         try {
             tempDir.mkdirs()
-            val tempRootCanonical = tempDir.canonicalPath + File.separator
             AppLogger.i(TAG, "Start import from ZIP: uri=$uri tempDir=${tempDir.absolutePath}")
 
             var entryCount = 0
             val sampledEntries = mutableListOf<String>()
+            var extractedCharset: Charset? = null
+            var malformedDecodeError: IllegalArgumentException? = null
 
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                ZipInputStream(inputStream).use { zis ->
-                    var entry = zis.nextEntry
-                    while (entry != null) {
-                        entryCount += 1
-                        if (sampledEntries.size < 40) {
-                            sampledEntries.add(entry.name)
-                        }
+            val charsetCandidates = ZIP_IMPORT_CHARSETS.ifEmpty { listOf(Charsets.UTF_8) }
+            for (charset in charsetCandidates) {
+                entryCount = 0
+                sampledEntries.clear()
+                tempDir.deleteRecursively()
+                tempDir.mkdirs()
+                val tempRootCanonical = tempDir.canonicalPath + File.separator
 
-                        val targetFile = File(tempDir, entry.name)
-                        val targetCanonical = targetFile.canonicalPath
-                        if (!targetCanonical.startsWith(tempRootCanonical)) {
-                            AppLogger.w(TAG, "Skip suspicious ZIP entry outside target dir: ${entry.name}")
-                            entry = zis.nextEntry
-                            continue
-                        }
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        ZipInputStream(inputStream, charset).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                entryCount += 1
+                                if (sampledEntries.size < 40) {
+                                    sampledEntries.add(entry.name)
+                                }
 
-                        if (entry.isDirectory) {
-                            targetFile.mkdirs()
-                        } else {
-                            targetFile.parentFile?.mkdirs()
-                            targetFile.outputStream().use(zis::copyTo)
+                                val targetFile = File(tempDir, entry.name)
+                                val targetCanonical = targetFile.canonicalPath
+                                if (!targetCanonical.startsWith(tempRootCanonical)) {
+                                    AppLogger.w(TAG, "Skip suspicious ZIP entry outside target dir: ${entry.name}")
+                                    zis.closeEntry()
+                                    entry = zis.nextEntry
+                                    continue
+                                }
+
+                                if (entry.isDirectory) {
+                                    targetFile.mkdirs()
+                                } else {
+                                    targetFile.parentFile?.mkdirs()
+                                    targetFile.outputStream().use(zis::copyTo)
+                                }
+                                zis.closeEntry()
+                                entry = zis.nextEntry
+                            }
                         }
-                        entry = zis.nextEntry
+                    } ?: run {
+                        AppLogger.w(TAG, "Import failed: unable to open ZIP stream for uri=$uri")
+                        return@withContext false
                     }
+
+                    extractedCharset = charset
+                    if (charset != Charsets.UTF_8) {
+                        AppLogger.i(TAG, "ZIP entry decode fallback applied: charset=${charset.name()}")
+                    }
+                    break
+                } catch (e: IllegalArgumentException) {
+                    val isMalformedEncoding = e.message?.contains("MALFORMED", ignoreCase = true) == true
+                    if (!isMalformedEncoding) {
+                        throw e
+                    }
+
+                    malformedDecodeError = e
+                    AppLogger.w(
+                        TAG,
+                        "ZIP decode failed with charset=${charset.name()}, retrying with next charset."
+                    )
                 }
-            } ?: run {
-                AppLogger.w(TAG, "Import failed: unable to open ZIP stream for uri=$uri")
-                return@withContext false
+            }
+
+            if (extractedCharset == null) {
+                throw malformedDecodeError ?: IllegalArgumentException(
+                    "Unable to decode ZIP entry names with supported charsets."
+                )
             }
 
             AppLogger.i(
@@ -627,7 +854,7 @@ class AvatarRepository(
                 AppLogger.w(TAG, "No valid avatar configs found in the imported ZIP. topLevel=$topLevelEntries")
                 AppLogger.w(
                     TAG,
-                    "Import hints: DragonBones needs *_tex.json + *_tex.png; WebP needs .webp; MMD needs .pmx/.pmd (optional .vmd)."
+                    "Import hints: DragonBones needs *_tex.json + *_tex.png; WebP needs .webp; MMD needs .pmx/.pmd (optional .vmd); glTF needs .glb/.gltf (+ referenced resources)."
                 )
                 return@withContext false
             }

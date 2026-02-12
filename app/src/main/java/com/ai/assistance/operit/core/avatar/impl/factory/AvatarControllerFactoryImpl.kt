@@ -7,6 +7,8 @@ import com.ai.assistance.operit.core.avatar.common.model.AvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
 import com.ai.assistance.operit.core.avatar.common.model.ISkeletalAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.dragonbones.control.rememberDragonBonesAvatarController
+import com.ai.assistance.operit.core.avatar.impl.gltf.control.rememberGltfAvatarController
+import com.ai.assistance.operit.core.avatar.impl.gltf.model.GltfAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.mmd.control.rememberMmdAvatarController
 import com.ai.assistance.operit.core.avatar.impl.mmd.model.MmdAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.webp.control.rememberWebPAvatarController
@@ -41,6 +43,14 @@ class AvatarControllerFactoryImpl : AvatarControllerFactory {
                     null
                 }
             }
+            AvatarType.GLTF -> {
+                val gltfModel = model as? GltfAvatarModel
+                if (gltfModel != null) {
+                    rememberGltfAvatarController(gltfModel)
+                } else {
+                    null
+                }
+            }
             AvatarType.LIVE2D -> null
         }
     }
@@ -50,6 +60,7 @@ class AvatarControllerFactoryImpl : AvatarControllerFactory {
             AvatarType.DRAGONBONES -> model is ISkeletalAvatarModel
             AvatarType.WEBP -> model is WebPAvatarModel
             AvatarType.MMD -> model is MmdAvatarModel
+            AvatarType.GLTF -> model is GltfAvatarModel
             AvatarType.LIVE2D -> false
         }
     }
@@ -58,6 +69,7 @@ class AvatarControllerFactoryImpl : AvatarControllerFactory {
         get() = listOf(
             AvatarType.DRAGONBONES.name,
             AvatarType.WEBP.name,
-            AvatarType.MMD.name
+            AvatarType.MMD.name,
+            AvatarType.GLTF.name
         )
 }

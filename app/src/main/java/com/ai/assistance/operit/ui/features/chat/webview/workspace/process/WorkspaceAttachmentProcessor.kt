@@ -83,15 +83,11 @@ object WorkspaceAttachmentProcessor {
             // 获取用户改动记录
             val userChanges = getUserChanges(context, toolHandler, workspacePath, workspaceEnv)
 
-            // 获取工作区建议
-            val workspaceSuggestions = getWorkspaceSuggestions(context, toolHandler, workspacePath, workspaceEnv)
-
             // 生成完整的XML
             buildWorkspaceXml(
                 directoryStructure = directoryStructure,
                 workspaceErrors = workspaceErrors,
-                userChanges = userChanges,
-                workspaceSuggestions = workspaceSuggestions
+                userChanges = userChanges
             )
 
         } catch (e: Exception) {
@@ -547,8 +543,7 @@ object WorkspaceAttachmentProcessor {
     private fun buildWorkspaceXml(
         directoryStructure: String,
         workspaceErrors: String,
-        userChanges: String,
-        workspaceSuggestions: String
+        userChanges: String
     ): String {
         return """
 <workspace_context>
@@ -564,9 +559,6 @@ object WorkspaceAttachmentProcessor {
     $userChanges
 </user_changes>
 
-<workspace_suggestions>
-    $workspaceSuggestions
-</workspace_suggestions>
 </workspace_context>""".trimIndent()
     }
 
@@ -587,10 +579,6 @@ object WorkspaceAttachmentProcessor {
                 <user_changes>
                     ${context.getString(R.string.workspace_empty_changes)}
                 </user_changes>
-
-                <workspace_suggestions>
-                    ${context.getString(R.string.workspace_empty_suggestions)}
-                </workspace_suggestions>
             </workspace_context>
         """.trimIndent()
     }
@@ -612,10 +600,6 @@ object WorkspaceAttachmentProcessor {
                 <user_changes>
                     ${context.getString(R.string.workspace_error_fetch_changes, errorMessage)}
                 </user_changes>
-
-                <workspace_suggestions>
-                    ${context.getString(R.string.workspace_error_fetch_suggestions)}
-                </workspace_suggestions>
             </workspace_context>
         """.trimIndent()
     }

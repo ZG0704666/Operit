@@ -13,6 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -91,6 +94,7 @@ fun AssistantConfigScreen() {
     var autoNewChatGroupInput by remember { mutableStateOf("") }
 
     var selectedConfigTab by rememberSaveable { mutableStateOf(0) }
+    var isAvatarPreviewCollapsed by rememberSaveable { mutableStateOf(false) }
 
     var personalWakeConfigDialogVisible by rememberSaveable { mutableStateOf(false) }
 
@@ -125,7 +129,7 @@ fun AssistantConfigScreen() {
         ) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 result.data?.data?.let { uri ->
-                    // 导入选择的zip文件
+                    // 导入选择的 zip / glb / gltf 文件
                     viewModel.importAvatarFromZip(uri)
                 }
             }
@@ -136,10 +140,16 @@ fun AssistantConfigScreen() {
         val intent =
             Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
-                type = "application/zip"
+                type = "*/*"
                 putExtra(
                     Intent.EXTRA_MIME_TYPES,
-                    arrayOf("application/zip", "application/x-zip-compressed")
+                    arrayOf(
+                        "application/zip",
+                        "application/x-zip-compressed",
+                        "model/gltf-binary",
+                        "model/gltf+json",
+                        "application/octet-stream"
+                    )
                 )
             }
         zipFileLauncher.launch(intent)
@@ -180,7 +190,6 @@ fun AssistantConfigScreen() {
                         .fillMaxSize()
                         .padding(paddingValues)
                         .padding(horizontal = 12.dp)
-                        .verticalScroll(scrollState)
             ) {
                 TabRow(selectedTabIndex = selectedConfigTab) {
                     Tab(
@@ -199,32 +208,74 @@ fun AssistantConfigScreen() {
 
                 if (selectedConfigTab == 0) {
                     // Avatar预览区域
-                    AvatarPreviewSection(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp),
-                        uiState = uiState
-                    )
+                    if (!isAvatarPreviewCollapsed) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                        ) {
+                            AvatarPreviewSection(
+                                modifier = Modifier.fillMaxSize(),
+                                uiState = uiState
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        IconButton(onClick = { isAvatarPreviewCollapsed = !isAvatarPreviewCollapsed }) {
+                            Icon(
+                                imageVector =
+                                    if (isAvatarPreviewCollapsed) Icons.Default.ExpandMore
+                                    else Icons.Default.ExpandLess,
+                                contentDescription = stringResource(
+                                    if (isAvatarPreviewCollapsed) R.string.model_config_expand
+                                    else R.string.model_config_collapse
+                                )
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    AvatarConfigSection(
-                        viewModel = viewModel,
-                        uiState = uiState,
-                        onImportClick = { openZipFilePicker() }
-                    )
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(scrollState)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            AvatarConfigSection(
+                                viewModel = viewModel,
+                                uiState = uiState,
+                                onImportClick = { openZipFilePicker() }
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
                 } else {
                     // Voice Wake-up Section
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                RoundedCornerShape(10.dp)
-                            )
-                            .padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(scrollState)
                     ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                         // Wake Mode
                         Text(
                             text = stringResource(R.string.voice_wakeup_mode_label),
@@ -521,9 +572,10 @@ fun AssistantConfigScreen() {
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
             if (personalWakeConfigDialogVisible) {
                 val scope = rememberCoroutineScope()

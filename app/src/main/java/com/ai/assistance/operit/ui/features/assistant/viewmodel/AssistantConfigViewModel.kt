@@ -207,7 +207,7 @@ class AssistantConfigViewModel(
         updateUiState(isLoading = true, isImporting = true)
         viewModelScope.launch {
             try {
-                val success = repository.importAvatarFromZip(uri)
+                val success = repository.importAvatarFromUri(uri)
                 updateUiState(
                     isLoading = false,
                     isImporting = false,

@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.avatar.impl.mmd.view
+package com.ai.assistance.operit.core.avatar.impl.gltf.view
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -24,35 +24,33 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.ai.assistance.mmd.MmdGlSurfaceView
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
-import com.ai.assistance.operit.core.avatar.impl.mmd.control.MmdAvatarController
-import com.ai.assistance.operit.core.avatar.impl.mmd.model.MmdAvatarModel
+import com.ai.assistance.operit.core.avatar.impl.gltf.control.GltfAvatarController
+import com.ai.assistance.operit.core.avatar.impl.gltf.model.GltfAvatarModel
 
 @Composable
-fun MmdRenderer(
+fun GltfRenderer(
     modifier: Modifier,
-    model: MmdAvatarModel,
+    model: GltfAvatarModel,
     controller: AvatarController,
     onError: (String) -> Unit
 ) {
-    val mmdController = controller as? MmdAvatarController
-        ?: throw IllegalArgumentException("MmdRenderer requires a MmdAvatarController")
+    val gltfController = controller as? GltfAvatarController
+        ?: throw IllegalArgumentException("GltfRenderer requires a GltfAvatarController")
 
-    val scale by mmdController.scale.collectAsState()
-    val translateX by mmdController.translateX.collectAsState()
-    val translateY by mmdController.translateY.collectAsState()
-    val initialRotationX by mmdController.initialRotationX.collectAsState()
-    val initialRotationY by mmdController.initialRotationY.collectAsState()
-    val initialRotationZ by mmdController.initialRotationZ.collectAsState()
-    val cameraDistanceScale by mmdController.cameraDistanceScale.collectAsState()
-    val cameraTargetHeight by mmdController.cameraTargetHeight.collectAsState()
-    val avatarState by mmdController.state.collectAsState()
+    val scale by gltfController.scale.collectAsState()
+    val translateX by gltfController.translateX.collectAsState()
+    val translateY by gltfController.translateY.collectAsState()
+    val cameraPitch by gltfController.cameraPitch.collectAsState()
+    val cameraYaw by gltfController.cameraYaw.collectAsState()
+    val cameraDistanceScale by gltfController.cameraDistanceScale.collectAsState()
+    val cameraTargetHeight by gltfController.cameraTargetHeight.collectAsState()
+    val avatarState by gltfController.state.collectAsState()
 
     val safeScale = scale.coerceIn(0.2f, 5.0f)
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    val surfaceViewState = remember { mutableStateOf<MmdGlSurfaceView?>(null) }
+    val surfaceViewState = remember { mutableStateOf<GltfSurfaceView?>(null) }
     val renderErrorState = remember(model.modelPath) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(model.modelPath) {
@@ -85,7 +83,7 @@ fun MmdRenderer(
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
-                MmdGlSurfaceView(context).apply {
+                GltfSurfaceView(context).apply {
                     surfaceViewState.value = this
                     setOnRenderErrorListener { message ->
                         val normalized = message.takeIf { it.isNotBlank() }
@@ -94,21 +92,23 @@ fun MmdRenderer(
                             onError(normalized)
                         }
                     }
+                    setOnAnimationsDiscoveredListener { animationNames ->
+                        gltfController.updateAvailableAnimations(animationNames)
+                    }
                     setModelPath(model.modelPath)
                     setAnimationState(avatarState.currentAnimation, avatarState.isLooping)
-                    setModelRotation(initialRotationX, initialRotationY, initialRotationZ)
-                    setCameraDistanceScale(cameraDistanceScale)
-                    setCameraTargetHeight(cameraTargetHeight)
+                    setCameraPose(cameraPitch, cameraYaw, cameraDistanceScale, cameraTargetHeight)
                     onResume()
                 }
             },
             update = { view ->
                 surfaceViewState.value = view
+                view.setOnAnimationsDiscoveredListener { animationNames ->
+                    gltfController.updateAvailableAnimations(animationNames)
+                }
                 view.setModelPath(model.modelPath)
                 view.setAnimationState(avatarState.currentAnimation, avatarState.isLooping)
-                view.setModelRotation(initialRotationX, initialRotationY, initialRotationZ)
-                view.setCameraDistanceScale(cameraDistanceScale)
-                view.setCameraTargetHeight(cameraTargetHeight)
+                view.setCameraPose(cameraPitch, cameraYaw, cameraDistanceScale, cameraTargetHeight)
             }
         )
 

@@ -15,6 +15,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <GLES2/gl2.h>
+
 #if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
 #include "Saba/Model/MMD/PMDFile.h"
 #include "Saba/Model/MMD/PMDModel.h"
@@ -22,6 +24,9 @@
 #include "Saba/Model/MMD/PMXModel.h"
 #include "Saba/Model/MMD/VMDAnimation.h"
 #include "Saba/Model/MMD/VMDFile.h"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
 
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -209,6 +214,8 @@ struct AnimatedRuntimeCache {
     std::string motionPath;
     std::shared_ptr<saba::MMDModel> model;
     std::unique_ptr<saba::VMDAnimation> animation;
+    std::vector<uint32_t> previewVertexIndices;
+    std::vector<float> animatedVertices;
     int32_t maxMotionFrame = 0;
 };
 
@@ -739,18 +746,6 @@ bool readMotionMaxFrame(
     for (const auto& morph : vmdFile.m_morphs) {
         maxFrame = std::max(maxFrame, morph.m_frame);
     }
-    for (const auto& camera : vmdFile.m_cameras) {
-        maxFrame = std::max(maxFrame, camera.m_frame);
-    }
-    for (const auto& light : vmdFile.m_lights) {
-        maxFrame = std::max(maxFrame, light.m_frame);
-    }
-    for (const auto& shadow : vmdFile.m_shadows) {
-        maxFrame = std::max(maxFrame, shadow.m_frame);
-    }
-    for (const auto& ik : vmdFile.m_iks) {
-        maxFrame = std::max(maxFrame, ik.m_frame);
-    }
 
     *outMaxFrame = static_cast<int32_t>(maxFrame);
     return true;
@@ -814,6 +809,18 @@ bool loadAnimatedRuntimeCache(
         return false;
     }
 
+    PreviewRenderData previewData;
+    if (!getPreviewRenderDataCached(modelPath, &previewData, outError)) {
+        return false;
+    }
+
+    if (previewData.vertexIndices.empty()) {
+        if (outError != nullptr) {
+            *outError = "preview mesh index mapping is empty.";
+        }
+        return false;
+    }
+
     std::shared_ptr<saba::MMDModel> model;
     if (!createMmdModelForAnimation(modelPath, &model, outError)) {
         return false;
@@ -843,76 +850,72 @@ bool loadAnimatedRuntimeCache(
     }
 
     model->InitializeAnimation();
+    model->BeginAnimation();
     model->UpdateAllAnimation(animation.get(), 0.0f, 1.0f / 60.0f);
+    model->EndAnimation();
     model->Update();
 
     outCache->modelPath = modelPath;
     outCache->motionPath = motionPath;
     outCache->model = std::move(model);
     outCache->animation = std::move(animation);
+    outCache->previewVertexIndices = std::move(previewData.vertexIndices);
+    outCache->animatedVertices.resize(outCache->previewVertexIndices.size() * kPreviewVertexStride);
     outCache->maxMotionFrame = static_cast<int32_t>(outCache->animation->GetMaxKeyTime());
+
+    LOGI(
+        "Animated runtime cache loaded. model=%s motion=%s mappedVertices=%zu",
+        modelPath.c_str(),
+        motionPath.c_str(),
+        outCache->previewVertexIndices.size()
+    );
+
     return true;
 }
 
-bool buildAnimatedPreviewMesh(
+bool ensureAnimatedRuntimeCacheLocked(
     const std::string& modelPath,
     const std::string& motionPath,
-    float frame,
-    std::vector<float>* outVertices,
-    int32_t* outMaxMotionFrame,
     std::string* outError
 ) {
-    if (outVertices == nullptr) {
-        if (outError != nullptr) {
-            *outError = "internal error: animated preview output buffer is null.";
-        }
-        return false;
-    }
-
-    if (modelPath.empty()) {
-        if (outError != nullptr) {
-            *outError = "model path is empty.";
-        }
-        return false;
-    }
-
-    if (motionPath.empty()) {
-        if (outError != nullptr) {
-            *outError = "motion path is empty.";
-        }
-        return false;
-    }
-
-    PreviewRenderData previewData;
-    if (!getPreviewRenderDataCached(modelPath, &previewData, outError)) {
-        return false;
-    }
-
-    if (previewData.vertexIndices.empty()) {
-        if (outError != nullptr) {
-            *outError = "preview mesh index mapping is empty.";
-        }
-        return false;
-    }
-
-    std::lock_guard<std::mutex> lock(gAnimatedRuntimeCacheMutex);
-
     const bool cacheHit =
         gAnimatedRuntimeCache.modelPath == modelPath &&
         gAnimatedRuntimeCache.motionPath == motionPath &&
         gAnimatedRuntimeCache.model != nullptr &&
-        gAnimatedRuntimeCache.animation != nullptr;
+        gAnimatedRuntimeCache.animation != nullptr &&
+        !gAnimatedRuntimeCache.previewVertexIndices.empty();
 
-    if (!cacheHit) {
-        AnimatedRuntimeCache newCache;
-        if (!loadAnimatedRuntimeCache(modelPath, motionPath, &newCache, outError)) {
-            return false;
+    if (cacheHit) {
+        return true;
+    }
+
+    AnimatedRuntimeCache newCache;
+    if (!loadAnimatedRuntimeCache(modelPath, motionPath, &newCache, outError)) {
+        return false;
+    }
+
+    gAnimatedRuntimeCache = std::move(newCache);
+    return true;
+}
+
+bool sampleAnimatedPreviewVerticesLocked(
+    float frame,
+    const float** outVertexData,
+    size_t* outFloatCount,
+    int32_t* outMaxMotionFrame,
+    std::string* outError
+) {
+    if (outVertexData == nullptr || outFloatCount == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: animated preview pointer outputs are null.";
         }
-        gAnimatedRuntimeCache = std::move(newCache);
+        return false;
     }
 
     auto* animation = gAnimatedRuntimeCache.animation.get();
     const auto& model = gAnimatedRuntimeCache.model;
+    const auto& previewVertexIndices = gAnimatedRuntimeCache.previewVertexIndices;
+
     if (animation == nullptr || model == nullptr) {
         if (outError != nullptr) {
             *outError = "animated runtime cache is not initialized.";
@@ -920,8 +923,17 @@ bool buildAnimatedPreviewMesh(
         return false;
     }
 
+    if (previewVertexIndices.empty()) {
+        if (outError != nullptr) {
+            *outError = "animated preview vertex mapping is empty.";
+        }
+        return false;
+    }
+
     const float safeFrame = frame < 0.0f ? 0.0f : frame;
+    model->BeginAnimation();
     model->UpdateAllAnimation(animation, safeFrame, 1.0f / 60.0f);
+    model->EndAnimation();
     model->Update();
 
     const auto* positions = model->GetUpdatePositions();
@@ -936,11 +948,15 @@ bool buildAnimatedPreviewMesh(
         return false;
     }
 
-    outVertices->clear();
-    outVertices->reserve(previewData.vertexIndices.size() * kPreviewVertexStride);
+    auto& animatedVertices = gAnimatedRuntimeCache.animatedVertices;
+    const size_t expectedFloatCount = previewVertexIndices.size() * kPreviewVertexStride;
+    if (animatedVertices.size() != expectedFloatCount) {
+        animatedVertices.resize(expectedFloatCount);
+    }
 
-    for (size_t index = 0; index < previewData.vertexIndices.size(); ++index) {
-        const uint32_t sourceIndex = previewData.vertexIndices[index];
+    size_t invalidVertexCount = 0;
+    for (size_t index = 0; index < previewVertexIndices.size(); ++index) {
+        const uint32_t sourceIndex = previewVertexIndices[index];
         if (sourceIndex >= modelVertexCount) {
             if (outError != nullptr) {
                 *outError = "animated preview source index out of range.";
@@ -948,8 +964,62 @@ bool buildAnimatedPreviewMesh(
             return false;
         }
 
-        appendPreviewVertex(outVertices, positions[sourceIndex], normals[sourceIndex], uvs[sourceIndex]);
+        const auto& position = positions[sourceIndex];
+        const auto& normal = normals[sourceIndex];
+        const auto& uv = uvs[sourceIndex];
+        const size_t base = index * kPreviewVertexStride;
+
+        const bool validPosition =
+            std::isfinite(position.x) &&
+            std::isfinite(position.y) &&
+            std::isfinite(position.z) &&
+            std::fabs(position.x) < 100000.0f &&
+            std::fabs(position.y) < 100000.0f &&
+            std::fabs(position.z) < 100000.0f;
+        const bool validNormal =
+            std::isfinite(normal.x) &&
+            std::isfinite(normal.y) &&
+            std::isfinite(normal.z) &&
+            std::fabs(normal.x) < 1000.0f &&
+            std::fabs(normal.y) < 1000.0f &&
+            std::fabs(normal.z) < 1000.0f;
+        const bool validUv =
+            std::isfinite(uv.x) &&
+            std::isfinite(uv.y) &&
+            std::fabs(uv.x) < 1000.0f &&
+            std::fabs(uv.y) < 1000.0f;
+
+        if (!(validPosition && validNormal && validUv)) {
+            invalidVertexCount += 1;
+            continue;
+        }
+
+        animatedVertices[base] = position.x;
+        animatedVertices[base + 1] = position.y;
+        animatedVertices[base + 2] = position.z;
+        animatedVertices[base + 3] = normal.x;
+        animatedVertices[base + 4] = normal.y;
+        animatedVertices[base + 5] = normal.z;
+        animatedVertices[base + 6] = uv.x;
+        animatedVertices[base + 7] = uv.y;
     }
+
+    if (invalidVertexCount >= previewVertexIndices.size()) {
+        if (outError != nullptr) {
+            *outError = "animated preview produced only invalid vertices.";
+        }
+        return false;
+    }
+
+    if (invalidVertexCount > 0) {
+        LOGE(
+            "sampleAnimatedPreviewVerticesLocked filtered %zu invalid vertices for stability.",
+            invalidVertexCount
+        );
+    }
+
+    *outVertexData = animatedVertices.data();
+    *outFloatCount = animatedVertices.size();
 
     if (outMaxMotionFrame != nullptr) {
         *outMaxMotionFrame = gAnimatedRuntimeCache.maxMotionFrame;
@@ -958,18 +1028,18 @@ bool buildAnimatedPreviewMesh(
     return true;
 }
 
-bool buildAnimatedPreviewMeshAuto(
+bool resolveAutoAnimationSampledFrame(
     const std::string& modelPath,
     const std::string& motionPath,
     bool isLooping,
     bool restart,
-    std::vector<float>* outVertices,
-    int32_t* outMaxMotionFrame,
+    float* outSampledFrame,
+    int32_t* outMaxFrame,
     std::string* outError
 ) {
-    if (outVertices == nullptr) {
+    if (outSampledFrame == nullptr) {
         if (outError != nullptr) {
-            *outError = "internal error: animated preview output buffer is null.";
+            *outError = "internal error: sampled frame output buffer is null.";
         }
         return false;
     }
@@ -1023,7 +1093,6 @@ bool buildAnimatedPreviewMeshAuto(
         gMotionMaxFrameCache[motionPath] = maxFrame;
     }
 
-    float sampledFrame = 0.0f;
     {
         std::lock_guard<std::mutex> clockLock(gAutoAnimationClockMutex);
         const auto now = std::chrono::steady_clock::now();
@@ -1031,13 +1100,92 @@ bool buildAnimatedPreviewMeshAuto(
         const float elapsedFrames = std::max(elapsedSeconds, 0.0f) * 30.0f;
         const float maxFrameFloat = static_cast<float>(maxFrame);
 
-        if (maxFrameFloat <= 0.0f) {
-            sampledFrame = 0.0f;
+        if (maxFrameFloat <= 1.0f) {
+            *outSampledFrame = 0.0f;
         } else if (isLooping) {
-            sampledFrame = std::fmod(elapsedFrames, maxFrameFloat + 1.0f);
+            *outSampledFrame = std::fmod(elapsedFrames, maxFrameFloat + 1.0f);
         } else {
-            sampledFrame = std::min(elapsedFrames, maxFrameFloat);
+            *outSampledFrame = std::min(elapsedFrames, maxFrameFloat);
         }
+    }
+
+    if (outMaxFrame != nullptr) {
+        *outMaxFrame = maxFrame;
+    }
+
+    return true;
+}
+
+bool buildAnimatedPreviewMesh(
+    const std::string& modelPath,
+    const std::string& motionPath,
+    float frame,
+    std::vector<float>* outVertices,
+    int32_t* outMaxMotionFrame,
+    std::string* outError
+) {
+    if (outVertices == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: animated preview output buffer is null.";
+        }
+        return false;
+    }
+
+    if (modelPath.empty()) {
+        if (outError != nullptr) {
+            *outError = "model path is empty.";
+        }
+        return false;
+    }
+
+    if (motionPath.empty()) {
+        if (outError != nullptr) {
+            *outError = "motion path is empty.";
+        }
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(gAnimatedRuntimeCacheMutex);
+    if (!ensureAnimatedRuntimeCacheLocked(modelPath, motionPath, outError)) {
+        return false;
+    }
+
+    const float* cachedVertexData = nullptr;
+    size_t cachedFloatCount = 0;
+    if (!sampleAnimatedPreviewVerticesLocked(frame, &cachedVertexData, &cachedFloatCount, outMaxMotionFrame, outError)) {
+        return false;
+    }
+
+    outVertices->assign(cachedVertexData, cachedVertexData + cachedFloatCount);
+    return true;
+}
+
+bool buildAnimatedPreviewMeshAuto(
+    const std::string& modelPath,
+    const std::string& motionPath,
+    bool isLooping,
+    bool restart,
+    std::vector<float>* outVertices,
+    int32_t* outMaxMotionFrame,
+    std::string* outError
+) {
+    if (outVertices == nullptr) {
+        if (outError != nullptr) {
+            *outError = "internal error: animated preview output buffer is null.";
+        }
+        return false;
+    }
+
+    float sampledFrame = 0.0f;
+    if (!resolveAutoAnimationSampledFrame(
+            modelPath,
+            motionPath,
+            isLooping,
+            restart,
+            &sampledFrame,
+            nullptr,
+            outError)) {
+        return false;
     }
 
     return buildAnimatedPreviewMesh(
@@ -1490,6 +1638,276 @@ Java_com_ai_assistance_mmd_MmdNative_nativeBuildPreviewAnimatedMeshAuto(
     (void) isLooping;
     (void) restart;
     return nullptr;
+#endif
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_ai_assistance_mmd_MmdNative_nativeRenderPreviewFrame(
+    JNIEnv* env,
+    jclass,
+    jstring pathModel,
+    jstring pathMotion,
+    jboolean isLooping,
+    jboolean restart,
+    jfloat rotationX,
+    jfloat rotationY,
+    jfloat rotationZ,
+    jfloat centerX,
+    jfloat centerY,
+    jfloat centerZ,
+    jfloat fitScale,
+    jfloat cameraDistance,
+    jfloat cameraTargetHeight,
+    jfloat aspectRatio,
+    jfloat nearClip,
+    jfloat farClip,
+    jobject vertexBuffer,
+    jint vertexCount,
+    jobject drawBatchData,
+    jobject textureIdsBySlot,
+    jint program,
+    jint positionHandle,
+    jint normalHandle,
+    jint texCoordHandle,
+    jint mvpHandle,
+    jint modelHandle,
+    jint useTextureHandle,
+    jint textureSamplerHandle
+) {
+#if defined(OPERIT_HAS_SABA) && OPERIT_HAS_SABA
+    const std::string modelPath = jstringToString(env, pathModel);
+    const std::string motionPath = jstringToString(env, pathMotion);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    if (program <= 0 ||
+        positionHandle < 0 ||
+        normalHandle < 0 ||
+        texCoordHandle < 0 ||
+        mvpHandle < 0 ||
+        modelHandle < 0 ||
+        useTextureHandle < 0 ||
+        textureSamplerHandle < 0) {
+        clearLastError();
+        return JNI_TRUE;
+    }
+
+    if (modelPath.empty() || vertexBuffer == nullptr || vertexCount <= 0) {
+        clearLastError();
+        return JNI_TRUE;
+    }
+
+    auto* baseVertexData = static_cast<float*>(env->GetDirectBufferAddress(vertexBuffer));
+    if (baseVertexData == nullptr) {
+        setLastError("failed to access direct vertex buffer for native preview rendering.");
+        return JNI_FALSE;
+    }
+
+    const size_t expectedFloatCount = static_cast<size_t>(vertexCount) * kPreviewVertexStride;
+    const float* drawVertexData = baseVertexData;
+    std::unique_lock<std::mutex> animatedRuntimeLock;
+
+    if (!motionPath.empty()) {
+        float sampledFrame = 0.0f;
+        std::string parseError;
+        if (!resolveAutoAnimationSampledFrame(
+                modelPath,
+                motionPath,
+                isLooping == JNI_TRUE,
+                restart == JNI_TRUE,
+                &sampledFrame,
+                nullptr,
+                &parseError)) {
+            setLastError(parseError);
+            return JNI_FALSE;
+        }
+
+        animatedRuntimeLock = std::unique_lock<std::mutex>(gAnimatedRuntimeCacheMutex);
+        if (!ensureAnimatedRuntimeCacheLocked(modelPath, motionPath, &parseError)) {
+            setLastError(parseError);
+            return JNI_FALSE;
+        }
+
+        size_t animatedFloatCount = 0;
+        if (!sampleAnimatedPreviewVerticesLocked(
+                sampledFrame,
+                &drawVertexData,
+                &animatedFloatCount,
+                nullptr,
+                &parseError)) {
+            setLastError(parseError);
+            return JNI_FALSE;
+        }
+
+        if (drawVertexData == nullptr || animatedFloatCount != expectedFloatCount) {
+            setLastError("animated preview mesh size mismatches current vertex buffer size.");
+            return JNI_FALSE;
+        }
+    }
+
+    const float safeAspect = aspectRatio > 0.0f ? aspectRatio : 1.0f;
+    const float safeNear = nearClip > 0.0f ? nearClip : 0.01f;
+    const float safeFar = farClip > safeNear ? farClip : (safeNear + 100.0f);
+
+    glm::mat4 modelMat(1.0f);
+    modelMat = glm::translate(modelMat, glm::vec3(-centerX, -centerY, -centerZ));
+    modelMat = glm::scale(modelMat, glm::vec3(fitScale, fitScale, fitScale));
+    modelMat = glm::rotate(modelMat, glm::radians(rotationX), glm::vec3(1.0f, 0.0f, 0.0f));
+    modelMat = glm::rotate(modelMat, glm::radians(rotationY), glm::vec3(0.0f, 1.0f, 0.0f));
+    modelMat = glm::rotate(modelMat, glm::radians(rotationZ), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    const glm::mat4 viewMat = glm::lookAt(
+        glm::vec3(0.0f, 0.18f + cameraTargetHeight, cameraDistance),
+        glm::vec3(0.0f, cameraTargetHeight, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+    const glm::mat4 projectionMat = glm::perspective(glm::radians(45.0f), safeAspect, safeNear, safeFar);
+    const glm::mat4 mvpMat = projectionMat * viewMat * modelMat;
+
+    const auto* batchValues = static_cast<const jint*>(
+        drawBatchData != nullptr ? env->GetDirectBufferAddress(drawBatchData) : nullptr
+    );
+    const auto* textureValues = static_cast<const jint*>(
+        textureIdsBySlot != nullptr ? env->GetDirectBufferAddress(textureIdsBySlot) : nullptr
+    );
+
+    jsize batchValueCount = 0;
+    jsize textureValueCount = 0;
+
+    if (drawBatchData != nullptr) {
+        const jlong batchCapacity = env->GetDirectBufferCapacity(drawBatchData);
+        if (batchValues == nullptr || batchCapacity <= 0) {
+            setLastError("failed to access draw batch direct buffer for native preview rendering.");
+            return JNI_FALSE;
+        }
+        batchValueCount = static_cast<jsize>(batchCapacity);
+    }
+
+    if (textureIdsBySlot != nullptr) {
+        const jlong textureCapacity = env->GetDirectBufferCapacity(textureIdsBySlot);
+        if (textureValues == nullptr || textureCapacity < 0) {
+            setLastError("failed to access texture id direct buffer for native preview rendering.");
+            return JNI_FALSE;
+        }
+        textureValueCount = static_cast<jsize>(textureCapacity);
+    }
+
+    glUseProgram(static_cast<GLuint>(program));
+    glUniformMatrix4fv(mvpHandle, 1, GL_FALSE, glm::value_ptr(mvpMat));
+    glUniformMatrix4fv(modelHandle, 1, GL_FALSE, glm::value_ptr(modelMat));
+
+    const GLsizei strideBytes = static_cast<GLsizei>(kPreviewVertexStride * sizeof(float));
+    glVertexAttribPointer(
+        positionHandle,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        strideBytes,
+        reinterpret_cast<const GLvoid*>(drawVertexData)
+    );
+    glEnableVertexAttribArray(positionHandle);
+
+    glVertexAttribPointer(
+        normalHandle,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        strideBytes,
+        reinterpret_cast<const GLvoid*>(drawVertexData + 3)
+    );
+    glEnableVertexAttribArray(normalHandle);
+
+    glVertexAttribPointer(
+        texCoordHandle,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        strideBytes,
+        reinterpret_cast<const GLvoid*>(drawVertexData + 6)
+    );
+    glEnableVertexAttribArray(texCoordHandle);
+
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(textureSamplerHandle, 0);
+
+    GLuint boundTexture = static_cast<GLuint>(-1);
+    float lastUseTexture = -1.0f;
+
+    if (batchValues != nullptr && batchValueCount >= 3) {
+        for (jsize cursor = 0; cursor + 2 < batchValueCount; cursor += 3) {
+            const GLint firstVertex = batchValues[cursor];
+            const GLsizei drawVertexCount = static_cast<GLsizei>(batchValues[cursor + 1]);
+            const jint textureSlot = batchValues[cursor + 2];
+
+            if (firstVertex < 0 || drawVertexCount <= 0) {
+                continue;
+            }
+
+            GLuint textureId = 0;
+            if (textureValues != nullptr && textureSlot >= 0 && textureSlot < textureValueCount) {
+                textureId = static_cast<GLuint>(textureValues[textureSlot]);
+            }
+
+            const float useTexture = textureId != 0 ? 1.0f : 0.0f;
+            if (useTexture != lastUseTexture) {
+                glUniform1f(useTextureHandle, useTexture);
+                lastUseTexture = useTexture;
+            }
+
+            if (useTexture > 0.5f && textureId != boundTexture) {
+                glBindTexture(GL_TEXTURE_2D, textureId);
+                boundTexture = textureId;
+            }
+
+            glDrawArrays(GL_TRIANGLES, firstVertex, drawVertexCount);
+        }
+    } else {
+        glUniform1f(useTextureHandle, 0.0f);
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
+    }
+
+    if (boundTexture != static_cast<GLuint>(-1)) {
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    glDisableVertexAttribArray(positionHandle);
+    glDisableVertexAttribArray(normalHandle);
+    glDisableVertexAttribArray(texCoordHandle);
+
+    clearLastError();
+    return JNI_TRUE;
+#else
+    setLastError(kUnavailableReason);
+    (void) env;
+    (void) pathModel;
+    (void) pathMotion;
+    (void) isLooping;
+    (void) restart;
+    (void) rotationX;
+    (void) rotationY;
+    (void) rotationZ;
+    (void) centerX;
+    (void) centerY;
+    (void) centerZ;
+    (void) fitScale;
+    (void) cameraDistance;
+    (void) cameraTargetHeight;
+    (void) aspectRatio;
+    (void) nearClip;
+    (void) farClip;
+    (void) vertexBuffer;
+    (void) vertexCount;
+    (void) drawBatchData;
+    (void) textureIdsBySlot;
+    (void) program;
+    (void) positionHandle;
+    (void) normalHandle;
+    (void) texCoordHandle;
+    (void) mvpHandle;
+    (void) modelHandle;
+    (void) useTextureHandle;
+    (void) textureSamplerHandle;
+    return JNI_FALSE;
 #endif
 }
 

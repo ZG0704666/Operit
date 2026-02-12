@@ -54,7 +54,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 39
-        versionName = "1.8.1+5"
+        versionName = "1.8.1+6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -184,6 +184,11 @@ dependencies {
     implementation(project(":llama"))
     implementation(project(":mmd"))
     implementation(project(":showerclient"))
+
+    // glTF runtime rendering (Filament)
+    implementation("com.google.android.filament:filament-android:1.69.2")
+    implementation("com.google.android.filament:gltfio-android:1.69.2")
+    implementation("com.google.android.filament:filament-utils-android:1.69.2")
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))
     implementation(files("libs\\arsc.jar"))

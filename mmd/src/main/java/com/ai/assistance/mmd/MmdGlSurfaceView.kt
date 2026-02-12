@@ -7,17 +7,16 @@ import android.graphics.PixelFormat
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.GLUtils
-import android.opengl.Matrix
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.util.AttributeSet
 import android.util.Log
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
+import java.nio.IntBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.max
@@ -43,15 +42,33 @@ class MmdGlSurfaceView @JvmOverloads constructor(
     }
 
     fun setModelPath(path: String) {
-        renderer.setModelPath(path)
+        queueEvent {
+            renderer.setModelPath(path)
+        }
     }
 
     fun setAnimationState(animationName: String?, isLooping: Boolean) {
-        renderer.setAnimationState(animationName, isLooping)
+        queueEvent {
+            renderer.setAnimationState(animationName, isLooping)
+        }
     }
 
     fun setModelRotation(rotationX: Float, rotationY: Float, rotationZ: Float) {
-        renderer.setModelRotation(rotationX, rotationY, rotationZ)
+        queueEvent {
+            renderer.setModelRotation(rotationX, rotationY, rotationZ)
+        }
+    }
+
+    fun setCameraDistanceScale(scale: Float) {
+        queueEvent {
+            renderer.setCameraDistanceScale(scale)
+        }
+    }
+
+    fun setCameraTargetHeight(height: Float) {
+        queueEvent {
+            renderer.setCameraTargetHeight(height)
+        }
     }
 
     fun setOnRenderErrorListener(listener: ((String) -> Unit)?) {
@@ -98,10 +115,6 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
         private const val TAG = "MmdGlRenderer"
 
         private const val STRIDE_FLOATS = 8
-        private const val POSITION_OFFSET_FLOATS = 0
-        private const val NORMAL_OFFSET_FLOATS = 3
-        private const val UV_OFFSET_FLOATS = 6
-        private const val STRIDE_BYTES = STRIDE_FLOATS * 4
 
         private const val VERTEX_SHADER = """
             uniform mat4 uMvpMatrix;
@@ -147,38 +160,25 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
         """
     }
 
-    @Volatile
-    private var pendingModelPath: String? = null
-
-    @Volatile
-    private var pendingAnimationName: String? = null
-
-    @Volatile
-    private var pendingAnimationLooping: Boolean = false
-
-    @Volatile
-    private var pendingRotationX: Float = 18f
-
-    @Volatile
-    private var pendingRotationY: Float = 0f
-
-    @Volatile
-    private var pendingRotationZ: Float = 0f
+    private var requestedModelPath: String? = null
+    private var requestedAnimationName: String? = null
+    private var requestedAnimationLooping: Boolean = false
 
     private var currentModelPath: String? = null
-    private var vertexBuffer: FloatBuffer? = null
+    private var activeMotionPath: String? = null
+    private var activeAnimationLooping: Boolean = false
 
-    private var activeRotationX: Float = 18f
-    private var activeRotationY: Float = 0f
-    private var activeRotationZ: Float = 0f
+    private var vertexBuffer: FloatBuffer? = null
     private var vertexCount: Int = 0
 
-    private var activeAnimationName: String? = null
-    private var activeAnimationLooping: Boolean = false
-    private var activeMotionPath: String? = null
+    private var activeRotationX: Float = 0f
+    private var activeRotationY: Float = 0f
+    private var activeRotationZ: Float = 0f
 
-    private var drawBatches: List<DrawBatch> = emptyList()
+    private var drawBatchData: IntArray = IntArray(0)
+    private var drawBatchBuffer: IntBuffer? = null
     private var textureIdsBySlot: IntArray = IntArray(0)
+    private var textureIdsBuffer: IntBuffer? = null
 
     private var centerX = 0f
     private var centerY = 0f
@@ -187,26 +187,20 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
 
     private var aspectRatio = 1f
     private var cameraDistance = 3f
+    private var cameraDistanceScale = 1f
+    private var cameraTargetHeight = 0f
     private var nearClip = 0.1f
     private var farClip = 100f
-
-    private var lastLoadAttemptAtMs = 0L
-    private var lastFailedModelPath: String? = null
 
     private var program = 0
     private var positionHandle = -1
     private var normalHandle = -1
     private var texCoordHandle = -1
+    private var lastNativeRenderError: String? = null
     private var mvpHandle = -1
     private var modelHandle = -1
     private var useTextureHandle = -1
     private var textureSamplerHandle = -1
-
-    private val projectionMatrix = FloatArray(16)
-    private val viewMatrix = FloatArray(16)
-    private val modelMatrix = FloatArray(16)
-    private val mvMatrix = FloatArray(16)
-    private val mvpMatrix = FloatArray(16)
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -218,30 +212,53 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
     }
 
     fun setModelPath(path: String) {
-        pendingModelPath = path
+        val normalizedPath = path.trim()
+        if (normalizedPath.isEmpty()) return
+
+        requestedModelPath = normalizedPath
+        if (
+            normalizedPath == currentModelPath &&
+            vertexBuffer != null &&
+            vertexCount > 0
+        ) {
+            return
+        }
+
+        if (loadPreviewAssets(normalizedPath)) {
+            currentModelPath = normalizedPath
+            syncMotionPathWithRequest(forceRestartClock = true)
+        } else {
+            currentModelPath = null
+            activeMotionPath = null
+        }
     }
 
     fun setAnimationState(animationName: String?, isLooping: Boolean) {
-        pendingAnimationName = animationName?.takeIf { it.isNotBlank() }
-        pendingAnimationLooping = isLooping
+        requestedAnimationName = animationName?.takeIf { it.isNotBlank() }
+        requestedAnimationLooping = isLooping
+        syncMotionPathWithRequest(forceRestartClock = true)
     }
 
     fun setModelRotation(rotationX: Float, rotationY: Float, rotationZ: Float) {
-        pendingRotationX = rotationX
-        pendingRotationY = rotationY
-        pendingRotationZ = rotationZ
+        activeRotationX = rotationX
+        activeRotationY = rotationY
+        activeRotationZ = rotationZ
+    }
+
+    fun setCameraDistanceScale(scale: Float) {
+        cameraDistanceScale = scale.coerceIn(0.02f, 12.0f)
+    }
+
+    fun setCameraTargetHeight(height: Float) {
+        cameraTargetHeight = height.coerceIn(-2.0f, 2.0f)
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         currentModelPath = null
+        activeMotionPath = null
+        activeAnimationLooping = requestedAnimationLooping
         clearMesh()
         clearTextureSet()
-        activeAnimationName = pendingAnimationName
-        activeAnimationLooping = pendingAnimationLooping
-        activeMotionPath = null
-        activeRotationX = pendingRotationX
-        activeRotationY = pendingRotationY
-        activeRotationZ = pendingRotationZ
 
         GLES20.glClearColor(0f, 0f, 0f, 0f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
@@ -275,6 +292,17 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
                 "GL program missing required handles: pos=$positionHandle normal=$normalHandle uv=$texCoordHandle mvp=$mvpHandle model=$modelHandle useTex=$useTextureHandle sampler=$textureSamplerHandle"
             )
             program = 0
+            return
+        }
+
+        requestedModelPath?.takeIf { it.isNotBlank() }?.let { modelPath ->
+            if (loadPreviewAssets(modelPath)) {
+                currentModelPath = modelPath
+                syncMotionPathWithRequest(forceRestartClock = true)
+            } else {
+                currentModelPath = null
+                activeMotionPath = null
+            }
         }
     }
 
@@ -283,128 +311,75 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
 
         val safeHeight = if (height <= 0) 1 else height
         aspectRatio = width.toFloat() / safeHeight.toFloat()
-        updateProjectionAndView()
     }
 
     override fun onDrawFrame(gl: GL10?) {
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        val effectiveCameraDistance = cameraDistance * cameraDistanceScale
+        val effectiveNearClip = (nearClip * cameraDistanceScale).coerceIn(0.005f, 0.1f)
 
-        if (program == 0) {
-            return
-        }
+        val renderSuccess = MmdNative.nativeRenderPreviewFrame(
+            pathModel = currentModelPath,
+            pathMotion = activeMotionPath,
+            isLooping = activeAnimationLooping,
+            restart = false,
+            rotationX = activeRotationX,
+            rotationY = activeRotationY,
+            rotationZ = activeRotationZ,
+            centerX = centerX,
+            centerY = centerY,
+            centerZ = centerZ,
+            fitScale = fitScale,
+            cameraDistance = effectiveCameraDistance,
+            cameraTargetHeight = cameraTargetHeight,
+            aspectRatio = aspectRatio,
+            nearClip = effectiveNearClip,
+            farClip = farClip,
+            vertexBuffer = vertexBuffer,
+            vertexCount = vertexCount,
+            drawBatchData = drawBatchBuffer,
+            textureIdsBySlot = textureIdsBuffer,
+            program = program,
+            positionHandle = positionHandle,
+            normalHandle = normalHandle,
+            texCoordHandle = texCoordHandle,
+            mvpHandle = mvpHandle,
+            modelHandle = modelHandle,
+            useTextureHandle = useTextureHandle,
+            textureSamplerHandle = textureSamplerHandle
+        )
 
-        val newPath = pendingModelPath
-        if (!newPath.isNullOrBlank() && newPath != currentModelPath) {
-            val now = SystemClock.uptimeMillis()
-            val shouldRetry =
-                lastFailedModelPath != newPath ||
-                    (now - lastLoadAttemptAtMs) >= 1500L
-
-            if (shouldRetry) {
-                lastLoadAttemptAtMs = now
-                val loaded = loadPreviewAssets(newPath)
-                if (loaded) {
-                    currentModelPath = newPath
-                    activeMotionPath = null
-                    lastFailedModelPath = null
-                } else {
-                    lastFailedModelPath = newPath
-                }
+        if (!renderSuccess) {
+            val latestError = MmdInspector.getLastError().ifBlank {
+                "Failed to render animated MMD preview frame."
             }
-        }
-
-        val localVertexBuffer = vertexBuffer ?: return
-        if (vertexCount <= 0) return
-
-        val requestedAnimation = pendingAnimationName
-        val requestedLooping = pendingAnimationLooping
-        var shouldRestartNativeAnimationClock = false
-        if (requestedAnimation != activeAnimationName || requestedLooping != activeAnimationLooping) {
-            activeAnimationName = requestedAnimation
-            activeAnimationLooping = requestedLooping
-            activeMotionPath = null
-            shouldRestartNativeAnimationClock = true
-        }
-
-        val stableModelPath = currentModelPath
-        if (!requestedAnimation.isNullOrBlank() && !stableModelPath.isNullOrBlank()) {
-            val resolvedMotionPath = File(File(stableModelPath).parentFile, requestedAnimation).absolutePath
-            if (resolvedMotionPath != activeMotionPath) {
-                activeMotionPath = resolvedMotionPath
-                shouldRestartNativeAnimationClock = true
-            }
-
-            val animatedMesh = MmdNative.nativeBuildPreviewAnimatedMeshAuto(
-                pathModel = stableModelPath,
-                pathMotion = resolvedMotionPath,
-                isLooping = activeAnimationLooping,
-                restart = shouldRestartNativeAnimationClock
-            )
-            if (animatedMesh != null && animatedMesh.size == vertexCount * STRIDE_FLOATS) {
-                localVertexBuffer.position(0)
-                localVertexBuffer.put(animatedMesh)
-                localVertexBuffer.position(0)
+            if (latestError != lastNativeRenderError) {
+                dispatchError(latestError)
+                lastNativeRenderError = latestError
             }
         } else {
-            activeMotionPath = null
+            lastNativeRenderError = null
         }
+    }
 
-        activeRotationX = pendingRotationX
-        activeRotationY = pendingRotationY
-        activeRotationZ = pendingRotationZ
-
-        Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, -centerX, -centerY, -centerZ)
-        Matrix.scaleM(modelMatrix, 0, fitScale, fitScale, fitScale)
-        Matrix.rotateM(modelMatrix, 0, activeRotationX, 1f, 0f, 0f)
-        Matrix.rotateM(modelMatrix, 0, activeRotationY, 0f, 1f, 0f)
-        Matrix.rotateM(modelMatrix, 0, activeRotationZ, 0f, 0f, 1f)
-
-        Matrix.multiplyMM(mvMatrix, 0, viewMatrix, 0, modelMatrix, 0)
-        Matrix.multiplyMM(mvpMatrix, 0, projectionMatrix, 0, mvMatrix, 0)
-
-        GLES20.glUseProgram(program)
-        GLES20.glUniformMatrix4fv(mvpHandle, 1, false, mvpMatrix, 0)
-        GLES20.glUniformMatrix4fv(modelHandle, 1, false, modelMatrix, 0)
-
-        localVertexBuffer.position(POSITION_OFFSET_FLOATS)
-        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, STRIDE_BYTES, localVertexBuffer)
-        GLES20.glEnableVertexAttribArray(positionHandle)
-
-        localVertexBuffer.position(NORMAL_OFFSET_FLOATS)
-        GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT, false, STRIDE_BYTES, localVertexBuffer)
-        GLES20.glEnableVertexAttribArray(normalHandle)
-
-        localVertexBuffer.position(UV_OFFSET_FLOATS)
-        GLES20.glVertexAttribPointer(texCoordHandle, 2, GLES20.GL_FLOAT, false, STRIDE_BYTES, localVertexBuffer)
-        GLES20.glEnableVertexAttribArray(texCoordHandle)
-
-        for (batch in drawBatches) {
-            val textureId = if (batch.textureSlot in textureIdsBySlot.indices) {
-                textureIdsBySlot[batch.textureSlot]
+    private fun syncMotionPathWithRequest(forceRestartClock: Boolean) {
+        val resolvedMotionPath =
+            if (requestedAnimationName.isNullOrBlank() || currentModelPath.isNullOrBlank()) {
+                null
             } else {
-                0
+                File(File(currentModelPath!!).parentFile, requestedAnimationName!!).absolutePath
             }
 
-            val hasTexture = textureId != 0
-            GLES20.glUniform1f(useTextureHandle, if (hasTexture) 1f else 0f)
+        val motionChanged = resolvedMotionPath != activeMotionPath
+        val loopingChanged = requestedAnimationLooping != activeAnimationLooping
+        activeMotionPath = resolvedMotionPath
+        activeAnimationLooping = requestedAnimationLooping
 
-            if (hasTexture) {
-                GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
-                GLES20.glUniform1i(textureSamplerHandle, 0)
-            }
-
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, batch.firstVertex, batch.vertexCount)
-
-            if (hasTexture) {
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
-            }
+        if (forceRestartClock || motionChanged || loopingChanged) {
+            Log.d(
+                TAG,
+                "Updated animation binding. motionChanged=$motionChanged loopingChanged=$loopingChanged motionPath=$resolvedMotionPath"
+            )
         }
-
-        GLES20.glDisableVertexAttribArray(positionHandle)
-        GLES20.glDisableVertexAttribArray(normalHandle)
-        GLES20.glDisableVertexAttribArray(texCoordHandle)
     }
 
     private fun loadPreviewAssets(modelPath: String): Boolean {
@@ -473,7 +448,6 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
         cameraDistance = max(1.8f, radius * 3.0f + 0.7f)
         nearClip = max(0.01f, radius / 100f)
         farClip = max(120f, cameraDistance + radius * 40f)
-        updateProjectionAndView()
 
         val parsedBatches = parseDrawBatches(
             batchData = MmdNative.nativeBuildPreviewBatches(modelPath),
@@ -483,15 +457,37 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
         clearTextureSet()
         val texturePaths = MmdNative.nativeReadPreviewTexturePaths(modelPath).orEmpty()
         textureIdsBySlot = loadTextureSlots(texturePaths)
+        textureIdsBuffer = ByteBuffer
+            .allocateDirect(textureIdsBySlot.size * Int.SIZE_BYTES)
+            .order(ByteOrder.nativeOrder())
+            .asIntBuffer()
+            .apply {
+                put(textureIdsBySlot)
+                position(0)
+            }
 
         vertexBuffer = floatBuffer
         vertexCount = rawMesh.size / STRIDE_FLOATS
-        drawBatches = parsedBatches
+        drawBatchData = IntArray(parsedBatches.size * 3)
+        parsedBatches.forEachIndexed { index, batch ->
+            val offset = index * 3
+            drawBatchData[offset] = batch.firstVertex
+            drawBatchData[offset + 1] = batch.vertexCount
+            drawBatchData[offset + 2] = batch.textureSlot
+        }
+        drawBatchBuffer = ByteBuffer
+            .allocateDirect(drawBatchData.size * Int.SIZE_BYTES)
+            .order(ByteOrder.nativeOrder())
+            .asIntBuffer()
+            .apply {
+                put(drawBatchData)
+                position(0)
+            }
 
         val loadedTextures = textureIdsBySlot.count { it != 0 }
         Log.i(
             TAG,
-            "Loaded MMD preview assets. vertices=$vertexCount batches=${drawBatches.size} textures=$loadedTextures/${textureIdsBySlot.size} modelPath=$modelPath"
+            "Loaded MMD preview assets. vertices=$vertexCount batches=${parsedBatches.size} textures=$loadedTextures/${textureIdsBySlot.size} modelPath=$modelPath"
         )
         return true
     }
@@ -675,28 +671,11 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
         return true
     }
 
-    private fun updateProjectionAndView() {
-        val safeAspect = if (aspectRatio > 0f) aspectRatio else 1f
-        Matrix.perspectiveM(projectionMatrix, 0, 45f, safeAspect, nearClip, farClip)
-        Matrix.setLookAtM(
-            viewMatrix,
-            0,
-            0f,
-            0.18f,
-            cameraDistance,
-            0f,
-            0f,
-            0f,
-            0f,
-            1f,
-            0f
-        )
-    }
-
     private fun clearMesh() {
         vertexBuffer = null
         vertexCount = 0
-        drawBatches = emptyList()
+        drawBatchData = IntArray(0)
+        drawBatchBuffer = null
     }
 
     private fun clearTextureSet() {
@@ -707,6 +686,7 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
             }
         }
         textureIdsBySlot = IntArray(0)
+        textureIdsBuffer = null
     }
 
     private fun dispatchError(message: String) {
