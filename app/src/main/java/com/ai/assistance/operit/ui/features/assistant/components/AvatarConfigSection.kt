@@ -562,44 +562,52 @@ private fun AllAvatarImportGuideSection(modifier: Modifier = Modifier) {
 
 private fun allAvatarImportGuideText(): String {
     return """
-DragonBones
-  hero/
-    hero_ske.json
-    hero_tex.json
-    hero_tex.png
-  Requirement: keep the same filename prefix for all 3 files.
-  Import tip: package this folder as .zip before import.
+This is IMPORT PACKAGE layout (files inside your ZIP / picked file), not app internal storage.
 
-WebP
-  webp_avatar/
-    idle.webp
-    talking.webp
-    happy.webp
+DragonBones (.zip)
+  my_dragonbones.zip
+    any_folder_name/
+      hero_ske.json
+      hero_tex.json
+      hero_tex.png
+  Requirement: same filename prefix for ske/tex json/png.
+
+WebP (.zip)
+  my_webp.zip
+    any_folder_name/
+      idle.webp
+      talking.webp
+      happy.webp
   Requirement: at least one .webp file.
-  Import tip: when using multiple WebP files, keep them in one folder and zip it.
 
-MMD
-  character/
-    character.pmx (or character.pmd)
-    idle.vmd / walk.vmd (optional motions)
-    textures/...
-  Requirement: keep model, motions, and textures in one folder with relative paths unchanged.
-  Import tip: zip the whole character folder for import.
+MMD (.zip)
+  my_mmd.zip
+    any_folder_name/
+      character.pmx (or .pmd)
+      motions/idle.vmd (optional)
+      textures/...
+  Requirement: keep PMX/PMD referenced relative paths unchanged.
 
-glTF
-  avatar/
-    avatar.glb (single file, direct import supported)
-    or avatar.gltf + avatar.bin + textures/...
-  Requirement: for multi-file .gltf, keep referenced .bin/textures in original relative paths.
-  Import tip: use .glb for easiest import, or zip the full .gltf folder.
+GLTF
+  Method A (direct file):
+    avatar.glb
+  Method B (.zip for multi-file glTF):
+    my_gltf.zip
+      any_folder_name/
+        avatar.gltf
+        avatar.bin
+        textures/...
+  Requirement: keep .gltf referenced relative paths unchanged.
 
-Live2D
-  live2d_avatar/
-    avatar.model3.json
-    avatar.moc3
-    expressions/... motions/... textures/...
+Live2D (.zip)
+  my_live2d.zip
+    any_folder_name/
+      avatar.model3.json
+      avatar.moc3
+      textures/...
+      motions/...
+      expressions/...
   Requirement: include all files referenced by model3.json.
-  Note: exact runtime support depends on current Live2D renderer implementation.
 """.trimIndent()
 }
 

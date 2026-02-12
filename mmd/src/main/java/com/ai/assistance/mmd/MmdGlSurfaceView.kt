@@ -234,7 +234,12 @@ private class MmdPreviewRenderer : GLSurfaceView.Renderer {
     }
 
     fun setAnimationState(animationName: String?, isLooping: Boolean) {
-        requestedAnimationName = animationName?.takeIf { it.isNotBlank() }
+        val normalizedName = animationName?.trim()?.takeIf { it.isNotEmpty() }
+        if (requestedAnimationName == normalizedName && requestedAnimationLooping == isLooping) {
+            return
+        }
+
+        requestedAnimationName = normalizedName
         requestedAnimationLooping = isLooping
         syncMotionPathWithRequest(forceRestartClock = true)
     }

@@ -477,3 +477,4 @@ fun RootWizardCard(
                 }
         }
 }
+}

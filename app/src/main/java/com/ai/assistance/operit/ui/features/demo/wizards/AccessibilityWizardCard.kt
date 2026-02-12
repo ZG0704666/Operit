@@ -354,6 +354,7 @@ fun AccessibilityWizardCard(
         )
     }
 }
+}
 
 /**
  * 显示有可用更新的信息组件
