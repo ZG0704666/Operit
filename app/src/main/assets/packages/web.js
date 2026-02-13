@@ -224,7 +224,7 @@ const Web = (function () {
             ? String(params.ref).trim()
             : '';
         if (!ref) {
-            throw new Error('ref is required');
+            throw new Error('ref 参数必填');
         }
         const normalizedButtonRaw = params && params.button !== undefined && params.button !== null
             ? String(params.button).trim()
@@ -233,7 +233,7 @@ const Web = (function () {
             normalizedButtonRaw !== 'left' &&
             normalizedButtonRaw !== 'right' &&
             normalizedButtonRaw !== 'middle') {
-            throw new Error('button must be one of: left, right, middle');
+            throw new Error('button 只能是 left/right/middle');
         }
         const button = normalizedButtonRaw === 'left' ||
             normalizedButtonRaw === 'right' ||
@@ -243,7 +243,7 @@ const Web = (function () {
         let modifiers = undefined;
         if (params && params.modifiers !== undefined) {
             if (!Array.isArray(params.modifiers)) {
-                throw new Error('modifiers must be an array');
+                throw new Error('modifiers 必须是数组');
             }
             const normalized = params.modifiers.map((item) => String(item).trim());
             const invalid = normalized.filter((item) => item !== 'Alt' &&
@@ -252,7 +252,7 @@ const Web = (function () {
                 item !== 'Meta' &&
                 item !== 'Shift');
             if (invalid.length > 0) {
-                throw new Error(`Invalid modifiers: ${invalid.join(', ')}`);
+                throw new Error(`modifiers 存在非法值: ${invalid.join(', ')}`);
             }
             modifiers = normalized;
         }

@@ -8,18 +8,17 @@ import { FFmpegResultData } from './results';
  * FFmpeg codec types
  */
 export type FFmpegVideoCodec =
-    | 'libx264'    // H.264/AVC
-    | 'libx265'    // H.265/HEVC
-    | 'libvpx'     // VP8/VP9
-    | 'libaom'     // AV1
+    | 'h264'       // H.264/AVC
+    | 'hevc'       // H.265/HEVC
+    | 'vp8'        // VP8
+    | 'vp9'        // VP9
+    | 'av1'        // AV1
+    | 'libx265'    // H.265/HEVC encoder variant
+    | 'libvpx'     // VP8/VP9 encoder variant
+    | 'libaom'     // AV1 encoder variant
     | 'mpeg4'      // MPEG-4
     | 'mjpeg'      // Motion JPEG
-    | 'prores'     // ProRes
-    | 'h264'       // H.264 (alternative)
-    | 'hevc'       // HEVC (alternative)
-    | 'vp8'        // VP8 (alternative)
-    | 'vp9'        // VP9 (alternative)
-    | 'av1';       // AV1 (alternative)
+    | 'prores';    // ProRes
 
 export type FFmpegAudioCodec =
     | 'aac'        // Advanced Audio Coding
@@ -54,7 +53,7 @@ export type FFmpegBitrate =
 export namespace FFmpeg {
     /**
      * Execute a custom FFmpeg command
-     * @param command - The FFmpeg command to execute
+     * @param command - FFmpeg command arguments only (do not include the leading ffmpeg)
      * @returns Promise resolving to FFmpegResultData containing execution details
      * @throws Error if the command execution fails
      */

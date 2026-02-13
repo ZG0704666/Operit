@@ -53,7 +53,7 @@ object MediaPoolManager {
             val outPath = q(out.absolutePath)
 
             val commands = listOf(
-                "-y -i $inPath -vf scale='min(640,iw)':-2 -c:v libx264 -preset veryfast -crf 32 -c:a aac -b:a 64k -movflags +faststart $outPath",
+                "-y -i $inPath -vf scale='min(640,iw)':-2 -c:v h264 -preset veryfast -crf 32 -c:a aac -b:a 64k -movflags +faststart $outPath",
                 "-y -i $inPath -vf scale='min(640,iw)':-2 -c:v mpeg4 -q:v 8 -c:a aac -b:a 64k -movflags +faststart $outPath",
                 "-y -i $inPath -vf scale='min(480,iw)':-2 -c:v mpeg4 -q:v 12 -c:a aac -b:a 48k -movflags +faststart $outPath"
             )

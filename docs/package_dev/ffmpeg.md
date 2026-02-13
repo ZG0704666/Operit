@@ -21,8 +21,8 @@
 执行一个原始的 FFmpeg 命令字符串。这是最灵活但也最低级的方法，允许你使用 FFmpeg 的全部功能。
 
 -   **`command`**: 要执行的完整 FFmpeg 命令字符串，**不包括**开头的 `ffmpeg` 部分。
-    -   **正确**: `-i input.mp4 -vcodec libx264 output.mp4`
-    -   **错误**: `ffmpeg -i input.mp4 -vcodec libx264 output.mp4`
+    -   **正确**: `-i input.mp4 -vcodec h264 output.mp4`
+    -   **错误**: `ffmpeg -i input.mp4 -vcodec h264 output.mp4`
 -   **返回值**: 一个 `Promise`，成功时解析为 `FFmpegResultData` 对象，其中包含了执行的详细信息，如返回码、输出日志等。
 
 **示例:**
@@ -50,7 +50,7 @@ try {
 -   **`inputPath`**: 源视频文件的完整路径。
 -   **`outputPath`**: 转换后输出文件的完整路径。
 -   **`options`**: 一个可选的对象，包含以下转换参数：
-    -   `video_codec?: FFmpegVideoCodec`: 视频编解码器，例如 `'libx264'`。
+    -   `video_codec?: FFmpegVideoCodec`: 视频编解码器，例如 `'h264'`。
     -   `audio_codec?: FFmpegAudioCodec`: 音频编解码器，例如 `'aac'`。
     -   `resolution?: FFmpegResolution`: 输出分辨率，例如 `'1280x720'`。
     -   `bitrate?: FFmpegBitrate`: 视频比特率，例如 `'2000k'`。
@@ -66,7 +66,7 @@ const output = "/sdcard/Movies/converted_video.mp4";
 try {
     const result = await Tools.FFmpeg.convert(input, output, {
         resolution: '1280x720',
-        video_codec: 'libx264',
+        video_codec: 'h264',
         bitrate: '1500k'
     });
     if (result.returnCode === 0) {
@@ -92,7 +92,7 @@ try {
 为了方便和类型安全，`ffmpeg.d.ts` 定义了以下类型：
 
 -   **`FFmpegVideoCodec`**: 支持的视频编解码器字符串字面量类型。
-    -   例如: `'libx264'`, `'libx265'`, `'mpeg4'`
+    -   例如: `'h264'`, `'libx265'`, `'mpeg4'`
 
 -   **`FFmpegAudioCodec`**: 支持的音频编解码器字符串字面量类型。
     -   例如: `'aac'`, `'mp3'`, `'opus'`

@@ -50,12 +50,12 @@ fun FFmpegToolboxScreen(navController: NavController) {
         CommandTemplate(
             name = context.getString(R.string.ffmpeg_video_conversion),
             description = context.getString(R.string.ffmpeg_video_conversion_desc),
-            command = "-i input.mp4 -c:v libx264 -c:a aac output.mp4"
+            command = "-i input.mp4 -c:v h264 -c:a aac output.mp4"
         ),
         CommandTemplate(
             name = context.getString(R.string.ffmpeg_video_compression),
             description = context.getString(R.string.ffmpeg_video_compression_desc),
-            command = "-i input.mp4 -vf scale=1280:-1 -c:v libx264 -crf 23 -preset medium -c:a aac -b:a 128k output.mp4"
+            command = "-i input.mp4 -vf scale=1280:-1 -c:v h264 -crf 23 -preset medium -c:a aac -b:a 128k output.mp4"
         ),
         CommandTemplate(
             name = context.getString(R.string.ffmpeg_video_trim),

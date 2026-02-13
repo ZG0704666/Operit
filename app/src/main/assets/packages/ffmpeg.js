@@ -9,9 +9,9 @@
     "tools": [
         {
             "name": "ffmpeg_execute",
-            "description": { "zh": "执行自定义FFmpeg命令。", "en": "Execute a custom FFmpeg command." },
+            "description": { "zh": "执行自定义FFmpeg命令（仅填写参数，不要包含前缀 ffmpeg）。", "en": "Execute a custom FFmpeg command (arguments only; do not include the leading ffmpeg)." },
             "parameters": [
-                { "name": "command", "description": { "zh": "要执行的FFmpeg命令", "en": "The FFmpeg command to execute" }, "type": "string", "required": true }
+                { "name": "command", "description": { "zh": "要执行的FFmpeg命令参数（不要包含前缀 ffmpeg）", "en": "FFmpeg command arguments to execute (do not include the leading ffmpeg)" }, "type": "string", "required": true }
             ]
         },
         {
@@ -25,7 +25,7 @@
             "parameters": [
                 { "name": "input_path", "description": { "zh": "源视频文件路径", "en": "Input video file path" }, "type": "string", "required": true },
                 { "name": "output_path", "description": { "zh": "目标视频文件路径", "en": "Output video file path" }, "type": "string", "required": true },
-                { "name": "video_codec", "description": { "zh": "可选，要使用的视频编解码器。支持的值: 'libx264', 'libx265', 'libvpx', 'libaom', 'mpeg4', 'mjpeg', 'prores', 'h264', 'hevc', 'vp8', 'vp9', 'av1'。", "en": "Optional. Video codec to use. Supported values: 'libx264', 'libx265', 'libvpx', 'libaom', 'mpeg4', 'mjpeg', 'prores', 'h264', 'hevc', 'vp8', 'vp9', 'av1'." }, "type": "string", "required": false },
+                { "name": "video_codec", "description": { "zh": "可选，要使用的视频编解码器。推荐使用 'h264'。支持的值: 'h264', 'hevc', 'vp8', 'vp9', 'av1', 'libx265', 'libvpx', 'libaom', 'mpeg4', 'mjpeg', 'prores'。", "en": "Optional. Video codec to use. Prefer 'h264'. Supported values: 'h264', 'hevc', 'vp8', 'vp9', 'av1', 'libx265', 'libvpx', 'libaom', 'mpeg4', 'mjpeg', 'prores'." }, "type": "string", "required": false },
                 { "name": "audio_codec", "description": { "zh": "可选，要使用的音频编解码器。支持的值: 'aac', 'mp3', 'opus', 'vorbis', 'flac', 'pcm', 'wav', 'ac3', 'eac3'。", "en": "Optional. Audio codec to use. Supported values: 'aac', 'mp3', 'opus', 'vorbis', 'flac', 'pcm', 'wav', 'ac3', 'eac3'." }, "type": "string", "required": false },
                 { "name": "resolution", "description": { "zh": "可选，输出分辨率，例如 '1280x720'。", "en": "Optional. Output resolution, e.g. '1280x720'." }, "type": "string", "required": false },
                 { "name": "bitrate", "description": { "zh": "可选，视频比特率，例如 '1000k'。", "en": "Optional. Video bitrate, e.g. '1000k'." }, "type": "string", "required": false }

@@ -1588,13 +1588,13 @@ object SystemToolPromptsInternal {
                     listOf(
                         ToolPrompt(
                             name = "ffmpeg_execute",
-                            description = "Execute an FFmpeg command.",
+                            description = "Execute an FFmpeg command (arguments only; do not include the leading ffmpeg).",
                             parametersStructured =
                                 listOf(
                                     ToolParameterSchema(
                                         name = "command",
                                         type = "string",
-                                        description = "ffmpeg command",
+                                        description = "FFmpeg command arguments only, without the leading ffmpeg",
                                         required = true
                                     )
                                 )
@@ -1648,7 +1648,7 @@ object SystemToolPromptsInternal {
                                     ToolParameterSchema(
                                         name = "video_codec",
                                         type = "string",
-                                        description = "optional",
+                                        description = "optional, use h264 for H.264 encoding",
                                         required = false
                                     )
                                 )
@@ -3259,13 +3259,13 @@ object SystemToolPromptsInternal {
                     listOf(
                         ToolPrompt(
                             name = "ffmpeg_execute",
-                            description = "执行 FFmpeg 命令。",
+                            description = "执行 FFmpeg 命令（仅填写参数，不要包含前缀 ffmpeg）。",
                             parametersStructured =
                                 listOf(
                                     ToolParameterSchema(
                                         name = "command",
                                         type = "string",
-                                        description = "FFmpeg 命令",
+                                        description = "仅填写 FFmpeg 命令参数，不要包含前缀 ffmpeg",
                                         required = true
                                     )
                                 )
@@ -3319,7 +3319,7 @@ object SystemToolPromptsInternal {
                                     ToolParameterSchema(
                                         name = "video_codec",
                                         type = "string",
-                                        description = "可选",
+                                        description = "可选，H.264 编码请使用 h264",
                                         required = false
                                     )
                                 )

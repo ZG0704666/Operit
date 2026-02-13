@@ -4222,12 +4222,6 @@
     <string name="migration_imported_desc">成功导入 %1$d 条聊天记录</string>
     <string name="migration_back_to_screen">返回迁移界面</string>
 
-    <!-- Chat binding announcement -->
-    <string name="chat_binding_announcement_title">声明</string>
-    <string name="chat_binding_announcement_body">本软件为免费软件，如果你是从哪里买来的，说明你被坑了。请警惕冒名/倒卖。</string>
-    <string name="chat_binding_announcement_primary_button">我知道了</string>
-    <string name="chat_binding_announcement_acknowledge">我知道了</string>
-    <string name="chat_binding_announcement_acknowledge_countdown">我知道了（%1$ds后可点击）</string>
 
     <string name="settings_context_card_title">设置说明:</string>
     <string name="settings_context_card_content">· 上下文长度: 建议设为您日常使用的最大值。\n· 最大上下文长度: 建议设为模型API支持的最大值。\n软件会在上下文达到阈值时自动压缩，以防超限。请注意，上下文并非越大越好，需用户与软件协同配合。</string>
