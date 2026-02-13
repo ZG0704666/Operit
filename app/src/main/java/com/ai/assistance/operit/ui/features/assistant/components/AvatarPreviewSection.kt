@@ -14,9 +14,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.ai.assistance.operit.core.avatar.common.view.AvatarView
@@ -30,6 +32,7 @@ fun AvatarPreviewSection(
     uiState: AssistantConfigViewModel.UiState,
     showPreviewContent: Boolean = true
 ) {
+    val context = LocalContext.current
     val controllerFactory = remember { AvatarControllerFactoryImpl() }
     val rendererFactory = remember { AvatarRendererFactoryImpl() }
 
@@ -114,7 +117,12 @@ fun AvatarPreviewSection(
                             model = currentModel,
                             controller = avatarController,
                             rendererFactory = rendererFactory,
-                            onError = { error -> println("Avatar error: $error") }
+                            onError = { error ->
+                                AppLogger.e(
+                                    "AvatarPreviewSection",
+                                    context.getString(R.string.avatar_preview_error_log, error)
+                                )
+                            }
                         )
 
                     } else {

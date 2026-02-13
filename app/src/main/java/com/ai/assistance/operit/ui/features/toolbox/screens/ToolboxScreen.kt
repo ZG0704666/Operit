@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ai.assistance.operit.ui.features.toolbox.screens.apppermissions.AppPermissionsScreen
@@ -94,6 +95,7 @@ fun ToolboxScreen(
         onHtmlPackagerSelected: () -> Unit,
         onAutoGlmOneClickSelected: () -> Unit,
         onAutoGlmToolSelected: () -> Unit,
+        onWindowsControlOneClickSelected: () -> Unit,
         onSqlViewerSelected: () -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
@@ -231,6 +233,13 @@ fun ToolboxScreen(
                                 description = stringResource(R.string.tool_autoglm_tool_desc),
                                 category = ToolCategory.DEVELOPMENT,
                                 onClick = onAutoGlmToolSelected
+                        ),
+                        Tool(
+                                name = stringResource(R.string.tool_windows_control_one_click),
+                                icon = Icons.Default.Computer,
+                                description = stringResource(R.string.tool_windows_control_one_click_desc),
+                                category = ToolCategory.DEVELOPMENT,
+                                onClick = onWindowsControlOneClickSelected
                         )
                 )
 
@@ -391,7 +400,7 @@ fun ToolCard(tool: Tool) {
                                 isPressed = false
                         }
                 },
-                modifier = Modifier.defaultMinSize(minHeight = 140.dp).scale(scale),
+                modifier = Modifier.fillMaxWidth().height(188.dp).scale(scale),
                 colors =
                         CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation =
@@ -458,7 +467,10 @@ fun ToolCard(tool: Tool) {
                                 text = tool.name,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                minLines = 2,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                         )
 
                         Text(
@@ -467,7 +479,9 @@ fun ToolCard(tool: Tool) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(horizontal = 2.dp),
-                                maxLines = 2
+                                minLines = 2,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                         )
                 }
         }

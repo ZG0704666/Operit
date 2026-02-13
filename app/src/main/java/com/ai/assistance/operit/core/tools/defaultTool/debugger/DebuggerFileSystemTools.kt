@@ -1,6 +1,11 @@
 package com.ai.assistance.operit.core.tools.defaultTool.debugger
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Context
+import android.content.Intent
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.DirectoryListingData
@@ -2645,10 +2650,9 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         }
 
         return try {
-            // 首先检查文件是否存在
             val existsResult =
                     AndroidShellExecutor.executeShellCommand(
-                            "test -f '$path' && echo 'exists' || echo 'not exists'"
+                            "test -f ${shQuote(path)} && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
                 return ToolResult(
@@ -2665,32 +2669,20 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 )
             }
 
-            // 获取文件MIME类型
-            val mimeTypeResult =
-                    AndroidShellExecutor.executeShellCommand("file --mime-type -b '$path'")
-            val mimeType =
-                    if (mimeTypeResult.success) mimeTypeResult.stdout.trim()
-                    else "application/octet-stream"
+            val stagingRoot = (context.getExternalFilesDir(null) ?: context.cacheDir)
+            val stagingDir = File(stagingRoot, "share_tmp")
+            if (!stagingDir.exists()) {
+                stagingDir.mkdirs()
+            }
 
-            // 使用Android intent分享文件
-            val command =
-                    "am start -a android.intent.action.SEND -t '$mimeType' --es android.intent.extra.SUBJECT '$title' --es android.intent.extra.STREAM 'file://$path' --ez android.intent.extra.STREAM_REFERENCE true"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val sourceName = File(path).name.ifBlank { "shared_file" }
+            val stagedFile = File(stagingDir, "${System.currentTimeMillis()}_$sourceName")
+            val copyResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "cat ${shQuote(path)} > ${shQuote(stagedFile.absolutePath)}"
+                    )
 
-            if (result.success) {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result =
-                                FileOperationData(
-                                        operation = "share",
-                                        path = path,
-                                        successful = true,
-                                        details = "Opened share interface, sharing file: $path"
-                                ),
-                        error = ""
-                )
-            } else {
+            if (!copyResult.success || !stagedFile.exists()) {
                 return ToolResult(
                         toolName = tool.name,
                         success = false,
@@ -2699,14 +2691,71 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "share",
                                         path = path,
                                         successful = false,
-                                        details = "Failed to share file: ${result.stderr}"
+                                        details = "Failed to prepare file for sharing: ${copyResult.stderr}"
                                 ),
-                        error = "Failed to share file: ${result.stderr}"
+                        error = "Failed to prepare file for sharing: ${copyResult.stderr}"
                 )
             }
+
+            val extension = stagedFile.extension.lowercase(Locale.US)
+            val mimeType =
+                    if (extension.isNotEmpty()) {
+                        MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+                                ?: "application/octet-stream"
+                    } else {
+                        "application/octet-stream"
+                    }
+
+            val authority = "${context.packageName}.fileprovider"
+            val contentUri = FileProvider.getUriForFile(context, authority, stagedFile)
+            val shareIntent =
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = mimeType
+                        putExtra(Intent.EXTRA_STREAM, contentUri)
+                        putExtra(Intent.EXTRA_SUBJECT, title)
+                        clipData =
+                                ClipData.newUri(
+                                        context.contentResolver,
+                                        stagedFile.name,
+                                        contentUri
+                                )
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+            val chooserIntent =
+                    Intent.createChooser(shareIntent, title).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+            context.startActivity(chooserIntent)
+
+            ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileOperationData(
+                                    operation = "share",
+                                    path = path,
+                                    successful = true,
+                                    details = "Opened share interface, sharing file: $path"
+                            ),
+                    error = ""
+            )
+        } catch (e: ActivityNotFoundException) {
+            AppLogger.e(TAG, "No activity found to handle sharing file: $path", e)
+            ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "share",
+                                    path = path,
+                                    successful = false,
+                                    details = "No application found to share this file type."
+                            ),
+                    error = "No application found to share this file type."
+            )
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error sharing file", e)
-            return ToolResult(
+            ToolResult(
                     toolName = tool.name,
                     success = false,
                     result =

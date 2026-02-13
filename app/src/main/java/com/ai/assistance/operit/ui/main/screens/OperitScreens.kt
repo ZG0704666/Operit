@@ -79,6 +79,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToS
 import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.autoglm.AutoGlmOneClickToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.autoglm.AutoGlmToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.windowscontrol.WindowsControlOneClickToolScreen
 import com.ai.assistance.operit.ui.features.update.screens.UpdateScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowListScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowDetailScreen
@@ -399,6 +400,7 @@ sealed class Screen(
                     onHtmlPackagerSelected = { navigateTo(HtmlPackager) },
                     onAutoGlmOneClickSelected = { navigateTo(AutoGlmOneClick) },
                     onAutoGlmToolSelected = { navigateTo(AutoGlmTool) },
+                    onWindowsControlOneClickSelected = { navigateTo(WindowsControlOneClick) },
                     onSqlViewerSelected = { navigateTo(SqlViewer) }
             )
         }
@@ -1355,6 +1357,23 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             AutoGlmToolScreen()
+        }
+    }
+
+    data object WindowsControlOneClick :
+            Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = R.string.screen_title_windows_control_one_click) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            WindowsControlOneClickToolScreen(navController = navController)
         }
     }
 

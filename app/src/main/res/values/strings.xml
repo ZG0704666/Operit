@@ -350,6 +350,7 @@
     <string name="no_models_available">没有可用的模型</string>
     <string name="please_select_model">请选择一个模型</string>
     <string name="unsupported_model_type">不支持的模型类型: %1$s</string>
+    <string name="avatar_preview_error_log">头像预览错误: %1$s</string>
     <string name="how_to_import">如何制作和导入模型?</string>
     <string name="enter">进入</string>
     <string name="about_avatar_formats">本应用支持多种虚拟形象格式，包括DragonBones。以下是制作和导入模型的说明。</string>
@@ -1755,6 +1756,7 @@
     <string name="install">安装</string>
     <string name="import_from_repo">仓库</string>
     <string name="import_from_zip">ZIP</string>
+    <string name="import_from_direct">手动</string>
     <string name="connect_remote_service">远程</string>
     <string name="enter_repo_info">请输入仓库信息</string>
     <string name="repo_link">仓库链接</string>
@@ -5285,6 +5287,15 @@
     <string name="skillmgr_cannot_read_file">无法读取文件</string>
     <string name="skillmgr_delete">删除</string>
     <string name="skillmgr_close">关闭</string>
+    <string name="skillmgr_direct_skill_id">Skill ID</string>
+    <string name="skillmgr_direct_skill_id_hint">例如: my_skill</string>
+    <string name="skillmgr_direct_description">简介</string>
+    <string name="skillmgr_direct_content">内容</string>
+    <string name="skillmgr_direct_content_hint">输入 SKILL.md 的正文内容</string>
+    <string name="skillmgr_direct_files_saved_hint">附件会复制到该 Skill 文件夹下的 assets/ 目录</string>
+    <string name="skillmgr_direct_skill_id_required">请输入 Skill ID</string>
+    <string name="skillmgr_direct_skill_id_invalid">Skill ID 只能包含字母、数字、点、下划线和短横线，且不能是 . 或 ..</string>
+    <string name="skillmgr_direct_content_required">请输入 Skill 内容</string>
     <string name="foldernav_close_sidebar">关闭侧边栏</string>
     <string name="foldernav_refresh_folders">刷新文件夹列表</string>
     <string name="foldernav_new_folder">新建文件夹</string>
@@ -6402,6 +6413,8 @@
     <string name="skill_cannot_determine_default_branch">无法确定 %1$s 的默认分支</string>
     <string name="skill_download_zip_failed">下载仓库 ZIP 文件失败</string>
     <string name="skill_import_failed">导入失败: %1$s</string>
+    <string name="skillmgr_direct_create_dir_failed">创建目录失败: %1$s</string>
+    <string name="skillmgr_direct_attachment_read_failed">读取附件失败: %1$s</string>
 
     <!-- PathFinder -->
     <string name="path_simple_start_node_not_exist">起始节点 \'%1$s\' 不存在</string>
@@ -6557,4 +6570,63 @@
     <string name="web_session_accessibility_close_current_session">关闭当前网页会话</string>
     <string name="web_session_accessibility_minimized_indicator">已最小化网页会话面板，双击展开</string>
 
+    <string name="tool_windows_control_one_click">Windows 一键配置</string>
+    <string name="tool_windows_control_one_click_desc">一键导出电脑端代理包，配置 HTTP Agent 环境变量并启用 windows_control</string>
+    <string name="screen_title_windows_control_one_click">Windows 一键配置</string>
+
+    <string name="windows_one_click_title">Windows 操作一键配置</string>
+    <string name="windows_one_click_subtitle">将电脑端代理包分享到 Windows 后运行，再在这里保存 Agent HTTP 配置并启用 windows_control 包。</string>
+    <string name="windows_one_click_step1_title">步骤 1：导出并分享电脑端代理</string>
+    <string name="windows_one_click_step1_desc">点击按钮后会把内置的 operit-pc-agent 压缩包释放到 /sdcard/Download/Operit/cleanOnExit，并弹出系统分享面板。</string>
+    <string name="windows_one_click_step1_button">导出并分享 ZIP</string>
+    <string name="windows_one_click_exporting">正在准备 ZIP...</string>
+    <string name="windows_one_click_step1_success">已写入 cleanOnExit 并打开分享：%1$s</string>
+    <string name="windows_one_click_step1_error_missing_asset">未找到内置代理包资源，请先执行 tools/package_operit_pc_agent_asset.py 生成资产。</string>
+    <string name="windows_one_click_step1_error_share">打开分享面板失败</string>
+    <string name="windows_one_click_share_title">分享 Operit PC Agent</string>
+
+    <string name="windows_one_click_step2_title">步骤 2：粘贴 Agent 配置并启用包</string>
+    <string name="windows_one_click_step2_desc">把电脑端复制的配置文本粘贴到下方，系统会保存 WINDOWS_AGENT_* 环境变量并自动启用 windows_control 包。</string>
+    <string name="windows_one_click_field_host">WINDOWS_AGENT_BASE_URL</string>
+    <string name="windows_one_click_field_username">WINDOWS_AGENT_TOKEN（必填）</string>
+    <string name="windows_one_click_field_password">WINDOWS_AGENT_DEFAULT_SHELL（可选）</string>
+    <string name="windows_one_click_field_private_key">WINDOWS_AGENT_TIMEOUT_MS（可选）</string>
+    <string name="windows_one_click_field_port">（未使用）</string>
+    <string name="windows_one_click_field_strict_host_key">（未使用）</string>
+    <string name="windows_one_click_field_session_name">（未使用）</string>
+    <string name="windows_one_click_field_ssh_options">（未使用）</string>
+    <string name="windows_one_click_tip_env">必填：WINDOWS_AGENT_BASE_URL 与 WINDOWS_AGENT_TOKEN。</string>
+    <string name="windows_one_click_button_apply">保存并启用 windows_control</string>
+    <string name="windows_one_click_button_paste_apply">粘贴并启用 windows_control</string>
+    <string name="windows_one_click_connection_button">检测当前连接</string>
+    <string name="windows_one_click_connection_card_title">连接状态</string>
+    <string name="windows_one_click_connection_state_idle">尚未检测</string>
+    <string name="windows_one_click_connection_state_checking">正在检测...</string>
+    <string name="windows_one_click_connection_state_ok">连接正常</string>
+    <string name="windows_one_click_connection_state_failed">连接异常</string>
+    <string name="windows_one_click_connection_state_not_configured">未完成配置</string>
+    <string name="windows_one_click_connection_field_base_url">地址</string>
+    <string name="windows_one_click_connection_field_package_version">包版本</string>
+    <string name="windows_one_click_connection_field_agent_version">电脑端版本</string>
+    <string name="windows_one_click_connection_field_duration">耗时(ms)</string>
+    <string name="windows_one_click_connection_field_command">验证命令</string>
+    <string name="windows_one_click_connection_field_error">错误</string>
+    <string name="windows_one_click_connection_fix_base_url_label">输入新地址</string>
+    <string name="windows_one_click_connection_fix_base_url_placeholder">例如 http://192.168.1.8:58321</string>
+    <string name="windows_one_click_connection_fix_apply_button">保存并重试</string>
+    <string name="windows_one_click_connection_checking">正在检测连接...</string>
+    <string name="windows_one_click_connection_ok">连接检测成功：%1$s</string>
+    <string name="windows_one_click_connection_failed">连接检测失败：%1$s</string>
+    <string name="windows_one_click_connection_package_not_enabled">未检测到 windows_control 已配置，请先完成一键配置。</string>
+    <string name="windows_one_click_applying">正在保存配置...</string>
+    <string name="windows_one_click_error_host_required">请填写 WINDOWS_AGENT_BASE_URL</string>
+    <string name="windows_one_click_error_token_required">请填写 WINDOWS_AGENT_TOKEN</string>
+    <string name="windows_one_click_error_username_required">（未使用）</string>
+    <string name="windows_one_click_error_credential_required">（未使用）</string>
+    <string name="windows_one_click_error_paste_empty">请先粘贴配置文本</string>
+    <string name="windows_one_click_error_paste_invalid">配置文本解析失败：%1$s</string>
+    <string name="windows_one_click_field_config_text">配置文本</string>
+    <string name="windows_one_click_field_config_text_placeholder">在这里粘贴电脑端复制的配置文本（WINDOWS_AGENT_*）</string>
+    <string name="windows_one_click_status_success">配置已保存，windows_control 已启用。</string>
+    <string name="windows_one_click_status_error">操作失败：%1$s</string>
 </resources>

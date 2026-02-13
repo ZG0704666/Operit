@@ -106,16 +106,24 @@ async function how_make_skill() {
         const zh = `如何制作 skill（简版）
 1. 先创建目录：/sdcard/Download/Operit/skills/<skill_name>/
 2. 必备文件：SKILL.md
-3. SKILL.md 建议写明：name、description、适用场景、执行步骤、约束边界、期望输出
-4. 可选内容：scripts/、templates/、examples/、assets/
-5. 在 SKILL.md 里用相对路径引用这些文件
+3. 在 SKILL.md 顶部用 Markdown 元数据（frontmatter）写 name、description，例如：
+---
+name: your_skill_name
+description: 用一句话说明这个 skill 做什么
+---
+4. 元数据后再写正文：适用场景、执行步骤、约束边界、期望输出
+5. 可选内容：scripts/、templates/、examples/、assets/；在 SKILL.md 里用相对路径引用
 6. 实践建议：优先下载现成 skill，直接解压过来，并确保目录下有 SKILL.md。`;
         const en = `How to make a skill (quick guide)
 1. Create a directory: /sdcard/Download/Operit/skills/<skill_name>/
 2. Required file: SKILL.md
-3. In SKILL.md, include: name, description, use cases, workflow steps, constraints, expected outputs
-4. Optional content: scripts/, templates/, examples/, assets/
-5. Reference these files from SKILL.md using relative paths
+3. At the top of SKILL.md, use Markdown metadata (frontmatter) for name and description, for example:
+---
+name: your_skill_name
+description: one-line summary of what this skill does
+---
+4. After metadata, write the main sections: use cases, workflow steps, constraints, expected outputs
+5. Optional content: scripts/, templates/, examples/, assets/; reference them from SKILL.md using relative paths
 6. Practical tip: download an existing skill, extract it directly, and ensure the directory contains SKILL.md`;
         const message = lang === "zh" ? zh : lang === "en" ? en : `${zh}\n\n---\n\n${en}`;
         complete({

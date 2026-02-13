@@ -111,7 +111,8 @@ fun ModelApiSettingsSection(
     var apiKeyInput by remember(config.id) { mutableStateOf(config.apiKey) }
     var modelNameInput by remember(config.id) { mutableStateOf(config.modelName) }
     var selectedApiProvider by remember(config.id) { mutableStateOf(config.apiProviderType) }
-    
+    var hasInitializedProviderEndpointSync by remember(config.id) { mutableStateOf(false) }
+
     // MNN特定配置状态
     var mnnForwardTypeInput by remember(config.id) { mutableStateOf(config.mnnForwardType) }
     var mnnThreadCountInput by remember(config.id) { mutableStateOf(config.mnnThreadCount.toString()) }
@@ -318,6 +319,13 @@ fun ModelApiSettingsSection(
             }
         } else {
             showRegionWarning = false
+        }
+
+        val shouldSyncEndpointByProviderChange = hasInitializedProviderEndpointSync
+        hasInitializedProviderEndpointSync = true
+        if (!shouldSyncEndpointByProviderChange) {
+            // 首次进入页面时保留持久化配置，避免把用户已选择的端点覆盖成默认值。
+            return@LaunchedEffect
         }
 
         // 非通用供应商（有强制端点的）切换时，强制重置为该供应商默认端点，避免从“其他供应商”等通用配置带入自定义值

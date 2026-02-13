@@ -351,6 +351,7 @@
     <string name="no_models_available">No models available</string>
     <string name="please_select_model">Please select a model</string>
     <string name="unsupported_model_type">Unsupported model type: %1$s</string>
+    <string name="avatar_preview_error_log">Avatar preview error: %1$s</string>
     <string name="how_to_import">How to create and import models?</string>
     <string name="enter">Enter</string>
     <string name="about_avatar_formats">This app supports multiple avatar formats, including DragonBones. Here are instructions for creating and importing models.</string>
@@ -1690,6 +1691,7 @@
     <string name="install">Install</string>
     <string name="import_from_repo">From Repo</string>
     <string name="import_from_zip">From ZIP</string>
+    <string name="import_from_direct">Manual</string>
     <string name="connect_remote_service">Remote</string>
     <string name="enter_repo_info">Please enter repository information</string>
     <string name="repo_link">Repository Link</string>
@@ -2699,6 +2701,15 @@
     <string name="skillmgr_cannot_read_file">Cannot read file</string>
     <string name="skillmgr_delete">Delete</string>
     <string name="skillmgr_close">Close</string>
+    <string name="skillmgr_direct_skill_id">Skill ID</string>
+    <string name="skillmgr_direct_skill_id_hint">e.g. my_skill</string>
+    <string name="skillmgr_direct_description">Description</string>
+    <string name="skillmgr_direct_content">Content</string>
+    <string name="skillmgr_direct_content_hint">Enter the SKILL.md body content</string>
+    <string name="skillmgr_direct_files_saved_hint">Attachments will be copied into the skill folder under assets/</string>
+    <string name="skillmgr_direct_skill_id_required">Please enter Skill ID</string>
+    <string name="skillmgr_direct_skill_id_invalid">Skill ID can only contain letters, numbers, dots, underscores, and hyphens, and cannot be . or ..</string>
+    <string name="skillmgr_direct_content_required">Please enter skill content</string>
     <string name="foldernav_close_sidebar">Close sidebar</string>
     <string name="foldernav_refresh_folders">Refresh folder list</string>
     <string name="foldernav_new_folder">New folder</string>
@@ -6414,6 +6425,8 @@
     <string name="skill_cannot_determine_default_branch">Cannot determine default branch for %1$s</string>
     <string name="skill_download_zip_failed">Failed to download repository ZIP file</string>
     <string name="skill_import_failed">Import failed: %1$s</string>
+    <string name="skillmgr_direct_create_dir_failed">Failed to create directory: %1$s</string>
+    <string name="skillmgr_direct_attachment_read_failed">Failed to read attachment: %1$s</string>
 
     <!-- PathFinder -->
     <string name="path_simple_start_node_not_exist">Start node \'%1$s\' does not exist</string>
@@ -6569,4 +6582,63 @@
     <string name="web_session_accessibility_close_current_session">Close current web session</string>
     <string name="web_session_accessibility_minimized_indicator">Web sessions panel minimized, double tap to expand</string>
 
+    <string name="tool_windows_control_one_click">Windows One-Click Setup</string>
+    <string name="tool_windows_control_one_click_desc">Export the PC agent package, configure HTTP agent environment variables, and enable windows_control in one flow</string>
+    <string name="screen_title_windows_control_one_click">Windows One-Click Setup</string>
+
+    <string name="windows_one_click_title">Windows Control One-Click Setup</string>
+    <string name="windows_one_click_subtitle">Share the bundled PC agent package to your Windows computer and run it, then save HTTP agent settings here to enable the windows_control package.</string>
+    <string name="windows_one_click_step1_title">Step 1: Export and share PC agent</string>
+    <string name="windows_one_click_step1_desc">This exports the built-in operit-pc-agent ZIP into /sdcard/Download/Operit/cleanOnExit and opens the system share sheet.</string>
+    <string name="windows_one_click_step1_button">Export and Share ZIP</string>
+    <string name="windows_one_click_exporting">Preparing ZIP...</string>
+    <string name="windows_one_click_step1_success">Written to cleanOnExit and shared: %1$s</string>
+    <string name="windows_one_click_step1_error_missing_asset">Bundled agent ZIP is missing. Run tools/package_operit_pc_agent_asset.py first to generate the asset.</string>
+    <string name="windows_one_click_step1_error_share">Failed to open share sheet</string>
+    <string name="windows_one_click_share_title">Share Operit PC Agent</string>
+
+    <string name="windows_one_click_step2_title">Step 2: Paste agent config and enable package</string>
+    <string name="windows_one_click_step2_desc">After pasting, the app saves WINDOWS_AGENT_* environment variables and enables windows_control automatically.</string>
+    <string name="windows_one_click_field_host">WINDOWS_AGENT_BASE_URL</string>
+    <string name="windows_one_click_field_username">WINDOWS_AGENT_TOKEN (required)</string>
+    <string name="windows_one_click_field_password">WINDOWS_AGENT_DEFAULT_SHELL (optional)</string>
+    <string name="windows_one_click_field_private_key">WINDOWS_AGENT_TIMEOUT_MS (optional)</string>
+    <string name="windows_one_click_field_port">(unused)</string>
+    <string name="windows_one_click_field_strict_host_key">(unused)</string>
+    <string name="windows_one_click_field_session_name">(unused)</string>
+    <string name="windows_one_click_field_ssh_options">(unused)</string>
+    <string name="windows_one_click_tip_env">Required: WINDOWS_AGENT_BASE_URL and WINDOWS_AGENT_TOKEN.</string>
+    <string name="windows_one_click_button_apply">Save and Enable windows_control</string>
+    <string name="windows_one_click_button_paste_apply">Paste and Enable windows_control</string>
+    <string name="windows_one_click_connection_button">Check Current Connection</string>
+    <string name="windows_one_click_connection_card_title">Connection Status</string>
+    <string name="windows_one_click_connection_state_idle">Not checked yet</string>
+    <string name="windows_one_click_connection_state_checking">Checking...</string>
+    <string name="windows_one_click_connection_state_ok">Connected</string>
+    <string name="windows_one_click_connection_state_failed">Connection failed</string>
+    <string name="windows_one_click_connection_state_not_configured">Not configured</string>
+    <string name="windows_one_click_connection_field_base_url">Base URL</string>
+    <string name="windows_one_click_connection_field_package_version">Package Version</string>
+    <string name="windows_one_click_connection_field_agent_version">Agent Version</string>
+    <string name="windows_one_click_connection_field_duration">Duration (ms)</string>
+    <string name="windows_one_click_connection_field_command">Command</string>
+    <string name="windows_one_click_connection_field_error">Error</string>
+    <string name="windows_one_click_connection_fix_base_url_label">Enter New Address</string>
+    <string name="windows_one_click_connection_fix_base_url_placeholder">Example: http://192.168.1.8:58321</string>
+    <string name="windows_one_click_connection_fix_apply_button">Save and Retry</string>
+    <string name="windows_one_click_connection_checking">Checking connection...</string>
+    <string name="windows_one_click_connection_ok">Connection check succeeded: %1$s</string>
+    <string name="windows_one_click_connection_failed">Connection check failed: %1$s</string>
+    <string name="windows_one_click_connection_package_not_enabled">windows_control is not configured yet. Please complete one-click setup first.</string>
+    <string name="windows_one_click_applying">Applying settings...</string>
+    <string name="windows_one_click_error_host_required">Please fill WINDOWS_AGENT_BASE_URL</string>
+    <string name="windows_one_click_error_token_required">Please fill WINDOWS_AGENT_TOKEN</string>
+    <string name="windows_one_click_error_username_required">(unused)</string>
+    <string name="windows_one_click_error_credential_required">(unused)</string>
+    <string name="windows_one_click_error_paste_empty">Please paste the configuration text first</string>
+    <string name="windows_one_click_error_paste_invalid">Failed to parse configuration text: %1$s</string>
+    <string name="windows_one_click_field_config_text">Configuration Text</string>
+    <string name="windows_one_click_field_config_text_placeholder">Paste the configuration text copied from the PC here (WINDOWS_AGENT_*)</string>
+    <string name="windows_one_click_status_success">Configuration saved, windows_control is enabled.</string>
+    <string name="windows_one_click_status_error">Operation failed: %1$s</string>
 </resources>

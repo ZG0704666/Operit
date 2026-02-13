@@ -603,7 +603,7 @@ fun PackageManagerScreen(
                     }
 
                     PackageTab.SKILLS -> {
-                        SkillManagerScreen(
+                        SkillConfigScreen(
                             skillRepository = skillRepository,
                             snackbarHostState = snackbarHostState,
                             onNavigateToSkillMarket = onNavigateToSkillMarket

@@ -1,15 +1,17 @@
 package com.ai.assistance.operit.ui.features.packages.screens
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,33 +19,35 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,17 +59,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.data.skill.SkillRepository
 import com.ai.assistance.operit.core.tools.skill.SkillPackage
 import com.ai.assistance.operit.data.preferences.SkillVisibilityPreferences
+import com.ai.assistance.operit.data.skill.SkillRepository
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -73,7 +77,7 @@ import kotlinx.coroutines.withContext
 
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-fun SkillManagerScreen(
+fun SkillConfigScreen(
     skillRepository: SkillRepository,
     snackbarHostState: SnackbarHostState,
     onNavigateToSkillMarket: () -> Unit = {}
@@ -94,6 +98,10 @@ fun SkillManagerScreen(
     var repoUrlInput by remember { mutableStateOf("") }
     var zipUri by remember { mutableStateOf<Uri?>(null) }
     var zipFileName by remember { mutableStateOf("") }
+    var manualSkillId by remember { mutableStateOf("") }
+    var manualSkillDescription by remember { mutableStateOf("") }
+    var manualSkillContent by remember { mutableStateOf("") }
+    var manualAttachments by remember { mutableStateOf<List<ManualImportAttachment>>(emptyList()) }
     var isImporting by remember { mutableStateOf(false) }
 
     val refreshSkills: suspend () -> Unit = {
@@ -114,19 +122,26 @@ fun SkillManagerScreen(
     ) { uri ->
         uri?.let {
             zipUri = it
-            try {
-                var fileName: String? = null
-                context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
-                    val nameIndex = cursor.getColumnIndex("_display_name")
-                    if (cursor.moveToFirst() && nameIndex >= 0) {
-                        fileName = cursor.getString(nameIndex)
-                    }
-                }
-                zipFileName = fileName ?: "skill.zip"
-            } catch (_: Exception) {
-                zipFileName = "skill.zip"
+            zipFileName = resolveUriDisplayName(context, it, fallback = "skill.zip")
+        }
+    }
+
+    val attachmentPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+
+        val existingKeys = manualAttachments.map { it.uri.toString() }.toMutableSet()
+        val updated = manualAttachments.toMutableList()
+        uris.forEach { uri ->
+            if (existingKeys.add(uri.toString())) {
+                updated += ManualImportAttachment(
+                    uri = uri,
+                    displayName = resolveUriDisplayName(context, uri)
+                )
             }
         }
+        manualAttachments = updated
     }
 
     LaunchedEffect(Unit) {
@@ -298,6 +313,11 @@ fun SkillManagerScreen(
                             onClick = { importTabIndex = 1 },
                             text = { Text(stringResource(R.string.import_from_zip), maxLines = 1) }
                         )
+                        Tab(
+                            selected = importTabIndex == 2,
+                            onClick = { importTabIndex = 2 },
+                            text = { Text(stringResource(R.string.import_from_direct), maxLines = 1) }
+                        )
                     }
 
                     when (importTabIndex) {
@@ -364,6 +384,107 @@ fun SkillManagerScreen(
                                     )
                                 }
                             }
+                        }
+
+                        2 -> {
+                            OutlinedTextField(
+                                value = manualSkillId,
+                                onValueChange = { manualSkillId = it },
+                                label = { Text(stringResource(R.string.skillmgr_direct_skill_id)) },
+                                placeholder = { Text(stringResource(R.string.skillmgr_direct_skill_id_hint)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                enabled = !isImporting
+                            )
+
+                            OutlinedTextField(
+                                value = manualSkillDescription,
+                                onValueChange = { manualSkillDescription = it },
+                                label = { Text(stringResource(R.string.skillmgr_direct_description)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                enabled = !isImporting
+                            )
+
+                            OutlinedTextField(
+                                value = manualSkillContent,
+                                onValueChange = { manualSkillContent = it },
+                                label = { Text(stringResource(R.string.skillmgr_direct_content)) },
+                                placeholder = { Text(stringResource(R.string.skillmgr_direct_content_hint)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 6,
+                                maxLines = 10,
+                                enabled = !isImporting
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.attachments_count, manualAttachments.size),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                TextButton(
+                                    enabled = !isImporting,
+                                    onClick = { attachmentPicker.launch(arrayOf("*/*")) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.AttachFile,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = stringResource(R.string.add_attachment))
+                                }
+                            }
+
+                            if (manualAttachments.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 140.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    manualAttachments.forEach { attachment ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = attachment.displayName,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                modifier = Modifier.weight(1f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+
+                                            IconButton(
+                                                enabled = !isImporting,
+                                                onClick = {
+                                                    manualAttachments = manualAttachments.filterNot { it.uri == attachment.uri }
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Close,
+                                                    contentDescription = stringResource(R.string.remove_attachment),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = stringResource(R.string.skillmgr_direct_files_saved_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
 
@@ -446,6 +567,42 @@ fun SkillManagerScreen(
                                         isImporting = false
                                     }
                                 }
+
+                                2 -> {
+                                    val skillId = manualSkillId.trim()
+                                    val skillContent = manualSkillContent.trim()
+                                    if (skillId.isBlank()) {
+                                        snackbarHostState.showSnackbar(context.getString(R.string.skillmgr_direct_skill_id_required))
+                                        return@launch
+                                    }
+                                    if (!isValidSkillId(skillId)) {
+                                        snackbarHostState.showSnackbar(context.getString(R.string.skillmgr_direct_skill_id_invalid))
+                                        return@launch
+                                    }
+                                    if (skillContent.isBlank()) {
+                                        snackbarHostState.showSnackbar(context.getString(R.string.skillmgr_direct_content_required))
+                                        return@launch
+                                    }
+
+                                    isImporting = true
+                                    try {
+                                        val result = skillRepository.importSkillFromDirectInput(
+                                            skillId = skillId,
+                                            description = manualSkillDescription.trim(),
+                                            content = skillContent,
+                                            attachmentUris = manualAttachments.map { it.uri }
+                                        )
+                                        refreshSkills()
+                                        snackbarHostState.showSnackbar(result)
+                                        showImportDialog = false
+                                        manualSkillId = ""
+                                        manualSkillDescription = ""
+                                        manualSkillContent = ""
+                                        manualAttachments = emptyList()
+                                    } finally {
+                                        isImporting = false
+                                    }
+                                }
                             }
                         }
                     }
@@ -516,6 +673,44 @@ fun SkillManagerScreen(
             }
         )
     }
+}
+
+private data class ManualImportAttachment(
+    val uri: Uri,
+    val displayName: String
+)
+
+private val SKILL_ID_PATTERN = Regex("^[A-Za-z0-9._-]+$")
+
+private fun isValidSkillId(skillId: String): Boolean {
+    return SKILL_ID_PATTERN.matches(skillId) && skillId != "." && skillId != ".."
+}
+
+private fun resolveUriDisplayName(context: Context, uri: Uri, fallback: String = "file"): String {
+    val resolver = context.contentResolver
+    val displayName = runCatching {
+        resolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (cursor.moveToFirst() && nameIndex >= 0) {
+                cursor.getString(nameIndex)
+            } else {
+                null
+            }
+        }
+    }.getOrNull()
+
+    if (!displayName.isNullOrBlank()) {
+        return displayName
+    }
+
+    val uriFallback = uri.lastPathSegment?.substringAfterLast('/').orEmpty()
+    return uriFallback.ifBlank { fallback }
 }
 
 @Composable

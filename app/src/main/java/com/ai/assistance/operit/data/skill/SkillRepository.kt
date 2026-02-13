@@ -1,6 +1,8 @@
 package com.ai.assistance.operit.data.skill
 
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.skill.SkillManager
 import com.ai.assistance.operit.core.tools.skill.SkillPackage
@@ -28,6 +30,7 @@ class SkillRepository private constructor(private val context: Context) {
         private const val CONNECT_TIMEOUT = 15_000
         private const val READ_TIMEOUT = 30_000
         private const val BUFFER_SIZE = 64 * 1024
+        private val SKILL_ID_PATTERN = Regex("^[A-Za-z0-9._-]+$")
 
         fun getInstance(context: Context): SkillRepository {
             return INSTANCE ?: synchronized(this) {
@@ -141,6 +144,163 @@ class SkillRepository private constructor(private val context: Context) {
                 context.getString(R.string.skill_import_failed, e.message ?: "Unknown error")
             }
         }
+    }
+
+    suspend fun importSkillFromDirectInput(
+        skillId: String,
+        description: String,
+        content: String,
+        attachmentUris: List<Uri> = emptyList()
+    ): String {
+        return withContext(Dispatchers.IO) {
+            val trimmedId = skillId.trim()
+            val trimmedDescription = description.trim()
+            val trimmedContent = content.trim()
+
+            if (trimmedId.isBlank()) {
+                return@withContext context.getString(R.string.skillmgr_direct_skill_id_required)
+            }
+            if (!isValidSkillId(trimmedId)) {
+                return@withContext context.getString(R.string.skillmgr_direct_skill_id_invalid)
+            }
+            if (trimmedContent.isBlank()) {
+                return@withContext context.getString(R.string.skillmgr_direct_content_required)
+            }
+
+            val skillsRootDir = File(getSkillsDirectoryPath())
+            if (!skillsRootDir.exists() && !skillsRootDir.mkdirs()) {
+                return@withContext context.getString(
+                    R.string.skillmgr_direct_create_dir_failed,
+                    skillsRootDir.absolutePath
+                )
+            }
+
+            val finalDir = File(skillsRootDir, trimmedId)
+            if (finalDir.exists()) {
+                return@withContext context.getString(R.string.skill_error_import_duplicate_name, finalDir.name)
+            }
+            if (!finalDir.mkdirs()) {
+                return@withContext context.getString(
+                    R.string.skillmgr_direct_create_dir_failed,
+                    finalDir.absolutePath
+                )
+            }
+
+            try {
+                File(finalDir, "SKILL.md").writeText(
+                    buildDirectSkillMarkdown(
+                        skillId = trimmedId,
+                        description = trimmedDescription,
+                        content = trimmedContent
+                    )
+                )
+
+                if (attachmentUris.isNotEmpty()) {
+                    val assetsDir = File(finalDir, "assets")
+                    if (!assetsDir.exists() && !assetsDir.mkdirs()) {
+                        throw IllegalStateException(
+                            context.getString(R.string.skillmgr_direct_create_dir_failed, assetsDir.absolutePath)
+                        )
+                    }
+
+                    val usedFileNames = mutableSetOf<String>()
+                    attachmentUris.forEachIndexed { index, uri ->
+                        val displayName = resolveAttachmentDisplayName(uri)
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "attachment_${index + 1}"
+                        val safeName = ensureUniqueFileName(
+                            sanitizeAttachmentName(displayName),
+                            usedFileNames
+                        )
+                        val outFile = File(assetsDir, safeName)
+
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            outFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        } ?: throw IllegalStateException(
+                            context.getString(R.string.skillmgr_direct_attachment_read_failed, displayName)
+                        )
+                    }
+                }
+
+                skillManager.refreshAvailableSkills()
+
+                if (trimmedDescription.isNotBlank()) {
+                    context.getString(R.string.skill_imported_with_desc, finalDir.name, trimmedDescription)
+                } else {
+                    context.getString(R.string.skill_imported, finalDir.name)
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to import skill from direct input", e)
+                runCatching { finalDir.deleteRecursively() }
+                context.getString(R.string.skill_import_failed, e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private fun buildDirectSkillMarkdown(skillId: String, description: String, content: String): String {
+        val escapedName = escapeFrontMatterValue(skillId)
+        val escapedDescription = escapeFrontMatterValue(description)
+        return buildString {
+            appendLine("---")
+            appendLine("name: \"$escapedName\"")
+            appendLine("description: \"$escapedDescription\"")
+            appendLine("---")
+            appendLine()
+            append(content.trimEnd())
+            appendLine()
+        }
+    }
+
+    private fun escapeFrontMatterValue(value: String): String {
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\r\n", "\n")
+            .replace("\n", "\\n")
+    }
+
+    private fun resolveAttachmentDisplayName(uri: Uri): String? {
+        return runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) {
+                    cursor.getString(nameIndex)
+                } else {
+                    null
+                }
+            }
+        }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')
+    }
+
+    private fun sanitizeAttachmentName(rawName: String): String {
+        val sanitized = rawName.trim().replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        return sanitized.ifBlank { "attachment" }
+    }
+
+    private fun isValidSkillId(skillId: String): Boolean {
+        return SKILL_ID_PATTERN.matches(skillId) && skillId != "." && skillId != ".."
+    }
+
+    private fun ensureUniqueFileName(baseName: String, usedNames: MutableSet<String>): String {
+        var candidate = baseName
+        val dotIndex = baseName.lastIndexOf('.').takeIf { it > 0 } ?: -1
+        val prefix = if (dotIndex > 0) baseName.substring(0, dotIndex) else baseName
+        val extension = if (dotIndex > 0) baseName.substring(dotIndex) else ""
+        var suffix = 1
+        while (usedNames.contains(candidate)) {
+            candidate = "${prefix}_$suffix$extension"
+            suffix += 1
+        }
+        usedNames += candidate
+        return candidate
     }
 
     private fun parseGitHubSkillTarget(inputUrlRaw: String): GitHubSkillTarget? {
