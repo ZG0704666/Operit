@@ -60,5 +60,23 @@ export const api = {
   },
   writeFileBase64(payload) {
     return requestJson("/api/file/write_base64", { method: "POST", body: payload });
+  },
+  startProcessSession(payload) {
+    return requestJson("/api/process/start", { method: "POST", body: payload });
+  },
+  readProcessSession(payload) {
+    return requestJson("/api/process/read", { method: "POST", body: payload });
+  },
+  writeProcessSession(payload) {
+    return requestJson("/api/process/write", { method: "POST", body: payload });
+  },
+  resizeProcessSession(payload) {
+    return requestJson("/api/process/resize", { method: "POST", body: payload });
+  },
+  listProcessSessions(payload) {
+    return requestJson("/api/process/list", { method: "POST", body: payload });
+  },
+  terminateProcessSession(payload) {
+    return requestJson("/api/process/terminate", { method: "POST", body: payload });
   }
 };

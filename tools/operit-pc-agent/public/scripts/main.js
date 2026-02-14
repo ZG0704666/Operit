@@ -5,6 +5,7 @@ import * as W from "./ui/widgets.js";
 import { createWizardPage, createWizardController } from "./features/wizard-page.js";
 import { createCommandsPage, createCommandsController } from "./features/commands-page.js";
 import { createSettingsPage, createSettingsController } from "./features/settings-page.js";
+import { createProcessesPage, createProcessesController } from "./features/processes-page.js";
 
 const refs = {};
 const i18n = createI18n();
@@ -13,10 +14,11 @@ const t = (key, values) => i18n.t(key, values);
 const ROUTES = {
   WIZARD: "wizard",
   COMMANDS: "commands",
+  MANAGE: "manage",
   SETTINGS: "settings"
 };
 
-const ROUTE_ORDER = [ROUTES.WIZARD, ROUTES.COMMANDS, ROUTES.SETTINGS];
+const ROUTE_ORDER = [ROUTES.WIZARD, ROUTES.COMMANDS, ROUTES.MANAGE, ROUTES.SETTINGS];
 
 const state = {
   route: ROUTES.WIZARD,
@@ -30,7 +32,9 @@ const state = {
 
 let wizardController = null;
 let commandsController = null;
+let manageController = null;
 let settingsController = null;
+let toastSeq = 0;
 
 function getRouteFromHash() {
   const hash = String(window.location.hash || "").replace(/^#\/?/, "").trim();
@@ -66,13 +70,48 @@ function setJsonOutput(refName, payload) {
 }
 
 function setNotice(tone, text) {
-  const notice = refs.notice;
-  if (!notice) {
+  const stack = refs.toastStack;
+  const content = String(text || "").trim();
+  if (!stack || !content) {
     return;
   }
 
-  notice.className = `notice${tone ? ` is-${tone}` : ""}`;
-  notice.textContent = text;
+  const normalizedTone = tone === "ok" || tone === "warn" || tone === "error" ? tone : "";
+  const toast = document.createElement("div");
+  toast.className = `toast${normalizedTone ? ` is-${normalizedTone}` : ""}`;
+  toast.dataset.toastId = String(++toastSeq);
+  toast.textContent = content;
+
+  stack.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.classList.add("is-visible");
+  });
+
+  const ttlMs = normalizedTone === "error" ? 5200 : normalizedTone === "warn" ? 4200 : 2400;
+  let removed = false;
+
+  const removeToast = () => {
+    if (removed) {
+      return;
+    }
+    removed = true;
+    toast.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (toast.parentNode === stack) {
+        stack.removeChild(toast);
+      }
+    }, 180);
+  };
+
+  const timerId = window.setTimeout(removeToast, ttlMs);
+  toast.addEventListener(
+    "click",
+    () => {
+      window.clearTimeout(timerId);
+      removeToast();
+    },
+    { once: true }
+  );
 }
 
 function asErrorMessage(error) {
@@ -98,6 +137,8 @@ function createControllers() {
   };
 
   commandsController = createCommandsController({ api, refs, t, helpers });
+
+  manageController = createProcessesController({ api, refs, t, helpers });
 
   settingsController = createSettingsController({
     api,
@@ -170,18 +211,8 @@ function createTree() {
       { className: "route-tabs" },
       W.Button({ text: t("nav.wizard"), variant: "soft", className: "route-tab", ref: "tabWizardButton", on: { click: () => navigateToRoute(ROUTES.WIZARD) } }),
       W.Button({ text: t("nav.commands"), variant: "soft", className: "route-tab", ref: "tabCommandsButton", on: { click: () => navigateToRoute(ROUTES.COMMANDS) } }),
+      W.Button({ text: t("nav.manage"), variant: "soft", className: "route-tab", ref: "tabManageButton", on: { click: () => navigateToRoute(ROUTES.MANAGE) } }),
       W.Button({ text: t("nav.settings"), variant: "soft", className: "route-tab", ref: "tabSettingsButton", on: { click: () => navigateToRoute(ROUTES.SETTINGS) } })
-    ),
-
-    W.Notice({ text: t("status.ready"), ref: "notice" }),
-
-    W.Card(
-      {
-        title: t("card.healthTitle"),
-        subtitle: t("card.healthSubtitle"),
-        actions: [W.Button({ text: t("action.refreshHealth"), variant: "soft", ref: "refreshHealthButton", on: { click: handleRefreshHealthClick } })]
-      },
-      W.Output({ ref: "healthOutput", minHeight: 132, text: JSON.stringify({ loading: true }, null, 2) })
     ),
 
     W.Box(
@@ -214,6 +245,16 @@ function createTree() {
           runRaw: commandsController.handleRunRaw
         }
       }),
+      createProcessesPage({
+        t,
+        W,
+        on: {
+          refreshSessions: manageController.refreshSessions,
+          createSession: manageController.createSession,
+          sendCtrlC: manageController.sendCtrlC,
+          closeSelectedSession: manageController.closeSelectedSession
+        }
+      }),
       createSettingsPage({
         t,
         W,
@@ -221,7 +262,9 @@ function createTree() {
           saveConfig: settingsController.saveConfigFromSettings
         }
       })
-    )
+    ),
+
+    W.Box({ className: "toast-stack", ref: "toastStack" })
   );
 }
 
@@ -247,7 +290,6 @@ async function refreshHealth() {
   const health = await api.getHealth();
   state.health = health;
   updateHealthSummary(health);
-  setJsonOutput("healthOutput", health);
   wizardController.syncFromState({ forceMobileDefaults: false });
   return health;
 }
@@ -269,6 +311,17 @@ async function loadConfigAndPresets(options = {}) {
   settingsController.renderPresetChecklist(state.presetItems, config.allowedPresets || []);
   commandsController.renderPresetSelect(state.presetItems, config.allowedPresets || []);
 
+  if (refs.commandTokenInput && !refs.commandTokenInput.value.trim()) {
+    refs.commandTokenInput.value = config.apiToken ? String(config.apiToken) : "";
+  }
+
+  if (manageController) {
+    manageController.prefillToken(config.apiToken ? String(config.apiToken) : "");
+    if (state.route === ROUTES.MANAGE) {
+      void manageController.refreshSessions();
+    }
+  }
+
   if (showOutput) {
     setJsonOutput("configOutput", {
       loaded: true,
@@ -279,16 +332,6 @@ async function loadConfigAndPresets(options = {}) {
 
   wizardController.syncFromState({ forceMobileDefaults: false });
   return { config, presets };
-}
-
-async function handleRefreshHealthClick() {
-  try {
-    await refreshHealth();
-    setNotice("ok", t("status.healthRefreshed"));
-  } catch (error) {
-    setJsonOutput("healthOutput", { ok: false, error: asErrorMessage(error) });
-    setNotice("error", t("status.healthRefreshFailed", { error: asErrorMessage(error) }));
-  }
 }
 
 function handleLocaleChange() {
@@ -307,11 +350,20 @@ function handleRouteChange() {
 function applyRouteUi() {
   refs.wizardPage.hidden = state.route !== ROUTES.WIZARD;
   refs.commandsPage.hidden = state.route !== ROUTES.COMMANDS;
+  refs.managePage.hidden = state.route !== ROUTES.MANAGE;
   refs.settingsPage.hidden = state.route !== ROUTES.SETTINGS;
 
   refs.tabWizardButton.classList.toggle("is-active", state.route === ROUTES.WIZARD);
   refs.tabCommandsButton.classList.toggle("is-active", state.route === ROUTES.COMMANDS);
+  refs.tabManageButton.classList.toggle("is-active", state.route === ROUTES.MANAGE);
   refs.tabSettingsButton.classList.toggle("is-active", state.route === ROUTES.SETTINGS);
+
+  if (state.route === ROUTES.MANAGE && manageController) {
+    const token = refs.manageTokenInput ? String(refs.manageTokenInput.value || "").trim() : "";
+    if (token) {
+      void manageController.refreshSessions();
+    }
+  }
 }
 
 async function refreshAll() {
@@ -322,7 +374,6 @@ async function refreshAll() {
     setNotice("ok", t("status.dataRefreshed"));
   } catch (error) {
     setNotice("error", t("status.refreshFailed", { error: asErrorMessage(error) }));
-    setJsonOutput("healthOutput", { ok: false, error: asErrorMessage(error) });
   } finally {
     setBusy("refreshAllButton", false, t("action.refreshAll"), t("action.refreshing"));
   }
@@ -345,10 +396,10 @@ async function bootstrap() {
 
   state.route = getRouteFromHash();
   wizardController.setWizardStep(0);
+  manageController.renderEmptyState();
   applyRouteUi();
 
   window.addEventListener("hashchange", handleRouteChange);
-  setNotice("", t("status.loading"));
 
   try {
     await refreshAll();

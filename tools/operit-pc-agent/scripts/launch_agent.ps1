@@ -113,6 +113,77 @@ function Stop-ExistingAgent {
     Remove-Item -LiteralPath $runtimePath -Force -ErrorAction SilentlyContinue
 }
 
+function Ensure-Dependencies {
+    param([string]$RootPath)
+
+    $requiredPackages = @(
+        @{ Name = "node-pty"; Path = (Join-Path $RootPath "node_modules\node-pty\package.json") },
+        @{ Name = "@xterm/headless"; Path = (Join-Path $RootPath "node_modules\@xterm\headless\package.json") }
+    )
+
+    $missingBefore = @($requiredPackages | Where-Object { -not (Test-Path $_.Path) })
+    if ($missingBefore.Count -eq 0) {
+        Write-Log "INFO" "Dependency check passed: node-pty, @xterm/headless are present."
+        return
+    }
+
+    Write-Log "INFO" "Missing dependencies: $((@($missingBefore | ForEach-Object { $_.Name }) -join ', '))"
+
+    $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+    $pnpmCmd = Get-Command pnpm -ErrorAction SilentlyContinue
+    $npmLockFilePath = Join-Path $RootPath "package-lock.json"
+    $pnpmLockFilePath = Join-Path $RootPath "pnpm-lock.yaml"
+
+    $installerName = $null
+    $primaryArgs = @()
+    $fallbackArgs = $null
+
+    if ((Test-Path $pnpmLockFilePath) -and $pnpmCmd) {
+        $installerName = "pnpm"
+        $primaryArgs = @("install", "--frozen-lockfile", "--prefer-offline")
+        $fallbackArgs = @("install", "--prefer-offline")
+    }
+    elseif ((Test-Path $npmLockFilePath) -and $npmCmd) {
+        $installerName = "npm"
+        $primaryArgs = @("install", "--no-audit", "--no-fund")
+        $fallbackArgs = $null
+    }
+    elseif ($pnpmCmd) {
+        $installerName = "pnpm"
+        $primaryArgs = @("install", "--prefer-offline")
+    }
+    elseif ($npmCmd) {
+        $installerName = "npm"
+        $primaryArgs = @("install", "--no-audit", "--no-fund")
+    }
+    else {
+        throw "Neither npm nor pnpm was found. Please install Node.js with npm or pnpm."
+    }
+
+    $commandName = if ($installerName -eq "pnpm") { "pnpm" } else { "npm" }
+
+    Write-Log "INFO" "Installing dependencies: $installerName $($primaryArgs -join ' ')"
+    & $commandName @primaryArgs
+    $installExitCode = $LASTEXITCODE
+
+    if ($installExitCode -ne 0 -and $fallbackArgs) {
+        Write-Log "WARN" "Primary dependency install failed (exit $installExitCode). Retrying: $installerName $($fallbackArgs -join ' ')"
+        & $commandName @fallbackArgs
+        $installExitCode = $LASTEXITCODE
+    }
+
+    if ($installExitCode -ne 0) {
+        throw "Dependency installation failed with exit code $installExitCode"
+    }
+
+    $missingAfter = @($requiredPackages | Where-Object { -not (Test-Path $_.Path) })
+    if ($missingAfter.Count -gt 0) {
+        throw "Dependencies are still missing after installation: $((@($missingAfter | ForEach-Object { $_.Name }) -join ', '))"
+    }
+
+    Write-Log "INFO" "Dependencies installed successfully via $installerName."
+}
+
 $config = $null
 $port = 58321
 $bindAddress = "127.0.0.1"
@@ -193,6 +264,14 @@ try {
     }
 
     Write-Log "INFO" "Node version: $(node -v)"
+
+    try {
+        Ensure-Dependencies -RootPath $projectRoot
+    }
+    catch {
+        Write-Log "ERROR" "Dependency check/install failed: $($_.Exception.Message)"
+        exit 1
+    }
 
     $originalNodeOptions = $env:NODE_OPTIONS
     $env:NODE_OPTIONS = ""

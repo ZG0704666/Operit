@@ -66,6 +66,165 @@
             ]
         },
         {
+            "name": "windows_process_start",
+            "description": {
+                "zh": "启动一个可持续交互的 Windows 进程会话，可用于长时间命令（如 codex）。",
+                "en": "Start a persistent interactive Windows process session for long-running commands (e.g., codex)."
+            },
+            "parameters": [
+                {
+                    "name": "command",
+                    "description": { "zh": "启动后立即执行的命令（可选，不传则仅打开 shell 会话）", "en": "Command to run immediately after start (optional; if omitted, opens shell session only)." },
+                    "type": "string",
+                    "required": false
+                },
+                {
+                    "name": "shell",
+                    "description": { "zh": "shell：powershell/pwsh/cmd，默认读取环境变量或 powershell", "en": "Shell: powershell/pwsh/cmd, default from env or powershell" },
+                    "type": "string",
+                    "required": false
+                },
+                {
+                    "name": "max_runtime_ms",
+                    "description": { "zh": "会话最大运行毫秒数（可选，不传表示不主动超时）", "en": "Max session runtime in ms (optional; no forced timeout if omitted)." },
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "timeout_ms",
+                    "description": { "zh": "本次 API 调用超时毫秒数（可选）", "en": "Timeout for this API call in ms (optional)" },
+                    "type": "number",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "windows_process_read",
+            "description": {
+                "zh": "按偏移增量读取进程会话输出（stdout/stderr），适合轮询长任务输出。",
+                "en": "Read process session stdout/stderr incrementally by offsets, suitable for polling long-running output."
+            },
+            "parameters": [
+                {
+                    "name": "session_id",
+                    "description": { "zh": "会话 ID", "en": "Process session ID" },
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "stdout_offset",
+                    "description": { "zh": "stdout 读取偏移（字符）", "en": "Read offset for stdout (characters)" },
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "stderr_offset",
+                    "description": { "zh": "stderr 读取偏移（字符）", "en": "Read offset for stderr (characters)" },
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "max_chars",
+                    "description": { "zh": "单次返回的最大字符数（每个流）", "en": "Maximum characters returned per stream in one call" },
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "timeout_ms",
+                    "description": { "zh": "本次 API 调用超时毫秒数（可选）", "en": "Timeout for this API call in ms (optional)" },
+                    "type": "number",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "windows_process_write",
+            "description": {
+                "zh": "向进程会话写入输入（stdin）。通常应先发送一次 input，再紧跟一次 control=enter 提交内容；如果 control 和 input 同时传入，则按组合键处理（例如 control=ctrl, input=c 表示 Ctrl+C）。",
+                "en": "Write input to a process session (stdin). In normal usage, send input first, then send control=enter to submit. If control and input are provided together, they are treated as a key combination (for example, control=ctrl with input=c means Ctrl+C)."
+            },
+            "parameters": [
+                {
+                    "name": "session_id",
+                    "description": { "zh": "会话 ID", "en": "Process session ID" },
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "input",
+                    "description": { "zh": "要写入的文本（可包含换行）", "en": "Text to write (can include newlines)" },
+                    "type": "string",
+                    "required": false
+                },
+                {
+                    "name": "control",
+                    "description": { "zh": "控制键或修饰键。单独传可发送控制键（如 enter/tab/esc/up/down）；与 input 同传时按组合键处理（如 control=ctrl, input=c）。", "en": "Control key or modifier. Used alone, it sends a control key (e.g. enter/tab/esc/up/down). When sent together with input, it is treated as a key combination (e.g. control=ctrl with input=c)." },
+                    "type": "string",
+                    "required": false
+                },
+                {
+                    "name": "repeat",
+                    "description": { "zh": "将本次输入重复 N 次（1..1000）", "en": "Repeat this write payload N times (1..1000)" },
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "timeout_ms",
+                    "description": { "zh": "本次 API 调用超时毫秒数（可选）", "en": "Timeout for this API call in ms (optional)" },
+                    "type": "number",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "windows_process_terminate",
+            "description": {
+                "zh": "终止进程会话，可选移除会话记录。",
+                "en": "Terminate a process session, with optional session removal."
+            },
+            "parameters": [
+                {
+                    "name": "session_id",
+                    "description": { "zh": "会话 ID", "en": "Process session ID" },
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "remove",
+                    "description": { "zh": "是否在终止后移除会话记录，默认 false", "en": "Whether to remove session record after termination, default false" },
+                    "type": "boolean",
+                    "required": false
+                },
+                {
+                    "name": "timeout_ms",
+                    "description": { "zh": "本次 API 调用超时毫秒数（可选）", "en": "Timeout for this API call in ms (optional)" },
+                    "type": "number",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "windows_process_list",
+            "description": {
+                "zh": "列出进程会话。",
+                "en": "List process sessions."
+            },
+            "parameters": [
+                {
+                    "name": "include_exited",
+                    "description": { "zh": "是否包含已退出会话，默认 true", "en": "Whether to include exited sessions, default true" },
+                    "type": "boolean",
+                    "required": false
+                },
+                {
+                    "name": "timeout_ms",
+                    "description": { "zh": "本次 API 调用超时毫秒数（可选）", "en": "Timeout for this API call in ms (optional)" },
+                    "type": "number",
+                    "required": false
+                }
+            ]
+        },
+        {
             "name": "windows_test_connection",
             "description": {
                 "zh": "测试 Agent HTTP 连通性，并执行 whoami 预设验证命令通道。",
@@ -251,6 +410,40 @@ type WindowsEditParams = {
     timeout_ms?: number | string;
 };
 
+type WindowsProcessStartParams = {
+    command?: string;
+    shell?: string;
+    max_runtime_ms?: number | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessReadParams = {
+    session_id?: string;
+    stdout_offset?: number | string;
+    stderr_offset?: number | string;
+    max_chars?: number | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessWriteParams = {
+    session_id?: string;
+    input?: string;
+    control?: string;
+    repeat?: number | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessTerminateParams = {
+    session_id?: string;
+    remove?: boolean | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessListParams = {
+    include_exited?: boolean | string;
+    timeout_ms?: number | string;
+};
+
 type AgentConfig = {
     baseUrl: string;
     token: string;
@@ -310,8 +503,43 @@ type WindowsFileResult = {
     agentVersion?: string;
 };
 
+type WindowsProcessResult = {
+    success: boolean;
+    agentBaseUrl?: string;
+    sessionId?: string;
+    shell?: ShellMode;
+    status?: string;
+    pid?: number;
+    createdAt?: string;
+    updatedAt?: string;
+    exitCode?: number;
+    timedOut?: boolean;
+    commandPreview?: string;
+    stdout?: string;
+    stderr?: string;
+    stdoutOffset?: number;
+    stderrOffset?: number;
+    stdoutLatestOffset?: number;
+    stderrLatestOffset?: number;
+    stdoutFromOffset?: number;
+    stderrFromOffset?: number;
+    stdoutAvailableFrom?: number;
+    stderrAvailableFrom?: number;
+    stdoutTruncated?: boolean;
+    stderrTruncated?: boolean;
+    hasMore?: boolean;
+    acceptedChars?: number;
+    wasRunning?: boolean;
+    signalSent?: boolean;
+    removed?: boolean;
+    items?: any[];
+    error?: string;
+    packageVersion?: string;
+    agentVersion?: string;
+};
+
 const windowsControl = (function () {
-    const WINDOWS_CONTROL_PACKAGE_VERSION = "0.1.0";
+    const WINDOWS_CONTROL_PACKAGE_VERSION = "0.2.0";
     const MAX_INLINE_WINDOWS_EXEC_OUTPUT_CHARS = 12_000;
 
     const ENV_KEYS = {
@@ -390,6 +618,32 @@ const windowsControl = (function () {
         }
 
         return Math.floor(parsed);
+    }
+
+    function parseOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+        const raw = asText(value).trim();
+        if (!raw) {
+            return undefined;
+        }
+
+        const normalized = raw.toLowerCase();
+        if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+            return true;
+        }
+
+        if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+            return false;
+        }
+
+        throw new Error(`Invalid ${fieldName}, expected boolean`);
+    }
+
+    function requireSessionId(value: unknown): string {
+        const sessionId = asText(value).trim();
+        if (!sessionId) {
+            throw new Error("Missing required parameter: session_id");
+        }
+        return sessionId;
     }
 
     function parseExpectedReplacements(value: unknown): number {
@@ -545,6 +799,28 @@ const windowsControl = (function () {
         return data;
     }
 
+    async function postProcessApi(
+        config: AgentConfig,
+        path: string,
+        payload: Record<string, unknown>,
+        timeoutMs: number
+    ): Promise<any> {
+        const requestBody = {
+            ...payload,
+            token: config.token || undefined
+        };
+
+        const response = await httpRequest(config, path, "POST", requestBody, timeoutMs);
+        const data = parseJson(response.content);
+
+        if (response.statusCode >= 400 || data.ok === false) {
+            const message = data && data.error ? asText(data.error) : `HTTP ${response.statusCode}`;
+            throw new Error(`Agent process request failed: ${message}`);
+        }
+
+        return data;
+    }
+
     async function persistWindowsExecOutputIfTooLong(
         command: string,
         shell: ShellMode,
@@ -664,6 +940,287 @@ const windowsControl = (function () {
                 agentVersion: versionCheck.remoteVersion,
                 error: commandData.ok ? "" : asText(commandData.error || commandData.stderr || "Command channel failed")
             };
+        } catch (error: any) {
+            return {
+                success: false,
+                packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
+                error: error && error.message ? error.message : String(error)
+            };
+        }
+    }
+
+    function mapProcessResult(config: AgentConfig, versionCheck: VersionCheckResult, data: any): WindowsProcessResult {
+        const result: WindowsProcessResult = {
+            success: true,
+            agentBaseUrl: config.baseUrl,
+            packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
+            agentVersion: versionCheck.remoteVersion
+        };
+
+        const sessionId = asText(data && data.sessionId).trim();
+        if (sessionId) {
+            result.sessionId = sessionId;
+        }
+
+        const shellValue = asText(data && data.shell).trim();
+        if (shellValue) {
+            result.shell = normalizeShell(shellValue, config.defaultShell);
+        }
+
+        const status = asText(data && data.status).trim();
+        if (status) {
+            result.status = status;
+        }
+
+        if (data && data.pid !== undefined && data.pid !== null && data.pid !== "") {
+            result.pid = Number(data.pid);
+        }
+
+        const createdAt = asText(data && data.createdAt).trim();
+        if (createdAt) {
+            result.createdAt = createdAt;
+        }
+
+        const updatedAt = asText(data && data.updatedAt).trim();
+        if (updatedAt) {
+            result.updatedAt = updatedAt;
+        }
+
+        if (data && data.exitCode !== undefined && data.exitCode !== null && data.exitCode !== "") {
+            result.exitCode = Number(data.exitCode);
+        }
+
+        if (data && data.timedOut !== undefined) {
+            result.timedOut = !!data.timedOut;
+        }
+
+        const commandPreview = asText(data && data.commandPreview).trim();
+        if (commandPreview) {
+            result.commandPreview = commandPreview;
+        }
+
+        if (data && data.stdout !== undefined) {
+            result.stdout = asText(data.stdout);
+        }
+
+        if (data && data.stderr !== undefined) {
+            result.stderr = asText(data.stderr);
+        }
+
+        if (data && data.stdoutOffset !== undefined && data.stdoutOffset !== null && data.stdoutOffset !== "") {
+            result.stdoutOffset = Number(data.stdoutOffset);
+        }
+
+        if (data && data.stderrOffset !== undefined && data.stderrOffset !== null && data.stderrOffset !== "") {
+            result.stderrOffset = Number(data.stderrOffset);
+        }
+
+        if (data && data.stdoutLatestOffset !== undefined && data.stdoutLatestOffset !== null && data.stdoutLatestOffset !== "") {
+            result.stdoutLatestOffset = Number(data.stdoutLatestOffset);
+        }
+
+        if (data && data.stderrLatestOffset !== undefined && data.stderrLatestOffset !== null && data.stderrLatestOffset !== "") {
+            result.stderrLatestOffset = Number(data.stderrLatestOffset);
+        }
+
+        if (data && data.stdoutFromOffset !== undefined && data.stdoutFromOffset !== null && data.stdoutFromOffset !== "") {
+            result.stdoutFromOffset = Number(data.stdoutFromOffset);
+        }
+
+        if (data && data.stderrFromOffset !== undefined && data.stderrFromOffset !== null && data.stderrFromOffset !== "") {
+            result.stderrFromOffset = Number(data.stderrFromOffset);
+        }
+
+        if (data && data.stdoutAvailableFrom !== undefined && data.stdoutAvailableFrom !== null && data.stdoutAvailableFrom !== "") {
+            result.stdoutAvailableFrom = Number(data.stdoutAvailableFrom);
+        }
+
+        if (data && data.stderrAvailableFrom !== undefined && data.stderrAvailableFrom !== null && data.stderrAvailableFrom !== "") {
+            result.stderrAvailableFrom = Number(data.stderrAvailableFrom);
+        }
+
+        if (data && data.stdoutTruncated !== undefined) {
+            result.stdoutTruncated = !!data.stdoutTruncated;
+        }
+
+        if (data && data.stderrTruncated !== undefined) {
+            result.stderrTruncated = !!data.stderrTruncated;
+        }
+
+        if (data && data.hasMore !== undefined) {
+            result.hasMore = !!data.hasMore;
+        }
+
+        if (data && data.acceptedChars !== undefined && data.acceptedChars !== null && data.acceptedChars !== "") {
+            result.acceptedChars = Number(data.acceptedChars);
+        }
+
+        if (data && data.wasRunning !== undefined) {
+            result.wasRunning = !!data.wasRunning;
+        }
+
+        if (data && data.signalSent !== undefined) {
+            result.signalSent = !!data.signalSent;
+        }
+
+        if (data && data.removed !== undefined) {
+            result.removed = !!data.removed;
+        }
+
+        if (Array.isArray(data && data.items)) {
+            result.items = data.items;
+        }
+
+        return result;
+    }
+
+    async function windows_process_start(params?: WindowsProcessStartParams): Promise<WindowsProcessResult> {
+        try {
+            const config = resolveAgentConfig();
+            const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
+            const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+            const shell = normalizeShell(params && params.shell, config.defaultShell);
+            const command = asText(params && params.command);
+            const maxRuntimeMs = parseOptionalPositiveInt(params && params.max_runtime_ms, "max_runtime_ms");
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/start",
+                {
+                    shell,
+                    command: command || undefined,
+                    max_runtime_ms: maxRuntimeMs === undefined ? undefined : maxRuntimeMs
+                },
+                timeoutMs
+            );
+
+            return mapProcessResult(config, versionCheck, data);
+        } catch (error: any) {
+            return {
+                success: false,
+                packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
+                error: error && error.message ? error.message : String(error)
+            };
+        }
+    }
+
+    async function windows_process_read(params?: WindowsProcessReadParams): Promise<WindowsProcessResult> {
+        try {
+            const config = resolveAgentConfig();
+            const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
+            const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+            const sessionId = requireSessionId(params && params.session_id);
+            const stdoutOffset = parseOptionalNonNegativeInt(params && params.stdout_offset, "stdout_offset");
+            const stderrOffset = parseOptionalNonNegativeInt(params && params.stderr_offset, "stderr_offset");
+            const maxChars = parseOptionalPositiveInt(params && params.max_chars, "max_chars");
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/read",
+                {
+                    session_id: sessionId,
+                    stdout_offset: stdoutOffset === undefined ? 0 : stdoutOffset,
+                    stderr_offset: stderrOffset === undefined ? 0 : stderrOffset,
+                    max_chars: maxChars === undefined ? undefined : maxChars
+                },
+                timeoutMs
+            );
+
+            return mapProcessResult(config, versionCheck, data);
+        } catch (error: any) {
+            return {
+                success: false,
+                packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
+                error: error && error.message ? error.message : String(error)
+            };
+        }
+    }
+
+    async function windows_process_write(params?: WindowsProcessWriteParams): Promise<WindowsProcessResult> {
+        try {
+            const config = resolveAgentConfig();
+            const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
+            const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+            const sessionId = requireSessionId(params && params.session_id);
+
+            const hasInput = !!(params && params.input !== undefined && params.input !== null);
+            const hasControl = !!(params && params.control !== undefined && params.control !== null && String(params.control).trim() !== "");
+
+            if (!hasInput && !hasControl) {
+                throw new Error("Missing required input: provide input or control");
+            }
+
+            const input = hasInput ? asText(params && params.input) : undefined;
+            const control = hasControl ? asText(params && params.control) : undefined;
+            const repeat = parseOptionalPositiveInt(params && params.repeat, "repeat");
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/write",
+                {
+                    session_id: sessionId,
+                    input,
+                    control,
+                    repeat: repeat === undefined ? undefined : repeat
+                },
+                timeoutMs
+            );
+
+            return mapProcessResult(config, versionCheck, data);
+        } catch (error: any) {
+            return {
+                success: false,
+                packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
+                error: error && error.message ? error.message : String(error)
+            };
+        }
+    }
+
+    async function windows_process_terminate(params?: WindowsProcessTerminateParams): Promise<WindowsProcessResult> {
+        try {
+            const config = resolveAgentConfig();
+            const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
+            const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+            const sessionId = requireSessionId(params && params.session_id);
+            const remove = parseOptionalBoolean(params && params.remove, "remove");
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/terminate",
+                {
+                    session_id: sessionId,
+                    remove: remove === undefined ? undefined : remove
+                },
+                timeoutMs
+            );
+
+            return mapProcessResult(config, versionCheck, data);
+        } catch (error: any) {
+            return {
+                success: false,
+                packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
+                error: error && error.message ? error.message : String(error)
+            };
+        }
+    }
+
+    async function windows_process_list(params?: WindowsProcessListParams): Promise<WindowsProcessResult> {
+        try {
+            const config = resolveAgentConfig();
+            const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
+            const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+            const includeExited = parseOptionalBoolean(params && params.include_exited, "include_exited");
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/list",
+                {
+                    include_exited: includeExited === undefined ? true : includeExited
+                },
+                timeoutMs
+            );
+
+            return mapProcessResult(config, versionCheck, data);
         } catch (error: any) {
             return {
                 success: false,
@@ -882,6 +1439,11 @@ const windowsControl = (function () {
 
     return {
         windows_exec,
+        windows_process_start,
+        windows_process_read,
+        windows_process_write,
+        windows_process_terminate,
+        windows_process_list,
         windows_test_connection,
         windows_check_connection: windows_test_connection,
         read,
@@ -891,6 +1453,11 @@ const windowsControl = (function () {
 })();
 
 exports.windows_exec = windowsControl.windows_exec;
+exports.windows_process_start = windowsControl.windows_process_start;
+exports.windows_process_read = windowsControl.windows_process_read;
+exports.windows_process_write = windowsControl.windows_process_write;
+exports.windows_process_terminate = windowsControl.windows_process_terminate;
+exports.windows_process_list = windowsControl.windows_process_list;
 exports.windows_test_connection = windowsControl.windows_test_connection;
 exports.windows_check_connection = windowsControl.windows_check_connection;
 exports.read = windowsControl.read;

@@ -120,6 +120,15 @@ server.listen(state.config.port, state.config.bindAddress, () => {
 
 function shutdown(signal) {
   logger.info("server.shutdown", { signal: signal || "unknown" });
+
+  try {
+    processService.terminateAllSessions();
+  } catch (error) {
+    logger.error("server.shutdown.terminateAllSessions.error", {
+      error: error && error.message ? error.message : String(error)
+    });
+  }
+
   runtimeStore.removeRuntimeFile();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 2000);

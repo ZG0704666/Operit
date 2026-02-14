@@ -85,7 +85,7 @@ object MessageImageGenerator {
         thinkingBackgroundColor: Color,
         thinkingTextColor: Color,
         chatStyle: ChatStyle = ChatStyle.CURSOR,
-        width: Int = 1080
+        width: Int = 1440
     ): File {
         try {
             AppLogger.d(TAG, "开始生成消息图片（使用 Capturable），消息数量: ${messages.size}, 宽度: $width, 风格: $chatStyle")
