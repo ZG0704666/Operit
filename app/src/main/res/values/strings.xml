@@ -883,7 +883,14 @@
     <string name="path_copied_to_clipboard">路径已复制到剪贴板</string>
     <string name="open_file_manager">打开文件管理器</string>
     <string name="navigate_to_external_files">请导航到Android/data/com.ai.assistance.operit/files/packages目录</string>
-    <string name="package_js_only">仅支持JavaScript文件</string>
+    <string name="package_js_only">仅支持 JavaScript(.js) 和 ToolPkg(.toolpkg) 文件</string>
+    <string name="pkg_toolpkg_subpackages">ToolPkg 子包</string>
+    <string name="pkg_toolpkg_version">版本：%1$s</string>
+    <string name="pkg_toolpkg_resources">资源数：%1$d</string>
+    <string name="pkg_toolpkg_ui_modules">UI 模块数：%1$d</string>
+    <string name="pkg_toolpkg_empty_subpackages">该 ToolPkg 未声明任何子包</string>
+    <string name="pkg_toolpkg_tool_count">工具数：%1$d</string>
+    <string name="pkg_toolpkg_subpackage_toggle_failed">子包开关失败，请重试</string>
     <string name="automation_json_only">仅支持JSON文件</string>
     <string name="no_filename">无法获取文件名</string>
     <string name="external_package_imported">外部包已导入</string>

@@ -4,7 +4,19 @@ import argparse
 import json
 import shutil
 import sys
+import zipfile
+from dataclasses import dataclass
 from pathlib import Path
+
+MANIFEST_FILENAMES = ("manifest.hjson", "manifest.json")
+SYNCABLE_SUFFIXES = {".js", ".toolpkg"}
+
+
+@dataclass(frozen=True)
+class SyncPlanItem:
+    mode: str  # copy | pack
+    source: Path
+    destination_name: str
 
 
 def _read_whitelist_file(path: Path) -> list[str]:
@@ -29,18 +41,98 @@ def _read_whitelist_file(path: Path) -> list[str]:
 
 
 def _normalize_item(item: str) -> str:
-    s = item.strip().replace("\\", "/")
-    if not s:
-        return s
-    if not s.lower().endswith(".js"):
-        s = f"{s}.js"
-    return s
+    return item.strip().replace("\\", "/").strip().strip("/")
 
 
 def _default_whitelist(packages_dir: Path) -> list[str]:
     if not packages_dir.exists():
         return []
-    return sorted([p.name for p in packages_dir.glob("*.js") if p.is_file()])
+
+    names: list[str] = []
+    for p in packages_dir.iterdir():
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in SYNCABLE_SUFFIXES:
+            continue
+        names.append(p.name)
+    return sorted(names)
+
+
+def _find_manifest_file(folder: Path) -> Path | None:
+    for file_name in MANIFEST_FILENAMES:
+        manifest = folder / file_name
+        if manifest.is_file():
+            return manifest
+    return None
+
+
+def _resolve_existing_path(path: Path) -> SyncPlanItem | None:
+    if path.is_file() and path.suffix.lower() in SYNCABLE_SUFFIXES:
+        return SyncPlanItem(mode="copy", source=path, destination_name=path.name)
+
+    if path.is_dir() and _find_manifest_file(path):
+        return SyncPlanItem(mode="pack", source=path, destination_name=f"{path.name}.toolpkg")
+
+    return None
+
+
+def _resolve_plan_item(examples_dir: Path, item: str) -> SyncPlanItem | None:
+    normalized = _normalize_item(item)
+    if not normalized:
+        return None
+
+    stem = normalized
+    lower_stem = stem.lower()
+    if lower_stem.endswith(".js"):
+        stem = stem[:-3]
+    elif lower_stem.endswith(".toolpkg"):
+        stem = stem[:-8]
+
+    stem = stem.rstrip("/")
+
+    # Prefer manifest folder over flat .js/.toolpkg with the same stem.
+    if stem:
+        folder_candidate = examples_dir / stem
+        if folder_candidate.is_dir() and _find_manifest_file(folder_candidate):
+            return SyncPlanItem(mode="pack", source=folder_candidate, destination_name=f"{folder_candidate.name}.toolpkg")
+
+    direct_path = examples_dir / normalized
+    direct_result = _resolve_existing_path(direct_path)
+    if direct_result is not None:
+        return direct_result
+
+    if not stem:
+        return None
+
+    js_candidate = examples_dir / f"{stem}.js"
+    if js_candidate.is_file():
+        return SyncPlanItem(mode="copy", source=js_candidate, destination_name=js_candidate.name)
+
+    toolpkg_candidate = examples_dir / f"{stem}.toolpkg"
+    if toolpkg_candidate.is_file():
+        return SyncPlanItem(mode="copy", source=toolpkg_candidate, destination_name=toolpkg_candidate.name)
+
+    return None
+
+
+def _iter_files_for_pack(folder: Path) -> list[Path]:
+    files: list[Path] = []
+    for p in folder.rglob("*"):
+        if p.is_file():
+            files.append(p)
+    files.sort(key=lambda x: x.relative_to(folder).as_posix())
+    return files
+
+
+def _pack_toolpkg_folder(source_folder: Path, destination_file: Path) -> None:
+    if _find_manifest_file(source_folder) is None:
+        raise ValueError(f"Missing manifest.hjson or manifest.json: {source_folder}")
+
+    destination_file.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(destination_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for file_path in _iter_files_for_pack(source_folder):
+            arcname = file_path.relative_to(source_folder).as_posix()
+            zf.write(file_path, arcname)
 
 
 def main() -> int:
@@ -51,8 +143,9 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Copy whitelisted .js files from examples/ into app/src/main/assets/packages/. "
-            "Whitelist can be provided by a file (txt/json) or derived from current assets/packages contents."
+            "Sync packages from examples/ into app/src/main/assets/packages/. "
+            "If an item maps to a folder that has manifest.hjson/manifest.json, it is packed as .toolpkg; "
+            "otherwise .js/.toolpkg files are copied directly."
         )
     )
     parser.add_argument(
@@ -68,17 +161,20 @@ def main() -> int:
         "--include",
         action="append",
         default=[],
-        help="Add an extra item to whitelist (e.g. github.js or github). Can be provided multiple times.",
+        help=(
+            "Add an extra item to whitelist (e.g. github.js, github, windows_control, or a manifest folder path). "
+            "Can be provided multiple times."
+        ),
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show what would be copied without writing files.",
+        help="Show what would be copied/packed without writing files.",
     )
     parser.add_argument(
         "--delete-extra",
         action="store_true",
-        help="Delete *.js in assets/packages that are not in the whitelist.",
+        help="Delete *.js and *.toolpkg in assets/packages that are not in the resolved whitelist outputs.",
     )
 
     args = parser.parse_args()
@@ -96,6 +192,7 @@ def main() -> int:
         whitelist = _default_whitelist(packages_dir)
 
     whitelist.extend(args.include)
+
     normalized = [_normalize_item(x) for x in whitelist]
     normalized = [x for x in normalized if x]
 
@@ -116,36 +213,63 @@ def main() -> int:
         packages_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0
+    packed = 0
     missing = 0
 
+    plans: list[SyncPlanItem] = []
+    seen_dest_names: set[str] = set()
+
     for item in final_items:
-        src = examples_dir / item
-        if not src.exists() or not src.is_file():
-            print(f"MISSING: {src}")
+        plan = _resolve_plan_item(examples_dir, item)
+        if plan is None:
+            print(f"MISSING: {examples_dir / item}")
             missing += 1
             continue
 
-        dest = packages_dir / src.name
-        action = "COPY" if not args.dry_run else "DRY-COPY"
-        print(f"{action}: {src} -> {dest}")
+        if plan.destination_name in seen_dest_names:
+            print(f"SKIP-DUP: {item} -> {plan.destination_name}")
+            continue
 
+        seen_dest_names.add(plan.destination_name)
+        plans.append(plan)
+
+    for plan in plans:
+        dest = packages_dir / plan.destination_name
+
+        if plan.mode == "copy":
+            action = "COPY" if not args.dry_run else "DRY-COPY"
+            print(f"{action}: {plan.source} -> {dest}")
+            if not args.dry_run:
+                shutil.copy2(plan.source, dest)
+                copied += 1
+            continue
+
+        action = "PACK" if not args.dry_run else "DRY-PACK"
+        print(f"{action}: {plan.source} -> {dest}")
         if not args.dry_run:
-            shutil.copy2(src, dest)
-            copied += 1
+            _pack_toolpkg_folder(plan.source, dest)
+            packed += 1
 
     if args.delete_extra and packages_dir.exists():
-        whitelist_names = {Path(x).name for x in final_items}
-        for p in packages_dir.glob("*.js"):
+        whitelist_names = {plan.destination_name for plan in plans}
+        for p in packages_dir.iterdir():
             if not p.is_file():
+                continue
+            if p.suffix.lower() not in SYNCABLE_SUFFIXES:
                 continue
             if p.name in whitelist_names:
                 continue
+
             action = "DELETE" if not args.dry_run else "DRY-DELETE"
             print(f"{action}: {p}")
             if not args.dry_run:
                 p.unlink(missing_ok=True)
 
-    print(f"Done. copied={copied}, missing={missing}, whitelist={len(final_items)}, dry_run={bool(args.dry_run)}")
+    print(
+        "Done. "
+        f"copied={copied}, packed={packed}, missing={missing}, "
+        f"whitelist={len(final_items)}, resolved={len(plans)}, dry_run={bool(args.dry_run)}"
+    )
     return 0 if missing == 0 else 1
 
 

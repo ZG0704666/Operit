@@ -94,6 +94,7 @@ fun PackageManagerScreen(
     // State for script execution
     var showScriptExecution by remember { mutableStateOf(false) }
     var selectedTool by remember { mutableStateOf<PackageTool?>(null) }
+    var selectedToolPackageName by remember { mutableStateOf<String?>(null) }
     var scriptExecutionResult by remember { mutableStateOf<ToolResult?>(null) }
 
     // State for snackbar
@@ -115,7 +116,9 @@ fun PackageManagerScreen(
             val imported = importedPackages.value.toSet()
 
             imported
-                .mapNotNull { packageName -> packagesMap[packageName] }
+                .mapNotNull { packageName ->
+                    packagesMap[packageName] ?: packageManager.getPackageTools(packageName)
+                }
                 .sortedBy { it.name }
                 .associate { toolPackage ->
                     toolPackage.name to toolPackage.env
@@ -162,7 +165,11 @@ fun PackageManagerScreen(
                         when (selectedTab) {
                             PackageTab.PACKAGES -> {
                                 val fileNameNonNull = fileName ?: return@launch
-                                if (!fileNameNonNull.endsWith(".js")) {
+                                val lowerFileName = fileNameNonNull.lowercase()
+                                val supported =
+                                    lowerFileName.endsWith(".js") ||
+                                        lowerFileName.endsWith(".toolpkg")
+                                if (!supported) {
                                     snackbarHostState.showSnackbar(message = context.getString(R.string.package_js_only))
                                     return@launch
                                 }
@@ -179,7 +186,7 @@ fun PackageManagerScreen(
 
                                         packageManager.importPackageFromExternalStorage(tempFile.absolutePath)
 
-                                        val available = packageManager.getAvailablePackages(forceRefresh = true)
+                                        val available = packageManager.getTopLevelAvailablePackages(forceRefresh = true)
                                         val imported = packageManager.getImportedPackages()
                                         val errors = packageManager.getPackageLoadErrors()
 
@@ -221,7 +228,7 @@ fun PackageManagerScreen(
         try {
             val loadResult =
                 withContext(Dispatchers.IO) {
-                    val available = packageManager.getAvailablePackages(forceRefresh = true)
+                    val available = packageManager.getTopLevelAvailablePackages(forceRefresh = true)
                     val imported = packageManager.getImportedPackages()
                     val errors = packageManager.getPackageLoadErrors()
                     Triple(available, imported, errors)
@@ -524,6 +531,7 @@ fun PackageManagerScreen(
                                                 PackageListItemWithTag(
                                                     packageName = packageName,
                                                     toolPackage = packagesInCategory[packageName],
+                                                    packageManager = packageManager,
                                                     isImported = visibleImportedPackages.value.contains(
                                                         packageName
                                                     ),
@@ -626,11 +634,19 @@ fun PackageManagerScreen(
                         ?: "",
                     toolPackage = availablePackages.value[selectedPackage],
                     packageManager = packageManager,
-                    onRunScript = { tool ->
+                    onRunScript = { toolPackageName, tool ->
+                        selectedToolPackageName = toolPackageName
                         selectedTool = tool
                         showScriptExecution = true
                     },
-                    onDismiss = { showDetails = false },
+                    onDismiss = {
+                        showDetails = false
+                        scope.launch {
+                            val imported = withContext(Dispatchers.IO) { packageManager.getImportedPackages() }
+                            importedPackages.value = imported
+                            visibleImportedPackages.value = imported.toList()
+                        }
+                    },
                     onPackageDeleted = {
                         showDetails = false
                         scope.launch {
@@ -642,7 +658,7 @@ fun PackageManagerScreen(
                             isLoading = true
                             val loadResult =
                                 withContext(Dispatchers.IO) {
-                                    val available = packageManager.getAvailablePackages(forceRefresh = true)
+                                    val available = packageManager.getTopLevelAvailablePackages(forceRefresh = true)
                                     val imported = packageManager.getImportedPackages()
                                     available to imported
                                 }
@@ -664,7 +680,7 @@ fun PackageManagerScreen(
             // Script Execution Dialog
             if (showScriptExecution && selectedTool != null && selectedPackage != null) {
                 ScriptExecutionDialog(
-                    packageName = selectedPackage!!,
+                    packageName = selectedToolPackageName ?: selectedPackage!!,
                     tool = selectedTool!!,
                     packageManager = packageManager,
                     initialResult = scriptExecutionResult,
@@ -672,6 +688,7 @@ fun PackageManagerScreen(
                     onDismiss = {
                         showScriptExecution = false
                         scriptExecutionResult = null
+                        selectedToolPackageName = null
                     }
                 )
             }
@@ -952,6 +969,7 @@ private fun PackageEnvironmentVariablesDialog(
 private fun PackageListItemWithTag(
     packageName: String,
     toolPackage: ToolPackage?,
+    packageManager: PackageManager,
     isImported: Boolean,
     categoryTag: String?,
     category: String, // 新增分类参数
@@ -960,6 +978,20 @@ private fun PackageListItemWithTag(
     onToggleImport: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
+    val containerDisplayName =
+        if (packageManager.isToolPkgContainer(packageName)) {
+            packageManager
+                .getToolPkgContainerDetails(
+                    packageName = packageName,
+                    resolveContext = context
+                )
+                ?.displayName
+                ?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+    val displayName = containerDisplayName ?: toolPackage?.name ?: packageName
+
     Surface(
         onClick = onPackageClick,
         modifier = Modifier.fillMaxWidth(),
@@ -1016,7 +1048,7 @@ private fun PackageListItemWithTag(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = toolPackage?.name ?: packageName,
+                        text = displayName,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,

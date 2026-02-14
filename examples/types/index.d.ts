@@ -37,6 +37,11 @@ import {
 import { Intent as AndroidIntent, IntentFlag as AndroidIntentFlag, IntentAction as AndroidIntentAction, IntentCategory as AndroidIntentCategory } from './android';
 import { UINode as UINodeClass, UI as UINamespace } from './ui';
 import { Android as AndroidClass } from './android';
+import {
+    ComposeDslContext as ComposeDslContextType,
+    ComposeDslScreen as ComposeDslScreenType,
+    ComposeNode as ComposeNodeType
+} from './compose-dsl';
 
 // Export core interfaces and functions
 export * from './core';
@@ -46,6 +51,9 @@ export * from './results';
 
 // Export tool type definitions
 export * from './tool-types';
+
+// Export compose-dsl definitions for toolpkg ui_modules
+export * from './compose-dsl';
 
 import { Files as FilesType } from './files';
 import { Net as NetType } from './network';
@@ -94,6 +102,9 @@ declare global {
     // Make classes available as types too
     type UINode = UINodeClass;
     type Android = AndroidClass;
+    type ComposeDslContext = ComposeDslContextType;
+    type ComposeDslScreen = ComposeDslScreenType;
+    type ComposeNode = ComposeNodeType;
 
 
     // Make result types available globally

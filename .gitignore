@@ -52,3 +52,6 @@ kls_database.db
 .codex
 operit-pc-agent.zip
 .uv-caches
+
+# generated toolpkg bundles
+*.toolpkg

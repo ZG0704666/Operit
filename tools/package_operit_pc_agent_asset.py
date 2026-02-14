@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Package tools/operit-pc-agent into app assets as a deterministic ZIP.
+"""Package tools/operit-pc-agent into windows_control toolpkg resources as a deterministic ZIP.
 
 Default output:
-    app/src/main/assets/pc_agent/operit-pc-agent.zip
+    examples/windows_control/resources/pc_agent/operit-pc-agent.zip
 """
 
 from __future__ import annotations
@@ -97,9 +97,9 @@ def write_zip(source_root: Path, output_zip: Path, zip_root: str) -> tuple[int, 
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
     default_source = repo_root / "tools" / "operit-pc-agent"
-    default_output = repo_root / "app" / "src" / "main" / "assets" / "pc_agent" / "operit-pc-agent.zip"
+    default_output = repo_root / "examples" / "windows_control" / "resources" / "pc_agent" / "operit-pc-agent.zip"
 
-    parser = argparse.ArgumentParser(description="Package operit-pc-agent into app assets.")
+    parser = argparse.ArgumentParser(description="Package operit-pc-agent into windows_control toolpkg resources.")
     parser.add_argument(
         "--source",
         type=Path,

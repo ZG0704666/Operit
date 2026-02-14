@@ -3,12 +3,10 @@ package com.ai.assistance.operit.core.tools.javascript
 import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.LocaleUtils
-import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
-import java.util.regex.Pattern
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -57,9 +55,6 @@ private constructor(private val context: Context, private val packageManager: Pa
     private fun releaseEngine(engine: JsEngine) {
         enginePool.trySend(engine)
     }
-
-    // Tool handler for executing tools
-    private val toolHandler = AIToolHandler.getInstance(context)
 
     /**
      * Execute a specific JavaScript tool
@@ -312,6 +307,64 @@ private constructor(private val context: Context, private val packageManager: Pa
             )
         } finally {
             engine?.let { releaseEngine(it) }
+        }
+    }
+
+    fun executeComposeDsl(
+            script: String,
+            packageName: String = "",
+            uiModuleId: String = "",
+            toolPkgId: String = "",
+            state: Map<String, Any?> = emptyMap(),
+            memo: Map<String, Any?> = emptyMap(),
+            moduleSpec: Map<String, Any?> = emptyMap(),
+            envOverrides: Map<String, String> = emptyMap()
+    ): String {
+        val engine = acquireEngineBlocking()
+        try {
+            val runtimeOptions = mutableMapOf<String, Any?>()
+            if (packageName.isNotBlank()) {
+                runtimeOptions["packageName"] = packageName
+            }
+            if (uiModuleId.isNotBlank()) {
+                runtimeOptions["uiModuleId"] = uiModuleId
+            }
+            if (toolPkgId.isNotBlank()) {
+                runtimeOptions["toolPkgId"] = toolPkgId
+            }
+            if (state.isNotEmpty()) {
+                runtimeOptions["state"] = state
+            }
+            if (memo.isNotEmpty()) {
+                runtimeOptions["memo"] = memo
+            }
+            if (moduleSpec.isNotEmpty()) {
+                runtimeOptions["moduleSpec"] = moduleSpec
+            }
+
+            if (packageName.isNotBlank()) {
+                val stateId = packageManager.getActivePackageStateId(packageName)
+                if (!stateId.isNullOrBlank()) {
+                    runtimeOptions["__operit_package_state"] = stateId
+                }
+            }
+            val language = LocaleUtils.getCurrentLanguage(context)
+            if (language.isNotBlank()) {
+                runtimeOptions["__operit_package_lang"] = language
+            }
+
+            val result =
+                    engine.executeComposeDslScript(
+                            script = script,
+                            runtimeOptions = runtimeOptions,
+                            envOverrides = envOverrides
+                    )
+            return result?.toString() ?: "null"
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Error executing compose_dsl script: ${e.message}", e)
+            return "Error: ${e.message}"
+        } finally {
+            releaseEngine(engine)
         }
     }
 

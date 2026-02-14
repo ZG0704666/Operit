@@ -28,4 +28,4 @@ openai_draw.js
 all_about_myself.js
 vflow_trigger.js
 web.js
-windows_control.js
+windows_control

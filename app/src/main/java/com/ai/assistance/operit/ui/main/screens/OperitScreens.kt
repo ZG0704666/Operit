@@ -68,6 +68,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.StreamMarkdownDemoSc
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.ToolPkgComposeDslToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.DefaultAssistantGuideToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ProcessLimitRemoverToolScreen
@@ -79,7 +80,6 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToS
 import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.autoglm.AutoGlmOneClickToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.autoglm.AutoGlmToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.windowscontrol.WindowsControlOneClickToolScreen
 import com.ai.assistance.operit.ui.features.update.screens.UpdateScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowListScreen
 import com.ai.assistance.operit.ui.features.workflow.screens.WorkflowDetailScreen
@@ -400,8 +400,16 @@ sealed class Screen(
                     onHtmlPackagerSelected = { navigateTo(HtmlPackager) },
                     onAutoGlmOneClickSelected = { navigateTo(AutoGlmOneClick) },
                     onAutoGlmToolSelected = { navigateTo(AutoGlmTool) },
-                    onWindowsControlOneClickSelected = { navigateTo(WindowsControlOneClick) },
-                    onSqlViewerSelected = { navigateTo(SqlViewer) }
+                    onSqlViewerSelected = { navigateTo(SqlViewer) },
+                    onToolPkgComposeDslSelected = { containerPackageName, uiModuleId, title ->
+                        navigateTo(
+                            ToolPkgComposeDsl(
+                                containerPackageName = containerPackageName,
+                                uiModuleId = uiModuleId,
+                                title = title
+                            )
+                        )
+                    }
             )
         }
     }
@@ -1027,6 +1035,34 @@ sealed class Screen(
         }
     }
 
+    data class ToolPkgComposeDsl(
+        val containerPackageName: String,
+        val uiModuleId: String,
+        val title: String
+    ) : Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            ToolPkgComposeDslToolScreen(
+                navController = navController,
+                containerPackageName = containerPackageName,
+                uiModuleId = uiModuleId,
+                fallbackTitle = title
+            )
+        }
+
+        @Composable
+        override fun getTitle(): String = title
+    }
+
     // Toolbox secondary screens
 
     data object FileManager :
@@ -1360,23 +1396,6 @@ sealed class Screen(
         }
     }
 
-    data object WindowsControlOneClick :
-            Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = R.string.screen_title_windows_control_one_click) {
-        @Composable
-        override fun Content(
-                navController: NavController,
-                navigateTo: ScreenNavigationHandler,
-                updateNavItem: NavItemChangeHandler,
-                onGoBack: () -> Unit,
-                hasBackgroundImage: Boolean,
-                onLoading: (Boolean) -> Unit,
-                onError: (String) -> Unit,
-                onGestureConsumed: (Boolean) -> Unit
-        ) {
-            WindowsControlOneClickToolScreen(navController = navController)
-        }
-    }
-
     // MCP 插件详情页面
     data class MCPPluginDetail(val issue: com.ai.assistance.operit.data.api.GitHubIssue) :
             Screen(parentScreen = Packages, navItem = NavItem.Packages) {
@@ -1400,7 +1419,7 @@ sealed class Screen(
 
     // 获取屏幕标题
     @Composable
-    fun getTitle(): String = titleRes?.let { stringResource(it) } ?: ""
+    open fun getTitle(): String = titleRes?.let { stringResource(it) } ?: ""
 
     // 判断是否为二级屏幕
     val isSecondaryScreen: Boolean

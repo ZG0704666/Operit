@@ -10,6 +10,7 @@ import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.BooleanResultData
 import com.ai.assistance.operit.core.tools.IntResultData
 import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import java.util.concurrent.CompletableFuture
@@ -20,15 +21,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.json.JSONObject
-import java.security.MessageDigest
-import javax.crypto.Cipher
-import javax.crypto.spec.SecretKeySpec
 import com.ai.assistance.operit.data.preferences.EnvPreferences
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
 import android.util.Base64
 import com.ai.assistance.operit.core.tools.BinaryResultData
 import com.ai.assistance.operit.core.tools.javascript.JsTimeoutConfig
@@ -37,9 +31,6 @@ import com.ai.assistance.operit.util.OperitPaths
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * JavaScript 引擎 - 通过 WebView 执行 JavaScript 脚本 提供与 Android 原生代码的交互机制
@@ -81,6 +72,7 @@ class JsEngine(private val context: Context) {
 
     // 工具处理器
     private val toolHandler = AIToolHandler.getInstance(context)
+    private val packageManager by lazy { PackageManager.getInstance(context, toolHandler) }
 
     // 工具调用接口
     private val toolCallInterface = JsToolCallInterface()
@@ -88,9 +80,6 @@ class JsEngine(private val context: Context) {
     // 结果回调
     private var resultCallback: CompletableFuture<Any?>? = null
     private var intermediateResultCallback: ((Any?) -> Unit)? = null
-
-    // 用于生成唯一ID的计数器
-    private var callbackCounter = 0
 
     // 用于存储工具调用的回调
     private val toolCallbacks = mutableMapOf<String, CompletableFuture<String>>()
@@ -130,6 +119,10 @@ class JsEngine(private val context: Context) {
             }
             latch.await(10, TimeUnit.SECONDS)
         }
+    }
+
+    private fun getComposeDslContextBridgeDefinition(): String {
+        return buildComposeDslContextBridgeDefinition()
     }
 
     /** 初始化 JavaScript 环境 加载核心功能、工具库和辅助函数 这些代码只需要执行一次 */
@@ -507,7 +500,10 @@ class JsEngine(private val context: Context) {
             
             // 加载工具调用的便捷方法
             ${getJsToolsDefinition()}
-            
+
+            // compose_dsl 上下文桥接（让 UI 脚本可直接使用 toolCall / Tools）
+            ${getComposeDslContextBridgeDefinition()}
+             
             // 定义完成回调
             function complete(result) {
                 try {
@@ -771,6 +767,7 @@ class JsEngine(private val context: Context) {
 
         // 将参数转换为 JSON 对象
         val paramsJson = JSONObject(params).toString()
+        val scriptJson = JSONObject.quote(script)
 
         // 优化后的脚本执行代码，只包含必要的执行逻辑
         val executionScript =
@@ -847,12 +844,315 @@ class JsEngine(private val context: Context) {
                     const module = {exports: {}};
                     const exports = module.exports;
                     
-                    // 模拟requireJS
-                    const require = function(moduleName) {
-                        console.log('Attempted to require: ' + moduleName);
-                        // 这里可以扩展，添加对常用模块的模拟
+                    const __operitPackageTarget =
+                        (params &&
+                            params.__operit_ui_package_name !== undefined &&
+                            params.__operit_ui_package_name !== null &&
+                            String(params.__operit_ui_package_name).length > 0)
+                            ? String(params.__operit_ui_package_name)
+                            : ((params &&
+                                params.toolPkgId !== undefined &&
+                                params.toolPkgId !== null &&
+                                String(params.toolPkgId).length > 0)
+                                ? String(params.toolPkgId)
+                                : "");
+                    const __operitEntryPath =
+                        (params &&
+                            params.__operit_script_entry !== undefined &&
+                            params.__operit_script_entry !== null &&
+                            String(params.__operit_script_entry).length > 0)
+                            ? String(params.__operit_script_entry).replace(/\\/g, '/')
+                            : ((params &&
+                                params.moduleSpec &&
+                                params.moduleSpec.entry !== undefined &&
+                                params.moduleSpec.entry !== null &&
+                                String(params.moduleSpec.entry).length > 0)
+                                ? String(params.moduleSpec.entry).replace(/\\/g, '/')
+                                : "");
+                    const __operitModuleCache = {};
+
+                    function __operitTranspileEsmToCjs(sourceCode, modulePath) {
+                        var code = String(sourceCode || '');
+
+                        code = code.replace(
+                            /^\s*import\s+['"]([^'"]+)['"]\s*;?\s*$/gm,
+                            function(_, mod) {
+                                return "require('" + mod + "');";
+                            }
+                        );
+                        code = code.replace(
+                            /^\s*import\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/gm,
+                            function(_, localName, mod) {
+                                return "const " + localName + " = require('" + mod + "');";
+                            }
+                        );
+                        code = code.replace(
+                            /^\s*import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/gm,
+                            function(_, localName, mod) {
+                                return (
+                                    "const " +
+                                    localName +
+                                    " = (function(__m){ return (__m && Object.prototype.hasOwnProperty.call(__m, 'default')) ? __m.default : __m; })(require('" +
+                                    mod +
+                                    "'));"
+                                );
+                            }
+                        );
+                        code = code.replace(
+                            /^\s*import\s+([A-Za-z_$][\w$]*)\s*,\s*\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/gm,
+                            function(_, defaultName, namedPart, mod) {
+                                var namedList = String(namedPart || '').trim();
+                                return (
+                                    "const __mod = require('" +
+                                    mod +
+                                    "');\n" +
+                                    "const " +
+                                    defaultName +
+                                    " = (function(__m){ return (__m && Object.prototype.hasOwnProperty.call(__m, 'default')) ? __m.default : __m; })(__mod);\n" +
+                                    "const { " +
+                                    namedList.replace(/\sas\s/g, ': ') +
+                                    " } = __mod;"
+                                );
+                            }
+                        );
+                        code = code.replace(
+                            /^\s*import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/gm,
+                            function(_, namedPart, mod) {
+                                var namedList = String(namedPart || '').trim();
+                                return "const { " + namedList.replace(/\sas\s/g, ': ') + " } = require('" + mod + "');";
+                            }
+                        );
+
+                        var exportedNames = [];
+                        code = code.replace(
+                            /^\s*export\s+(async\s+function|function|class)\s+([A-Za-z_$][\w$]*)/gm,
+                            function(_, decl, name) {
+                                exportedNames.push(name);
+                                return decl + " " + name;
+                            }
+                        );
+                        code = code.replace(
+                            /^\s*export\s+(const|let|var)\s+([A-Za-z_$][\w$]*)/gm,
+                            function(_, decl, name) {
+                                exportedNames.push(name);
+                                return decl + " " + name;
+                            }
+                        );
+                        code = code.replace(
+                            /^\s*export\s+default\s+/gm,
+                            "module.exports.default = "
+                        );
+                        code = code.replace(
+                            /^\s*export\s*\{\s*([^}]+)\s*\}\s*;?\s*$/gm,
+                            function(_, rawSpec) {
+                                var specs = String(rawSpec || '').split(',');
+                                var lines = [];
+                                for (var i = 0; i < specs.length; i++) {
+                                    var item = specs[i].trim();
+                                    if (!item) {
+                                        continue;
+                                    }
+                                    var match = item.match(/^([A-Za-z_$][\w$]*)(\s+as\s+([A-Za-z_$][\w$]*))?$/);
+                                    if (!match) {
+                                        continue;
+                                    }
+                                    var localName = match[1];
+                                    var exportName = match[3] || localName;
+                                    lines.push("module.exports['" + exportName + "'] = " + localName + ";");
+                                }
+                                return lines.join('\n');
+                            }
+                        );
+                        code = code.replace(
+                            /^\s*export\s+\*\s+from\s+['"][^'"]+['"]\s*;?\s*$/gm,
+                            "throw new Error('export * from is not supported in compose_dsl runtime');"
+                        );
+                        code = code.replace(/^\s*export\s*\{\s*\}\s*;?\s*$/gm, "");
+
+                        if (exportedNames.length > 0) {
+                            var uniqueNames = {};
+                            var exportLines = [];
+                            for (var i = 0; i < exportedNames.length; i++) {
+                                var name = exportedNames[i];
+                                if (uniqueNames[name]) {
+                                    continue;
+                                }
+                                uniqueNames[name] = true;
+                                exportLines.push("module.exports['" + name + "'] = " + name + ";");
+                            }
+                            if (exportLines.length > 0) {
+                                code += "\n" + exportLines.join("\n");
+                            }
+                        }
+
+                        console.warn(
+                            '[compose_dsl] transpiled ESM to CJS: ' +
+                                (modulePath || '<inline>') +
+                                ', length=' +
+                                code.length
+                        );
+                        return code;
+                    }
+
+                    function __operitBuildScriptFactory(scriptText, modulePath) {
+                        try {
+                            return new Function('module', 'exports', 'require', scriptText);
+                        } catch (compileError) {
+                            var message = String(compileError && compileError.message ? compileError.message : compileError);
+                            var maybeEsm =
+                                message.indexOf("Unexpected token 'export'") >= 0 ||
+                                message.indexOf('Cannot use import statement outside a module') >= 0 ||
+                                message.indexOf("Unexpected token 'import'") >= 0;
+                            if (!maybeEsm) {
+                                throw compileError;
+                            }
+                            console.warn(
+                                '[compose_dsl] compile failed, retry as ESM->CJS: ' +
+                                    (modulePath || '<inline>') +
+                                    ', error=' +
+                                    message
+                            );
+                            var transpiled = __operitTranspileEsmToCjs(scriptText, modulePath);
+                            return new Function('module', 'exports', 'require', transpiled);
+                        }
+                    }
+
+                    function __operitNormalizePath(path) {
+                        var parts = String(path || '').replace(/\\/g, '/').split('/');
+                        var stack = [];
+                        for (var i = 0; i < parts.length; i++) {
+                            var part = parts[i];
+                            if (!part || part === '.') {
+                                continue;
+                            }
+                            if (part === '..') {
+                                if (stack.length > 0) {
+                                    stack.pop();
+                                }
+                                continue;
+                            }
+                            stack.push(part);
+                        }
+                        return stack.join('/');
+                    }
+
+                    function __operitDirname(path) {
+                        var normalized = __operitNormalizePath(path);
+                        if (!normalized) {
+                            return '';
+                        }
+                        var index = normalized.lastIndexOf('/');
+                        if (index < 0) {
+                            return '';
+                        }
+                        return normalized.substring(0, index);
+                    }
+
+                    function __operitResolveModulePath(moduleName, fromPath) {
+                        var request = String(moduleName || '').replace(/\\/g, '/').trim();
+                        if (!request) {
+                            return '';
+                        }
+                        if (!(request.startsWith('.') || request.startsWith('/'))) {
+                            return request;
+                        }
+                        if (request.startsWith('/')) {
+                            return __operitNormalizePath(request);
+                        }
+                        var baseDir = __operitDirname(fromPath || __operitEntryPath || '');
+                        var combined = baseDir ? (baseDir + '/' + request) : request;
+                        return __operitNormalizePath(combined);
+                    }
+
+                    function __operitBuildCandidatePaths(modulePath) {
+                        var normalized = __operitNormalizePath(modulePath);
+                        if (!normalized) {
+                            return [];
+                        }
+                        var candidates = [normalized];
+                        var hasExt = /\.[a-z0-9]+$/i.test(normalized);
+                        if (!hasExt) {
+                            candidates.push(normalized + '.js');
+                            candidates.push(normalized + '.json');
+                            candidates.push(normalized + '/index.js');
+                            candidates.push(normalized + '/index.json');
+                        }
+                        return candidates;
+                    }
+
+                    function __operitReadToolPkgModule(modulePath) {
+                        if (!__operitPackageTarget) {
+                            console.error('[compose_dsl] empty package target for module: ' + modulePath);
+                            return null;
+                        }
+                        if (
+                            typeof NativeInterface === 'undefined' ||
+                            !NativeInterface ||
+                            typeof NativeInterface.readToolPkgTextResource !== 'function'
+                        ) {
+                            console.error('[compose_dsl] NativeInterface.readToolPkgTextResource unavailable');
+                            return null;
+                        }
+                        var candidates = __operitBuildCandidatePaths(modulePath);
+                        for (var i = 0; i < candidates.length; i++) {
+                            var candidatePath = candidates[i];
+                            var moduleText = NativeInterface.readToolPkgTextResource(
+                                __operitPackageTarget,
+                                candidatePath
+                            );
+                            if (typeof moduleText === 'string' && moduleText.length > 0) {
+                                console.log(
+                                    '[compose_dsl] module loaded: ' +
+                                        candidatePath +
+                                        ', bytes=' +
+                                        moduleText.length
+                                );
+                                return {
+                                    path: candidatePath,
+                                    text: moduleText
+                                };
+                            }
+                        }
+                        console.warn(
+                            '[compose_dsl] module not found in toolpkg: ' +
+                                modulePath +
+                                ', candidates=' +
+                                JSON.stringify(candidates)
+                        );
+                        return null;
+                    }
+
+                    function __operitExecuteModule(modulePath, moduleText, requireInternal) {
+                        if (__operitModuleCache[modulePath]) {
+                            return __operitModuleCache[modulePath].exports;
+                        }
+                        var localModule = { exports: {} };
+                        __operitModuleCache[modulePath] = localModule;
+                        try {
+                            if (/\.json$/i.test(modulePath)) {
+                                localModule.exports = JSON.parse(moduleText);
+                                return localModule.exports;
+                            }
+                            var localRequire = function(nextName) {
+                                return requireInternal(nextName, modulePath);
+                            };
+                            var compiled = __operitBuildScriptFactory(moduleText, modulePath);
+                            compiled(localModule, localModule.exports, localRequire);
+                            return localModule.exports;
+                        } catch (e) {
+                            console.error(
+                                '[compose_dsl] execute module failed: ' +
+                                    modulePath +
+                                    ', error=' +
+                                    (e && e.message ? e.message : String(e))
+                            );
+                            delete __operitModuleCache[modulePath];
+                            throw e;
+                        }
+                    }
+
+                    const requireInternal = function(moduleName, fromPath) {
                         if (moduleName === 'lodash') return _;
-                        // 对其他常用模块的支持可以在这里添加
                         if (moduleName === 'uuid') {
                             return {
                                 v4: function() {
@@ -875,11 +1175,63 @@ class JsEngine(private val context: Context) {
                                 }
                             };
                         }
+
+                        var request = String(moduleName || '').trim();
+                        if (request.startsWith('.') || request.startsWith('/')) {
+                            var resolvedModulePath = __operitResolveModulePath(request, fromPath);
+                            var loadedModule = __operitReadToolPkgModule(resolvedModulePath);
+                            if (loadedModule) {
+                                return __operitExecuteModule(
+                                    loadedModule.path,
+                                    loadedModule.text,
+                                    requireInternal
+                                );
+                            }
+                            console.error(
+                                'Failed to resolve module from toolpkg: ' +
+                                    request +
+                                    ' (from ' +
+                                    (fromPath || __operitEntryPath || '<root>') +
+                                    ')'
+                            );
+                            throw new Error(
+                                'Cannot resolve module "' +
+                                    request +
+                                    '" from "' +
+                                    (fromPath || __operitEntryPath || '<root>') +
+                                    '"'
+                            );
+                        }
+
+                        console.log('Attempted to require unsupported module: ' + request);
                         return {};
                     };
+
+                    const require = function(moduleName) {
+                        console.log(
+                            '[compose_dsl] require request: ' +
+                                String(moduleName || '') +
+                                ', from=' +
+                                (__operitEntryPath || '<root>')
+                        );
+                        return requireInternal(moduleName, __operitEntryPath);
+                    };
                     
-                    // 执行用户脚本，定义所有函数
-                    ${script}
+                    // 执行用户脚本，定义所有函数（通过Function包装，避免裸插入脚本导致解析期匿名错误）
+                    const __operitScriptText = $scriptJson;
+                    console.log(
+                        '[compose_dsl] executing entry script, package=' +
+                            (__operitPackageTarget || '<none>') +
+                            ', entry=' +
+                            (__operitEntryPath || '<none>') +
+                            ', bytes=' +
+                            __operitScriptText.length
+                    );
+                    const __operitScriptFactory = __operitBuildScriptFactory(
+                        __operitScriptText,
+                        __operitEntryPath || '<entry>'
+                    );
+                    __operitScriptFactory(module, exports, require);
                     
                     // 返回模块环境
                     return {
@@ -946,6 +1298,13 @@ class JsEngine(private val context: Context) {
                     NativeInterface.setError(errorMsg);
                 }
             } catch (error) {
+                try {
+                    console.error(
+                        "[compose_dsl] script execution failed:",
+                        error && error.stack ? error.stack : error
+                    );
+                } catch (logError) {
+                }
                 NativeInterface.setError("Script error: " + error.message);
             }
         """.trimIndent()
@@ -1011,12 +1370,47 @@ class JsEngine(private val context: Context) {
         }
     }
 
+    fun executeComposeDslScript(
+            script: String,
+            runtimeOptions: Map<String, Any?> = emptyMap(),
+            envOverrides: Map<String, String> = emptyMap()
+    ): Any? {
+        return executeScriptFunction(
+                script = buildComposeDslRuntimeWrappedScript(script),
+                functionName = "__operit_render_compose_dsl",
+                params = runtimeOptions,
+                envOverrides = envOverrides
+        )
+    }
+
+    fun executeComposeDslAction(
+            actionId: String,
+            payload: Any? = null,
+            envOverrides: Map<String, String> = emptyMap()
+    ): Any? {
+        val normalizedActionId = actionId.trim()
+        if (normalizedActionId.isBlank()) {
+            return "Error: compose action id is required"
+        }
+        val params = mutableMapOf<String, Any?>("__action_id" to normalizedActionId)
+        if (payload != null) {
+            params["__action_payload"] = payload
+        }
+        return executeScriptFunction(
+                script = "",
+                functionName = "__operit_dispatch_compose_dsl_action",
+                params = params,
+                envOverrides = envOverrides
+        )
+    }
+
     /** 重置引擎状态，避免多次调用时的状态干扰 */
     private fun resetState() {
         // 只有当之前的回调存在时才需要完成它
-        if (resultCallback != null && !resultCallback!!.isDone) {
+        val callback = resultCallback
+        if (callback != null && !callback.isDone) {
             try {
-                resultCallback?.complete("Execution canceled: new execution started")
+                callback.complete("Execution canceled: new execution started")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error completing previous callback: ${e.message}", e)
             }
@@ -1136,6 +1530,97 @@ class JsEngine(private val context: Context) {
         }
 
         @JavascriptInterface
+        fun setEnv(key: String, value: String?) {
+            JsNativeInterfaceDelegates.setEnv(context = context, key = key, value = value)
+        }
+
+        @JavascriptInterface
+        fun setEnvs(valuesJson: String) {
+            JsNativeInterfaceDelegates.setEnvs(context = context, valuesJson = valuesJson)
+        }
+
+        @JavascriptInterface
+        fun isPackageImported(packageName: String): Boolean {
+            return JsNativeInterfaceDelegates.isPackageImported(
+                    packageManager = packageManager,
+                    packageName = packageName
+            )
+        }
+
+        @JavascriptInterface
+        fun importPackage(packageName: String): String {
+            return JsNativeInterfaceDelegates.importPackage(
+                    packageManager = packageManager,
+                    packageName = packageName
+            )
+        }
+
+        @JavascriptInterface
+        fun removePackage(packageName: String): String {
+            return JsNativeInterfaceDelegates.removePackage(
+                    packageManager = packageManager,
+                    packageName = packageName
+            )
+        }
+
+        @JavascriptInterface
+        fun usePackage(packageName: String): String {
+            return JsNativeInterfaceDelegates.usePackage(
+                    packageManager = packageManager,
+                    packageName = packageName
+            )
+        }
+
+        @JavascriptInterface
+        fun listImportedPackagesJson(): String {
+            return JsNativeInterfaceDelegates.listImportedPackagesJson(
+                    packageManager = packageManager
+            )
+        }
+
+        @JavascriptInterface
+        fun resolveToolName(
+                packageName: String,
+                subpackageId: String,
+                toolName: String,
+                preferImported: String
+        ): String {
+            return JsNativeInterfaceDelegates.resolveToolName(
+                    packageManager = packageManager,
+                    packageName = packageName,
+                    subpackageId = subpackageId,
+                    toolName = toolName,
+                    preferImported = preferImported
+            )
+        }
+
+        @JavascriptInterface
+        fun readToolPkgResource(
+                packageNameOrSubpackageId: String,
+                resourceKey: String,
+                outputFileName: String
+        ): String {
+            return JsNativeInterfaceDelegates.readToolPkgResource(
+                    packageManager = packageManager,
+                    packageNameOrSubpackageId = packageNameOrSubpackageId,
+                    resourceKey = resourceKey,
+                    outputFileName = outputFileName
+            )
+        }
+
+        @JavascriptInterface
+        fun readToolPkgTextResource(
+                packageNameOrSubpackageId: String,
+                resourcePath: String
+        ): String {
+            return JsNativeInterfaceDelegates.readToolPkgTextResource(
+                    packageManager = packageManager,
+                    packageNameOrSubpackageId = packageNameOrSubpackageId,
+                    resourcePath = resourcePath
+            )
+        }
+
+        @JavascriptInterface
         fun registerImageFromBase64(base64: String, mimeType: String): String {
             return try {
                 val finalMime = if (mimeType.isNotBlank()) mimeType else "image/png"
@@ -1168,180 +1653,25 @@ class JsEngine(private val context: Context) {
 
         @JavascriptInterface
         fun image_processing(callbackId: String, operation: String, argsJson: String) {
-            Thread {
-                try {
-                    val args = Json.decodeFromString(ListSerializer(JsonElement.serializer()), argsJson)
-                    val result: Any? = when (operation.lowercase()) {
-                        "read" -> {
-                            AppLogger.d(TAG, "Entering 'read' operation in image_processing.")
-                            val data = args[0].jsonPrimitive.content
-                            val decodedBytes: ByteArray
-                            if (data.startsWith(BINARY_HANDLE_PREFIX)) {
-                                val handle = data.substring(BINARY_HANDLE_PREFIX.length)
-                                AppLogger.d(TAG, "Reading image from binary handle: $handle")
-                                decodedBytes = binaryDataRegistry.remove(handle)
-                                    ?: throw Exception("Invalid or expired binary handle: $handle")
-                            } else {
-                                AppLogger.d(TAG, "Reading image from Base64 string.")
-                                decodedBytes = Base64.decode(data, Base64.DEFAULT)
-                            }
-                            AppLogger.d(TAG, "Decoded data to ${decodedBytes.size} bytes.")
-
-                            val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-
-                            if (bitmap == null) {
-                                AppLogger.e(TAG, "BitmapFactory.decodeByteArray returned null. Throwing exception.")
-                                throw Exception("Failed to decode image. The format may be unsupported or data is corrupt.")
-                            } else {
-                                AppLogger.d(TAG, "BitmapFactory.decodeByteArray returned a non-null Bitmap.")
-                                AppLogger.d(TAG, "Bitmap dimensions: ${bitmap.width}x${bitmap.height}")
-                                AppLogger.d(TAG, "Bitmap config: ${bitmap.config}")
-                                val id = UUID.randomUUID().toString()
-                                AppLogger.d(TAG, "Storing bitmap with ID: $id")
-                                bitmapRegistry[id] = bitmap
-                                id
-                            }
-                        }
-                        "create" -> {
-                            val width = args[0].jsonPrimitive.int
-                            val height = args[1].jsonPrimitive.int
-                            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                            val id = UUID.randomUUID().toString()
-                            bitmapRegistry[id] = bitmap
-                            id
-                        }
-                        "crop" -> {
-                            val id = args[0].jsonPrimitive.content
-                            AppLogger.d(TAG, "Attempting to crop bitmap with ID: $id")
-                            val x = args[1].jsonPrimitive.int
-                            val y = args[2].jsonPrimitive.int
-                            val w = args[3].jsonPrimitive.int
-                            val h = args[4].jsonPrimitive.int
-                            val originalBitmap = bitmapRegistry[id]
-                                ?: throw Exception("Source bitmap not found for crop (ID: $id)")
-                            val croppedBitmap = Bitmap.createBitmap(originalBitmap, x, y, w, h)
-                            val newId = UUID.randomUUID().toString()
-                            bitmapRegistry[newId] = croppedBitmap
-                            newId
-                        }
-                        "composite" -> {
-                            val baseId = args[0].jsonPrimitive.content
-                            val srcId = args[1].jsonPrimitive.content
-                            AppLogger.d(TAG, "Attempting to composite with base ID: $baseId and src ID: $srcId")
-                            val x = args[2].jsonPrimitive.int
-                            val y = args[3].jsonPrimitive.int
-                            val baseBitmap = bitmapRegistry[baseId]
-                                ?: throw Exception("Base bitmap not found for composite (ID: $baseId)")
-                            val srcBitmap = bitmapRegistry[srcId]
-                                ?: throw Exception("Source bitmap not found for composite (ID: $srcId)")
-                            val canvas = Canvas(baseBitmap)
-                            canvas.drawBitmap(srcBitmap, x.toFloat(), y.toFloat(), null)
-                            null
-                        }
-                        "getwidth" -> {
-                            val id = args[0].jsonPrimitive.content
-                            AppLogger.d(TAG, "Attempting to getWidth for bitmap with ID: $id")
-                            bitmapRegistry[id]?.width ?: throw Exception("Bitmap not found for getWidth (ID: $id)")
-                        }
-                        "getheight" -> {
-                            val id = args[0].jsonPrimitive.content
-                            AppLogger.d(TAG, "Attempting to getHeight for bitmap with ID: $id")
-                            bitmapRegistry[id]?.height ?: throw Exception("Bitmap not found for getHeight (ID: $id)")
-                        }
-                        "getbase64" -> {
-                            val id = args[0].jsonPrimitive.content
-                            AppLogger.d(TAG, "Attempting to getBase64 for bitmap with ID: $id")
-                            val mime = args.getOrNull(1)?.jsonPrimitive?.content ?: "image/jpeg"
-                            val bitmap = bitmapRegistry[id]
-                                ?: throw Exception("Bitmap not found for getBase64 (ID: $id)")
-                            val outputStream = ByteArrayOutputStream()
-                            val format = if (mime == "image/png") Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
-                            bitmap.compress(format, 90, outputStream)
-                            Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
-                        }
-                        "release" -> {
-                            val id = args[0].jsonPrimitive.content
-                            AppLogger.d(TAG, "Attempting to release bitmap with ID: $id")
-                            bitmapRegistry.remove(id)?.recycle()
-                            null
-                        }
-                        else -> throw IllegalArgumentException("Unknown image operation: $operation")
-                    }
-                    val jsonResultElement = when (result) {
-                        is String -> JsonPrimitive(result)
-                        is Number -> JsonPrimitive(result)
-                        is Boolean -> JsonPrimitive(result)
-                        null -> JsonNull
-                        else -> JsonPrimitive(result.toString()) // Fallback
-                    }
-                    sendToolResult(callbackId, Json.encodeToString(JsonElement.serializer(), jsonResultElement), false)
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "Native image processing failed: ${e.message}", e)
-                    sendToolResult(callbackId, e.message ?: "Unknown image processing error", true)
-                }
-            }.start()
+            JsNativeInterfaceDelegates.imageProcessing(
+                    callbackId = callbackId,
+                    operation = operation,
+                    argsJson = argsJson,
+                    binaryDataRegistry = binaryDataRegistry,
+                    bitmapRegistry = bitmapRegistry,
+                    binaryHandlePrefix = BINARY_HANDLE_PREFIX
+            ) { callback, result, isError ->
+                sendToolResult(callback, result, isError)
+            }
         }
 
         @JavascriptInterface
         fun crypto(algorithm: String, operation: String, argsJson: String): String {
-            return try {
-                // Deserialize the JSON array of arguments
-                val args = Json.decodeFromString(ListSerializer(String.serializer()), argsJson)
-
-                when (algorithm.lowercase()) {
-                    "md5" -> {
-                        // MD5 expects a single string argument
-                        val input = args.getOrNull(0) ?: ""
-                        val md = MessageDigest.getInstance("MD5")
-                        // Explicitly use UTF-8 to ensure consistency with JS
-                        val digest = md.digest(input.toByteArray(Charsets.UTF_8))
-                        // Convert byte array to hex string
-                        digest.joinToString("") { "%02x".format(it) }
-                    }
-                    "aes" -> {
-                        when (operation.lowercase()) {
-                            "decrypt" -> {
-                                val data = args.getOrNull(0) ?: ""
-                                val keyHex = args.getOrNull(1) ?: throw IllegalArgumentException("Missing key for AES decryption")
-
-                                // CRITICAL FIX: The key is not the 16-byte hex-decoded value of the MD5,
-                                // but the 32-byte UTF-8 representation of the MD5 hex string itself.
-                                val keyBytes = keyHex.toByteArray(Charsets.UTF_8)
-                                
-                                // Use the provided key for decryption
-                                val secretKey = SecretKeySpec(keyBytes, "AES")
-                                // Switch to NoPadding and handle it manually, as per the reference code.
-                                val cipher = Cipher.getInstance("AES/ECB/NoPadding")
-                                cipher.init(Cipher.DECRYPT_MODE, secretKey)
-                                val decodedData = android.util.Base64.decode(data, android.util.Base64.DEFAULT)
-                                val decryptedWithPadding = cipher.doFinal(decodedData)
-
-                                // Manual PKCS7 unpadding
-                                if (decryptedWithPadding.isEmpty()) {
-                                    return "" // Or throw an exception
-                                }
-
-                                val paddingLength = decryptedWithPadding.last().toInt()
-
-                                if (paddingLength < 1 || paddingLength > decryptedWithPadding.size) {
-                                     // This can happen if the key is wrong and the decrypted data is garbage.
-                                     throw Exception("Invalid PKCS7 padding length: $paddingLength")
-                                }
-                                
-                                val decryptedBytes = decryptedWithPadding.copyOfRange(0, decryptedWithPadding.size - paddingLength)
-                                
-                                String(decryptedBytes, Charsets.UTF_8)
-                            }
-                            else -> throw IllegalArgumentException("Unknown AES operation: $operation")
-                        }
-                    }
-                    else -> throw IllegalArgumentException("Unknown algorithm: $algorithm")
-                }
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Native crypto operation failed: ${e.message}", e)
-                // Return a structured error JSON that the JS bridge can understand
-                "{\"nativeError\":\"${e.message?.replace("\"", "'")}\"}"
-            }
+            return JsNativeInterfaceDelegates.crypto(
+                    algorithm = algorithm,
+                    operation = operation,
+                    argsJson = argsJson
+            )
         }
 
         @JavascriptInterface
@@ -1687,19 +2017,20 @@ class JsEngine(private val context: Context) {
         @JavascriptInterface
         fun setResult(result: String) {
             try {
+                val callback = resultCallback
                 // 加入更详细的日志，帮助排查异步问题
                 AppLogger.d(
                         TAG,
-                        "Setting result from JavaScript: result=${result.take(500)}, length=${result.length}, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}"
+                        "Setting result from JavaScript: result=${result.take(500)}, length=${result.length}, callback=${callback != null}, isDone=${callback?.isDone}"
                 )
 
                 // 确保回调仍然有效
-                if (resultCallback == null) {
+                if (callback == null) {
                     AppLogger.e(TAG, "Result callback is null when trying to complete")
                     return
                 }
 
-                if (resultCallback!!.isDone) {
+                if (callback.isDone) {
                     AppLogger.w(TAG, "Result callback is already completed when trying to set result")
                     return
                 }
@@ -1708,16 +2039,16 @@ class JsEngine(private val context: Context) {
                 ContextCompat.getMainExecutor(context).execute {
                     try {
                         // 返回成功结果
-                        if (!resultCallback!!.isDone) {
+                        if (!callback.isDone) {
                             AppLogger.d(TAG, "Actually completing the result callback")
-                            resultCallback!!.complete(result)
+                            callback.complete(result)
                         } else {
                             AppLogger.w(TAG, "Callback became complete between check and execution")
                         }
                     } catch (e: Exception) {
                         AppLogger.e(TAG, "Error completing result on main thread: ${e.message}", e)
-                        if (!resultCallback!!.isDone) {
-                            resultCallback!!.completeExceptionally(e)
+                        if (!callback.isDone) {
+                            callback.completeExceptionally(e)
                         }
                     }
                 }
@@ -1730,10 +2061,11 @@ class JsEngine(private val context: Context) {
         @JavascriptInterface
         fun setError(error: String) {
             try {
+                val callback = resultCallback
                 // 加入更详细的日志
                 AppLogger.d(
                         TAG,
-                        "Setting error from JavaScript: $error, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}"
+                        "Setting error from JavaScript: $error, callback=${callback != null}, isDone=${callback?.isDone}"
                 )
 
                 // 尝试解析错误信息，看是否是JSON格式
@@ -1772,12 +2104,12 @@ class JsEngine(private val context: Context) {
                 AppLogger.e(TAG, "JS ERROR: $logMessage")
 
                 // 确保回调仍然有效
-                if (resultCallback == null) {
+                if (callback == null) {
                     AppLogger.e(TAG, "Result callback is null when trying to complete with error")
                     return
                 }
 
-                if (resultCallback!!.isDone) {
+                if (callback.isDone) {
                     AppLogger.w(TAG, "Result callback is already completed when trying to set error")
                     return
                 }
@@ -1785,8 +2117,8 @@ class JsEngine(private val context: Context) {
                 // 使用主线程执行complete操作
                 ContextCompat.getMainExecutor(context).execute {
                     // 返回错误结果
-                    if (!resultCallback!!.isDone) {
-                        resultCallback!!.complete("Error: $error")
+                    if (!callback.isDone) {
+                        callback.complete("Error: $error")
                     }
                 }
             } catch (e: Exception) {
@@ -1925,32 +2257,5 @@ class JsEngine(private val context: Context) {
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error during diagnostics: ${e.message}", e)
         }
-    }
-}
-
-private fun loadPakoJs(context: Context): String {
-    return try {
-        context.assets.open("js/pako.js").bufferedReader().use { it.readText() }
-    } catch (e: Exception) {
-        AppLogger.e("JsEngine", "Failed to load pako.js", e)
-        "// pako.js failed to load"
-    }
-}
-
-private fun loadCryptoJs(context: Context): String {
-    return try {
-        context.assets.open("js/CryptoJS.js").bufferedReader().use { it.readText() }
-    } catch (e: Exception) {
-        AppLogger.e("JsEngine", "Failed to load CryptoJS.js", e)
-        "// CryptoJS.js failed to load"
-    }
-}
-
-private fun loadJimpJs(context: Context): String {
-    return try {
-        context.assets.open("js/Jimp.js").bufferedReader().use { it.readText() }
-    } catch (e: Exception) {
-        AppLogger.e("JsEngine", "Failed to load Jimp.js", e)
-        "// Jimp.js failed to load"
     }
 }

@@ -371,25 +371,196 @@
     ]
 }
 */
+
+type ShellMode = "powershell" | "pwsh" | "cmd";
+
+type WindowsExecParams = {
+    command?: string;
+    shell?: string;
+    timeout_ms?: number | string;
+};
+
+type WindowsTestConnectionParams = {
+    timeout_ms?: number | string;
+};
+
+type WindowsReadParams = {
+    path?: string;
+    encoding?: string;
+    offset?: number | string;
+    length?: number | string;
+    line_start?: number | string;
+    line_end?: number | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsWriteParams = {
+    path?: string;
+    content?: string;
+    encoding?: string;
+    timeout_ms?: number | string;
+};
+
+type WindowsEditParams = {
+    path?: string;
+    old_text?: string;
+    new_text?: string;
+    expected_replacements?: number | string;
+    encoding?: string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessStartParams = {
+    command?: string;
+    shell?: string;
+    max_runtime_ms?: number | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessReadParams = {
+    session_id?: string;
+    stdout_offset?: number | string;
+    stderr_offset?: number | string;
+    max_chars?: number | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessWriteParams = {
+    session_id?: string;
+    input?: string;
+    control?: string;
+    repeat?: number | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessTerminateParams = {
+    session_id?: string;
+    remove?: boolean | string;
+    timeout_ms?: number | string;
+};
+
+type WindowsProcessListParams = {
+    include_exited?: boolean | string;
+    timeout_ms?: number | string;
+};
+
+type AgentConfig = {
+    baseUrl: string;
+    token: string;
+    defaultShell: ShellMode;
+    timeoutMs: number;
+};
+
+type AgentHttpResponse = {
+    statusCode: number;
+    content: string;
+    url: string;
+};
+
+type VersionCheckResult = {
+    health: any;
+    remoteVersion: string;
+};
+
+type WindowsExecResult = {
+    success: boolean;
+    agentBaseUrl?: string;
+    shell?: ShellMode;
+    command?: string;
+    exitCode?: number;
+    timedOut?: boolean;
+    durationMs?: number;
+    output?: string;
+    stderr?: string;
+    outputSavedTo?: string;
+    outputChars?: number;
+    operitCleanOnExitDir?: string;
+    hint?: string;
+    error?: string;
+    health?: unknown;
+    packageVersion?: string;
+    agentVersion?: string;
+};
+
+type WindowsFileResult = {
+    success: boolean;
+    agentBaseUrl?: string;
+    path?: string;
+    encoding?: string;
+    content?: string;
+    offset?: number;
+    length?: number;
+    totalBytes?: number;
+    lineStart?: number;
+    lineEnd?: number;
+    totalLines?: number;
+    eof?: boolean;
+    sizeBytes?: number;
+    replacements?: number;
+    expectedReplacements?: number;
+    error?: string;
+    packageVersion?: string;
+    agentVersion?: string;
+};
+
+type WindowsProcessResult = {
+    success: boolean;
+    agentBaseUrl?: string;
+    sessionId?: string;
+    shell?: ShellMode;
+    status?: string;
+    pid?: number;
+    createdAt?: string;
+    updatedAt?: string;
+    exitCode?: number;
+    timedOut?: boolean;
+    commandPreview?: string;
+    stdout?: string;
+    stderr?: string;
+    stdoutOffset?: number;
+    stderrOffset?: number;
+    stdoutLatestOffset?: number;
+    stderrLatestOffset?: number;
+    stdoutFromOffset?: number;
+    stderrFromOffset?: number;
+    stdoutAvailableFrom?: number;
+    stderrAvailableFrom?: number;
+    stdoutTruncated?: boolean;
+    stderrTruncated?: boolean;
+    hasMore?: boolean;
+    acceptedChars?: number;
+    wasRunning?: boolean;
+    signalSent?: boolean;
+    removed?: boolean;
+    items?: any[];
+    error?: string;
+    packageVersion?: string;
+    agentVersion?: string;
+};
+
 const windowsControl = (function () {
     const WINDOWS_CONTROL_PACKAGE_VERSION = "0.2.0";
-    const MAX_INLINE_WINDOWS_EXEC_OUTPUT_CHARS = 12000;
+    const MAX_INLINE_WINDOWS_EXEC_OUTPUT_CHARS = 12_000;
+
     const ENV_KEYS = {
         baseUrl: "WINDOWS_AGENT_BASE_URL",
         token: "WINDOWS_AGENT_TOKEN",
         defaultShell: "WINDOWS_AGENT_DEFAULT_SHELL",
         timeoutMs: "WINDOWS_AGENT_TIMEOUT_MS"
     };
-    function asText(value) {
+
+    function asText(value: unknown): string {
         return String(value == null ? "" : value);
     }
-    function buildVersionMismatchMessage(remoteVersion) {
+
+    function buildVersionMismatchMessage(remoteVersion: string): string {
         return [
             `Version mismatch: package=${WINDOWS_CONTROL_PACKAGE_VERSION}, agent=${remoteVersion || "unknown"}.`,
             "请前往 Windows 一键配置，重新上传最新 operit-pc-agent.zip 到电脑并运行，然后再粘贴最新配置。"
         ].join(" ");
     }
-    function readEnv(name) {
+
+    function readEnv(name: string): string {
         if (typeof getEnv === "function") {
             const value = getEnv(name);
             if (value !== undefined && value !== null) {
@@ -398,109 +569,134 @@ const windowsControl = (function () {
         }
         return "";
     }
-    function normalizeShell(value, fallback) {
+
+    function normalizeShell(value: unknown, fallback: ShellMode): ShellMode {
         const raw = asText(value || fallback).trim().toLowerCase();
         if (raw === "pwsh" || raw === "cmd") {
             return raw;
         }
         return "powershell";
     }
-    function parseTimeout(value, fallback) {
+
+    function parseTimeout(value: unknown, fallback: number): number {
         const raw = asText(value).trim();
         if (!raw) {
             return fallback;
         }
+
         const parsed = Number(raw);
         if (!Number.isFinite(parsed) || parsed < 1000 || parsed > 600000) {
             throw new Error("Invalid timeout_ms, expected 1000..600000");
         }
+
         return Math.floor(parsed);
     }
-    function parseOptionalNonNegativeInt(value, fieldName) {
+
+    function parseOptionalNonNegativeInt(value: unknown, fieldName: string): number | undefined {
         const raw = asText(value).trim();
         if (!raw) {
             return undefined;
         }
+
         const parsed = Number(raw);
         if (!Number.isFinite(parsed) || parsed < 0) {
             throw new Error(`Invalid ${fieldName}, expected non-negative integer`);
         }
+
         return Math.floor(parsed);
     }
-    function parseOptionalPositiveInt(value, fieldName) {
+
+    function parseOptionalPositiveInt(value: unknown, fieldName: string): number | undefined {
         const raw = asText(value).trim();
         if (!raw) {
             return undefined;
         }
+
         const parsed = Number(raw);
         if (!Number.isFinite(parsed) || parsed < 1) {
             throw new Error(`Invalid ${fieldName}, expected integer >= 1`);
         }
+
         return Math.floor(parsed);
     }
-    function parseOptionalBoolean(value, fieldName) {
+
+    function parseOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
         const raw = asText(value).trim();
         if (!raw) {
             return undefined;
         }
+
         const normalized = raw.toLowerCase();
         if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
             return true;
         }
+
         if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
             return false;
         }
+
         throw new Error(`Invalid ${fieldName}, expected boolean`);
     }
-    function requireSessionId(value) {
+
+    function requireSessionId(value: unknown): string {
         const sessionId = asText(value).trim();
         if (!sessionId) {
             throw new Error("Missing required parameter: session_id");
         }
         return sessionId;
     }
-    function parseExpectedReplacements(value) {
+
+    function parseExpectedReplacements(value: unknown): number {
         const raw = asText(value).trim();
         if (!raw) {
             return 1;
         }
+
         const parsed = Number(raw);
         if (!Number.isFinite(parsed) || parsed < 1) {
             throw new Error("Invalid expected_replacements, expected integer >= 1");
         }
+
         return Math.floor(parsed);
     }
-    function normalizeBaseUrl(rawValue) {
+
+    function normalizeBaseUrl(rawValue: unknown): string {
         let base = asText(rawValue).trim();
         if (!base) {
             throw new Error("Missing env: WINDOWS_AGENT_BASE_URL");
         }
+
         if (!/^https?:\/\//i.test(base)) {
             base = `http://${base}`;
         }
+
         base = base.replace(/\/+$/, "");
         return base;
     }
-    function parseJson(content) {
+
+    function parseJson(content: string): any {
         const text = asText(content).trim();
         if (!text) {
             return {};
         }
+
         try {
             return JSON.parse(text);
-        }
-        catch (error) {
+        } catch (error: any) {
             throw new Error(`Agent response is not valid JSON: ${error && error.message ? error.message : String(error)}`);
         }
     }
-    function resolveAgentConfig() {
+
+    function resolveAgentConfig(): AgentConfig {
         const baseUrl = normalizeBaseUrl(readEnv(ENV_KEYS.baseUrl));
         const token = readEnv(ENV_KEYS.token);
         if (!token) {
             throw new Error("Missing env: WINDOWS_AGENT_TOKEN");
         }
+
         const defaultShell = normalizeShell(readEnv(ENV_KEYS.defaultShell), "powershell");
         const timeoutMs = parseTimeout(readEnv(ENV_KEYS.timeoutMs), 30000);
+
         return {
             baseUrl,
             token,
@@ -508,7 +704,14 @@ const windowsControl = (function () {
             timeoutMs
         };
     }
-    async function httpRequest(config, path, method, body, timeoutMs) {
+
+    async function httpRequest(
+        config: AgentConfig,
+        path: string,
+        method: "GET" | "POST",
+        body: Record<string, unknown> | null,
+        timeoutMs: number
+    ): Promise<AgentHttpResponse> {
         const response = await Tools.Net.http({
             url: `${config.baseUrl}${path}`,
             method,
@@ -520,71 +723,125 @@ const windowsControl = (function () {
             read_timeout: timeoutMs + 5000,
             validateStatus: false
         });
+
         return {
             statusCode: response.statusCode,
             content: response.content,
             url: response.url
         };
     }
-    async function ensureVersionCompatible(config, timeoutMs) {
+
+    async function ensureVersionCompatible(config: AgentConfig, timeoutMs: number): Promise<VersionCheckResult> {
         const healthResponse = await httpRequest(config, "/api/health", "GET", null, timeoutMs);
         const health = parseJson(healthResponse.content);
+
         if (healthResponse.statusCode >= 400 || !health.ok) {
             throw new Error(`Health check failed: HTTP ${healthResponse.statusCode}`);
         }
+
         const remoteVersion = asText(health.version || health.agentVersion).trim();
         if (!remoteVersion) {
             throw new Error("Agent version is missing. 请前往 Windows 一键配置重新部署电脑端。");
         }
+
         if (remoteVersion !== WINDOWS_CONTROL_PACKAGE_VERSION) {
             throw new Error(buildVersionMismatchMessage(remoteVersion));
         }
+
         return {
             health,
             remoteVersion
         };
     }
-    async function postCommand(config, payload, timeoutMs) {
-        const requestBody = Object.assign(Object.assign({}, payload), { token: config.token || undefined, timeoutMs });
+
+    async function postCommand(
+        config: AgentConfig,
+        payload: Record<string, unknown>,
+        timeoutMs: number
+    ): Promise<any> {
+        const requestBody = {
+            ...payload,
+            token: config.token || undefined,
+            timeoutMs
+        };
+
         const response = await httpRequest(config, "/api/command/execute", "POST", requestBody, timeoutMs);
         const data = parseJson(response.content);
+
         if (response.statusCode >= 400) {
             const message = data && data.error ? asText(data.error) : `HTTP ${response.statusCode}`;
             throw new Error(`Agent command request failed: ${message}`);
         }
+
         return data;
     }
-    async function postTextFileApi(config, path, payload, timeoutMs) {
-        const requestBody = Object.assign(Object.assign({}, payload), { token: config.token || undefined, timeoutMs });
+
+    async function postTextFileApi(
+        config: AgentConfig,
+        path: string,
+        payload: Record<string, unknown>,
+        timeoutMs: number
+    ): Promise<any> {
+        const requestBody = {
+            ...payload,
+            token: config.token || undefined,
+            timeoutMs
+        };
+
         const response = await httpRequest(config, path, "POST", requestBody, timeoutMs);
         const data = parseJson(response.content);
+
         if (response.statusCode >= 400 || !data.ok) {
             const message = data && data.error ? asText(data.error) : `HTTP ${response.statusCode}`;
             throw new Error(`Agent text file request failed: ${message}`);
         }
+
         return data;
     }
-    async function postProcessApi(config, path, payload, timeoutMs) {
-        const requestBody = Object.assign(Object.assign({}, payload), { token: config.token || undefined });
+
+    async function postProcessApi(
+        config: AgentConfig,
+        path: string,
+        payload: Record<string, unknown>,
+        timeoutMs: number
+    ): Promise<any> {
+        const requestBody = {
+            ...payload,
+            token: config.token || undefined
+        };
+
         const response = await httpRequest(config, path, "POST", requestBody, timeoutMs);
         const data = parseJson(response.content);
+
         if (response.statusCode >= 400 || data.ok === false) {
             const message = data && data.error ? asText(data.error) : `HTTP ${response.statusCode}`;
             throw new Error(`Agent process request failed: ${message}`);
         }
+
         return data;
     }
-    async function persistWindowsExecOutputIfTooLong(command, shell, data, config, versionCheck) {
+
+    async function persistWindowsExecOutputIfTooLong(
+        command: string,
+        shell: ShellMode,
+        data: any,
+        config: AgentConfig,
+        versionCheck: VersionCheckResult
+    ): Promise<WindowsExecResult | null> {
         const stdout = asText(data.stdout);
         const stderr = asText(data.stderr);
         const outputChars = stdout.length + stderr.length;
+
         if (outputChars <= MAX_INLINE_WINDOWS_EXEC_OUTPUT_CHARS) {
             return null;
         }
+
         await Tools.Files.mkdir(OPERIT_CLEAN_ON_EXIT_DIR, true);
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const rand = Math.floor(Math.random() * 1000000);
+        const rand = Math.floor(Math.random() * 1_000_000);
         const filePath = `${OPERIT_CLEAN_ON_EXIT_DIR}/windows_exec_output_${timestamp}_${rand}.log`;
+
         const content = [
             `command: ${command}`,
             `shell: ${shell}`,
@@ -598,7 +855,9 @@ const windowsControl = (function () {
             "--- stderr ---",
             stderr
         ].join("\n");
+
         await Tools.Files.write(filePath, content, false);
+
         return {
             success: !!data.ok,
             agentBaseUrl: config.baseUrl,
@@ -618,13 +877,15 @@ const windowsControl = (function () {
             error: data.ok ? "" : "Command failed. See outputSavedTo for details."
         };
     }
-    async function windows_exec(params) {
+
+    async function windows_exec(params?: WindowsExecParams): Promise<WindowsExecResult> {
         try {
             const config = resolveAgentConfig();
             const command = asText(params && params.command).trim();
             if (!command) {
                 throw new Error("Missing required parameter: command");
             }
+
             const shell = normalizeShell(params && params.shell, config.defaultShell);
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
@@ -633,6 +894,7 @@ const windowsControl = (function () {
             if (persistedResult) {
                 return persistedResult;
             }
+
             return {
                 success: !!data.ok,
                 agentBaseUrl: config.baseUrl,
@@ -647,8 +909,7 @@ const windowsControl = (function () {
                 agentVersion: versionCheck.remoteVersion,
                 error: data.ok ? "" : asText(data.error || data.stderr || "Command failed")
             };
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -656,12 +917,14 @@ const windowsControl = (function () {
             };
         }
     }
-    async function windows_test_connection(params) {
+
+    async function windows_test_connection(params?: WindowsTestConnectionParams): Promise<WindowsExecResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
             const commandData = await postCommand(config, { preset: "whoami" }, timeoutMs);
+
             return {
                 success: !!commandData.ok,
                 agentBaseUrl: config.baseUrl,
@@ -677,8 +940,7 @@ const windowsControl = (function () {
                 agentVersion: versionCheck.remoteVersion,
                 error: commandData.ok ? "" : asText(commandData.error || commandData.stderr || "Command channel failed")
             };
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -686,103 +948,133 @@ const windowsControl = (function () {
             };
         }
     }
-    function mapProcessResult(config, versionCheck, data) {
-        const result = {
+
+    function mapProcessResult(config: AgentConfig, versionCheck: VersionCheckResult, data: any): WindowsProcessResult {
+        const result: WindowsProcessResult = {
             success: true,
             agentBaseUrl: config.baseUrl,
             packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
             agentVersion: versionCheck.remoteVersion
         };
+
         const sessionId = asText(data && data.sessionId).trim();
         if (sessionId) {
             result.sessionId = sessionId;
         }
+
         const shellValue = asText(data && data.shell).trim();
         if (shellValue) {
             result.shell = normalizeShell(shellValue, config.defaultShell);
         }
+
         const status = asText(data && data.status).trim();
         if (status) {
             result.status = status;
         }
+
         if (data && data.pid !== undefined && data.pid !== null && data.pid !== "") {
             result.pid = Number(data.pid);
         }
+
         const createdAt = asText(data && data.createdAt).trim();
         if (createdAt) {
             result.createdAt = createdAt;
         }
+
         const updatedAt = asText(data && data.updatedAt).trim();
         if (updatedAt) {
             result.updatedAt = updatedAt;
         }
+
         if (data && data.exitCode !== undefined && data.exitCode !== null && data.exitCode !== "") {
             result.exitCode = Number(data.exitCode);
         }
+
         if (data && data.timedOut !== undefined) {
             result.timedOut = !!data.timedOut;
         }
+
         const commandPreview = asText(data && data.commandPreview).trim();
         if (commandPreview) {
             result.commandPreview = commandPreview;
         }
+
         if (data && data.stdout !== undefined) {
             result.stdout = asText(data.stdout);
         }
+
         if (data && data.stderr !== undefined) {
             result.stderr = asText(data.stderr);
         }
+
         if (data && data.stdoutOffset !== undefined && data.stdoutOffset !== null && data.stdoutOffset !== "") {
             result.stdoutOffset = Number(data.stdoutOffset);
         }
+
         if (data && data.stderrOffset !== undefined && data.stderrOffset !== null && data.stderrOffset !== "") {
             result.stderrOffset = Number(data.stderrOffset);
         }
+
         if (data && data.stdoutLatestOffset !== undefined && data.stdoutLatestOffset !== null && data.stdoutLatestOffset !== "") {
             result.stdoutLatestOffset = Number(data.stdoutLatestOffset);
         }
+
         if (data && data.stderrLatestOffset !== undefined && data.stderrLatestOffset !== null && data.stderrLatestOffset !== "") {
             result.stderrLatestOffset = Number(data.stderrLatestOffset);
         }
+
         if (data && data.stdoutFromOffset !== undefined && data.stdoutFromOffset !== null && data.stdoutFromOffset !== "") {
             result.stdoutFromOffset = Number(data.stdoutFromOffset);
         }
+
         if (data && data.stderrFromOffset !== undefined && data.stderrFromOffset !== null && data.stderrFromOffset !== "") {
             result.stderrFromOffset = Number(data.stderrFromOffset);
         }
+
         if (data && data.stdoutAvailableFrom !== undefined && data.stdoutAvailableFrom !== null && data.stdoutAvailableFrom !== "") {
             result.stdoutAvailableFrom = Number(data.stdoutAvailableFrom);
         }
+
         if (data && data.stderrAvailableFrom !== undefined && data.stderrAvailableFrom !== null && data.stderrAvailableFrom !== "") {
             result.stderrAvailableFrom = Number(data.stderrAvailableFrom);
         }
+
         if (data && data.stdoutTruncated !== undefined) {
             result.stdoutTruncated = !!data.stdoutTruncated;
         }
+
         if (data && data.stderrTruncated !== undefined) {
             result.stderrTruncated = !!data.stderrTruncated;
         }
+
         if (data && data.hasMore !== undefined) {
             result.hasMore = !!data.hasMore;
         }
+
         if (data && data.acceptedChars !== undefined && data.acceptedChars !== null && data.acceptedChars !== "") {
             result.acceptedChars = Number(data.acceptedChars);
         }
+
         if (data && data.wasRunning !== undefined) {
             result.wasRunning = !!data.wasRunning;
         }
+
         if (data && data.signalSent !== undefined) {
             result.signalSent = !!data.signalSent;
         }
+
         if (data && data.removed !== undefined) {
             result.removed = !!data.removed;
         }
+
         if (Array.isArray(data && data.items)) {
             result.items = data.items;
         }
+
         return result;
     }
-    async function windows_process_start(params) {
+
+    async function windows_process_start(params?: WindowsProcessStartParams): Promise<WindowsProcessResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
@@ -790,14 +1082,20 @@ const windowsControl = (function () {
             const shell = normalizeShell(params && params.shell, config.defaultShell);
             const command = asText(params && params.command);
             const maxRuntimeMs = parseOptionalPositiveInt(params && params.max_runtime_ms, "max_runtime_ms");
-            const data = await postProcessApi(config, "/api/process/start", {
-                shell,
-                command: command || undefined,
-                max_runtime_ms: maxRuntimeMs === undefined ? undefined : maxRuntimeMs
-            }, timeoutMs);
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/start",
+                {
+                    shell,
+                    command: command || undefined,
+                    max_runtime_ms: maxRuntimeMs === undefined ? undefined : maxRuntimeMs
+                },
+                timeoutMs
+            );
+
             return mapProcessResult(config, versionCheck, data);
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -805,7 +1103,8 @@ const windowsControl = (function () {
             };
         }
     }
-    async function windows_process_read(params) {
+
+    async function windows_process_read(params?: WindowsProcessReadParams): Promise<WindowsProcessResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
@@ -814,15 +1113,21 @@ const windowsControl = (function () {
             const stdoutOffset = parseOptionalNonNegativeInt(params && params.stdout_offset, "stdout_offset");
             const stderrOffset = parseOptionalNonNegativeInt(params && params.stderr_offset, "stderr_offset");
             const maxChars = parseOptionalPositiveInt(params && params.max_chars, "max_chars");
-            const data = await postProcessApi(config, "/api/process/read", {
-                session_id: sessionId,
-                stdout_offset: stdoutOffset === undefined ? 0 : stdoutOffset,
-                stderr_offset: stderrOffset === undefined ? 0 : stderrOffset,
-                max_chars: maxChars === undefined ? undefined : maxChars
-            }, timeoutMs);
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/read",
+                {
+                    session_id: sessionId,
+                    stdout_offset: stdoutOffset === undefined ? 0 : stdoutOffset,
+                    stderr_offset: stderrOffset === undefined ? 0 : stderrOffset,
+                    max_chars: maxChars === undefined ? undefined : maxChars
+                },
+                timeoutMs
+            );
+
             return mapProcessResult(config, versionCheck, data);
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -830,29 +1135,39 @@ const windowsControl = (function () {
             };
         }
     }
-    async function windows_process_write(params) {
+
+    async function windows_process_write(params?: WindowsProcessWriteParams): Promise<WindowsProcessResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
             const sessionId = requireSessionId(params && params.session_id);
+
             const hasInput = !!(params && params.input !== undefined && params.input !== null);
             const hasControl = !!(params && params.control !== undefined && params.control !== null && String(params.control).trim() !== "");
+
             if (!hasInput && !hasControl) {
                 throw new Error("Missing required input: provide input or control");
             }
+
             const input = hasInput ? asText(params && params.input) : undefined;
             const control = hasControl ? asText(params && params.control) : undefined;
             const repeat = parseOptionalPositiveInt(params && params.repeat, "repeat");
-            const data = await postProcessApi(config, "/api/process/write", {
-                session_id: sessionId,
-                input,
-                control,
-                repeat: repeat === undefined ? undefined : repeat
-            }, timeoutMs);
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/write",
+                {
+                    session_id: sessionId,
+                    input,
+                    control,
+                    repeat: repeat === undefined ? undefined : repeat
+                },
+                timeoutMs
+            );
+
             return mapProcessResult(config, versionCheck, data);
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -860,20 +1175,27 @@ const windowsControl = (function () {
             };
         }
     }
-    async function windows_process_terminate(params) {
+
+    async function windows_process_terminate(params?: WindowsProcessTerminateParams): Promise<WindowsProcessResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
             const sessionId = requireSessionId(params && params.session_id);
             const remove = parseOptionalBoolean(params && params.remove, "remove");
-            const data = await postProcessApi(config, "/api/process/terminate", {
-                session_id: sessionId,
-                remove: remove === undefined ? undefined : remove
-            }, timeoutMs);
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/terminate",
+                {
+                    session_id: sessionId,
+                    remove: remove === undefined ? undefined : remove
+                },
+                timeoutMs
+            );
+
             return mapProcessResult(config, versionCheck, data);
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -881,18 +1203,25 @@ const windowsControl = (function () {
             };
         }
     }
-    async function windows_process_list(params) {
+
+    async function windows_process_list(params?: WindowsProcessListParams): Promise<WindowsProcessResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
             const includeExited = parseOptionalBoolean(params && params.include_exited, "include_exited");
-            const data = await postProcessApi(config, "/api/process/list", {
-                include_exited: includeExited === undefined ? true : includeExited
-            }, timeoutMs);
+
+            const data = await postProcessApi(
+                config,
+                "/api/process/list",
+                {
+                    include_exited: includeExited === undefined ? true : includeExited
+                },
+                timeoutMs
+            );
+
             return mapProcessResult(config, versionCheck, data);
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -900,47 +1229,70 @@ const windowsControl = (function () {
             };
         }
     }
-    async function read(params) {
+
+    async function read(params?: WindowsReadParams): Promise<WindowsFileResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+
             const path = asText(params && params.path).trim();
             if (!path) {
                 throw new Error("Missing required parameter: path");
             }
+
             const encoding = asText(params && params.encoding).trim();
             const offset = parseOptionalNonNegativeInt(params && params.offset, "offset");
             const length = parseOptionalNonNegativeInt(params && params.length, "length");
             const lineStart = parseOptionalPositiveInt(params && params.line_start, "line_start");
             const lineEnd = parseOptionalPositiveInt(params && params.line_end, "line_end");
+
             const useSegment = offset !== undefined || length !== undefined;
             const useLineRange = lineStart !== undefined || lineEnd !== undefined;
+
             if (useSegment && useLineRange) {
                 throw new Error("offset/length cannot be used together with line_start/line_end");
             }
+
             if (lineStart !== undefined && lineEnd !== undefined && lineEnd < lineStart) {
                 throw new Error("line_end must be greater than or equal to line_start");
             }
+
             const data = useLineRange
-                ? await postTextFileApi(config, "/api/file/read_lines", {
-                    path,
-                    encoding: encoding || undefined,
-                    line_start: lineStart === undefined ? 1 : lineStart,
-                    line_end: lineEnd === undefined ? undefined : lineEnd
-                }, timeoutMs)
-                : useSegment
-                    ? await postTextFileApi(config, "/api/file/read_segment", {
+                ? await postTextFileApi(
+                    config,
+                    "/api/file/read_lines",
+                    {
                         path,
                         encoding: encoding || undefined,
-                        offset: offset === undefined ? 0 : offset,
-                        length: length === undefined ? undefined : length
-                    }, timeoutMs)
-                    : await postTextFileApi(config, "/api/file/read", {
-                        path,
-                        encoding: encoding || undefined
-                    }, timeoutMs);
-            const result = {
+                        line_start: lineStart === undefined ? 1 : lineStart,
+                        line_end: lineEnd === undefined ? undefined : lineEnd
+                    },
+                    timeoutMs
+                )
+                : useSegment
+                    ? await postTextFileApi(
+                        config,
+                        "/api/file/read_segment",
+                        {
+                            path,
+                            encoding: encoding || undefined,
+                            offset: offset === undefined ? 0 : offset,
+                            length: length === undefined ? undefined : length
+                        },
+                        timeoutMs
+                    )
+                    : await postTextFileApi(
+                        config,
+                        "/api/file/read",
+                        {
+                            path,
+                            encoding: encoding || undefined
+                        },
+                        timeoutMs
+                    );
+
+            const result: WindowsFileResult = {
                 success: true,
                 agentBaseUrl: config.baseUrl,
                 path: asText(data.path),
@@ -949,6 +1301,7 @@ const windowsControl = (function () {
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
                 agentVersion: versionCheck.remoteVersion
             };
+
             if (data.offset !== undefined) {
                 result.offset = Number(data.offset);
             }
@@ -970,9 +1323,9 @@ const windowsControl = (function () {
             if (data.eof !== undefined) {
                 result.eof = !!data.eof;
             }
+
             return result;
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -980,25 +1333,35 @@ const windowsControl = (function () {
             };
         }
     }
-    async function write(params) {
+
+    async function write(params?: WindowsWriteParams): Promise<WindowsFileResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+
             const path = asText(params && params.path).trim();
             if (!path) {
                 throw new Error("Missing required parameter: path");
             }
+
             if (!params || params.content === undefined || params.content === null) {
                 throw new Error("Missing required parameter: content");
             }
+
             const content = asText(params.content);
             const encoding = asText(params && params.encoding).trim();
-            const data = await postTextFileApi(config, "/api/file/write", {
-                path,
-                content,
-                encoding: encoding || undefined
-            }, timeoutMs);
+            const data = await postTextFileApi(
+                config,
+                "/api/file/write",
+                {
+                    path,
+                    content,
+                    encoding: encoding || undefined
+                },
+                timeoutMs
+            );
+
             return {
                 success: true,
                 agentBaseUrl: config.baseUrl,
@@ -1008,8 +1371,7 @@ const windowsControl = (function () {
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
                 agentVersion: versionCheck.remoteVersion
             };
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -1017,32 +1379,44 @@ const windowsControl = (function () {
             };
         }
     }
-    async function edit(params) {
+
+    async function edit(params?: WindowsEditParams): Promise<WindowsFileResult> {
         try {
             const config = resolveAgentConfig();
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
+
             const path = asText(params && params.path).trim();
             if (!path) {
                 throw new Error("Missing required parameter: path");
             }
+
             const oldText = asText(params && params.old_text);
             if (!oldText) {
                 throw new Error("Missing required parameter: old_text");
             }
+
             if (!params || params.new_text === undefined || params.new_text === null) {
                 throw new Error("Missing required parameter: new_text");
             }
+
             const newText = asText(params.new_text);
             const expectedReplacements = parseExpectedReplacements(params && params.expected_replacements);
             const encoding = asText(params && params.encoding).trim();
-            const data = await postTextFileApi(config, "/api/file/edit", {
-                path,
-                old_text: oldText,
-                new_text: newText,
-                expected_replacements: expectedReplacements,
-                encoding: encoding || undefined
-            }, timeoutMs);
+
+            const data = await postTextFileApi(
+                config,
+                "/api/file/edit",
+                {
+                    path,
+                    old_text: oldText,
+                    new_text: newText,
+                    expected_replacements: expectedReplacements,
+                    encoding: encoding || undefined
+                },
+                timeoutMs
+            );
+
             return {
                 success: true,
                 agentBaseUrl: config.baseUrl,
@@ -1054,8 +1428,7 @@ const windowsControl = (function () {
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
                 agentVersion: versionCheck.remoteVersion
             };
-        }
-        catch (error) {
+        } catch (error: any) {
             return {
                 success: false,
                 packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
@@ -1063,6 +1436,7 @@ const windowsControl = (function () {
             };
         }
     }
+
     return {
         windows_exec,
         windows_process_start,
@@ -1077,6 +1451,7 @@ const windowsControl = (function () {
         write
     };
 })();
+
 exports.windows_exec = windowsControl.windows_exec;
 exports.windows_process_start = windowsControl.windows_process_start;
 exports.windows_process_read = windowsControl.windows_process_read;

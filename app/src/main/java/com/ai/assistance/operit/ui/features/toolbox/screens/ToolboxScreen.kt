@@ -33,6 +33,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.ui.features.toolbox.screens.apppermissions.AppPermissionsScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpegToolboxScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.FileManagerScreen
@@ -48,6 +50,8 @@ import com.ai.assistance.operit.R
 import androidx.compose.ui.res.stringResource
 import com.ai.assistance.operit.terminal.TerminalManager
 import com.ai.assistance.operit.terminal.rememberTerminalEnv
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // 工具类别
 enum class ToolCategory {
@@ -95,12 +99,34 @@ fun ToolboxScreen(
         onHtmlPackagerSelected: () -> Unit,
         onAutoGlmOneClickSelected: () -> Unit,
         onAutoGlmToolSelected: () -> Unit,
-        onWindowsControlOneClickSelected: () -> Unit,
-        onSqlViewerSelected: () -> Unit
+        onSqlViewerSelected: () -> Unit,
+        onToolPkgComposeDslSelected: (containerPackageName: String, uiModuleId: String, title: String) -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
         val screenWidth = configuration.screenWidthDp.dp
+        val context = LocalContext.current
+        val packageManager =
+                remember {
+                        PackageManager.getInstance(
+                                context,
+                                AIToolHandler.getInstance(context)
+                        )
+                }
+        var dynamicUiModules by
+                remember {
+                        mutableStateOf<List<PackageManager.ToolPkgToolboxUiModule>>(emptyList())
+                }
+
+        LaunchedEffect(configuration) {
+                dynamicUiModules =
+                        withContext(Dispatchers.IO) {
+                                packageManager.getToolPkgToolboxUiModules(
+                                        runtime = "compose_dsl",
+                                        resolveContext = context
+                                )
+                        }
+        }
 
         // 根据屏幕宽度决定每行显示的卡片数量
         val columnsCount =
@@ -233,22 +259,35 @@ fun ToolboxScreen(
                                 description = stringResource(R.string.tool_autoglm_tool_desc),
                                 category = ToolCategory.DEVELOPMENT,
                                 onClick = onAutoGlmToolSelected
-                        ),
-                        Tool(
-                                name = stringResource(R.string.tool_windows_control_one_click),
-                                icon = Icons.Default.Computer,
-                                description = stringResource(R.string.tool_windows_control_one_click_desc),
-                                category = ToolCategory.DEVELOPMENT,
-                                onClick = onWindowsControlOneClickSelected
                         )
                 )
+        val dynamicTools =
+                dynamicUiModules.map { module ->
+                        Tool(
+                                name = module.title,
+                                icon = Icons.Default.Extension,
+                                description =
+                                        module.description.ifBlank {
+                                                module.containerPackageName
+                                        },
+                                category = ToolCategory.DEVELOPMENT,
+                                onClick = {
+                                        onToolPkgComposeDslSelected(
+                                                module.containerPackageName,
+                                                module.uiModuleId,
+                                                module.title
+                                        )
+                                }
+                        )
+                }
+        val allTools = tools + dynamicTools
 
         // 根据选中的分类过滤工具
         val filteredTools =
                 if (selectedCategory == ToolCategory.ALL) {
-                        tools
+                        allTools
                 } else {
-                        tools.filter { it.category == selectedCategory }
+                        allTools.filter { it.category == selectedCategory }
                 }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -264,7 +303,7 @@ fun ToolboxScreen(
 
                         // 工具网格
                         LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 120.dp),
+                                columns = GridCells.Fixed(columnsCount),
                                 contentPadding = PaddingValues(12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
