@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 
 private const val TAG = "TableBlock"
+private val TABLE_MIN_COLUMN_WIDTH = 80.dp
+private val TABLE_MAX_COLUMN_WIDTH = 320.dp
+private const val TABLE_MAX_MEASURE_LINE_CHARS = 512
 
 /**
  * 增强型表格组件
@@ -96,7 +99,7 @@ fun EnhancedTableBlock(
             val columnCount = tableData.rows.maxOf { it.size }
             
             // 初始化列宽数组
-            val widths = MutableList(columnCount) { 80.dp }
+            val widths = MutableList(columnCount) { TABLE_MIN_COLUMN_WIDTH }
             
             // 计算每列的最大宽度
             tableData.rows.forEachIndexed { rowIndex, row ->
@@ -108,26 +111,32 @@ fun EnhancedTableBlock(
                 }
 
                 row.forEachIndexed { colIndex, cell ->
+                    val hasOverlongLine =
+                        cell.lineSequence().any { it.length > TABLE_MAX_MEASURE_LINE_CHARS }
                     val maxLineWidthPx =
-                        cell
-                            .split('\n')
-                            .maxOfOrNull { line ->
-                                textMeasurer
-                                    .measure(
-                                        text = AnnotatedString(line),
-                                        style = rowTextStyle,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                    .size
-                                    .width
-                            }
-                            ?: 0
+                        if (hasOverlongLine) {
+                            with(density) { TABLE_MAX_COLUMN_WIDTH.roundToPx() }
+                        } else {
+                            cell
+                                .split('\n')
+                                .maxOfOrNull { line ->
+                                    textMeasurer
+                                        .measure(
+                                            text = AnnotatedString(line),
+                                            style = rowTextStyle,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        .size
+                                        .width
+                                }
+                                ?: 0
+                        }
 
-                    val measuredWidthDp = with(density) { maxLineWidthPx.toDp() }
-                    val cellMinWidth = (measuredWidthDp + 16.dp).coerceAtLeast(80.dp)
-                    if (colIndex < widths.size && cellMinWidth > widths[colIndex]) {
-                        widths[colIndex] = cellMinWidth
+                    val measuredWidthDp = with(density) { maxLineWidthPx.toDp() } + 16.dp
+                    val cellWidth = measuredWidthDp.coerceIn(TABLE_MIN_COLUMN_WIDTH, TABLE_MAX_COLUMN_WIDTH)
+                    if (colIndex < widths.size && cellWidth > widths[colIndex]) {
+                        widths[colIndex] = cellWidth
                     }
                 }
             }
@@ -182,7 +191,7 @@ fun EnhancedTableBlock(
                                     val columnWidth = if (colIndex < columnWidths.size) {
                                         columnWidths[colIndex]
                                     } else {
-                                        80.dp // 默认宽度
+                                        TABLE_MIN_COLUMN_WIDTH // 默认宽度
                                     }
                                     
                                     // 表格单元格
@@ -200,9 +209,9 @@ fun EnhancedTableBlock(
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
                                             textAlign = TextAlign.Center,
-                                            // 不限制行数，也不使用省略号，确保文本完整显示
-                                            // 但设置为单行，防止文本换行
-                                            softWrap = false
+                                            modifier = Modifier.fillMaxWidth(),
+                                            // 允许换行，配合列宽上限避免长文本撑爆表格
+                                            softWrap = true
                                         )
                                     }
                                 }

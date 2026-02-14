@@ -83,8 +83,8 @@
         {
             "name": "read",
             "description": {
-                "zh": "读取 Windows 文件。支持整文件读取，也支持按 offset/length 分段读取。",
-                "en": "Read a file on Windows. Supports full read and segmented read by offset/length."
+                "zh": "读取 Windows 文件。支持整文件读取、按 offset/length 字节分段读取、按 line_start/line_end 行范围读取。",
+                "en": "Read a file on Windows. Supports full read, byte-range read by offset/length, and line-range read by line_start/line_end."
             },
             "parameters": [
                 {
@@ -108,6 +108,18 @@
                 {
                     "name": "length",
                     "description": { "zh": "分段读取长度（字节，可选）", "en": "Segment length in bytes (optional)" },
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "line_start",
+                    "description": { "zh": "按行读取时的起始行号（从 1 开始，可选）", "en": "Start line number for line-range read (1-based, optional)" },
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "line_end",
+                    "description": { "zh": "按行读取时的结束行号（包含该行，可选）", "en": "End line number for line-range read (inclusive, optional)" },
                     "type": "number",
                     "required": false
                 },
@@ -202,6 +214,7 @@
 */
 const windowsControl = (function () {
     const WINDOWS_CONTROL_PACKAGE_VERSION = "0.1.0";
+    const MAX_INLINE_WINDOWS_EXEC_OUTPUT_CHARS = 12000;
     const ENV_KEYS = {
         baseUrl: "WINDOWS_AGENT_BASE_URL",
         token: "WINDOWS_AGENT_TOKEN",
@@ -252,6 +265,17 @@ const windowsControl = (function () {
         const parsed = Number(raw);
         if (!Number.isFinite(parsed) || parsed < 0) {
             throw new Error(`Invalid ${fieldName}, expected non-negative integer`);
+        }
+        return Math.floor(parsed);
+    }
+    function parseOptionalPositiveInt(value, fieldName) {
+        const raw = asText(value).trim();
+        if (!raw) {
+            return undefined;
+        }
+        const parsed = Number(raw);
+        if (!Number.isFinite(parsed) || parsed < 1) {
+            throw new Error(`Invalid ${fieldName}, expected integer >= 1`);
         }
         return Math.floor(parsed);
     }
@@ -360,6 +384,50 @@ const windowsControl = (function () {
         }
         return data;
     }
+    async function persistWindowsExecOutputIfTooLong(command, shell, data, config, versionCheck) {
+        const stdout = asText(data.stdout);
+        const stderr = asText(data.stderr);
+        const outputChars = stdout.length + stderr.length;
+        if (outputChars <= MAX_INLINE_WINDOWS_EXEC_OUTPUT_CHARS) {
+            return null;
+        }
+        await Tools.Files.mkdir(OPERIT_CLEAN_ON_EXIT_DIR, true);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const rand = Math.floor(Math.random() * 1000000);
+        const filePath = `${OPERIT_CLEAN_ON_EXIT_DIR}/windows_exec_output_${timestamp}_${rand}.log`;
+        const content = [
+            `command: ${command}`,
+            `shell: ${shell}`,
+            `exitCode: ${asText(data.exitCode)}`,
+            `timedOut: ${asText(!!data.timedOut)}`,
+            `durationMs: ${asText(data.durationMs)}`,
+            "",
+            "--- stdout ---",
+            stdout,
+            "",
+            "--- stderr ---",
+            stderr
+        ].join("\n");
+        await Tools.Files.write(filePath, content, false);
+        return {
+            success: !!data.ok,
+            agentBaseUrl: config.baseUrl,
+            shell,
+            command,
+            exitCode: data.exitCode,
+            timedOut: !!data.timedOut,
+            durationMs: data.durationMs,
+            output: "(saved_to_file)",
+            stderr: "(saved_to_file)",
+            outputSavedTo: filePath,
+            outputChars,
+            operitCleanOnExitDir: OPERIT_CLEAN_ON_EXIT_DIR,
+            hint: "Output is large and saved to file. Use read_file_part or grep_code to inspect it.",
+            packageVersion: WINDOWS_CONTROL_PACKAGE_VERSION,
+            agentVersion: versionCheck.remoteVersion,
+            error: data.ok ? "" : "Command failed. See outputSavedTo for details."
+        };
+    }
     async function windows_exec(params) {
         try {
             const config = resolveAgentConfig();
@@ -371,6 +439,10 @@ const windowsControl = (function () {
             const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
             const versionCheck = await ensureVersionCompatible(config, timeoutMs);
             const data = await postCommand(config, { command, shell }, timeoutMs);
+            const persistedResult = await persistWindowsExecOutputIfTooLong(command, shell, data, config, versionCheck);
+            if (persistedResult) {
+                return persistedResult;
+            }
             return {
                 success: !!data.ok,
                 agentBaseUrl: config.baseUrl,
@@ -436,18 +508,34 @@ const windowsControl = (function () {
             const encoding = asText(params && params.encoding).trim();
             const offset = parseOptionalNonNegativeInt(params && params.offset, "offset");
             const length = parseOptionalNonNegativeInt(params && params.length, "length");
+            const lineStart = parseOptionalPositiveInt(params && params.line_start, "line_start");
+            const lineEnd = parseOptionalPositiveInt(params && params.line_end, "line_end");
             const useSegment = offset !== undefined || length !== undefined;
-            const data = useSegment
-                ? await postTextFileApi(config, "/api/file/read_segment", {
+            const useLineRange = lineStart !== undefined || lineEnd !== undefined;
+            if (useSegment && useLineRange) {
+                throw new Error("offset/length cannot be used together with line_start/line_end");
+            }
+            if (lineStart !== undefined && lineEnd !== undefined && lineEnd < lineStart) {
+                throw new Error("line_end must be greater than or equal to line_start");
+            }
+            const data = useLineRange
+                ? await postTextFileApi(config, "/api/file/read_lines", {
                     path,
                     encoding: encoding || undefined,
-                    offset: offset === undefined ? 0 : offset,
-                    length: length === undefined ? undefined : length
+                    line_start: lineStart === undefined ? 1 : lineStart,
+                    line_end: lineEnd === undefined ? undefined : lineEnd
                 }, timeoutMs)
-                : await postTextFileApi(config, "/api/file/read", {
-                    path,
-                    encoding: encoding || undefined
-                }, timeoutMs);
+                : useSegment
+                    ? await postTextFileApi(config, "/api/file/read_segment", {
+                        path,
+                        encoding: encoding || undefined,
+                        offset: offset === undefined ? 0 : offset,
+                        length: length === undefined ? undefined : length
+                    }, timeoutMs)
+                    : await postTextFileApi(config, "/api/file/read", {
+                        path,
+                        encoding: encoding || undefined
+                    }, timeoutMs);
             const result = {
                 success: true,
                 agentBaseUrl: config.baseUrl,
@@ -465,6 +553,15 @@ const windowsControl = (function () {
             }
             if (data.totalBytes !== undefined) {
                 result.totalBytes = Number(data.totalBytes);
+            }
+            if (data.lineStart !== undefined) {
+                result.lineStart = Number(data.lineStart);
+            }
+            if (data.lineEnd !== undefined) {
+                result.lineEnd = Number(data.lineEnd);
+            }
+            if (data.totalLines !== undefined) {
+                result.totalLines = Number(data.totalLines);
             }
             if (data.eof !== undefined) {
                 result.eof = !!data.eof;

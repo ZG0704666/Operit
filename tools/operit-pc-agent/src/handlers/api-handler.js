@@ -333,6 +333,41 @@ function createApiHandler({
       return true;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/file/read_lines") {
+      try {
+        const body = await readJsonBody(req);
+        if (!isAuthorized(state.config, body.token)) {
+          unauthorized(res, "file.read_lines", body.token);
+          return true;
+        }
+
+        const result = fileService.readTextLines(body.path, {
+          line_start: body.line_start,
+          line_end: body.line_end,
+          encoding: body.encoding
+        });
+
+        logger.info("file.read_lines.success", {
+          path: result.path,
+          lineStart: result.lineStart,
+          lineEnd: result.lineEnd,
+          totalLines: result.totalLines,
+          eof: result.eof,
+          encoding: result.encoding
+        });
+
+        sendJson(res, 200, {
+          ok: true,
+          ...result
+        });
+      } catch (error) {
+        logger.error("file.read_lines.error", { error: error.message });
+        sendJson(res, 400, { ok: false, error: error.message });
+      }
+
+      return true;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/file/write") {
       try {
         const body = await readJsonBody(req, {

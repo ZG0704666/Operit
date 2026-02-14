@@ -278,6 +278,50 @@ function createFileService({ projectRoot }) {
     };
   }
 
+  function readTextLines(pathInput, options = {}) {
+    const targetPath = resolveTargetPath(projectRoot, pathInput);
+    ensureReadableFile(targetPath);
+    const encoding = normalizeEncoding(options.encoding);
+
+    const rawContent = fs.readFileSync(targetPath, { encoding });
+    const normalizedContent = rawContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const lines = normalizedContent.length ? normalizedContent.split("\n") : [];
+    const totalLines = lines.length;
+
+    const lineStart = parsePositiveInt(options.line_start, 1, Number.MAX_SAFE_INTEGER, "line_start");
+    const defaultLineEnd = totalLines === 0 ? lineStart : totalLines;
+    const lineEnd = parsePositiveInt(options.line_end, defaultLineEnd, Number.MAX_SAFE_INTEGER, "line_end");
+
+    if (lineEnd < lineStart) {
+      throw new Error("line_end must be greater than or equal to line_start");
+    }
+
+    if (totalLines === 0 || lineStart > totalLines) {
+      return {
+        path: targetPath,
+        encoding,
+        lineStart,
+        lineEnd: Math.min(lineEnd, totalLines),
+        totalLines,
+        eof: true,
+        content: ""
+      };
+    }
+
+    const boundedLineEnd = Math.min(lineEnd, totalLines);
+    const content = lines.slice(lineStart - 1, boundedLineEnd).join("\n");
+
+    return {
+      path: targetPath,
+      encoding,
+      lineStart,
+      lineEnd: boundedLineEnd,
+      totalLines,
+      eof: boundedLineEnd >= totalLines,
+      content
+    };
+  }
+
   function writeTextFile(pathInput, contentInput, encodingInput) {
     const targetPath = resolveTargetPath(projectRoot, pathInput);
     if (typeof contentInput !== "string") {
@@ -411,6 +455,7 @@ function createFileService({ projectRoot }) {
     listDirectory,
     readTextFile,
     readTextSegment,
+    readTextLines,
     writeTextFile,
     editTextFile,
     readBase64File,

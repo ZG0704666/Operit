@@ -140,11 +140,7 @@ class MemoryViewModel(private val repository: MemoryRepository, private val cont
                 val folders = repository.getAllFolderPaths()
                 com.ai.assistance.operit.util.AppLogger.d("MemoryViewModel", "Loaded ${folders.size} folders: $folders")
                 _uiState.update { it.copy(folderPaths = folders) }
-                
-                // 如果还没有选中文件夹，自动选择第一个（通常是"未分类"）
-                if (_uiState.value.selectedFolderPath.isEmpty() && folders.isNotEmpty()) {
-                    selectFolder(folders.first())
-                }
+                // 保持空字符串选中态表示“全部”，避免刷新目录后自动跳转到具体文件夹。
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = context.getString(R.string.memory_error_load_folders, e.message ?: "Unknown error")) }
             }
