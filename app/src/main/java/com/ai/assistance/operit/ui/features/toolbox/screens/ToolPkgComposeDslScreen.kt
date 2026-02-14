@@ -61,6 +61,7 @@ import com.ai.assistance.operit.core.tools.packTool.ToolPkgComposeDslParser
 import com.ai.assistance.operit.core.tools.packTool.ToolPkgComposeDslRenderResult
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.util.LocaleUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -154,6 +155,7 @@ fun ToolPkgComposeDslToolScreen(
                 val rawResult =
                     withContext(Dispatchers.IO) {
                         if (actionId.isNullOrBlank()) {
+                            val language = LocaleUtils.getCurrentLanguage(context).trim()
                             jsEngine.executeComposeDslScript(
                                 script = scriptText,
                                 runtimeOptions =
@@ -161,6 +163,8 @@ fun ToolPkgComposeDslToolScreen(
                                         "packageName" to containerPackageName,
                                         "toolPkgId" to containerPackageName,
                                         "uiModuleId" to uiModuleId,
+                                        "__operit_package_lang" to
+                                            (if (language.isNotBlank()) language else "zh"),
                                         "__operit_script_entry" to (scriptEntryPath ?: ""),
                                         "moduleSpec" to buildModuleSpec(scriptEntryPath),
                                         "state" to (renderResult?.state ?: emptyMap<String, Any?>()),
@@ -237,7 +241,6 @@ fun ToolPkgComposeDslToolScreen(
                         modifier
                     }
                 }
-                .padding(12.dp)
 
         Box(modifier = Modifier.fillMaxSize()) {
             when {

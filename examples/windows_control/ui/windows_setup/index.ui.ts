@@ -33,8 +33,10 @@ interface ParsedConnectionPayload {
 }
 
 function resolveText(ctx: ComposeDslContext): WindowsSetupI18n {
-  const locale = ctx.getLocale ? ctx.getLocale() : undefined;
-  return resolveWindowsSetupI18n(locale);
+  const rawLocale = ctx.getLocale ? ctx.getLocale() : "";
+  const locale = String(rawLocale || "").trim().toLowerCase();
+  const preferredLocale = locale.startsWith("en") ? "en-US" : "zh-CN";
+  return resolveWindowsSetupI18n(preferredLocale);
 }
 
 function useStateValue<T>(ctx: ComposeDslContext, key: string, initialValue: T): {
@@ -156,6 +158,18 @@ async function resolveToolName(
   return `${packageName}:${toolName}`;
 }
 
+function resolveRuntimePackageName(ctx: ComposeDslContext, fallback: string): string {
+  const currentPackageName = String(ctx.getCurrentPackageName?.() || "").trim();
+  const currentToolPkgId = String(ctx.getCurrentToolPkgId?.() || "").trim();
+  if (!currentPackageName) {
+    return fallback;
+  }
+  if (currentToolPkgId && currentPackageName === currentToolPkgId) {
+    return fallback;
+  }
+  return currentPackageName;
+}
+
 async function ensureImportedAndUsed(ctx: ComposeDslContext, packageName: string): Promise<void> {
   const imported = ctx.isPackageImported ? !!(await ctx.isPackageImported(packageName)) : false;
   if (!imported && ctx.importPackage) {
@@ -259,7 +273,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
     });
     setErrorMessage("");
     try {
-      const packageName = firstNonBlank(ctx.getCurrentPackageName?.(), WINDOWS_PACKAGE_NAME);
+      const packageName = resolveRuntimePackageName(ctx, WINDOWS_PACKAGE_NAME);
       const savedBaseUrl = (ctx.getEnv(KEY_BASE_URL) || "").trim();
       const savedToken = (ctx.getEnv(KEY_TOKEN) || "").trim();
       const imported = ctx.isPackageImported ? !!(await ctx.isPackageImported(packageName)) : true;
@@ -281,8 +295,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
       const resolved = await resolveToolName(ctx, packageName, WINDOWS_TOOL_TEST_CONNECTION);
       const candidates = [
         resolved,
-        `${packageName}:${WINDOWS_TOOL_TEST_CONNECTION}`,
-        `com.operit.windows_bundle#windows_control:${WINDOWS_TOOL_TEST_CONNECTION}`
+        `${packageName}:${WINDOWS_TOOL_TEST_CONNECTION}`
       ].filter((item, index, arr) => item && arr.indexOf(item) === index);
 
       let rawResult: unknown = null;
@@ -416,7 +429,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
       await ctx.setEnv(KEY_DEFAULT_SHELL, shellValue);
       await ctx.setEnv(KEY_TIMEOUT_MS, timeoutValue);
 
-      const packageName = firstNonBlank(ctx.getCurrentPackageName?.(), WINDOWS_PACKAGE_NAME);
+      const packageName = resolveRuntimePackageName(ctx, WINDOWS_PACKAGE_NAME);
       await ensureImportedAndUsed(ctx, packageName);
 
       step2MessageState.set(TEXT.successApply);

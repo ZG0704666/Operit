@@ -796,7 +796,9 @@ class JsEngine(private val context: Context) {
             try {
                 var __operitLang = (params && params.__operit_package_lang !== undefined && params.__operit_package_lang !== null && String(params.__operit_package_lang).length > 0)
                     ? String(params.__operit_package_lang)
-                    : undefined;
+                    : ((window['__operit_package_lang'] !== undefined && window['__operit_package_lang'] !== null && String(window['__operit_package_lang']).length > 0)
+                        ? String(window['__operit_package_lang'])
+                        : undefined);
                 window['__operit_package_lang'] = __operitLang;
             } catch (e) {
             }

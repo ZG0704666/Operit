@@ -10,8 +10,10 @@ const KEY_TOKEN = "WINDOWS_AGENT_TOKEN";
 const KEY_DEFAULT_SHELL = "WINDOWS_AGENT_DEFAULT_SHELL";
 const KEY_TIMEOUT_MS = "WINDOWS_AGENT_TIMEOUT_MS";
 function resolveText(ctx) {
-    const locale = ctx.getLocale ? ctx.getLocale() : undefined;
-    return (0, i18n_1.resolveWindowsSetupI18n)(locale);
+    const rawLocale = ctx.getLocale ? ctx.getLocale() : "";
+    const locale = String(rawLocale || "").trim().toLowerCase();
+    const preferredLocale = locale.startsWith("en") ? "en-US" : "zh-CN";
+    return (0, i18n_1.resolveWindowsSetupI18n)(preferredLocale);
 }
 function useStateValue(ctx, key, initialValue) {
     const pair = ctx.useState(key, initialValue);
@@ -110,6 +112,18 @@ async function resolveToolName(ctx, packageName, toolName) {
     }
     return `${packageName}:${toolName}`;
 }
+function resolveRuntimePackageName(ctx, fallback) {
+    var _a, _b;
+    const currentPackageName = String(((_a = ctx.getCurrentPackageName) === null || _a === void 0 ? void 0 : _a.call(ctx)) || "").trim();
+    const currentToolPkgId = String(((_b = ctx.getCurrentToolPkgId) === null || _b === void 0 ? void 0 : _b.call(ctx)) || "").trim();
+    if (!currentPackageName) {
+        return fallback;
+    }
+    if (currentToolPkgId && currentPackageName === currentToolPkgId) {
+        return fallback;
+    }
+    return currentPackageName;
+}
 async function ensureImportedAndUsed(ctx, packageName) {
     const imported = ctx.isPackageImported ? !!(await ctx.isPackageImported(packageName)) : false;
     if (!imported && ctx.importPackage) {
@@ -189,12 +203,12 @@ function Screen(ctx) {
         connectionCardState.set(next);
     };
     const checkConnectionByTool = async () => {
-        var _a, _b, _c;
+        var _a, _b;
         isCheckingConnectionState.set(true);
         setConnectionCard(Object.assign(Object.assign({}, connectionCardState.value), { status: "checking" }));
         setErrorMessage("");
         try {
-            const packageName = firstNonBlank((_a = ctx.getCurrentPackageName) === null || _a === void 0 ? void 0 : _a.call(ctx), WINDOWS_PACKAGE_NAME);
+            const packageName = resolveRuntimePackageName(ctx, WINDOWS_PACKAGE_NAME);
             const savedBaseUrl = (ctx.getEnv(KEY_BASE_URL) || "").trim();
             const savedToken = (ctx.getEnv(KEY_TOKEN) || "").trim();
             const imported = ctx.isPackageImported ? !!(await ctx.isPackageImported(packageName)) : true;
@@ -214,8 +228,7 @@ function Screen(ctx) {
             const resolved = await resolveToolName(ctx, packageName, WINDOWS_TOOL_TEST_CONNECTION);
             const candidates = [
                 resolved,
-                `${packageName}:${WINDOWS_TOOL_TEST_CONNECTION}`,
-                `com.operit.windows_bundle#windows_control:${WINDOWS_TOOL_TEST_CONNECTION}`
+                `${packageName}:${WINDOWS_TOOL_TEST_CONNECTION}`
             ].filter((item, index, arr) => item && arr.indexOf(item) === index);
             let rawResult = null;
             let lastError = "unknown";
@@ -246,7 +259,7 @@ function Screen(ctx) {
             const parsed = parseConnectionPayload(rawPayload);
             const resultObj = rawResult && typeof rawResult === "object" ? rawResult : null;
             const successByResultObj = resultObj && typeof resultObj.success === "boolean" ? resultObj.success : null;
-            const actualSuccess = (_c = (_b = parsed === null || parsed === void 0 ? void 0 : parsed.success) !== null && _b !== void 0 ? _b : successByResultObj) !== null && _c !== void 0 ? _c : true;
+            const actualSuccess = (_b = (_a = parsed === null || parsed === void 0 ? void 0 : parsed.success) !== null && _a !== void 0 ? _a : successByResultObj) !== null && _b !== void 0 ? _b : true;
             const errorText = firstNonBlank(parsed === null || parsed === void 0 ? void 0 : parsed.error, resultObj && typeof resultObj.error === "string" ? resultObj.error : "", actualSuccess ? "" : rawPayload);
             const nextCard = {
                 status: actualSuccess ? "success" : "failed",
@@ -305,7 +318,6 @@ function Screen(ctx) {
         }
     };
     const saveConfigAndActivatePackage = async (baseUrlInput, tokenInput, defaultShellInput, timeoutInput) => {
-        var _a;
         isSavingConfigState.set(true);
         step2MessageState.set("");
         setErrorMessage("");
@@ -328,7 +340,7 @@ function Screen(ctx) {
             await ctx.setEnv(KEY_TOKEN, tokenValue);
             await ctx.setEnv(KEY_DEFAULT_SHELL, shellValue);
             await ctx.setEnv(KEY_TIMEOUT_MS, timeoutValue);
-            const packageName = firstNonBlank((_a = ctx.getCurrentPackageName) === null || _a === void 0 ? void 0 : _a.call(ctx), WINDOWS_PACKAGE_NAME);
+            const packageName = resolveRuntimePackageName(ctx, WINDOWS_PACKAGE_NAME);
             await ensureImportedAndUsed(ctx, packageName);
             step2MessageState.set(TEXT.successApply);
             await checkConnectionByTool();
