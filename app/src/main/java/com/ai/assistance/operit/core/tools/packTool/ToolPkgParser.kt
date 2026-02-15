@@ -76,10 +76,7 @@ internal data class ToolPkgManifest(
 @Serializable
 internal data class ToolPkgManifestSubpackage(
     val id: String,
-    val entry: String,
-    @SerialName("enabled_by_default") val enabledByDefault: Boolean = false,
-    @SerialName("display_name") val displayName: LocalizedText = LocalizedText.of(""),
-    val description: LocalizedText = LocalizedText.of("")
+    val entry: String
 )
 
 @Serializable
@@ -148,16 +145,11 @@ internal object ToolPkgArchiveParser {
                         "Failed to parse subpackage script '${subpackage.entry}'"
                     )
 
-            val resolvedDescription =
-                if (hasLocalizedTextContent(subpackage.description)) {
-                    subpackage.description
-                } else {
-                    parsedPackage.description
-                }
+            val resolvedDescription = parsedPackage.description
 
             val resolvedDisplayName =
-                if (hasLocalizedTextContent(subpackage.displayName)) {
-                    subpackage.displayName
+                if (hasLocalizedTextContent(parsedPackage.displayName)) {
+                    parsedPackage.displayName
                 } else {
                     LocalizedText.of(parsedPackage.name)
                 }
@@ -165,9 +157,7 @@ internal object ToolPkgArchiveParser {
             val normalizedPackage =
                 parsedPackage.copy(
                     name = packageName,
-                    description = resolvedDescription,
-                    isBuiltIn = isBuiltIn,
-                    enabledByDefault = subpackage.enabledByDefault
+                    isBuiltIn = isBuiltIn
                 )
 
             subpackagePackages.add(normalizedPackage)
@@ -178,7 +168,7 @@ internal object ToolPkgArchiveParser {
                     subpackageId = normalizedSubpackageId,
                     displayName = resolvedDisplayName,
                     description = resolvedDescription,
-                    enabledByDefault = subpackage.enabledByDefault,
+                    enabledByDefault = normalizedPackage.enabledByDefault,
                     toolCount = normalizedPackage.tools.size
                 )
             )

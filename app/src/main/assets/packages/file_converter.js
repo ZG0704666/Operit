@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "file_converter",
+
+    "display_name": {
+        "zh": "文件转换器",
+        "en": "File Converter"
+    },
     "description": {
         "zh": "提供全面的文件格式转换功能。支持常见的音频/视频（如 MP4、MOV、MP3、WAV）、图像（如 JPG、PNG、WEBP）以及文档（如 Markdown、HTML、DOCX、PDF）之间的相互转换。",
         "en": "Comprehensive file format conversion. Supports converting between common audio/video (MP4, MOV, MP3, WAV), images (JPG, PNG, WEBP), and documents (Markdown, HTML, DOCX, PDF)."

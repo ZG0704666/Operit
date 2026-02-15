@@ -1,6 +1,10 @@
 /* METADATA
 {
-  "name": "qwen_draw",
+  "name": "qwen_draw",
+  "display_name": {
+      "zh": "Qwen 绘图",
+      "en": "Qwen Draw"
+  },
   "description": {
     "zh": "使用阿里云百炼/DashScope 文生图接口（通义万相/通义千问图像）根据提示词画图（异步任务轮询），将图片保存到本地 /sdcard/Download/Operit/draws/ 目录，并返回 Markdown 图片提示。",
     "en": "Generate images via Alibaba Cloud Model Studio (DashScope) text-to-image API (async task polling), save to /sdcard/Download/Operit/draws/, and return a Markdown image reference."

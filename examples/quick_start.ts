@@ -220,7 +220,11 @@ async function simple_greeter_tool(params: { user_name: string }) {
 
 /* METADATA
 {
-    "name": "greeter_tool_v2",
+    "name": "greeter_tool_v2",
+    "display_name": {
+        "zh": "问候工具 V2",
+        "en": "Greeting Tool V2"
+    },
     "description": { "zh": "一个提供多种问候方式的教学工具集。", "en": "A tutorial tool package that demonstrates multiple greeting methods." },
     "tools": [
         {

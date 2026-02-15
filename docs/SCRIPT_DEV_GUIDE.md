@@ -274,6 +274,10 @@ my-script-project/
 METADATA
 {
     "name": "Automatic_bilibili_assistant",
+    "display_name": {
+        "zh": "B站智能助手",
+        "en": "Bilibili Assistant"
+    },
     "description": "高级B站智能助手，通过UI自动化技术实现B站应用交互...",
     "category": "UI_AUTOMATION",
     "env": ["BILIBILI_SESSDATA"],
@@ -298,6 +302,7 @@ METADATA
 ```
 
 -   `name`: 脚本的唯一标识符。
+-   `display_name`: （可选，推荐）用于界面显示的名称。不会影响脚本 ID；脚本 ID 仍由 `name` 决定。支持字符串或多语言对象（见 3.1.2）。
 -   `description`: 对脚本功能的详细描述。
 -   `category`: 脚本分类，例如 `UI_AUTOMATION`, `NETWORK`, `DAILY_LIFE`。
 -   `env`: （可选）字符串数组，声明该脚本/包运行时依赖的环境变量名称，例如各类 API Key。应用会根据这里列出的键在“环境配置”界面中展示对应的输入项，并在激活包前校验这些变量是否已经配置。
@@ -363,6 +368,7 @@ METADATA
 
 在 `METADATA` 中，以下文本字段都支持“单语字符串”或“多语对象”两种写法：
 
+-   包级：`display_name`
 -   包级：`description`
 -   工具级：`tools[].description`
 -   参数级：`tools[].parameters[].description`
@@ -402,6 +408,11 @@ METADATA
 METADATA
 {
   "name": "MyBilingualPackage",
+  "display_name": {
+    "zh": "双语示例包",
+    "en": "Bilingual Demo Package",
+    "default": "Bilingual Demo Package"
+  },
   "description": {
     "zh": "演示双语元数据",
     "en": "Bilingual metadata demo",

@@ -13,16 +13,7 @@
   "subpackages": [
     {
       "id": "windows_control",
-      "entry": "packages/windows_control.js",
-      "enabled_by_default": false,
-      "display_name": {
-        "zh": "Windows 控制",
-        "en": "Windows Control"
-      },
-      "description": {
-        "zh": "通过 Operit PC Agent 控制 Windows",
-        "en": "Control Windows via Operit PC Agent"
-      }
+      "entry": "packages/windows_control.js"
     }
   ],
   "ui_modules": [

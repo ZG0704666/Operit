@@ -2,8 +2,11 @@
 METADATA
 {
     // QQ Intelligent Assistant Package
-    name: Experimental_qq_intelligent
-    description: { zh: "高级QQ智能助手，通过UI自动化技术实现QQ应用交互，支持消息自动回复、历史记录读取、联系人搜索与通讯等功能，为AI赋予QQ社交能力。适用于智能客服、自动回复、社交辅助等场景。", en: "Advanced QQ assistant powered by UI automation. Supports sending messages, reading chat history, searching contacts/groups, and basic communication workflows, enabling AI-driven social messaging scenarios." }
+    name: Experimental_qq_intelligent
+    display_name: {
+      zh: "实验性 QQ 智能助手"
+      en: "Experimental QQ Intelligent Assistant"
+    }description: { zh: "高级QQ智能助手，通过UI自动化技术实现QQ应用交互，支持消息自动回复、历史记录读取、联系人搜索与通讯等功能，为AI赋予QQ社交能力。适用于智能客服、自动回复、社交辅助等场景。", en: "Advanced QQ assistant powered by UI automation. Supports sending messages, reading chat history, searching contacts/groups, and basic communication workflows, enabling AI-driven social messaging scenarios." }
 
     // Tools in this package
     tools: [

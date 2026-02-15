@@ -1,6 +1,10 @@
 /* METADATA
 {
-    "name": "extended_http_tools",
+    "name": "extended_http_tools",
+    "display_name": {
+        "zh": "增强 HTTP 工具",
+        "en": "Extended HTTP Tools"
+    },
     "description": {
         "zh": "允许文件上传，以及 GET/POST 等网络直接访问操作。",
         "en": "Allows file uploads and direct network access operations such as GET/POST."

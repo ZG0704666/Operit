@@ -1,7 +1,11 @@
 /* METADATA
 {
   name: "vflow_trigger"
-  description: {
+
+  display_name: {
+    zh: "VFlow 触发器"
+    en: "VFlow Trigger"
+  }description: {
     zh: "触发vflow app的工作流。"
     en: "Trigger VFlow app workflows."
   }

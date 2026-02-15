@@ -1,6 +1,10 @@
 /* METADATA
 {
-    "name": "google_search",
+    "name": "google_search",
+    "display_name": {
+        "zh": "Google 搜索",
+        "en": "Google Search"
+    },
     "description": {
         "zh": "提供 Google 普通搜索与 Google Scholar 学术搜索能力，支持设置语言与返回条数。",
         "en": "Google web search and Google Scholar search, with configurable language and result count."

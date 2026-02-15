@@ -540,9 +540,9 @@ private fun AllAvatarImportGuideSection(modifier: Modifier = Modifier) {
         Text(
             text =
                 if (expanded) {
-                    "Import structure guide (tap to collapse)"
+                    "导入结构指南 / Import structure guide（点击收起 / tap to collapse）"
                 } else {
-                    "Import structure guide (tap to expand)"
+                    "导入结构指南 / Import structure guide（点击展开 / tap to expand）"
                 },
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
@@ -562,44 +562,45 @@ private fun AllAvatarImportGuideSection(modifier: Modifier = Modifier) {
 
 private fun allAvatarImportGuideText(): String {
     return """
-This is IMPORT PACKAGE layout (files inside your ZIP / picked file), not app internal storage.
+这是“导入包（IMPORT PACKAGE）”的目录结构（ZIP / 选中文件内部），不是应用内部存储。
+This is the IMPORT PACKAGE layout (files inside your ZIP / picked file), not app internal storage.
 
-DragonBones (.zip)
+DragonBones（.zip） / DragonBones (.zip)
   my_dragonbones.zip
     any_folder_name/
       hero_ske.json
       hero_tex.json
       hero_tex.png
-  Requirement: same filename prefix for ske/tex json/png.
+  要求 / Requirement: ske/tex json/png 文件名前缀一致。
 
-WebP (.zip)
+WebP（.zip） / WebP (.zip)
   my_webp.zip
     any_folder_name/
       idle.webp
       talking.webp
       happy.webp
-  Requirement: at least one .webp file.
+  要求 / Requirement: 至少包含一个 .webp 文件。
 
-MMD (.zip)
+MMD（.zip） / MMD (.zip)
   my_mmd.zip
     any_folder_name/
       character.pmx (or .pmd)
       motions/idle.vmd (optional)
       textures/...
-  Requirement: keep PMX/PMD referenced relative paths unchanged.
+  要求 / Requirement: 保持 PMX/PMD 引用的相对路径不变。
 
-GLTF
-  Method A (direct file):
+GLTF / glTF
+  方式 A / Method A（直接文件 / direct file）:
     avatar.glb
-  Method B (.zip for multi-file glTF):
+  方式 B / Method B（多文件 glTF 使用 .zip / .zip for multi-file glTF）:
     my_gltf.zip
       any_folder_name/
         avatar.gltf
         avatar.bin
         textures/...
-  Requirement: keep .gltf referenced relative paths unchanged.
+  要求 / Requirement: 保持 .gltf 引用的相对路径不变。
 
-Live2D (.zip)
+Live2D（.zip） / Live2D (.zip)
   my_live2d.zip
     any_folder_name/
       avatar.model3.json
@@ -607,7 +608,7 @@ Live2D (.zip)
       textures/...
       motions/...
       expressions/...
-  Requirement: include all files referenced by model3.json.
+  要求 / Requirement: 包含 model3.json 引用到的全部文件。
 """.trimIndent()
 }
 

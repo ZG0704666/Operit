@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "beeimg_image_uploader_v2",
+
+    "display_name": {
+        "zh": "Beeimg 图片上传器 V2",
+        "en": "Beeimg Image Uploader V2"
+    },
     "description": {
         "zh": "BeeIMG（https://beeimg.com/）工具将本地图片上传到图床并返回图片url，配合图片生成工具实现图生图（图生图务必开启）。",
         "en": "Upload a local image to BeeIMG (https://beeimg.com/) and return a public image URL. Useful for image-to-image workflows (make sure img2img is enabled)."

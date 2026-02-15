@@ -1388,7 +1388,8 @@ class JsEngine(private val context: Context) {
     fun executeComposeDslAction(
             actionId: String,
             payload: Any? = null,
-            envOverrides: Map<String, String> = emptyMap()
+            envOverrides: Map<String, String> = emptyMap(),
+            onIntermediateResult: ((Any?) -> Unit)? = null
     ): Any? {
         val normalizedActionId = actionId.trim()
         if (normalizedActionId.isBlank()) {
@@ -1402,7 +1403,8 @@ class JsEngine(private val context: Context) {
                 script = "",
                 functionName = "__operit_dispatch_compose_dsl_action",
                 params = params,
-                envOverrides = envOverrides
+                envOverrides = envOverrides,
+                onIntermediateResult = onIntermediateResult
         )
     }
 

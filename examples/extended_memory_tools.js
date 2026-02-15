@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "extended_memory_tools",
+
+    "display_name": {
+        "zh": "增强记忆工具",
+        "en": "Extended Memory Tools"
+    },
     "description": {
         "zh": "拓展记忆工具包：提供创建/更新/删除/链接记忆，以及更新用户偏好的能力（默认工具中仅保留 query/get）。",
         "en": "Extended memory tools: create/update/delete/link memories and update user preferences (default tools only keep query/get)."

@@ -1,6 +1,11 @@
 /* METADATA
 {
   "name": "ai_chat",
+
+  "display_name": {
+      "zh": "AI 相互对话",
+      "en": "AI-to-AI Chat"
+  },
   "description": {
     "zh": "调用AI模型API实现AI之间智能对话互动。",
     "en": "Call an AI model API to enable interactive conversations between AIs."

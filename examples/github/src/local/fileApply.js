@@ -3,26 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.applyLocalReplace = applyLocalReplace;
 exports.applyLocalDelete = applyLocalDelete;
 exports.overwriteLocalFile = overwriteLocalFile;
-function buildReplaceBlock(oldContent, newContent) {
-    return [
-        '[START-REPLACE]',
-        '[OLD]',
-        String(oldContent !== null && oldContent !== void 0 ? oldContent : ''),
-        '[/OLD]',
-        '[NEW]',
-        String(newContent !== null && newContent !== void 0 ? newContent : ''),
-        '[/NEW]',
-        '[END-REPLACE]'
-    ].join('\n');
-}
-function buildDeleteBlock(oldContent) {
-    return ['[START-DELETE]', '[OLD]', String(oldContent !== null && oldContent !== void 0 ? oldContent : ''), '[/OLD]', '[END-DELETE]'].join('\n');
-}
 async function applyLocalReplace(params) {
-    return Tools.Files.apply(params.path, "replace", params.old, params.new, params.environment);
+    return Tools.Files.apply(params.path, 'replace', params.old, params.new, params.environment);
 }
 async function applyLocalDelete(params) {
-    return Tools.Files.apply(params.path, "delete", params.old, undefined, params.environment);
+    return Tools.Files.apply(params.path, 'delete', params.old, undefined, params.environment);
 }
 async function overwriteLocalFile(params) {
     var _a;

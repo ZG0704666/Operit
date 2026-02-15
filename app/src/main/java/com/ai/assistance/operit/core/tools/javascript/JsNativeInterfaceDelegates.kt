@@ -204,7 +204,11 @@ internal object JsNativeInterfaceDelegates {
 
             val rawName =
                 if (outputFileName.trim().isBlank()) {
-                    "$key.bin"
+                    packageManager.getToolPkgResourceOutputFileName(
+                        packageNameOrSubpackageId = target,
+                        resourceKey = key,
+                        preferImportedContainer = true
+                    ) ?: "$key.bin"
                 } else {
                     outputFileName.trim()
                 }

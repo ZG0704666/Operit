@@ -1,6 +1,11 @@
 /* METADATA
 {
   "name": "tasker",
+
+  "display_name": {
+      "zh": "Tasker 触发器",
+      "en": "Tasker Trigger"
+  },
   "description": {
     "zh": "集成 Tasker 插件事件触发工具，通过本包可向 Tasker 发送事件。",
     "en": "Integration for triggering Tasker plugin events. This package lets you send events to Tasker."

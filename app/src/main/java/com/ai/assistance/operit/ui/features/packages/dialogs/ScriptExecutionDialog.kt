@@ -79,6 +79,7 @@ fun ScriptExecutionDialog(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
+                        val fullToolId = "${packageName}:${tool.name}"
                         Text(
                             text = stringResource(R.string.script_execution),
                             style = MaterialTheme.typography.titleLarge,
@@ -87,6 +88,11 @@ fun ScriptExecutionDialog(
                         Text(
                             text = tool.name,
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "ID: $fullToolId",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }

@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "tavily",
+
+    "display_name": {
+        "zh": "Tavily 搜索",
+        "en": "Tavily Search"
+    },
     "description": {
         "zh": "使用Tavily API执行高级网络搜索、内容提取、网站爬取和站点地图生成。",
         "en": "Use the Tavily API for advanced web search, content extraction, website crawling, and sitemap generation."

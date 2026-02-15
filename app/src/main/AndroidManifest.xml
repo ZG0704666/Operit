@@ -222,6 +222,24 @@
             </intent-filter>
         </activity>
 
+        <!-- Standard ASSIST entry for system assistant pickers -->
+        <activity
+            android:name=".services.assistant.OperitAssistActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:finishOnTaskLaunch="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Crash Report Activity -->
         <activity
             android:name=".ui.error.CrashReportActivity"

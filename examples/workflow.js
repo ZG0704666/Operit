@@ -1,7 +1,11 @@
 /* METADATA
 {
   name: "workflow"
-  description: {
+
+  display_name: {
+    zh: "工作流管理"
+    en: "Workflow Management"
+  }description: {
     zh: '''工作流管理工具：创建/查询/更新/删除/触发执行；支持 on_success/on_error 分支；支持语音触发（speech）。'''
     en: '''Workflow management tools for creating/querying/updating/deleting workflows, triggering execution, and branching via on_success/on_error. Supports speech trigger (speech).'''
   }

@@ -66,7 +66,7 @@ function toErrorText(error: unknown): string {
 function toTimeoutMs(raw: string): number {
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) {
-    return 8000;
+    return 5000;
   }
   return Math.floor(value);
 }
@@ -302,7 +302,11 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
       let lastError = "unknown";
       for (const toolName of candidates) {
         try {
-          rawResult = await ctx.callTool(toolName, { timeout_ms: toTimeoutMs(ctx.getEnv(KEY_TIMEOUT_MS) || "8000") });
+          const connectionTimeoutMs = Math.min(
+            toTimeoutMs(ctx.getEnv(KEY_TIMEOUT_MS) || "5000"),
+            5000
+          );
+          rawResult = await ctx.callTool(toolName, { timeout_ms: connectionTimeoutMs });
           lastError = "";
           break;
         } catch (error) {

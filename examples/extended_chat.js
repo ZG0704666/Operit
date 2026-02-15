@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "extended_chat",
+
+    "display_name": {
+        "zh": "增强对话",
+        "en": "Extended Chat"
+    },
     "description": {
         "zh": "对话工具包：列出/查找对话、跨话题读取消息、绑定角色卡对话并发送消息。",
         "en": "Chat toolkit: list/find chats, read messages across chats, bind character cards and send messages."

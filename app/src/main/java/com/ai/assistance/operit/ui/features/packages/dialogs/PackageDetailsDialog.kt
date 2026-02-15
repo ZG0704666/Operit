@@ -63,6 +63,7 @@ fun PackageDetailsDialog(
     var showSubpackageToolsDialog by remember { mutableStateOf(false) }
     var subpackageDialogPackageName by remember { mutableStateOf<String?>(null) }
     var subpackageDialogTitle by remember { mutableStateOf("") }
+    var subpackageDialogDescription by remember { mutableStateOf("") }
     var subpackageDialogTools by remember { mutableStateOf<List<PackageTool>>(emptyList()) }
     var isLoadingSubpackageTools by remember { mutableStateOf(false) }
 
@@ -91,6 +92,14 @@ fun PackageDetailsDialog(
 
     val metaPackage = toolPackage ?: resolvedPackage
     val isToolPkgContainer = toolPkgDetails != null
+    val packageDisplayName =
+        toolPkgDetails?.displayName?.takeIf { it.isNotBlank() }
+            ?: metaPackage
+                ?.displayName
+                ?.resolve(context)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+            ?: packageName
 
     val states = (toolPackage ?: resolvedPackage)?.states.orEmpty()
     val hasStates = states.isNotEmpty()
@@ -160,9 +169,14 @@ fun PackageDetailsDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = toolPkgDetails?.displayName?.takeIf { it.isNotBlank() } ?: packageName,
+                            text = packageDisplayName,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "ID: $packageName",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
@@ -315,6 +329,7 @@ fun PackageDetailsDialog(
                                                             }
                                                         subpackageDialogPackageName = subpackage.packageName
                                                         subpackageDialogTitle = subpackage.displayName
+                                                        subpackageDialogDescription = subpackage.description
                                                         subpackageDialogTools = tools
                                                         isLoadingSubpackageTools = false
                                                         showSubpackageToolsDialog = true
@@ -379,6 +394,7 @@ fun PackageDetailsDialog(
                                 items(items = tools, key = { tool -> tool.name }) { tool ->
                                     ToolCard(
                                         tool = tool,
+                                        toolIdPrefix = packageName,
                                         onExecute = { onRunScript(packageName, tool) }
                                     )
                                 }
@@ -466,6 +482,7 @@ fun PackageDetailsDialog(
                                     items(items = toolsForTab, key = { tool -> tool.name }) { tool ->
                                         ToolCard(
                                             tool = tool,
+                                            toolIdPrefix = packageName,
                                             onExecute = { onRunScript(packageName, tool) }
                                         )
                                     }
@@ -512,6 +529,7 @@ fun PackageDetailsDialog(
             onDismissRequest = {
                 showSubpackageToolsDialog = false
                 subpackageDialogPackageName = null
+                subpackageDialogDescription = ""
                 subpackageDialogTools = emptyList()
             }
         ) {
@@ -526,6 +544,22 @@ fun PackageDetailsDialog(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
+                    if (!subpackageDialogPackageName.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "ID: ${subpackageDialogPackageName.orEmpty()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (subpackageDialogDescription.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = subpackageDialogDescription,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Spacer(modifier = Modifier.height(10.dp))
                     if (isLoadingSubpackageTools) {
                         Box(
@@ -544,6 +578,7 @@ fun PackageDetailsDialog(
                             items(items = subpackageDialogTools, key = { tool -> tool.name }) { tool ->
                                 ToolCard(
                                     tool = tool,
+                                    toolIdPrefix = subpackageDialogPackageName ?: packageName,
                                     onExecute = {
                                         val targetPackage = subpackageDialogPackageName
                                         if (!targetPackage.isNullOrBlank()) {
@@ -563,6 +598,7 @@ fun PackageDetailsDialog(
                             onClick = {
                                 showSubpackageToolsDialog = false
                                 subpackageDialogPackageName = null
+                                subpackageDialogDescription = ""
                                 subpackageDialogTools = emptyList()
                             }
                         ) {
@@ -607,9 +643,11 @@ private fun EmptyToolsCard(message: String) {
 @Composable
 private fun ToolCard(
     tool: PackageTool,
+    toolIdPrefix: String,
     onExecute: (PackageTool) -> Unit
 ) {
     val context = LocalContext.current
+    val fullToolId = if (toolIdPrefix.isBlank()) tool.name else "$toolIdPrefix:${tool.name}"
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -642,6 +680,11 @@ private fun ToolCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "ID: $fullToolId",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 

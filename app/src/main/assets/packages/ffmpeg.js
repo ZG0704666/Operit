@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "ffmpeg",
+
+    "display_name": {
+        "zh": "FFmpeg 工具集",
+        "en": "FFmpeg Toolkit"
+    },
     "description": {
         "zh": "提供FFmpeg工具，用于处理多媒体内容。",
         "en": "FFmpeg utilities for processing multimedia content."

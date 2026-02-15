@@ -1,6 +1,10 @@
 /* METADATA
 {
     "name": "windows_control",
+    "display_name": {
+        "zh": "Windows 控制",
+        "en": "Windows Control"
+    },
     "description": {
         "zh": "通过 HTTP 调用 Operit PC Agent 控制 Windows 电脑，支持执行 PowerShell/CMD 命令并返回输出。",
         "en": "Control a Windows PC through Operit PC Agent over HTTP, execute PowerShell/CMD commands, and return output."
@@ -374,6 +378,7 @@
 const windowsControl = (function () {
     const WINDOWS_CONTROL_PACKAGE_VERSION = "0.2.0";
     const MAX_INLINE_WINDOWS_EXEC_OUTPUT_CHARS = 12000;
+    const CONNECTION_TEST_TIMEOUT_MS = 5000;
     const ENV_KEYS = {
         baseUrl: "WINDOWS_AGENT_BASE_URL",
         token: "WINDOWS_AGENT_TOKEN",
@@ -415,6 +420,10 @@ const windowsControl = (function () {
             throw new Error("Invalid timeout_ms, expected 1000..600000");
         }
         return Math.floor(parsed);
+    }
+    function toHttpTimeoutSeconds(timeoutMs) {
+        const seconds = Math.floor(timeoutMs / 1000);
+        return seconds >= 1 ? seconds : 1;
     }
     function parseOptionalNonNegativeInt(value, fieldName) {
         const raw = asText(value).trim();
@@ -508,7 +517,8 @@ const windowsControl = (function () {
             timeoutMs
         };
     }
-    async function httpRequest(config, path, method, body, timeoutMs) {
+    async function httpRequest(config, path, method, body, timeoutMs, strictTimeout = false) {
+        const timeoutSeconds = toHttpTimeoutSeconds(timeoutMs);
         const response = await Tools.Net.http({
             url: `${config.baseUrl}${path}`,
             method,
@@ -516,8 +526,8 @@ const windowsControl = (function () {
                 Accept: "application/json"
             },
             body: body || undefined,
-            connect_timeout: Math.min(timeoutMs, 10000),
-            read_timeout: timeoutMs + 5000,
+            connect_timeout: strictTimeout ? timeoutSeconds : Math.min(timeoutSeconds, 10),
+            read_timeout: strictTimeout ? timeoutSeconds : timeoutSeconds + 5,
             validateStatus: false
         });
         return {
@@ -526,8 +536,8 @@ const windowsControl = (function () {
             url: response.url
         };
     }
-    async function ensureVersionCompatible(config, timeoutMs) {
-        const healthResponse = await httpRequest(config, "/api/health", "GET", null, timeoutMs);
+    async function ensureVersionCompatible(config, timeoutMs, strictTimeout = false) {
+        const healthResponse = await httpRequest(config, "/api/health", "GET", null, timeoutMs, strictTimeout);
         const health = parseJson(healthResponse.content);
         if (healthResponse.statusCode >= 400 || !health.ok) {
             throw new Error(`Health check failed: HTTP ${healthResponse.statusCode}`);
@@ -544,9 +554,9 @@ const windowsControl = (function () {
             remoteVersion
         };
     }
-    async function postCommand(config, payload, timeoutMs) {
+    async function postCommand(config, payload, timeoutMs, strictTimeout = false) {
         const requestBody = Object.assign(Object.assign({}, payload), { token: config.token || undefined, timeoutMs });
-        const response = await httpRequest(config, "/api/command/execute", "POST", requestBody, timeoutMs);
+        const response = await httpRequest(config, "/api/command/execute", "POST", requestBody, timeoutMs, strictTimeout);
         const data = parseJson(response.content);
         if (response.statusCode >= 400) {
             const message = data && data.error ? asText(data.error) : `HTTP ${response.statusCode}`;
@@ -659,9 +669,15 @@ const windowsControl = (function () {
     async function windows_test_connection(params) {
         try {
             const config = resolveAgentConfig();
-            const timeoutMs = parseTimeout(params && params.timeout_ms, config.timeoutMs);
-            const versionCheck = await ensureVersionCompatible(config, timeoutMs);
-            const commandData = await postCommand(config, { preset: "whoami" }, timeoutMs);
+            const timeoutMs = Math.min(parseTimeout(params && params.timeout_ms, CONNECTION_TEST_TIMEOUT_MS), CONNECTION_TEST_TIMEOUT_MS);
+            const startAt = Date.now();
+            const versionCheck = await ensureVersionCompatible(config, timeoutMs, true);
+            const elapsedMs = Date.now() - startAt;
+            const remainingMs = timeoutMs - elapsedMs;
+            if (remainingMs <= 0) {
+                throw new Error(`Connection test timed out after ${timeoutMs}ms`);
+            }
+            const commandData = await postCommand(config, { preset: "whoami" }, remainingMs, true);
             return {
                 success: !!commandData.ok,
                 agentBaseUrl: config.baseUrl,

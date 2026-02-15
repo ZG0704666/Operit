@@ -174,7 +174,15 @@ fun ToolPkgComposeDslToolScreen(
                         } else {
                             jsEngine.executeComposeDslAction(
                                 actionId = actionId,
-                                payload = payload
+                                payload = payload,
+                                onIntermediateResult = { intermediateResult ->
+                                    val parsedIntermediate =
+                                        ToolPkgComposeDslParser.parseRenderResult(intermediateResult)
+                                    if (parsedIntermediate != null) {
+                                        renderResult = parsedIntermediate
+                                        errorMessage = null
+                                    }
+                                }
                             )
                         }
                     }

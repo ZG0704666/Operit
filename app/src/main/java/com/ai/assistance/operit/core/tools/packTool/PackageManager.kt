@@ -474,6 +474,69 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         }
     }
 
+    fun getToolPkgResourceOutputFileName(
+        packageNameOrSubpackageId: String,
+        resourceKey: String,
+        preferImportedContainer: Boolean = true
+    ): String? {
+        ensureInitialized()
+        val target = packageNameOrSubpackageId.trim()
+        val key = resourceKey.trim()
+        if (target.isBlank() || key.isBlank()) {
+            return null
+        }
+
+        fun resolveFromContainer(containerName: String): String? {
+            val normalizedContainerName = normalizePackageName(containerName)
+            val runtime = toolPkgContainers[normalizedContainerName] ?: return null
+            val resource =
+                runtime.resources.firstOrNull {
+                    it.key.equals(key, ignoreCase = true)
+                } ?: return null
+            val fileName =
+                resource.path.substringAfterLast('/').substringAfterLast('\\').trim()
+            return fileName.ifBlank { null }
+        }
+
+        resolveFromContainer(target)?.let { return it }
+
+        val directSubpackage = resolveToolPkgSubpackageRuntime(target)
+        if (directSubpackage != null) {
+            resolveFromContainer(directSubpackage.containerPackageName)?.let { return it }
+        }
+
+        val subpackages =
+            toolPkgSubpackageByPackageName.values.filter {
+                it.subpackageId.equals(target, ignoreCase = true)
+            }
+        if (subpackages.isEmpty()) {
+            return null
+        }
+
+        val candidateContainers =
+            if (preferImportedContainer) {
+                val imported = getImportedPackages().toSet()
+                val importedContainers =
+                    subpackages
+                        .map { it.containerPackageName }
+                        .distinct()
+                        .filter { imported.contains(it) }
+                if (importedContainers.isNotEmpty()) {
+                    importedContainers
+                } else {
+                    subpackages.map { it.containerPackageName }.distinct()
+                }
+            } else {
+                subpackages.map { it.containerPackageName }.distinct()
+            }
+
+        candidateContainers.forEach { containerName ->
+            resolveFromContainer(containerName)?.let { return it }
+        }
+
+        return null
+    }
+
     fun getToolPkgComposeDslScriptBySubpackageId(
         subpackageId: String,
         uiModuleId: String? = null,
@@ -889,6 +952,9 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             // 先将元数据解析为 JSONObject 以便修改 tools 数组中的每个元素
             val metadataJson = org.json.JSONObject(JsonValue.readHjson(metadataString).toString())
 
+            // 统一历史键名/值格式，避免 enabledByDefault 在 Kotlin 侧被错误解析为默认值
+            normalizeJsPackageMetadata(metadataJson)
+
             // 检查并修复 tools 数组中的元素，确保每个工具都有 script 字段
             if (metadataJson.has("tools") && metadataJson.get("tools") is org.json.JSONArray) {
                 val toolsArray = metadataJson.getJSONArray("tools")
@@ -960,6 +1026,51 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             }
             onError(fallbackKey, e.stackTraceToString())
             return null
+        }
+    }
+
+    private fun normalizeJsPackageMetadata(metadataJson: org.json.JSONObject) {
+        normalizeBooleanFieldAlias(
+            metadataJson = metadataJson,
+            canonicalKey = "enabledByDefault",
+            legacyAlias = "enabled_by_default"
+        )
+        normalizeBooleanFieldAlias(
+            metadataJson = metadataJson,
+            canonicalKey = "isBuiltIn",
+            legacyAlias = "is_built_in"
+        )
+    }
+
+    private fun normalizeBooleanFieldAlias(
+        metadataJson: org.json.JSONObject,
+        canonicalKey: String,
+        legacyAlias: String
+    ) {
+        if (!metadataJson.has(canonicalKey) && metadataJson.has(legacyAlias)) {
+            metadataJson.put(canonicalKey, metadataJson.opt(legacyAlias))
+        }
+
+        if (!metadataJson.has(canonicalKey)) {
+            return
+        }
+
+        val normalized = normalizeToBoolean(metadataJson.opt(canonicalKey)) ?: return
+        metadataJson.put(canonicalKey, normalized)
+    }
+
+    private fun normalizeToBoolean(value: Any?): Boolean? {
+        return when (value) {
+            is Boolean -> value
+            is Number -> value.toInt() != 0
+            is String -> {
+                when (value.trim().lowercase()) {
+                    "true", "1", "yes", "on" -> true
+                    "false", "0", "no", "off" -> false
+                    else -> null
+                }
+            }
+            else -> null
         }
     }
 

@@ -1,6 +1,10 @@
 /* METADATA
 {
   name: "all_about_myself"
+  display_name: {
+    zh: "Operit AI 自述"
+    en: "Operit AI Self-Description"
+  }
   description: {
     zh: '''给ai自己的一份说明，用于ai自我认知、自身设置，也可用于自我进化。'''
     en: '''A self-description for the AI, used for self-recognition, self-configuration, and self-evolution.'''

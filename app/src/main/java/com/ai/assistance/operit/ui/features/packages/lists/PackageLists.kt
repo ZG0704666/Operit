@@ -28,8 +28,9 @@ fun PackagesList(
     ) {
         items(items = packages.entries.toList(), key = { (name, _) -> name }) { (name, pack) ->
             val isImported = importedPackages.contains(name)
+            val displayName = pack.displayName.resolve(context).ifBlank { name }
             PackageItem(
-                    name = name,
+                    name = displayName,
                     description = pack.description.resolve(context),
                     isImported = isImported,
                     onClick = { onPackageClick(name) },
@@ -53,8 +54,9 @@ fun AvailablePackagesList(
             contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         items(items = packages.entries.toList(), key = { (name, _) -> name }) { (name, pack) ->
+            val displayName = pack.displayName.resolve(context).ifBlank { name }
             PackageItem(
-                    name = name,
+                    name = displayName,
                     description = pack.description.resolve(context),
                     isImported = false,
                     onClick = { onPackageClick(name) },
@@ -78,8 +80,9 @@ fun ImportedPackagesList(
             contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         items(items = packages, key = { name -> name }) { name ->
+            val displayName = availablePackages[name]?.displayName?.resolve(context).orEmpty().ifBlank { name }
             PackageItem(
-                    name = name,
+                    name = displayName,
                     description = availablePackages[name]?.description?.resolve(context) ?: "",
                     isImported = true,
                     onClick = { onPackageClick(name) },

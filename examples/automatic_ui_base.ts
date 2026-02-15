@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "Automatic_ui_base",
+
+    "display_name": {
+        "zh": "自动化基础工具",
+        "en": "Automation Base Tools"
+    },
     "description": { "zh": "提供基本的UI自动化工具，能够按照用户的要求帮助操作设备屏幕（如点击、滑动、输入等）。", "en": "Basic UI automation tools to operate the device screen as requested (tap, swipe, input, etc.)." },
     "enabledByDefault": true,
     "tools": [

@@ -2,6 +2,11 @@
 METADATA
 {
     "name": "douyin_download",
+
+    "display_name": {
+        "zh": "抖音下载工具",
+        "en": "Douyin Download Tool"
+    },
     "description": { "zh": "抖音工具包，提供从分享链接或分享口令中提取并下载无水印视频的功能。", "en": "Douyin toolkit for extracting and downloading watermark-free videos from share links or share codes." },
     "enabledByDefault": true,
     "tools": [

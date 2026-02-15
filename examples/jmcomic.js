@@ -2,6 +2,11 @@
 METADATA
 {
     "name": "jmcomic_downloader",
+
+    "display_name": {
+        "zh": "JMComic 下载器",
+        "en": "JMComic Downloader"
+    },
     "description": { "zh": "提供JMComic漫画下载功能，支持搜索、获取信息和下载，包括对新漫画的图片反爬解码。", "en": "JMComic downloader: search comics, fetch details, and download albums. Includes anti-crawling image decoding for newer comics." },
     "tools": [
         {

@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "extended_file_tools",
+
+    "display_name": {
+        "zh": "增强文件工具",
+        "en": "Extended File Tools"
+    },
     "description": {
         "zh": "拓展文件工具包：提供 file_exists / move_file / copy_file / file_info / unzip_files / zip_files / open_file / share_file（默认文件工具中已移除这些项）。",
         "en": "Extended file tools: file_exists / move_file / copy_file / file_info / unzip_files / zip_files / open_file / share_file (removed from default file tools)."

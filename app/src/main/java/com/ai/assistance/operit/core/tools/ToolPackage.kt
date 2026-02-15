@@ -20,6 +20,7 @@ package com.ai.assistance.operit.core.tools
  import kotlinx.serialization.json.Json
  import kotlinx.serialization.json.JsonDecoder
  import kotlinx.serialization.json.JsonElement
+ import kotlinx.serialization.json.JsonNames
  import kotlinx.serialization.json.JsonObject
  import kotlinx.serialization.json.JsonPrimitive
  import kotlinx.serialization.json.buildJsonObject
@@ -292,7 +293,10 @@ package com.ai.assistance.operit.core.tools
       */
      val env: List<EnvVar> = emptyList(),
      val isBuiltIn: Boolean = false,
-     val enabledByDefault: Boolean = false
+     @JsonNames("enabled_by_default")
+     val enabledByDefault: Boolean = false,
+     @JsonNames("display_name")
+     val displayName: LocalizedText = LocalizedText.of("")
  )
  
  @Serializable

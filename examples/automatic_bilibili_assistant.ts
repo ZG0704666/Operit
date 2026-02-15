@@ -3,7 +3,11 @@ METADATA
 {
     // Bilibili 智能助手包
     name: Automatic_bilibili_assistant
-    description: { zh: "高级B站智能助手，通过UI自动化技术实现B站应用交互，支持视频搜索播放、评论互动、用户关注等功能，为AI赋予B站社交和内容消费能力。适用于自动追番、视频推荐、社交互动等场景。", en: "Advanced Bilibili assistant powered by UI automation. Supports video search/playback, commenting, and following uploaders, enabling AI-driven content consumption and social interaction on Bilibili." }
+
+    display_name: {
+      zh: "Bilibili自动化助手"
+      en: "Bilibili Automation Assistant"
+    }description: { zh: "高级B站智能助手，通过UI自动化技术实现B站应用交互，支持视频搜索播放、评论互动、用户关注等功能，为AI赋予B站社交和内容消费能力。适用于自动追番、视频推荐、社交互动等场景。", en: "Advanced Bilibili assistant powered by UI automation. Supports video search/playback, commenting, and following uploaders, enabling AI-driven content consumption and social interaction on Bilibili." }
 
     // Tools in this package
     tools: [

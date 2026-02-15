@@ -3,7 +3,11 @@ METADATA
 {
     // 小红书智能助手包
     name: "Automatic_xiaohongshu_assistant",
-    description: { zh: "高级小红书智能助手，通过UI自动化技术实现小红书应用交互，支持内容浏览、搜索查看、评论互动、内容发布等功能，为AI赋予小红书社交和内容创作能力。适用于内容营销、社交互动、生活分享等场景。", en: "Advanced Xiaohongshu (RED) assistant powered by UI automation. Supports browsing feeds, searching and viewing content, commenting and interactions, and publishing posts, enabling AI-driven social interaction and content creation. Useful for content marketing and social engagement." },
+
+    display_name: {
+      zh: "小红书自动化助手"
+      en: "Xiaohongshu Automation Assistant"
+    }description: { zh: "高级小红书智能助手，通过UI自动化技术实现小红书应用交互，支持内容浏览、搜索查看、评论互动、内容发布等功能，为AI赋予小红书社交和内容创作能力。适用于内容营销、社交互动、生活分享等场景。", en: "Advanced Xiaohongshu (RED) assistant powered by UI automation. Supports browsing feeds, searching and viewing content, commenting and interactions, and publishing posts, enabling AI-driven social interaction and content creation. Useful for content marketing and social engagement." },
     
     // Tools in this package
     tools: [

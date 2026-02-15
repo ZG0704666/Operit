@@ -184,6 +184,137 @@ function Ensure-Dependencies {
     Write-Log "INFO" "Dependencies installed successfully via $installerName."
 }
 
+function Resolve-NodeRuntime {
+    param([string]$RootPath)
+
+    $systemNodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($systemNodeCmd -and $systemNodeCmd.Source) {
+        $systemNodePath = $systemNodeCmd.Source
+        return [pscustomobject]@{
+            NodePath = $systemNodePath
+            NodeDir = Split-Path -Parent $systemNodePath
+            Source = "system"
+        }
+    }
+
+    $localCandidates = @(
+        (Join-Path $RootPath "node\node.exe"),
+        (Join-Path $RootPath "runtime\node\node.exe"),
+        (Join-Path $RootPath "local\node\node.exe")
+    )
+
+    foreach ($candidate in $localCandidates) {
+        if (Test-Path $candidate) {
+            $resolved = (Resolve-Path $candidate).Path
+            return [pscustomobject]@{
+                NodePath = $resolved
+                NodeDir = Split-Path -Parent $resolved
+                Source = "local"
+            }
+        }
+    }
+
+    return $null
+}
+
+function Get-NodeArchToken {
+    $rawArch = $env:PROCESSOR_ARCHITEW6432
+    if ([string]::IsNullOrWhiteSpace($rawArch)) {
+        $rawArch = $env:PROCESSOR_ARCHITECTURE
+    }
+
+    if ([string]::IsNullOrWhiteSpace($rawArch)) {
+        return "x64"
+    }
+
+    switch ($rawArch.Trim().ToUpperInvariant()) {
+        "ARM64" { return "arm64" }
+        "X86" { return "x86" }
+        "AMD64" { return "x64" }
+        default { return "x64" }
+    }
+}
+
+function Ensure-LocalNodeRuntime {
+    param([string]$RootPath)
+
+    $localNodeDir = Join-Path $RootPath "node"
+    $localNodeExe = Join-Path $localNodeDir "node.exe"
+
+    if (Test-Path $localNodeExe) {
+        return $localNodeExe
+    }
+
+    $arch = Get-NodeArchToken
+    $zipTag = "win-$arch-zip"
+    $indexUrl = "https://nodejs.org/dist/index.json"
+
+    Write-Log "INFO" "Node.js not found locally. Auto-downloading official runtime to .\node (arch=$arch)."
+
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    }
+    catch {
+        # Keep going; modern PowerShell versions usually handle TLS defaults correctly.
+    }
+
+    $releases = Invoke-RestMethod -Uri $indexUrl -Method Get -TimeoutSec 30
+    if (-not $releases) {
+        throw "Failed to query Node.js release index: $indexUrl"
+    }
+
+    $targetRelease = $releases | Where-Object { $_.lts -and $_.files -contains $zipTag } | Select-Object -First 1
+    if (-not $targetRelease) {
+        throw "No LTS Node.js package found for $zipTag."
+    }
+
+    $version = [string]$targetRelease.version
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "Invalid Node.js version from release index."
+    }
+
+    $zipName = "node-$version-win-$arch.zip"
+    $downloadUrl = "https://nodejs.org/dist/$version/$zipName"
+    $tempRoot = Join-Path $RootPath "data\node_runtime_download"
+    $zipPath = Join-Path $tempRoot $zipName
+    $extractRoot = Join-Path $tempRoot "extract"
+
+    try {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+
+        Write-Log "INFO" "Downloading Node.js package: $downloadUrl"
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -TimeoutSec 120
+
+        Write-Log "INFO" "Extracting Node.js package..."
+        Expand-Archive -Path $zipPath -DestinationPath $extractRoot -Force
+
+        $extractedFolder = Get-ChildItem -Path $extractRoot -Directory | Select-Object -First 1
+        if (-not $extractedFolder) {
+            throw "Node.js package extraction failed: no extracted directory found."
+        }
+
+        if (-not (Test-Path $localNodeDir)) {
+            New-Item -ItemType Directory -Path $localNodeDir -Force | Out-Null
+        }
+        else {
+            Get-ChildItem -LiteralPath $localNodeDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        Copy-Item -Path (Join-Path $extractedFolder.FullName "*") -Destination $localNodeDir -Recurse -Force
+
+        if (-not (Test-Path $localNodeExe)) {
+            throw "Node.js download completed but node.exe is missing in .\node."
+        }
+
+        Write-Log "INFO" "Local Node.js runtime ready: $localNodeExe ($version)"
+        return $localNodeExe
+    }
+    finally {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $config = $null
 $port = 58321
 $bindAddress = "127.0.0.1"
@@ -242,6 +373,7 @@ Set-Content -Path $activeLaunchPath -Value $launchId -Encoding ASCII
 $mutexName = "Local\OperitPcAgentLauncher"
 $mutex = New-Object System.Threading.Mutex($false, $mutexName)
 $hasLock = $false
+$originalPath = $env:Path
 
 try {
     $hasLock = $mutex.WaitOne(0)
@@ -257,13 +389,38 @@ try {
     Write-Log "INFO" "Target port: $port"
     Write-Log "INFO" "Ready probe URLs: $($readyUrls -join ', ')"
 
-    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
-    if (-not $nodeCmd) {
-        Write-Log "ERROR" "Node.js not found. Please install Node.js 18+."
+    $nodeRuntime = Resolve-NodeRuntime -RootPath $projectRoot
+    if (-not $nodeRuntime) {
+        try {
+            Ensure-LocalNodeRuntime -RootPath $projectRoot | Out-Null
+        }
+        catch {
+            Write-Log "ERROR" "Failed to auto-download local Node.js runtime: $($_.Exception.Message)"
+            exit 1
+        }
+
+        $nodeRuntime = Resolve-NodeRuntime -RootPath $projectRoot
+        if (-not $nodeRuntime) {
+            Write-Log "ERROR" "Node.js runtime unavailable after auto-download. Please install Node.js 18+ manually."
+            exit 1
+        }
+    }
+
+    if ($nodeRuntime.Source -eq "local") {
+        Write-Log "INFO" "System Node.js not found. Using local runtime: $($nodeRuntime.NodePath)"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($nodeRuntime.NodeDir)) {
+        $env:Path = "$($nodeRuntime.NodeDir);$env:Path"
+    }
+
+    $nodeVersion = (& $nodeRuntime.NodePath -v 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($nodeVersion)) {
+        Write-Log "ERROR" "Failed to run Node runtime: $($nodeRuntime.NodePath)"
         exit 1
     }
 
-    Write-Log "INFO" "Node version: $(node -v)"
+    Write-Log "INFO" "Node version: $nodeVersion"
 
     try {
         Ensure-Dependencies -RootPath $projectRoot
@@ -281,7 +438,7 @@ try {
     Remove-Item -LiteralPath $runtimePath -Force -ErrorAction SilentlyContinue
 
     Write-Log "INFO" "Launching node process (hidden, NODE_OPTIONS cleared)."
-    Start-Process -FilePath "node" -ArgumentList "src/server.js" -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog
+    Start-Process -FilePath $nodeRuntime.NodePath -ArgumentList "src/server.js" -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog
 
     $maxWaitMs = 15000
     $stepMs = 250
@@ -370,6 +527,13 @@ try {
     exit 0
 }
 finally {
+    if ($null -eq $originalPath) {
+        Remove-Item Env:Path -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:Path = $originalPath
+    }
+
     if ($null -eq $originalNodeOptions) {
         Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue
     }

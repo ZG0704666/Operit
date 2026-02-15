@@ -364,7 +364,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
 
     // Filter out imported packages that no longer exist in availablePackages
     val validImportedPackages = importedPackages.filter { packageName ->
-        packageManager.getPackageTools(packageName) != null
+        packageManager.getPackageTools(packageName) != null &&
+            !packageManager.isToolPkgContainer(packageName)
     }
 
     // Check if any packages (JS, MCP, or Skills) are available

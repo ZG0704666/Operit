@@ -1,7 +1,11 @@
 /* METADATA
 {
   name: pollinations_draw
-  description: {
+
+  display_name: {
+    zh: "Pollinations 绘图"
+    en: "Pollinations Draw"
+  }description: {
     zh: "提供图片输出功能"
     en: "Provides guidance for outputting images"
   }

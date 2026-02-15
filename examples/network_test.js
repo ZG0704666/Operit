@@ -2,6 +2,11 @@
 METADATA
 {
     "name": "network_test",
+
+    "display_name": {
+        "zh": "网络测试",
+        "en": "Network Test"
+    },
     "description": { "zh": "网络测试工具集合，提供基于OkHttp3的网络请求功能，包括GET、POST、PUT、DELETE请求方法，以及请求超时设置、重定向控制和拦截器管理。支持多种数据格式，便于测试API接口和网络连接性能。", "en": "Network testing tools based on OkHttp3. Provides GET/POST/PUT/DELETE requests, timeout settings, redirect control, and interceptor management. Supports multiple data formats for API testing and connectivity diagnostics." },
     "tools": [
         {

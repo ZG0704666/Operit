@@ -1,6 +1,11 @@
 /* METADATA
 {
   "name": "github",
+
+  "display_name": {
+      "zh": "GitHub Api",
+      "en": "GitHub API"
+  },
   "description": { "zh": "基于 GitHub REST API 的工具集合（不依赖 GitHub MCP）。包含 GitHub 侧（仓库/Issues/PR/文件提交/分支/差异提交）与本地侧（apply_file 差异更新、terminal 终端）能力。", "en": "A toolkit built on the GitHub REST API (does not depend on GitHub MCP). Includes GitHub-side operations (repos/issues/PRs/commits/branches/diffs) and local-side utilities (apply_file patch updates, terminal)." },
   "env": [
     {
@@ -655,21 +660,6 @@ async function patchFileInRepo(params) {
 }
 
 // src/local/fileApply.ts
-function buildReplaceBlock(oldContent, newContent) {
-  return [
-    "[START-REPLACE]",
-    "[OLD]",
-    String(oldContent != null ? oldContent : ""),
-    "[/OLD]",
-    "[NEW]",
-    String(newContent != null ? newContent : ""),
-    "[/NEW]",
-    "[END-REPLACE]"
-  ].join("\n");
-}
-function buildDeleteBlock(oldContent) {
-  return ["[START-DELETE]", "[OLD]", String(oldContent != null ? oldContent : ""), "[/OLD]", "[END-DELETE]"].join("\n");
-}
 async function applyLocalReplace(params) {
   return Tools.Files.apply(params.path, "replace", params.old, params.new, params.environment);
 }

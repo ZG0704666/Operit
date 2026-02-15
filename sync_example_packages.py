@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 import zipfile
 from dataclasses import dataclass
@@ -17,6 +18,59 @@ class SyncPlanItem:
     mode: str  # copy | pack
     source: Path
     destination_name: str
+
+
+def _run_checked_command(command: list[str], cwd: Path, *, dry_run: bool) -> None:
+    command_text = subprocess.list2cmdline(command)
+    if dry_run:
+        print(f"DRY-RUN-CMD: (cd {cwd}) {command_text}")
+        return
+
+    print(f"RUN-CMD: (cd {cwd}) {command_text}")
+    completed = subprocess.run(command, cwd=str(cwd))
+    if completed.returncode != 0:
+        raise RuntimeError(f"Command failed with exit code {completed.returncode}: {command_text}")
+
+
+def _prebuild_examples(repo_root: Path, examples_dir: Path, *, dry_run: bool) -> None:
+    root_tsconfig = examples_dir / "tsconfig.json"
+    if not root_tsconfig.is_file():
+        raise FileNotFoundError(f"Missing tsconfig.json: {root_tsconfig}")
+
+    _run_checked_command(
+        ["pnpm", "exec", "tsc", "-p", str(root_tsconfig)],
+        cwd=repo_root,
+        dry_run=dry_run,
+    )
+
+    child_dirs = sorted((p for p in examples_dir.iterdir() if p.is_dir()), key=lambda p: p.name.lower())
+    for child_dir in child_dirs:
+        if child_dir.name == "types":
+            print(f"SKIP-TYPES: {child_dir}")
+            continue
+
+        tsconfig = child_dir / "tsconfig.json"
+        if not tsconfig.is_file():
+            raise FileNotFoundError(f"Missing tsconfig.json: {tsconfig}")
+
+        _run_checked_command(
+            ["pnpm", "exec", "tsc", "-p", str(tsconfig)],
+            cwd=repo_root,
+            dry_run=dry_run,
+        )
+
+        manifest = child_dir / "manifest.json"
+        if manifest.is_file():
+            print(f"SKIP-BUILD(MANIFEST): {child_dir}")
+            continue
+
+        package_json = child_dir / "package.json"
+        if package_json.is_file():
+            _run_checked_command(
+                ["pnpm", "build"],
+                cwd=child_dir,
+                dry_run=dry_run,
+            )
 
 
 def _read_whitelist_file(path: Path) -> list[str]:
@@ -182,6 +236,12 @@ def main() -> int:
     if not examples_dir.exists():
         print(f"ERROR: examples dir not found: {examples_dir}", file=sys.stderr)
         return 2
+
+    try:
+        _prebuild_examples(repo_root, examples_dir, dry_run=args.dry_run)
+    except Exception as exc:  # pragma: no cover - runtime command failure path
+        print(f"ERROR: prebuild step failed: {exc}", file=sys.stderr)
+        return 3
 
     whitelist: list[str]
     if args.whitelist:

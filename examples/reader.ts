@@ -1,6 +1,11 @@
 /* METADATA
 {
   name: code_reader
+
+  display_name: {
+    zh: "代码读取器"
+    en: "Code Reader"
+  }
   description: { zh: "提供代码匹配抓取功能", en: "Provide code searching and extraction utilities." },
   enabledByDefault: true
   

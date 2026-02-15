@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AutoMode
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Check
@@ -475,8 +476,12 @@ fun PackageManagerScreen(
                                         return normalizedName.endsWith("_draw") || normalizedName.endsWith("draw")
                                     }
 
-                                    val drawPackages = packages.filterKeys { isDrawPackage(it) }
-                                    val nonDrawPackages = packages.filterKeys { !isDrawPackage(it) }
+                                    val toolPkgPackages =
+                                        packages.filterKeys { packageManager.isToolPkgContainer(it) }
+                                    val nonToolPkgPackages =
+                                        packages.filterKeys { !packageManager.isToolPkgContainer(it) }
+                                    val drawPackages = nonToolPkgPackages.filterKeys { isDrawPackage(it) }
+                                    val nonDrawPackages = nonToolPkgPackages.filterKeys { !isDrawPackage(it) }
                                     val automaticPackages = nonDrawPackages.filterKeys {
                                         it.lowercase().startsWith("automatic")
                                     }
@@ -499,6 +504,9 @@ fun PackageManagerScreen(
                                     if (drawPackages.isNotEmpty()) {
                                         groupedPackages["Draw"] = drawPackages
                                     }
+                                    if (toolPkgPackages.isNotEmpty()) {
+                                        groupedPackages["ToolPkg"] = toolPkgPackages
+                                    }
                                     if (otherPackages.isNotEmpty()) {
                                         groupedPackages["Other"] = otherPackages
                                     }
@@ -507,6 +515,7 @@ fun PackageManagerScreen(
                                     val automaticColor = MaterialTheme.colorScheme.primary
                                     val experimentalColor = MaterialTheme.colorScheme.tertiary
                                     val drawColor = MaterialTheme.colorScheme.secondary
+                                    val toolPkgColor = MaterialTheme.colorScheme.onSurfaceVariant
                                     val otherColor = MaterialTheme.colorScheme.onSurfaceVariant
 
                                     LazyColumn(
@@ -519,6 +528,7 @@ fun PackageManagerScreen(
                                                 "Automatic" -> automaticColor
                                                 "Experimental" -> experimentalColor
                                                 "Draw" -> drawColor
+                                                "ToolPkg" -> toolPkgColor
                                                 else -> otherColor
                                             }
 
@@ -990,7 +1000,13 @@ private fun PackageListItemWithTag(
         } else {
             null
         }
-    val displayName = containerDisplayName ?: toolPackage?.name ?: packageName
+    val packageDisplayName =
+        toolPackage
+            ?.displayName
+            ?.resolve(context)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    val displayName = containerDisplayName ?: packageDisplayName ?: toolPackage?.name ?: packageName
 
     Surface(
         onClick = onPackageClick,
@@ -1038,6 +1054,7 @@ private fun PackageListItemWithTag(
                         "Automatic" -> Icons.Default.AutoMode
                         "Experimental" -> Icons.Default.Science
                         "Draw" -> Icons.Default.Palette
+                        "ToolPkg" -> Icons.Default.Apps
                         "Other" -> Icons.Default.Widgets
                         else -> Icons.Default.Extension
                     },

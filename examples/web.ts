@@ -1,6 +1,11 @@
 /* METADATA
 {
     "name": "web",
+
+    "display_name": {
+        "zh": "Web 自动化操作",
+        "en": "Web Automation"
+    },
     "description": {
         "zh": "能够基于浏览器完成复杂的网页操作。",
         "en": "Enables complex web operations based on a real browser session."
@@ -299,8 +304,8 @@ const Web = (function () {
         }
         const button: ClickButton | undefined =
             normalizedButtonRaw === 'left' ||
-            normalizedButtonRaw === 'right' ||
-            normalizedButtonRaw === 'middle'
+                normalizedButtonRaw === 'right' ||
+                normalizedButtonRaw === 'middle'
                 ? (normalizedButtonRaw as ClickButton)
                 : undefined;
 

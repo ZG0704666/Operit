@@ -1,6 +1,10 @@
 /* METADATA
 {
     "name": "bilibili_tools",
+    "display_name": {
+        "zh": "Bilibili 工具集",
+        "en": "Bilibili Toolkit"
+    },
     "description": { "zh": "提供B站视频信息分析功能，包括获取字幕、弹幕、评论和搜索视频。", "en": "Analyze Bilibili video information, including subtitles, danmaku, comments, and video search." },
     "enabledByDefault": true,
     "tools": [

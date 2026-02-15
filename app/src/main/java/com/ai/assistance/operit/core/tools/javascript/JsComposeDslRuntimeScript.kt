@@ -106,8 +106,34 @@ internal fun buildComposeDslRuntimeWrappedScript(script: String): String {
                         ? __request.__action_payload
                         : __request.payload;
 
+                function __operit_send_intermediate_result(__value) {
+                    if (
+                        typeof NativeInterface === 'undefined' ||
+                        !NativeInterface ||
+                        typeof NativeInterface.sendIntermediateResult !== 'function'
+                    ) {
+                        return;
+                    }
+                    NativeInterface.sendIntermediateResult(JSON.stringify(__value));
+                }
+
                 var __maybePromise = __bundle.invokeAction(__actionId, __payload);
                 if (__maybePromise && typeof __maybePromise.then === 'function') {
+                    try {
+                        var __intermediateResponse = __operit_build_compose_response(__bundle, __entry);
+                        if (__operit_is_promise(__intermediateResponse)) {
+                            __intermediateResponse.then(function(__resolvedIntermediate) {
+                                __operit_send_intermediate_result(__resolvedIntermediate);
+                            });
+                        } else {
+                            __operit_send_intermediate_result(__intermediateResponse);
+                        }
+                    } catch (__intermediateError) {
+                        try {
+                            console.warn('compose intermediate render failed:', __intermediateError);
+                        } catch (__ignore) {
+                        }
+                    }
                     return __maybePromise.then(function() {
                         return __operit_build_compose_response(__bundle, __entry);
                     });
