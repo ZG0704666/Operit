@@ -57,10 +57,12 @@ Public read endpoints:
 - `GET /api/health`
 - `GET /api/config`
 - `GET /api/presets`
+- `GET /api/startup/state`
 
 Config / command endpoint:
 - `POST /api/config`
 - `POST /api/command/execute` (requires `token`)
+- `POST /api/startup/apply_recommended_bind`
 
 File endpoints (all require `token` in JSON body):
 - `POST /api/file/list`
@@ -93,3 +95,7 @@ File endpoints (all require `token` in JSON body):
   2. Check `logs/launcher.log`.
   3. Check `logs/agent.err.log` and `logs/agent.runtime.log`.
   4. Double click `operit_pc_agent.bat` again (it auto-cleans old process).
+- If configured `bindAddress` is no longer available (for example LAN IP changed):
+  1. Launcher will start temporary local mode on `127.0.0.1`.
+  2. Opened web console shows startup recovery panel.
+  3. Click the web button to apply recommended IPv4 and auto-restart.

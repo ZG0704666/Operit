@@ -509,14 +509,22 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                     userMessage = userMessage,
                                     onUserMessageChange = { actualViewModel.updateUserMessage(it) },
                                     onSendMessage = {
-                                        // 清除焦点，收起软键盘
-                                        focusManager.clearFocus()
+                                        if (currentChatId.isNullOrBlank()) {
+                                            Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.chat_please_create_new_chat),
+                                                    Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            // 清除焦点，收起软键盘
+                                            focusManager.clearFocus()
 
-                                        actualViewModel.sendUserMessage()
-                                        // 在发送消息后重置附件面板状态
-                                        actualViewModel.resetAttachmentPanelState()
-                                        // 发送新问题时，恢复自动滚动到底部
-                                        autoScrollToBottom = true
+                                            actualViewModel.sendUserMessage()
+                                            // 在发送消息后重置附件面板状态
+                                            actualViewModel.resetAttachmentPanelState()
+                                            // 发送新问题时，恢复自动滚动到底部
+                                            autoScrollToBottom = true
+                                        }
                                     },
                                     onCancelMessage = { actualViewModel.cancelCurrentMessage() },
                                     isLoading = isLoading,

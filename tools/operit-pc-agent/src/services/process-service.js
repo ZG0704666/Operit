@@ -911,11 +911,75 @@ function createProcessService({ projectRoot, logger }) {
     return Number.isFinite(second) && second >= 16 && second <= 31;
   }
 
+  function isLikelyVirtualInterfaceName(interfaceName) {
+    const text = String(interfaceName || "").trim();
+    if (!text) {
+      return false;
+    }
+
+    const virtualTokens = [
+      "vEthernet",
+      "wsl",
+      "hyper-v",
+      "vmware",
+      "virtualbox",
+      "docker",
+      "container",
+      "tailscale",
+      "zerotier",
+      "loopback",
+      "npcap",
+      "hamachi"
+    ];
+
+    const lowered = text.toLowerCase();
+    return virtualTokens.some((token) => lowered.includes(token));
+  }
+
+  function isLikelyPhysicalPreferredInterfaceName(interfaceName) {
+    const text = String(interfaceName || "").trim();
+    if (!text) {
+      return false;
+    }
+
+    const preferredTokens = [
+      "wifi",
+      "wi-fi",
+      "wlan",
+      "wireless",
+      "ethernet",
+      "lan"
+    ];
+
+    const lowered = text.toLowerCase();
+    return preferredTokens.some((token) => lowered.includes(token));
+  }
+
+  function scoreIpv4Candidate(address, interfaceName) {
+    let score = 0;
+
+    if (isPrivateLanIpv4(address)) {
+      score += 100;
+    }
+
+    if (isLikelyVirtualInterfaceName(interfaceName)) {
+      score -= 200;
+    } else {
+      score += 70;
+    }
+
+    if (isLikelyPhysicalPreferredInterfaceName(interfaceName)) {
+      score += 25;
+    }
+
+    return score;
+  }
+
   function getNetworkSnapshot() {
     const interfaces = os.networkInterfaces();
-    const ipv4Candidates = [];
+    const candidateByAddress = new Map();
 
-    for (const entries of Object.values(interfaces)) {
+    for (const [interfaceName, entries] of Object.entries(interfaces)) {
       for (const item of entries || []) {
         if (!item || item.family !== "IPv4" || item.internal) {
           continue;
@@ -923,16 +987,46 @@ function createProcessService({ projectRoot, logger }) {
         if (typeof item.address === "string" && item.address.startsWith("169.254.")) {
           continue;
         }
-        ipv4Candidates.push(item.address);
+
+        const address = String(item.address || "").trim();
+        if (!address) {
+          continue;
+        }
+
+        const candidate = {
+          address,
+          interfaceName: String(interfaceName || "").trim(),
+          isPrivateLan: isPrivateLanIpv4(address),
+          isVirtual: isLikelyVirtualInterfaceName(interfaceName),
+          score: scoreIpv4Candidate(address, interfaceName)
+        };
+
+        const existing = candidateByAddress.get(address);
+        if (!existing || candidate.score > existing.score) {
+          candidateByAddress.set(address, candidate);
+        }
       }
     }
 
-    const preferredLan = ipv4Candidates.find((ip) => isPrivateLanIpv4(ip));
+    const rankedCandidates = Array.from(candidateByAddress.values()).sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.address.localeCompare(b.address);
+    });
+
+    const ipv4Candidates = rankedCandidates.map((item) => item.address);
+    const preferredNonVirtualLan = rankedCandidates.find((item) => item.isPrivateLan && !item.isVirtual);
+    const preferredLanCandidate = preferredNonVirtualLan || rankedCandidates.find((item) => item.isPrivateLan);
+    const preferredLan = preferredLanCandidate ? preferredLanCandidate.address : "";
+    const recommended = rankedCandidates[0] || null;
 
     return {
       ipv4Candidates,
       preferredLan,
-      recommendedHost: preferredLan || ipv4Candidates[0] || ""
+      recommendedHost: recommended ? recommended.address : "",
+      recommendedInterfaceName: recommended ? recommended.interfaceName : "",
+      rankedIpv4Candidates: rankedCandidates
     };
   }
 

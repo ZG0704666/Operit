@@ -27,7 +27,8 @@ const state = {
   wizardBindAutoApplied: false,
   health: null,
   config: null,
-  presetItems: []
+  presetItems: [],
+  startupIssue: null
 };
 
 let wizardController = null;
@@ -207,6 +208,27 @@ function createTree() {
       )
     ),
 
+    W.Panel(
+      { className: "startup-issue-panel", ref: "startupIssuePanel", attrs: { hidden: "hidden" } },
+      W.PanelTitle(t("startup.title")),
+      W.Text({ as: "p", className: "startup-issue-message", ref: "startupIssueMessage", text: "" }),
+      W.Text({ as: "p", className: "startup-issue-meta", ref: "startupIssueMeta", text: "" }),
+      W.ButtonGroup(
+        {},
+        W.Button({
+          text: t("action.applyRecommendedBind"),
+          ref: "startupApplyButton",
+          on: { click: applyRecommendedBindFromStartupIssue }
+        }),
+        W.Button({
+          text: t("action.dismiss"),
+          variant: "soft",
+          ref: "startupDismissButton",
+          on: { click: dismissStartupIssuePanel }
+        })
+      )
+    ),
+
     W.Box(
       { className: "route-tabs" },
       W.Button({ text: t("nav.wizard"), variant: "soft", className: "route-tab", ref: "tabWizardButton", on: { click: () => navigateToRoute(ROUTES.WIZARD) } }),
@@ -268,6 +290,102 @@ function createTree() {
   );
 }
 
+function getStartupIssueMessagePayload(issue) {
+  const configuredBind =
+    issue && issue.configuredBindAddress
+      ? String(issue.configuredBindAddress).trim()
+      : state.config && state.config.bindAddress
+      ? String(state.config.bindAddress).trim()
+      : "-";
+
+  const recommendedBind =
+    issue && issue.recommendedBindAddress
+      ? String(issue.recommendedBindAddress).trim()
+      : state.health && state.health.network && state.health.network.recommendedHost
+      ? String(state.health.network.recommendedHost).trim()
+      : "";
+
+  const runtimeBind =
+    state.health && state.health.runtimeBindAddress ? String(state.health.runtimeBindAddress).trim() : "-";
+
+  const ipv4Candidates =
+    issue && Array.isArray(issue.ipv4Candidates) && issue.ipv4Candidates.length
+      ? issue.ipv4Candidates.join(", ")
+      : state.health &&
+        state.health.network &&
+        Array.isArray(state.health.network.ipv4Candidates) &&
+        state.health.network.ipv4Candidates.length
+      ? state.health.network.ipv4Candidates.join(", ")
+      : "-";
+
+  return {
+    configuredBind: configuredBind || "-",
+    recommendedBind: recommendedBind || "-",
+    runtimeBind: runtimeBind || "-",
+    ipv4Candidates
+  };
+}
+
+function renderStartupIssuePanel() {
+  const panel = refs.startupIssuePanel;
+  if (!panel) {
+    return;
+  }
+
+  const issue = state.startupIssue;
+  if (!issue || issue.issueType !== "bindAddressUnavailable") {
+    panel.hidden = true;
+    return;
+  }
+
+  const textValues = getStartupIssueMessagePayload(issue);
+  refs.startupIssueMessage.textContent = t("startup.bindUnavailableMessage", textValues);
+  refs.startupIssueMeta.textContent = t("startup.bindUnavailableMeta", textValues);
+
+  const recommendedBind = String(textValues.recommendedBind || "").trim();
+  refs.startupApplyButton.disabled =
+    !recommendedBind || recommendedBind === "-" || recommendedBind === "127.0.0.1";
+
+  panel.hidden = false;
+}
+
+async function applyRecommendedBindFromStartupIssue() {
+  setBusy(
+    "startupApplyButton",
+    true,
+    t("action.applyRecommendedBind"),
+    t("action.applyingRecommendedBind")
+  );
+
+  try {
+    const result = await api.applyRecommendedBind();
+    const appliedBind = result && result.bindAddress ? String(result.bindAddress) : "";
+
+    setNotice("warn", t("message.startupApplyRestarting", { bindAddress: appliedBind || "-" }));
+
+    state.startupIssue = null;
+    renderStartupIssuePanel();
+
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 2600);
+  } catch (error) {
+    setNotice("error", t("message.startupApplyFailed", { error: asErrorMessage(error) }));
+  } finally {
+    setBusy(
+      "startupApplyButton",
+      false,
+      t("action.applyRecommendedBind"),
+      t("action.applyingRecommendedBind")
+    );
+  }
+}
+
+function dismissStartupIssuePanel() {
+  state.startupIssue = null;
+  renderStartupIssuePanel();
+}
+
 function updateHealthSummary(health) {
   const preferredLan =
     health && health.network && health.network.preferredLan
@@ -289,7 +407,9 @@ function updateHealthSummary(health) {
 async function refreshHealth() {
   const health = await api.getHealth();
   state.health = health;
+  state.startupIssue = health && health.startupIssue ? health.startupIssue : null;
   updateHealthSummary(health);
+  renderStartupIssuePanel();
   wizardController.syncFromState({ forceMobileDefaults: false });
   return health;
 }
@@ -331,6 +451,7 @@ async function loadConfigAndPresets(options = {}) {
   }
 
   wizardController.syncFromState({ forceMobileDefaults: false });
+  renderStartupIssuePanel();
   return { config, presets };
 }
 

@@ -27,6 +27,8 @@ function isAuthorized(config, token) {
 function createApiHandler({
   state,
   configStore,
+  startupStateStore,
+  restartAgent,
   processService,
   fileService,
   logger,
@@ -34,6 +36,24 @@ function createApiHandler({
   runtimeInfo,
   versionInfo
 }) {
+  function isUsableRecommendedBind(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return false;
+    }
+    if (text === "127.0.0.1" || text === "0.0.0.0" || text === "localhost" || text === "::1") {
+      return false;
+    }
+    return true;
+  }
+
+  function getStartupIssueState() {
+    if (!startupStateStore) {
+      return null;
+    }
+    return startupStateStore.loadState();
+  }
+
   function getPresetList(config) {
     return Object.entries(presetCommands).map(([name, item]) => ({
       name,
@@ -241,6 +261,7 @@ function createApiHandler({
     if (req.method === "GET" && url.pathname === "/api/health") {
       const network = processService.getNetworkSnapshot();
       const user = processService.getUserSnapshot();
+      const startupIssue = getStartupIssueState();
 
       sendJson(res, 200, {
         ok: true,
@@ -248,12 +269,82 @@ function createApiHandler({
         host: runtimeInfo.host(),
         uptimeSec: runtimeInfo.uptimeSec(),
         bindAddress: config.bindAddress,
+        runtimeBindAddress: runtimeInfo.runtimeBindAddress ? runtimeInfo.runtimeBindAddress() : config.bindAddress,
+        bindOverrideActive: runtimeInfo.bindOverrideActive ? !!runtimeInfo.bindOverrideActive() : false,
         port: config.port,
         mode: "http-agent",
         version: versionInfo.agentVersion,
         network,
-        user
+        user,
+        startupIssue
       });
+      return true;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/startup/state") {
+      sendJson(res, 200, {
+        ok: true,
+        issue: getStartupIssueState()
+      });
+      return true;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/startup/apply_recommended_bind") {
+      try {
+        await readJsonBody(req);
+        const issue = getStartupIssueState();
+        if (!issue || issue.issueType !== "bindAddressUnavailable") {
+          sendJson(res, 400, { ok: false, error: "No bindAddressUnavailable startup issue" });
+          return true;
+        }
+
+        const network = processService.getNetworkSnapshot();
+        const recommendedHost = String(network.recommendedHost || "").trim();
+        if (!isUsableRecommendedBind(recommendedHost)) {
+          sendJson(res, 400, { ok: false, error: "No usable IPv4 candidate available now" });
+          return true;
+        }
+
+        const previousBindAddress = state.config.bindAddress;
+        state.config = {
+          ...state.config,
+          bindAddress: recommendedHost
+        };
+        configStore.saveConfig(state.config);
+
+        startupStateStore.saveState({
+          ...issue,
+          status: "applied_restarting",
+          previousBindAddress,
+          appliedBindAddress: recommendedHost,
+          appliedAt: new Date().toISOString(),
+          network
+        });
+
+        logger.info("startup.bind_recovery.applied", {
+          previousBindAddress,
+          appliedBindAddress: recommendedHost,
+          port: state.config.port
+        });
+
+        if (typeof restartAgent === "function") {
+          const scheduled = restartAgent("api.startup.apply_recommended_bind");
+          if (!scheduled) {
+            sendJson(res, 409, { ok: false, error: "Restart already scheduled" });
+            return true;
+          }
+        }
+
+        sendJson(res, 200, {
+          ok: true,
+          restartScheduled: true,
+          bindAddress: recommendedHost,
+          config: buildPublicConfig(state.config, versionInfo)
+        });
+      } catch (error) {
+        logger.error("startup.bind_recovery.error", { error: error.message });
+        sendJson(res, 400, { ok: false, error: error.message });
+      }
       return true;
     }
 

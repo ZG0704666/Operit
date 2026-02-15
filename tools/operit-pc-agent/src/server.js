@@ -1,13 +1,17 @@
 const http = require("http");
 const os = require("os");
+const path = require("path");
+const { spawn } = require("child_process");
 
 const {
   PROJECT_ROOT,
   PUBLIC_DIR,
   DATA_DIR,
+  SCRIPTS_DIR,
   LOGS_DIR,
   CONFIG_PATH,
   RUNTIME_PATH,
+  STARTUP_STATE_PATH,
   RUNTIME_LOG_PATH
 } = require("./config/paths");
 const {
@@ -20,6 +24,7 @@ const { createRuntimeLogger } = require("./lib/logger");
 const { createStaticFileServer, sendNotFound } = require("./lib/http-utils");
 const { createConfigStore } = require("./stores/config-store");
 const { createRuntimeStore } = require("./stores/runtime-store");
+const { createStartupStateStore } = require("./stores/startup-state-store");
 const { createProcessService } = require("./services/process-service");
 const { createFileService } = require("./services/file-service");
 const { createApiHandler } = require("./handlers/api-handler");
@@ -41,6 +46,11 @@ const runtimeStore = createRuntimeStore({
   runtimePath: RUNTIME_PATH
 });
 
+const startupStateStore = createStartupStateStore({
+  dataDir: DATA_DIR,
+  startupStatePath: STARTUP_STATE_PATH
+});
+
 const processService = createProcessService({
   projectRoot: PROJECT_ROOT,
   logger
@@ -59,18 +69,83 @@ const state = {
   config: configStore.loadConfig()
 };
 
+function resolveRuntimeBindAddress(config) {
+  const override = String(process.env.OPERIT_BIND_ADDRESS_OVERRIDE || "").trim();
+  if (override) {
+    return {
+      runtimeBindAddress: override,
+      bindOverrideActive: true
+    };
+  }
+
+  return {
+    runtimeBindAddress: config.bindAddress,
+    bindOverrideActive: false
+  };
+}
+
+const runtimeBinding = resolveRuntimeBindAddress(state.config);
+let restartScheduled = false;
+
 logger.info("config.loaded", {
   agentVersion: AGENT_VERSION,
   bindAddress: state.config.bindAddress,
+  runtimeBindAddress: runtimeBinding.runtimeBindAddress,
+  bindOverrideActive: runtimeBinding.bindOverrideActive,
   port: state.config.port,
   allowRawCommands: state.config.allowRawCommands,
   maxCommandMs: state.config.maxCommandMs,
   allowedPresets: state.config.allowedPresets
 });
 
+function scheduleRestart(reason) {
+  if (restartScheduled) {
+    logger.warn("server.restart.duplicate_request", { reason: reason || "unknown" });
+    return false;
+  }
+
+  restartScheduled = true;
+  logger.info("server.restart.requested", { reason: reason || "unknown" });
+
+  setTimeout(() => {
+    try {
+      const launcherScript = path.join(SCRIPTS_DIR, "launch_agent.ps1");
+      const psExe = process.env.SystemRoot
+        ? path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+        : "powershell.exe";
+
+      const child = spawn(psExe, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", launcherScript], {
+        cwd: PROJECT_ROOT,
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true
+      });
+
+      child.unref();
+      logger.info("server.restart.launcher_spawned", {
+        launcherScript,
+        pid: child.pid || null
+      });
+    } catch (error) {
+      logger.error("server.restart.spawn_failed", {
+        reason: reason || "unknown",
+        error: error && error.message ? error.message : String(error)
+      });
+      restartScheduled = false;
+      return;
+    }
+
+    setTimeout(() => shutdown("RESTART"), 120);
+  }, 120);
+
+  return true;
+}
+
 const apiHandler = createApiHandler({
   state,
   configStore,
+  startupStateStore,
+  restartAgent: scheduleRestart,
   processService,
   fileService,
   logger,
@@ -78,7 +153,9 @@ const apiHandler = createApiHandler({
   runtimeInfo: {
     pid: () => process.pid,
     host: () => os.hostname(),
-    uptimeSec: () => Math.floor(process.uptime())
+    uptimeSec: () => Math.floor(process.uptime()),
+    runtimeBindAddress: () => runtimeBinding.runtimeBindAddress,
+    bindOverrideActive: () => runtimeBinding.bindOverrideActive
   },
   versionInfo: {
     agentVersion: AGENT_VERSION
@@ -103,7 +180,7 @@ const server = http.createServer(async (req, res) => {
   logger.warn("http.404", { method: req.method, path: url.pathname });
 });
 
-server.listen(state.config.port, state.config.bindAddress, () => {
+server.listen(state.config.port, runtimeBinding.runtimeBindAddress, () => {
   runtimeStore.writeRuntimeFile({
     port: state.config.port,
     pid: process.pid,
@@ -111,7 +188,10 @@ server.listen(state.config.port, state.config.bindAddress, () => {
   });
 
   logger.info("server.listening", {
-    url: `http://${state.config.bindAddress}:${state.config.port}`,
+    url: `http://${runtimeBinding.runtimeBindAddress}:${state.config.port}`,
+    configBindAddress: state.config.bindAddress,
+    runtimeBindAddress: runtimeBinding.runtimeBindAddress,
+    bindOverrideActive: runtimeBinding.bindOverrideActive,
     pid: process.pid,
     host: os.hostname(),
     agentVersion: AGENT_VERSION

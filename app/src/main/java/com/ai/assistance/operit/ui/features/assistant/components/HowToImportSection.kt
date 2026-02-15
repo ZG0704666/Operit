@@ -52,9 +52,9 @@ fun HowToImportSection() {
         Text(
             text =
                 if (expanded) {
-                    "${stringResource(R.string.how_to_import)} (tap to collapse)"
+                    stringResource(R.string.how_to_import_tap_to_collapse)
                 } else {
-                    "${stringResource(R.string.how_to_import)} (tap to expand)"
+                    stringResource(R.string.how_to_import_tap_to_expand)
                 },
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
@@ -70,25 +70,17 @@ fun HowToImportSection() {
                 }
 
                 withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
-                    append("Supported formats")
+                    append(stringResource(R.string.avatar_supported_formats_title))
                 }
                 append("\n")
-                append("- DragonBones: skeleton .json + *_tex.json + *_tex.png")
-                append("\n")
-                append("- WebP: one or more .webp files")
-                append("\n")
-                append("- MMD: .pmx or .pmd model, optional .vmd motions")
-                append("\n")
-                append("- glTF: .glb or .gltf (plus referenced .bin/textures when needed)")
+                append(stringResource(R.string.avatar_supported_formats_desc))
                 append("\n\n")
 
                 withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
-                    append("Import methods")
+                    append(stringResource(R.string.avatar_import_methods_title))
                 }
                 append("\n")
-                append("- Direct file picker: .glb / .gltf")
-                append("\n")
-                append("- ZIP import: DragonBones, WebP, MMD, or multi-file glTF packages")
+                append(stringResource(R.string.avatar_import_methods_desc))
                 append("\n\n")
 
                 withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {

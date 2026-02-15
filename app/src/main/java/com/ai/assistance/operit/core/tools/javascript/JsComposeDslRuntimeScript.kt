@@ -117,27 +117,106 @@ internal fun buildComposeDslRuntimeWrappedScript(script: String): String {
                     NativeInterface.sendIntermediateResult(JSON.stringify(__value));
                 }
 
-                var __maybePromise = __bundle.invokeAction(__actionId, __payload);
-                if (__maybePromise && typeof __maybePromise.then === 'function') {
+                var __actionSettled = false;
+                var __intermediateRenderQueued = false;
+                var __intermediateRenderInFlight = false;
+                var __unsubscribeStateChange = null;
+
+                function __operit_finalize_action() {
+                    __actionSettled = true;
+                    if (typeof __unsubscribeStateChange === 'function') {
+                        try {
+                            __unsubscribeStateChange();
+                        } catch (__unsubscribeError) {
+                        }
+                        __unsubscribeStateChange = null;
+                    }
+                }
+
+                function __operit_render_and_send_intermediate() {
+                    if (__actionSettled) {
+                        return null;
+                    }
                     try {
                         var __intermediateResponse = __operit_build_compose_response(__bundle, __entry);
                         if (__operit_is_promise(__intermediateResponse)) {
-                            __intermediateResponse.then(function(__resolvedIntermediate) {
-                                __operit_send_intermediate_result(__resolvedIntermediate);
+                            return __intermediateResponse.then(function(__resolvedIntermediate) {
+                                if (!__actionSettled) {
+                                    __operit_send_intermediate_result(__resolvedIntermediate);
+                                }
                             });
-                        } else {
-                            __operit_send_intermediate_result(__intermediateResponse);
                         }
+                        __operit_send_intermediate_result(__intermediateResponse);
                     } catch (__intermediateError) {
                         try {
                             console.warn('compose intermediate render failed:', __intermediateError);
                         } catch (__ignore) {
                         }
                     }
-                    return __maybePromise.then(function() {
-                        return __operit_build_compose_response(__bundle, __entry);
+                    return null;
+                }
+
+                function __operit_process_intermediate_queue() {
+                    if (__actionSettled || __intermediateRenderInFlight || !__intermediateRenderQueued) {
+                        return;
+                    }
+                    __intermediateRenderQueued = false;
+                    __intermediateRenderInFlight = true;
+                    var __renderResult = __operit_render_and_send_intermediate();
+                    if (__operit_is_promise(__renderResult)) {
+                        __renderResult.then(
+                            function() {},
+                            function() {}
+                        ).then(function() {
+                            __intermediateRenderInFlight = false;
+                            if (__intermediateRenderQueued && !__actionSettled) {
+                                __operit_process_intermediate_queue();
+                            }
+                        });
+                        return;
+                    }
+                    __intermediateRenderInFlight = false;
+                    if (__intermediateRenderQueued && !__actionSettled) {
+                        __operit_process_intermediate_queue();
+                    }
+                }
+
+                function __operit_schedule_intermediate_render() {
+                    if (__actionSettled) {
+                        return;
+                    }
+                    __intermediateRenderQueued = true;
+                    Promise.resolve().then(function() {
+                        __operit_process_intermediate_queue();
                     });
                 }
+
+                if (typeof __bundle.subscribeStateChange === 'function') {
+                    __unsubscribeStateChange = __bundle.subscribeStateChange(function() {
+                        __operit_schedule_intermediate_render();
+                    });
+                }
+
+                var __maybePromise;
+                try {
+                    __maybePromise = __bundle.invokeAction(__actionId, __payload);
+                } catch (__actionError) {
+                    __operit_finalize_action();
+                    throw __actionError;
+                }
+                if (__maybePromise && typeof __maybePromise.then === 'function') {
+                    // For async actions, schedule a render checkpoint immediately.
+                    // Additional state updates during await phases are pushed by state-change listeners.
+                    __operit_schedule_intermediate_render();
+                    return __maybePromise.then(function() {
+                        __operit_finalize_action();
+                        return __operit_build_compose_response(__bundle, __entry);
+                    }, function(__actionError) {
+                        __operit_finalize_action();
+                        throw __actionError;
+                    });
+                }
+                __operit_finalize_action();
                 return __operit_build_compose_response(__bundle, __entry);
             }
 

@@ -1,8 +1,8 @@
 [OVERALL]
-Total strings found: 1920
-Excluded logs: 1777
+Total strings found: 1939
+Excluded logs: 1793
 Excluded long prompts(>100 chars): 61
-Remaining UI strings: 82
+Remaining UI strings: 85
 Files with Chinese strings: 148
 
 [BY MODULE]
@@ -113,10 +113,19 @@ FILE: app\src\main\java\com\ai\assistance\operit\util\LocaleUtils.kt
   L31:63 (4 chars) "跟随系统"
   L32:43 (2 chars) "中文"
 
+FILE: app\src\main\java\com\ai\assistance\operit\data\mcp\plugins\MCPBridge.kt
+  remaining=2 total=40 excluded_logs=38 excluded_long=0
+  L539:60 (32 chars) "命令[$cmdId: $cmdType]没有收到响应（独立连接）"
+  L589:56 (26 chars) "命令[$cmdId: $cmdType]没有收到响应"
+
 FILE: app\src\main\java\com\ai\assistance\operit\util\stream\StreamGroup.kt
   remaining=2 total=7 excluded_logs=5 excluded_long=0
   L166:74 (6 chars) "标签必须设置"
   L169:77 (7 chars) "数据流必须设置"
+
+FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\LlamaProvider.kt
+  remaining=1 total=6 excluded_logs=5 excluded_long=0
+  L549:13 (76 chars) "\n已启用 Tool Call 模式。\n调用工具时，请输出顶层为 "tool_calls" 的合法 JSON。\n仅可使用以下工具名：$toolNames\n"
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\chat\plan\PlanModeManager.kt
   remaining=1 total=10 excluded_logs=8 excluded_long=1

@@ -13,6 +13,7 @@ import com.ai.assistance.operit.data.model.TavernCharacterData
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.TavernExtensions
 import com.ai.assistance.operit.data.model.OperitTavernExtension
+import com.ai.assistance.operit.data.model.OperitAttachedTagPayload
 import com.ai.assistance.operit.data.model.OperitCharacterCardPayload
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -398,7 +399,8 @@ class CharacterCardManager private constructor(private val context: Context) {
         val schema: String = "operit_character_cards_backup_v1",
         val version: Int = 1,
         val exportedAt: Long = System.currentTimeMillis(),
-        val characterCards: List<CharacterCard> = emptyList()
+        val characterCards: List<CharacterCard> = emptyList(),
+        val promptTags: List<PromptTag> = emptyList()
     )
 
     data class CharacterCardImportResult(
@@ -413,13 +415,17 @@ class CharacterCardManager private constructor(private val context: Context) {
     suspend fun exportAllCharacterCardsToBackupFile(): String? {
         return try {
             val cards = getAllCharacterCards()
+            val referencedTagIds = cards.flatMap { it.attachedTagIds }.distinct()
+            val attachedTags = referencedTagIds.mapNotNull { tagId ->
+                runCatching { tagManager.getPromptTagFlow(tagId).first() }.getOrNull()
+            }
             val exportDir = OperitBackupDirs.characterCardsDir()
             val dateFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
             val timestamp = dateFormat.format(Date())
             val exportFile = File(exportDir, "character_cards_backup_$timestamp.json")
 
             val gson = GsonBuilder().setPrettyPrinting().create()
-            val wrapper = CharacterCardsBackupFile(characterCards = cards)
+            val wrapper = CharacterCardsBackupFile(characterCards = cards, promptTags = attachedTags)
             exportFile.writeText(gson.toJson(wrapper))
             exportFile.absolutePath
         } catch (e: Exception) {
@@ -440,14 +446,23 @@ class CharacterCardManager private constructor(private val context: Context) {
             throw Exception(context.getString(R.string.charactercard_json_format_error, e.message ?: ""))
         }
 
-        val cards: List<CharacterCard> = try {
+        val (cards, exportedPromptTags) = try {
             if (root.isJsonObject && root.asJsonObject.has("characterCards")) {
-                val arr = root.asJsonObject.get("characterCards")
-                gson.fromJson(arr, Array<CharacterCard>::class.java)?.toList() ?: emptyList()
+                val rootObject = root.asJsonObject
+                val cardsArr = rootObject.get("characterCards")
+                val parsedCards = gson.fromJson(cardsArr, Array<CharacterCard>::class.java)?.toList() ?: emptyList()
+                val parsedTags = if (rootObject.has("promptTags")) {
+                    val tagsArr = rootObject.get("promptTags")
+                    gson.fromJson(tagsArr, Array<PromptTag>::class.java)?.toList() ?: emptyList()
+                } else {
+                    emptyList()
+                }
+                parsedCards to parsedTags
             } else if (root.isJsonArray) {
-                gson.fromJson(root, Array<CharacterCard>::class.java)?.toList() ?: emptyList()
+                val parsedCards = gson.fromJson(root, Array<CharacterCard>::class.java)?.toList() ?: emptyList()
+                parsedCards to emptyList()
             } else {
-                emptyList()
+                emptyList<CharacterCard>() to emptyList<PromptTag>()
             }
         } catch (e: Exception) {
             throw Exception(context.getString(R.string.charactercard_parse_failed, e.message ?: ""))
@@ -462,6 +477,7 @@ class CharacterCardManager private constructor(private val context: Context) {
         var skippedCount = 0
 
         val existingIds = characterCardListFlow.first().toSet()
+        val importedTagIdMap = importOrReusePromptTags(exportedPromptTags)
 
         for (card in cards) {
             if (card.id.isBlank() || card.name.isBlank()) {
@@ -470,9 +486,15 @@ class CharacterCardManager private constructor(private val context: Context) {
             }
 
             val finalCard = if (card.id == DEFAULT_CHARACTER_CARD_ID) {
-                card.copy(isDefault = true)
+                card.copy(
+                    isDefault = true,
+                    attachedTagIds = remapAttachedTagIds(card.attachedTagIds, importedTagIdMap)
+                )
             } else {
-                card.copy(isDefault = false)
+                card.copy(
+                    isDefault = false,
+                    attachedTagIds = remapAttachedTagIds(card.attachedTagIds, importedTagIdMap)
+                )
             }
 
             if (existingIds.contains(finalCard.id)) {
@@ -566,6 +588,12 @@ class CharacterCardManager private constructor(private val context: Context) {
                 ?.takeIf { it.schema == "operit_character_card_v1" }
                 ?.character_card
 
+            val importedOperitTags = if (operitPayload != null) {
+                importOrReuseOperitTags(operitPayload.attachedTags)
+            } else {
+                ImportedTagResult(emptyMap(), emptyList())
+            }
+
             val characterCard = if (operitPayload != null) {
                 CharacterCard(
                     id = "",
@@ -574,7 +602,18 @@ class CharacterCardManager private constructor(private val context: Context) {
                     characterSetting = operitPayload.characterSetting,
                     openingStatement = operitPayload.openingStatement,
                     otherContent = operitPayload.otherContent,
-                    attachedTagIds = operitPayload.attachedTagIds,
+                    attachedTagIds = if (operitPayload.attachedTagIds.isNotEmpty()) {
+                        remapAttachedTagIds(
+                            sourceIds = operitPayload.attachedTagIds,
+                            idMap = importedOperitTags.idMap
+                        )
+                    } else {
+                        if (importedOperitTags.importedIds.isNotEmpty()) {
+                            importedOperitTags.importedIds
+                        } else {
+                            importedOperitTags.idMap.values.distinct()
+                        }
+                    },
                     advancedCustomPrompt = operitPayload.advancedCustomPrompt,
                     marks = operitPayload.marks,
                     isDefault = false,
@@ -586,7 +625,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             }
 
             val finalCard = worldBookTagId?.let {
-                characterCard.copy(attachedTagIds = characterCard.attachedTagIds + it)
+                characterCard.copy(attachedTagIds = (characterCard.attachedTagIds + it).distinct())
             } ?: characterCard
 
             val id = createCharacterCard(finalCard)
@@ -613,9 +652,10 @@ class CharacterCardManager private constructor(private val context: Context) {
     suspend fun exportCharacterCardToTavernJson(characterCardId: String): Result<String> {
         return try {
             val card = getCharacterCard(characterCardId)
-            val tagNames = card.attachedTagIds.mapNotNull { tagId ->
-                runCatching { tagManager.getPromptTagFlow(tagId).first().name }.getOrNull()
+            val attachedTags = card.attachedTagIds.mapNotNull { tagId ->
+                runCatching { tagManager.getPromptTagFlow(tagId).first() }.getOrNull()
             }
+            val tagNames = attachedTags.map { it.name }
 
             val operitExt = OperitTavernExtension(
                 character_card = OperitCharacterCardPayload(
@@ -625,6 +665,16 @@ class CharacterCardManager private constructor(private val context: Context) {
                     openingStatement = card.openingStatement,
                     otherContent = card.otherContent,
                     attachedTagIds = card.attachedTagIds,
+                    attachedTags = attachedTags.map { tag ->
+                        OperitAttachedTagPayload(
+                            id = tag.id,
+                            name = tag.name,
+                            description = tag.description,
+                            promptContent = tag.promptContent,
+                            tagType = tag.tagType.name,
+                            isSystemTag = tag.isSystemTag
+                        )
+                    },
                     advancedCustomPrompt = card.advancedCustomPrompt,
                     marks = card.marks
                 )
@@ -735,6 +785,96 @@ class CharacterCardManager private constructor(private val context: Context) {
         } catch (e: Exception) {
             throw Exception(context.getString(R.string.charactercard_base64_decode_failed, e.message ?: ""))
         }
+    }
+
+    private suspend fun importOrReusePromptTags(exportedTags: List<PromptTag>): Map<String, String> {
+        val idMap = mutableMapOf<String, String>()
+        exportedTags.forEach { exportedTag ->
+            val safeTagTypeName = runCatching { exportedTag.tagType.name }.getOrDefault(TagType.CUSTOM.name)
+            val localTagId = importOrReuseTag(
+                exportedTagId = exportedTag.id,
+                name = exportedTag.name,
+                description = exportedTag.description,
+                promptContent = exportedTag.promptContent,
+                tagTypeName = safeTagTypeName,
+                isSystemTag = exportedTag.isSystemTag
+            )
+            if (localTagId != null && exportedTag.id.isNotBlank()) {
+                idMap[exportedTag.id] = localTagId
+            }
+        }
+        return idMap
+    }
+
+    private data class ImportedTagResult(
+        val idMap: Map<String, String>,
+        val importedIds: List<String>
+    )
+
+    private suspend fun importOrReuseOperitTags(exportedTags: List<OperitAttachedTagPayload>): ImportedTagResult {
+        val idMap = mutableMapOf<String, String>()
+        val importedIds = mutableListOf<String>()
+        exportedTags.forEach { exportedTag ->
+            val localTagId = importOrReuseTag(
+                exportedTagId = exportedTag.id,
+                name = exportedTag.name,
+                description = exportedTag.description,
+                promptContent = exportedTag.promptContent,
+                tagTypeName = exportedTag.tagType,
+                isSystemTag = exportedTag.isSystemTag
+            )
+            if (localTagId != null) {
+                importedIds.add(localTagId)
+                if (exportedTag.id.isNotBlank()) {
+                    idMap[exportedTag.id] = localTagId
+                }
+            }
+        }
+        return ImportedTagResult(idMap = idMap, importedIds = importedIds.distinct())
+    }
+
+    private suspend fun importOrReuseTag(
+        exportedTagId: String,
+        name: String,
+        description: String,
+        promptContent: String,
+        tagTypeName: String,
+        isSystemTag: Boolean
+    ): String? {
+        if (name.isBlank() && description.isBlank() && promptContent.isBlank()) {
+            return null
+        }
+
+        val existingTagByContent = tagManager.findTagWithSameContent(promptContent)
+        if (existingTagByContent != null) {
+            return existingTagByContent.id
+        }
+
+        val safeTagType = runCatching { TagType.valueOf(tagTypeName) }.getOrDefault(TagType.CUSTOM)
+        val fallbackName = exportedTagId.ifBlank { "Imported Tag" }
+        return tagManager.createPromptTag(
+            name = name.ifBlank { fallbackName },
+            description = description,
+            promptContent = promptContent,
+            tagType = safeTagType,
+            // 避免创建伪系统标签，系统标签应由系统初始化流程维护固定ID
+            isSystemTag = isSystemTag && exportedTagId in setOf(
+                SYSTEM_CHAT_TAG_ID,
+                SYSTEM_VOICE_TAG_ID,
+                SYSTEM_DESKTOP_PET_TAG_ID
+            )
+        )
+    }
+
+    private fun remapAttachedTagIds(
+        sourceIds: List<String>,
+        idMap: Map<String, String>
+    ): List<String> {
+        val remapped = sourceIds.map { sourceId ->
+            idMap[sourceId] ?: sourceId
+        }
+
+        return remapped.distinct()
     }
     
     /**

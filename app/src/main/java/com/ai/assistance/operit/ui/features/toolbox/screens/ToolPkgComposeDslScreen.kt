@@ -46,9 +46,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -280,7 +282,8 @@ fun ToolPkgComposeDslToolScreen(
                     Box(modifier = contentModifier) {
                         RenderComposeDslNode(
                             node = rootNode,
-                            onAction = ::dispatchAction
+                            onAction = ::dispatchAction,
+                            nodePath = "0"
                         )
                     }
                 }
@@ -300,7 +303,8 @@ fun ToolPkgComposeDslToolScreen(
 @Composable
 private fun RenderComposeDslNode(
     node: ToolPkgComposeDslNode,
-    onAction: (String, Any?) -> Unit
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
 ) {
     val props = node.props
     when (node.type.lowercase()) {
@@ -311,14 +315,22 @@ private fun RenderComposeDslNode(
                 horizontalAlignment = props.horizontalAlignment("horizontalAlignment"),
                 verticalArrangement = props.verticalArrangement("verticalArrangement", spacing)
             ) {
-                node.children.forEach { child ->
+                node.children.forEachIndexed { index, child ->
                     val childWeight = child.props.floatOrNull("weight")
                     if (childWeight != null) {
                         Box(modifier = Modifier.weight(childWeight)) {
-                            RenderComposeDslNode(node = child, onAction = onAction)
+                            RenderComposeDslNode(
+                                node = child,
+                                onAction = onAction,
+                                nodePath = "$nodePath/$index"
+                            )
                         }
                     } else {
-                        RenderComposeDslNode(node = child, onAction = onAction)
+                        RenderComposeDslNode(
+                            node = child,
+                            onAction = onAction,
+                            nodePath = "$nodePath/$index"
+                        )
                     }
                 }
             }
@@ -330,14 +342,22 @@ private fun RenderComposeDslNode(
                 horizontalArrangement = props.horizontalArrangement("horizontalArrangement", spacing),
                 verticalAlignment = props.verticalAlignment("verticalAlignment")
             ) {
-                node.children.forEach { child ->
+                node.children.forEachIndexed { index, child ->
                     val childWeight = child.props.floatOrNull("weight")
                     if (childWeight != null) {
                         Box(modifier = Modifier.weight(childWeight)) {
-                            RenderComposeDslNode(node = child, onAction = onAction)
+                            RenderComposeDslNode(
+                                node = child,
+                                onAction = onAction,
+                                nodePath = "$nodePath/$index"
+                            )
                         }
                     } else {
-                        RenderComposeDslNode(node = child, onAction = onAction)
+                        RenderComposeDslNode(
+                            node = child,
+                            onAction = onAction,
+                            nodePath = "$nodePath/$index"
+                        )
                     }
                 }
             }
@@ -347,8 +367,12 @@ private fun RenderComposeDslNode(
                 modifier = applyCommonModifier(Modifier, props),
                 contentAlignment = props.boxAlignment("contentAlignment")
             ) {
-                node.children.forEach { child ->
-                    RenderComposeDslNode(node = child, onAction = onAction)
+                node.children.forEachIndexed { index, child ->
+                    RenderComposeDslNode(
+                        node = child,
+                        onAction = onAction,
+                        nodePath = "$nodePath/$index"
+                    )
                 }
             }
         }
@@ -377,11 +401,32 @@ private fun RenderComposeDslNode(
             val actionId = ToolPkgComposeDslParser.extractActionId(props["onValueChange"])
             val label = props.stringOrNull("label")
             val placeholder = props.stringOrNull("placeholder")
+            val externalValue = props.string("value")
+            var textFieldValue by remember(nodePath) {
+                mutableStateOf(
+                    TextFieldValue(
+                        text = externalValue,
+                        selection = TextRange(externalValue.length)
+                    )
+                )
+            }
+            LaunchedEffect(nodePath, externalValue) {
+                if (externalValue != textFieldValue.text) {
+                    val start = textFieldValue.selection.start.coerceIn(0, externalValue.length)
+                    val end = textFieldValue.selection.end.coerceIn(0, externalValue.length)
+                    textFieldValue =
+                        TextFieldValue(
+                            text = externalValue,
+                            selection = TextRange(start, end)
+                        )
+                }
+            }
             OutlinedTextField(
-                value = props.string("value"),
-                onValueChange = { value ->
+                value = textFieldValue,
+                onValueChange = { nextValue ->
                     if (!actionId.isNullOrBlank()) {
-                        onAction(actionId, value)
+                        textFieldValue = nextValue
+                        onAction(actionId, nextValue.text)
                     }
                 },
                 label = label?.let { { Text(it) } },
@@ -405,8 +450,12 @@ private fun RenderComposeDslNode(
                 modifier = applyCommonModifier(Modifier, props)
             ) {
                 if (hasChildren) {
-                    node.children.forEach { child ->
-                        RenderComposeDslNode(node = child, onAction = onAction)
+                    node.children.forEachIndexed { index, child ->
+                        RenderComposeDslNode(
+                            node = child,
+                            onAction = onAction,
+                            nodePath = "$nodePath/$index"
+                        )
                     }
                 } else {
                     Text(props.string("text", "Button"))
@@ -478,8 +527,12 @@ private fun RenderComposeDslNode(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(spacing)
                 ) {
-                    node.children.forEach { child ->
-                        RenderComposeDslNode(node = child, onAction = onAction)
+                    node.children.forEachIndexed { index, child ->
+                        RenderComposeDslNode(
+                            node = child,
+                            onAction = onAction,
+                            nodePath = "$nodePath/$index"
+                        )
                     }
                 }
             }
@@ -501,8 +554,12 @@ private fun RenderComposeDslNode(
                 verticalArrangement = Arrangement.spacedBy(spacing),
                 contentPadding = PaddingValues(0.dp)
             ) {
-                itemsIndexed(node.children) { _, child ->
-                    RenderComposeDslNode(node = child, onAction = onAction)
+                itemsIndexed(node.children) { index, child ->
+                    RenderComposeDslNode(
+                        node = child,
+                        onAction = onAction,
+                        nodePath = "$nodePath/$index"
+                    )
                 }
             }
         }

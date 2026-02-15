@@ -37,6 +37,12 @@ export const api = {
   getPresets() {
     return requestJson("/api/presets");
   },
+  getStartupState() {
+    return requestJson("/api/startup/state");
+  },
+  applyRecommendedBind() {
+    return requestJson("/api/startup/apply_recommended_bind", { method: "POST", body: {} });
+  },
   executeCommand(payload) {
     return requestJson("/api/command/execute", { method: "POST", body: payload });
   },

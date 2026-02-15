@@ -1664,7 +1664,11 @@ fun ChatHistorySelector(
                             background = MaterialTheme.colorScheme.primary
                         )
 
-                        ReorderableItem(reorderableState, key = item.history.id) { isDragging ->
+                        ReorderableItem(
+                            reorderableState,
+                            key = item.history.id,
+                            animateItemModifier = Modifier.animateItem(placementSpec = null)
+                        ) { isDragging ->
                             val isSelected = item.history.id == currentId
                             val containerColor = if (isSelected) {
                                 MaterialTheme.colorScheme.primaryContainer

@@ -352,6 +352,17 @@
     <string name="unsupported_model_type">不支持的模型类型: %1$s</string>
     <string name="avatar_preview_error_log">头像预览错误: %1$s</string>
     <string name="how_to_import">如何制作和导入模型?</string>
+    <string name="how_to_import_tap_to_expand">如何制作和导入模型?（点击展开）</string>
+    <string name="how_to_import_tap_to_collapse">如何制作和导入模型?（点击收起）</string>
+    <string name="avatar_config_supported_formats">支持：DragonBones（.json + _tex.json + _tex.png）、WebP（.webp）、MMD（.pmx/.pmd + 可选 .vmd）、glTF（.glb/.gltf）。</string>
+    <string name="avatar_config_import_methods">直接文件导入支持 .glb/.gltf；DragonBones、WebP、MMD 或多文件 glTF 资源请导入 .zip。</string>
+    <string name="avatar_supported_formats_title">支持格式</string>
+    <string name="avatar_supported_formats_desc">- DragonBones：骨骼 .json + *_tex.json + *_tex.png\n- WebP：一个或多个 .webp 文件\n- MMD：.pmx 或 .pmd 模型，可选 .vmd 动作\n- glTF：.glb 或 .gltf（如有引用还需 .bin/贴图等资源）</string>
+    <string name="avatar_import_methods_title">导入方式</string>
+    <string name="avatar_import_methods_desc">- 直接选文件：.glb / .gltf\n- ZIP 导入：DragonBones、WebP、MMD 或多文件 glTF 包</string>
+    <string name="import_structure_guide_tap_to_expand">导入结构指南（点击展开）</string>
+    <string name="import_structure_guide_tap_to_collapse">导入结构指南（点击收起）</string>
+    <string name="import_structure_guide_content">这是“导入包”的目录结构（ZIP 或选中文件内部），不是应用内部存储。\n\nDragonBones（.zip）\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  要求：ske/tex json/png 文件名前缀一致。\n\nWebP（.zip）\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  要求：至少包含一个 .webp 文件。\n\nMMD（.zip）\n  my_mmd.zip\n    any_folder_name/\n      character.pmx（或 .pmd）\n      motions/idle.vmd（可选）\n      textures/...\n  要求：保持 PMX/PMD 引用的相对路径不变。\n\nglTF\n  方式 A（直接文件）:\n    avatar.glb\n  方式 B（多文件 glTF 使用 .zip）:\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  要求：保持 .gltf 引用的相对路径不变。\n\nLive2D（.zip）\n  my_live2d.zip\n    any_folder_name/\n      avatar.model3.json\n      avatar.moc3\n      textures/...\n      motions/...\n      expressions/...\n  要求：包含 model3.json 引用到的全部文件。</string>
     <string name="enter">进入</string>
     <string name="about_avatar_formats">本应用支持多种虚拟形象格式，包括DragonBones。以下是制作和导入模型的说明。</string>
     <string name="dragon_bones_config">DragonBones配置</string>
@@ -2915,6 +2926,7 @@
     <string name="chat_processing_attachment">正在处理附件...</string>
     <string name="chat_attachment_processing_failed">处理附件失败: %1$s</string>
     <string name="chat_create_failed">创建新对话失败</string>
+    <string name="chat_please_create_new_chat">请新建对话</string>
     <string name="chat_processing_shared_files">正在处理分享文件...</string>
     <string name="chat_start_workspace_server_failed">启动工作区服务失败</string>
     <string name="chat_update_workspace_server_failed">更新Web工作空间失败: %1$s</string>
@@ -3332,6 +3344,7 @@
     <string name="enable_tool_call_desc">关闭时，会使用软件内工具调用机制，也可以完成工具调用。开启后，将会使用API的专用接口进行原生工具调用（需要模型支持）</string>
     <string name="strict_tool_call">严格toolcall</string>
     <string name="strict_tool_call_desc">严格toolcall请在toolcall支持但报错的情况下开启，该选项一定程度上会改变toolcall运行稳定性。非必要不开启。</string>
+    <string name="strict_tool_call_required">需要开启严格toolcall</string>
     <string name="enable_deepseek_reasoning">启用 DeepSeek 推理模式</string>
     <string name="enable_deepseek_reasoning_desc">启用后，&lt;think&gt;标签内的内容将作为reasoning_content发送给DeepSeek模型，用于支持DeepSeek-R1等推理模型的工具调用</string>
     <string name="search_sources">搜索来源</string>

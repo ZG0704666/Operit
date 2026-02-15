@@ -353,6 +353,17 @@
     <string name="unsupported_model_type">Unsupported model type: %1$s</string>
     <string name="avatar_preview_error_log">Avatar preview error: %1$s</string>
     <string name="how_to_import">How to create and import models?</string>
+    <string name="how_to_import_tap_to_expand">How to create and import models? (tap to expand)</string>
+    <string name="how_to_import_tap_to_collapse">How to create and import models? (tap to collapse)</string>
+    <string name="avatar_config_supported_formats">Supported: DragonBones (.json + _tex.json + _tex.png), WebP (.webp), MMD (.pmx/.pmd + optional .vmd), glTF (.glb/.gltf).</string>
+    <string name="avatar_config_import_methods">Direct file import supports .glb/.gltf; import .zip for DragonBones, WebP, MMD, or multi-file glTF resources.</string>
+    <string name="avatar_supported_formats_title">Supported formats</string>
+    <string name="avatar_supported_formats_desc">- DragonBones: skeleton .json + *_tex.json + *_tex.png\n- WebP: one or more .webp files\n- MMD: .pmx or .pmd model, optional .vmd motions\n- glTF: .glb or .gltf (plus referenced .bin/textures when needed)</string>
+    <string name="avatar_import_methods_title">Import methods</string>
+    <string name="avatar_import_methods_desc">- Direct file picker: .glb / .gltf\n- ZIP import: DragonBones, WebP, MMD, or multi-file glTF packages</string>
+    <string name="import_structure_guide_tap_to_expand">Import structure guide (tap to expand)</string>
+    <string name="import_structure_guide_tap_to_collapse">Import structure guide (tap to collapse)</string>
+    <string name="import_structure_guide_content">This is the IMPORT PACKAGE layout (files inside your ZIP / picked file), not app internal storage.\n\nDragonBones (.zip)\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  Requirement: ske/tex json/png files must share the same filename prefix.\n\nWebP (.zip)\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  Requirement: include at least one .webp file.\n\nMMD (.zip)\n  my_mmd.zip\n    any_folder_name/\n      character.pmx (or .pmd)\n      motions/idle.vmd (optional)\n      textures/...\n  Requirement: keep relative paths referenced by PMX/PMD unchanged.\n\nglTF\n  Method A (direct file):\n    avatar.glb\n  Method B (.zip for multi-file glTF):\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  Requirement: keep relative paths referenced by .gltf unchanged.\n\nLive2D (.zip)\n  my_live2d.zip\n    any_folder_name/\n      avatar.model3.json\n      avatar.moc3\n      textures/...\n      motions/...\n      expressions/...\n  Requirement: include all files referenced by model3.json.</string>
     <string name="enter">Enter</string>
     <string name="about_avatar_formats">This app supports multiple avatar formats, including DragonBones. Here are instructions for creating and importing models.</string>
     <string name="dragon_bones_renamed">DragonBones has been renamed to LoongBones, and a new online editor has been launched.\nLoongBones supports professional animation features like IK, mesh deformation, and bone binding.</string>
@@ -3013,6 +3024,7 @@
     <string name="chat_processing_attachment">Processing attachment...</string>
     <string name="chat_attachment_processing_failed">Failed to process attachment: %1$s</string>
     <string name="chat_create_failed">Failed to create a new chat</string>
+    <string name="chat_please_create_new_chat">Please create a new chat</string>
     <string name="chat_processing_shared_files">Processing shared files...</string>
     <string name="chat_start_workspace_server_failed">Failed to start workspace service</string>
     <string name="chat_update_workspace_server_failed">Failed to update web workspace: %1$s</string>
@@ -3424,6 +3436,7 @@
     <string name="enable_tool_call_desc">When disabled, uses the built-in tool invocation mechanism which also supports tool calls. When enabled, uses the API\'s dedicated native interface (requires model support)</string>
     <string name="strict_tool_call">Strict ToolCall</string>
     <string name="strict_tool_call_desc">Enable this only when ToolCall is supported but still failing. This option may alter ToolCall runtime stability. Keep it off unless necessary.</string>
+    <string name="strict_tool_call_required">Strict ToolCall needs to be enabled</string>
     <string name="enable_deepseek_reasoning">Enable DeepSeek Reasoning Mode</string>
     <string name="enable_deepseek_reasoning_desc">When enabled, content within &lt;think&gt; tags will be sent as reasoning_content to DeepSeek models, supporting tool invocation for reasoning models like DeepSeek-R1</string>
     <string name="search_sources">Search Sources</string>

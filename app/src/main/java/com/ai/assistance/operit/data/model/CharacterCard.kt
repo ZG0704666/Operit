@@ -69,8 +69,18 @@ data class OperitCharacterCardPayload(
     val openingStatement: String = "",
     val otherContent: String = "",
     val attachedTagIds: List<String> = emptyList(),
+    val attachedTags: List<OperitAttachedTagPayload> = emptyList(),
     val advancedCustomPrompt: String = "",
     val marks: String = ""
+)
+
+data class OperitAttachedTagPayload(
+    val id: String = "",
+    val name: String = "",
+    val description: String = "",
+    val promptContent: String = "",
+    val tagType: String = "CUSTOM",
+    val isSystemTag: Boolean = false
 )
 
 data class TavernChubExtension(

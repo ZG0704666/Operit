@@ -144,13 +144,13 @@ fun AvatarConfigSection(
             }
 
             Text(
-                text = "Supported: DragonBones (.json + _tex.json + _tex.png), WebP (.webp), MMD (.pmx/.pmd + optional .vmd), glTF (.glb/.gltf).",
+                text = stringResource(R.string.avatar_config_supported_formats),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                text = "Direct file import supports .glb/.gltf; import .zip for DragonBones, WebP, MMD, or multi-file glTF resources.",
+                text = stringResource(R.string.avatar_config_import_methods),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp)
@@ -540,9 +540,9 @@ private fun AllAvatarImportGuideSection(modifier: Modifier = Modifier) {
         Text(
             text =
                 if (expanded) {
-                    "导入结构指南 / Import structure guide（点击收起 / tap to collapse）"
+                    stringResource(R.string.import_structure_guide_tap_to_collapse)
                 } else {
-                    "导入结构指南 / Import structure guide（点击展开 / tap to expand）"
+                    stringResource(R.string.import_structure_guide_tap_to_expand)
                 },
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
@@ -551,65 +551,13 @@ private fun AllAvatarImportGuideSection(modifier: Modifier = Modifier) {
 
         if (expanded) {
             Text(
-                text = allAvatarImportGuideText(),
+                text = stringResource(R.string.import_structure_guide_content),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
     }
-}
-
-private fun allAvatarImportGuideText(): String {
-    return """
-这是“导入包（IMPORT PACKAGE）”的目录结构（ZIP / 选中文件内部），不是应用内部存储。
-This is the IMPORT PACKAGE layout (files inside your ZIP / picked file), not app internal storage.
-
-DragonBones（.zip） / DragonBones (.zip)
-  my_dragonbones.zip
-    any_folder_name/
-      hero_ske.json
-      hero_tex.json
-      hero_tex.png
-  要求 / Requirement: ske/tex json/png 文件名前缀一致。
-
-WebP（.zip） / WebP (.zip)
-  my_webp.zip
-    any_folder_name/
-      idle.webp
-      talking.webp
-      happy.webp
-  要求 / Requirement: 至少包含一个 .webp 文件。
-
-MMD（.zip） / MMD (.zip)
-  my_mmd.zip
-    any_folder_name/
-      character.pmx (or .pmd)
-      motions/idle.vmd (optional)
-      textures/...
-  要求 / Requirement: 保持 PMX/PMD 引用的相对路径不变。
-
-GLTF / glTF
-  方式 A / Method A（直接文件 / direct file）:
-    avatar.glb
-  方式 B / Method B（多文件 glTF 使用 .zip / .zip for multi-file glTF）:
-    my_gltf.zip
-      any_folder_name/
-        avatar.gltf
-        avatar.bin
-        textures/...
-  要求 / Requirement: 保持 .gltf 引用的相对路径不变。
-
-Live2D（.zip） / Live2D (.zip)
-  my_live2d.zip
-    any_folder_name/
-      avatar.model3.json
-      avatar.moc3
-      textures/...
-      motions/...
-      expressions/...
-  要求 / Requirement: 包含 model3.json 引用到的全部文件。
-""".trimIndent()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

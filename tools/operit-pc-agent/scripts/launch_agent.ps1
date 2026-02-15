@@ -9,6 +9,7 @@ $configPath = Join-Path $dataDir "config.json"
 $runtimePath = Join-Path $dataDir "runtime.json"
 $pidPath = Join-Path $dataDir "agent.pid"
 $activeLaunchPath = Join-Path $dataDir "active_launch.id"
+$startupStatePath = Join-Path $dataDir "startup_state.json"
 $launcherLog = Join-Path $logsDir "launcher.log"
 $outLog = Join-Path $logsDir "agent.out.log"
 $errLog = Join-Path $logsDir "agent.err.log"
@@ -38,6 +39,379 @@ function Format-HostForUrl {
     }
 
     return $trimmed
+}
+
+function Try-OpenBrowser {
+    param([string]$TargetUrl, [string]$Reason)
+
+    try {
+        Write-Log "INFO" "Opening browser ($Reason): $TargetUrl"
+        Start-Process $TargetUrl
+    }
+    catch {
+        Write-Log "WARN" "Failed to open browser ($Reason): $($_.Exception.Message)"
+    }
+}
+
+function New-LaunchContext {
+    param([string]$BindAddress, [int]$Port)
+
+    $launchHost = $BindAddress
+    if ($launchHost -eq "0.0.0.0" -or $launchHost -eq "::") {
+        $launchHost = "127.0.0.1"
+    }
+
+    $readyHosts = [System.Collections.Generic.List[string]]::new()
+    $readyHosts.Add($BindAddress)
+
+    if (-not $readyHosts.Contains("127.0.0.1")) {
+        $readyHosts.Add("127.0.0.1")
+    }
+
+    if (-not $readyHosts.Contains("localhost")) {
+        $readyHosts.Add("localhost")
+    }
+
+    $readyUrls = @()
+    foreach ($readyHost in $readyHosts) {
+        $readyUrls += "http://$(Format-HostForUrl -InputHost $readyHost):$Port/api/config"
+    }
+
+    return [pscustomobject]@{
+        LaunchHost = $launchHost
+        Url = "http://$(Format-HostForUrl -InputHost $launchHost):$Port"
+        ReadyUrls = $readyUrls
+    }
+}
+
+function Start-AgentAndProbeReady {
+    param(
+        [string]$NodePath,
+        [string]$RootPath,
+        [string]$OutLogPath,
+        [string]$ErrLogPath,
+        [string[]]$ReadyUrls,
+        [string]$BindAddressOverride,
+        [int]$MaxWaitMs,
+        [int]$StepMs
+    )
+
+    $previousBindOverride = $env:OPERIT_BIND_ADDRESS_OVERRIDE
+    try {
+        if ([string]::IsNullOrWhiteSpace($BindAddressOverride)) {
+            Remove-Item Env:OPERIT_BIND_ADDRESS_OVERRIDE -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:OPERIT_BIND_ADDRESS_OVERRIDE = $BindAddressOverride
+        }
+
+        Start-Process -FilePath $NodePath -ArgumentList "src/server.js" -WorkingDirectory $RootPath -WindowStyle Hidden -RedirectStandardOutput $OutLogPath -RedirectStandardError $ErrLogPath
+    }
+    finally {
+        if ($null -eq $previousBindOverride) {
+            Remove-Item Env:OPERIT_BIND_ADDRESS_OVERRIDE -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:OPERIT_BIND_ADDRESS_OVERRIDE = $previousBindOverride
+        }
+    }
+
+    $readyUrlHit = $null
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    while ($stopwatch.ElapsedMilliseconds -lt $MaxWaitMs) {
+        foreach ($candidateReadyUrl in $ReadyUrls) {
+            if (Test-AgentReady -ReadyUrl $candidateReadyUrl) {
+                $readyUrlHit = $candidateReadyUrl
+                break
+            }
+        }
+
+        if ($readyUrlHit) {
+            break
+        }
+
+        Start-Sleep -Milliseconds $StepMs
+    }
+
+    $stopwatch.Stop()
+
+    return [pscustomobject]@{
+        ReadyUrlHit = $readyUrlHit
+        ElapsedMs = [int]$stopwatch.ElapsedMilliseconds
+    }
+}
+
+function Get-AgentErrTailText {
+    param([int]$TailLines = 50)
+
+    if (-not (Test-Path $errLog)) {
+        return ""
+    }
+
+    $errTailLines = @(Get-Content -Path $errLog -Tail $TailLines)
+    foreach ($line in $errTailLines) {
+        Write-Log "ERROR" "agent.err.log: $line"
+    }
+
+    return ($errTailLines -join "`n")
+}
+
+function Test-IsPrivateLanIpv4 {
+    param([string]$Ipv4)
+
+    if ([string]::IsNullOrWhiteSpace($Ipv4)) {
+        return $false
+    }
+
+    if ($Ipv4.StartsWith("10.")) {
+        return $true
+    }
+
+    if ($Ipv4.StartsWith("192.168.")) {
+        return $true
+    }
+
+    $match = [regex]::Match($Ipv4, "^172\.(\d+)\.")
+    if (-not $match.Success) {
+        return $false
+    }
+
+    $second = [int]$match.Groups[1].Value
+    return ($second -ge 16 -and $second -le 31)
+}
+
+function Test-IsVirtualInterfaceName {
+    param([string]$InterfaceName)
+
+    if ([string]::IsNullOrWhiteSpace($InterfaceName)) {
+        return $false
+    }
+
+    $tokens = @(
+        "vEthernet",
+        "wsl",
+        "hyper-v",
+        "vmware",
+        "virtualbox",
+        "docker",
+        "container",
+        "tailscale",
+        "zerotier",
+        "loopback",
+        "npcap",
+        "hamachi"
+    )
+
+    foreach ($token in $tokens) {
+        if ($InterfaceName.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Test-IsPreferredPhysicalInterfaceName {
+    param([string]$InterfaceName)
+
+    if ([string]::IsNullOrWhiteSpace($InterfaceName)) {
+        return $false
+    }
+
+    $tokens = @(
+        "wifi",
+        "wi-fi",
+        "wlan",
+        "wireless",
+        "ethernet",
+        "lan"
+    )
+
+    foreach ($token in $tokens) {
+        if ($InterfaceName.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-Ipv4CandidateScore {
+    param(
+        [string]$Ipv4,
+        [string]$InterfaceName
+    )
+
+    $score = 0
+    if (Test-IsPrivateLanIpv4 -Ipv4 $Ipv4) {
+        $score += 100
+    }
+
+    if (Test-IsVirtualInterfaceName -InterfaceName $InterfaceName) {
+        $score -= 200
+    }
+    else {
+        $score += 70
+    }
+
+    if (Test-IsPreferredPhysicalInterfaceName -InterfaceName $InterfaceName) {
+        $score += 25
+    }
+
+    return $score
+}
+
+function Get-RecommendedIpv4 {
+    $candidateMap = @{}
+
+    try {
+        $netIps = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop
+        foreach ($item in $netIps) {
+            $ip = [string]$item.IPAddress
+            if ([string]::IsNullOrWhiteSpace($ip)) {
+                continue
+            }
+            if ($ip -eq "127.0.0.1" -or $ip.StartsWith("169.254.")) {
+                continue
+            }
+
+            $interfaceAlias = [string]$item.InterfaceAlias
+            $isPrivateLan = Test-IsPrivateLanIpv4 -Ipv4 $ip
+            $isVirtual = Test-IsVirtualInterfaceName -InterfaceName $interfaceAlias
+            $score = Get-Ipv4CandidateScore -Ipv4 $ip -InterfaceName $interfaceAlias
+
+            $candidate = [pscustomobject]@{
+                Ip = $ip
+                InterfaceAlias = $interfaceAlias
+                IsPrivateLan = $isPrivateLan
+                IsVirtual = $isVirtual
+                Score = $score
+            }
+
+            if (-not $candidateMap.ContainsKey($ip) -or [int]$candidateMap[$ip].Score -lt $score) {
+                $candidateMap[$ip] = $candidate
+            }
+        }
+    }
+    catch {
+        Write-Log "WARN" "Get-NetIPAddress failed while collecting IPv4 candidates: $($_.Exception.Message)"
+    }
+
+    if ($candidateMap.Count -eq 0) {
+        try {
+            $allNics = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()
+            foreach ($nic in $allNics) {
+                if ($nic.OperationalStatus -ne [System.Net.NetworkInformation.OperationalStatus]::Up) {
+                    continue
+                }
+
+                $ipProps = $nic.GetIPProperties()
+                foreach ($addrInfo in $ipProps.UnicastAddresses) {
+                    $addr = $addrInfo.Address
+                    if (-not $addr) {
+                        continue
+                    }
+                    if ($addr.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
+                        continue
+                    }
+
+                    $ip = $addr.ToString()
+                    if ($ip -eq "127.0.0.1" -or $ip.StartsWith("169.254.")) {
+                        continue
+                    }
+
+                    $interfaceAlias = [string]$nic.Name
+                    $isPrivateLan = Test-IsPrivateLanIpv4 -Ipv4 $ip
+                    $isVirtual = Test-IsVirtualInterfaceName -InterfaceName $interfaceAlias
+                    $score = Get-Ipv4CandidateScore -Ipv4 $ip -InterfaceName $interfaceAlias
+
+                    $candidate = [pscustomobject]@{
+                        Ip = $ip
+                        InterfaceAlias = $interfaceAlias
+                        IsPrivateLan = $isPrivateLan
+                        IsVirtual = $isVirtual
+                        Score = $score
+                    }
+
+                    if (-not $candidateMap.ContainsKey($ip) -or [int]$candidateMap[$ip].Score -lt $score) {
+                        $candidateMap[$ip] = $candidate
+                    }
+                }
+            }
+        }
+        catch {
+            Write-Log "WARN" "NetworkInterface fallback failed while collecting IPv4 candidates: $($_.Exception.Message)"
+        }
+    }
+
+    $rankedCandidates = @($candidateMap.Values | Sort-Object -Property @{Expression = { $_.Score }; Descending = $true }, @{Expression = { $_.Ip }; Descending = $false })
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in $rankedCandidates) {
+        if (-not $candidates.Contains($entry.Ip)) {
+            $candidates.Add($entry.Ip)
+        }
+    }
+
+    $preferredLan = $null
+    foreach ($entry in $rankedCandidates) {
+        if ($entry.IsPrivateLan -and -not $entry.IsVirtual) {
+            $preferredLan = [string]$entry.Ip
+            break
+        }
+    }
+    if (-not $preferredLan) {
+        foreach ($entry in $rankedCandidates) {
+            if ($entry.IsPrivateLan) {
+                $preferredLan = [string]$entry.Ip
+                break
+            }
+        }
+    }
+
+    $recommendedHost = ""
+    $recommendedAlias = ""
+    if ($rankedCandidates.Count -gt 0) {
+        $recommendedHost = [string]$rankedCandidates[0].Ip
+        $recommendedAlias = [string]$rankedCandidates[0].InterfaceAlias
+    }
+
+    return [pscustomobject]@{
+        Candidates = @($candidates)
+        PreferredLan = $preferredLan
+        RecommendedHost = $recommendedHost
+        RecommendedInterfaceAlias = $recommendedAlias
+        RankedCandidates = @($rankedCandidates)
+    }
+}
+
+function Write-StartupState {
+    param(
+        [string]$IssueType,
+        [string]$ConfiguredBindAddress,
+        [string]$RecommendedBindAddress,
+        [object[]]$Ipv4Candidates,
+        [int]$Port,
+        [string]$LaunchId
+    )
+
+    $payload = [ordered]@{
+        issueType = $IssueType
+        status = "waiting_user_action"
+        configuredBindAddress = $ConfiguredBindAddress
+        recommendedBindAddress = $RecommendedBindAddress
+        ipv4Candidates = @($Ipv4Candidates)
+        port = $Port
+        launchId = $LaunchId
+        detectedAt = (Get-Date).ToString("o")
+    }
+
+    $json = $payload | ConvertTo-Json -Depth 10
+    Set-Content -Path $startupStatePath -Value $json -Encoding UTF8
+}
+
+function Remove-StartupState {
+    Remove-Item -LiteralPath $startupStatePath -Force -ErrorAction SilentlyContinue
 }
 
 function Test-AgentReady {
@@ -346,27 +720,9 @@ if ([string]::IsNullOrWhiteSpace($bindAddress)) {
     $bindAddress = "127.0.0.1"
 }
 
-$launchHost = $bindAddress
-if ($launchHost -eq "0.0.0.0" -or $launchHost -eq "::") {
-    $launchHost = "127.0.0.1"
-}
-
-$readyHosts = [System.Collections.Generic.List[string]]::new()
-$readyHosts.Add($bindAddress)
-
-if (-not $readyHosts.Contains("127.0.0.1")) {
-    $readyHosts.Add("127.0.0.1")
-}
-
-if (-not $readyHosts.Contains("localhost")) {
-    $readyHosts.Add("localhost")
-}
-
-$url = "http://$(Format-HostForUrl -InputHost $launchHost):$port"
-$readyUrls = @()
-foreach ($readyHost in $readyHosts) {
-    $readyUrls += "http://$(Format-HostForUrl -InputHost $readyHost):$port/api/config"
-}
+$launchContext = New-LaunchContext -BindAddress $bindAddress -Port $port
+$url = $launchContext.Url
+$readyUrls = $launchContext.ReadyUrls
 $launchId = [guid]::NewGuid().ToString()
 Set-Content -Path $activeLaunchPath -Value $launchId -Encoding ASCII
 
@@ -436,44 +792,75 @@ try {
     Write-Log "INFO" "Force restart: cleaning previous running process..."
     Stop-ExistingAgent -Port $port
     Remove-Item -LiteralPath $runtimePath -Force -ErrorAction SilentlyContinue
+    Remove-StartupState
 
     Write-Log "INFO" "Launching node process (hidden, NODE_OPTIONS cleared)."
-    Start-Process -FilePath $nodeRuntime.NodePath -ArgumentList "src/server.js" -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog
-
     $maxWaitMs = 15000
     $stepMs = 250
-    $readyUrlHit = $null
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
-    while ($stopwatch.ElapsedMilliseconds -lt $maxWaitMs) {
-        foreach ($candidateReadyUrl in $readyUrls) {
-            if (Test-AgentReady -ReadyUrl $candidateReadyUrl) {
-                $readyUrlHit = $candidateReadyUrl
-                break
-            }
-        }
-
-        if ($readyUrlHit) {
-            break
-        }
-
-        Start-Sleep -Milliseconds $stepMs
-    }
-
-    $stopwatch.Stop()
+    $startAttempt = Start-AgentAndProbeReady -NodePath $nodeRuntime.NodePath -RootPath $projectRoot -OutLogPath $outLog -ErrLogPath $errLog -ReadyUrls $readyUrls -BindAddressOverride "" -MaxWaitMs $maxWaitMs -StepMs $stepMs
+    $readyUrlHit = $startAttempt.ReadyUrlHit
+    $isIpv4Bind = $false
+    $isBindUnavailableError = $false
 
     if (-not $readyUrlHit) {
         Write-Log "ERROR" "agent readiness endpoint not ready after startup (${maxWaitMs}ms). candidates: $($readyUrls -join ', ')"
-        if (Test-Path $errLog) {
-            $errTail = Get-Content -Tail 50 $errLog
-            foreach ($line in $errTail) {
-                Write-Log "ERROR" "agent.err.log: $line"
+        $errTailText = Get-AgentErrTailText -TailLines 50
+
+        $isIpv4Bind = $bindAddress -match '^\d{1,3}(\.\d{1,3}){3}$'
+        $isBindUnavailableError = $errTailText -match 'EADDRNOTAVAIL'
+
+        if ($isIpv4Bind -and $isBindUnavailableError) {
+            $network = Get-RecommendedIpv4
+            $recommendedHost = [string]$network.RecommendedHost
+            $recommendedAlias = [string]$network.RecommendedInterfaceAlias
+            $candidateListText = if ($network.Candidates -and $network.Candidates.Count -gt 0) { ($network.Candidates -join ", ") } else { "(none)" }
+
+            Write-Log "INFO" "IPv4 change candidates: $candidateListText"
+            Write-Log "WARN" "Configured bind unavailable: $bindAddress. Recommended IPv4: $recommendedHost (interface: $recommendedAlias)"
+
+            try {
+                Write-StartupState -IssueType "bindAddressUnavailable" -ConfiguredBindAddress $bindAddress -RecommendedBindAddress $recommendedHost -Ipv4Candidates $network.Candidates -Port $port -LaunchId $launchId
             }
+            catch {
+                Write-Log "WARN" "Failed to write startup_state.json: $($_.Exception.Message)"
+            }
+
+            $fallbackBindAddress = "127.0.0.1"
+            $launchContext = New-LaunchContext -BindAddress $fallbackBindAddress -Port $port
+            $url = $launchContext.Url
+            $readyUrls = $launchContext.ReadyUrls
+
+            Write-Log "INFO" "Retry probe URLs (fallback): $($readyUrls -join ', ')"
+            Write-Log "WARN" "Retrying node process in temporary local mode for web-based recovery..."
+
+            Stop-ExistingAgent -Port $port
+            Remove-Item -LiteralPath $runtimePath -Force -ErrorAction SilentlyContinue
+
+            $fallbackAttempt = Start-AgentAndProbeReady -NodePath $nodeRuntime.NodePath -RootPath $projectRoot -OutLogPath $outLog -ErrLogPath $errLog -ReadyUrls $readyUrls -BindAddressOverride $fallbackBindAddress -MaxWaitMs $maxWaitMs -StepMs $stepMs
+            $readyUrlHit = $fallbackAttempt.ReadyUrlHit
+
+            if (-not $readyUrlHit) {
+                Write-Log "ERROR" "agent readiness endpoint still not ready after fallback retry (${maxWaitMs}ms). candidates: $($readyUrls -join ', ')"
+                [void](Get-AgentErrTailText -TailLines 50)
+                exit 1
+            }
+
+            Write-Log "INFO" "Ready endpoint confirmed in fallback mode: $readyUrlHit"
         }
-        exit 1
+        else {
+            exit 1
+        }
     }
 
-    Write-Log "INFO" "Ready endpoint confirmed: $readyUrlHit"
+    if ($readyUrlHit) {
+        if ($isIpv4Bind -and $isBindUnavailableError) {
+            Write-Log "WARN" "Agent is running in fallback local mode. Use web UI controls to apply recommended IPv4 and restart."
+        }
+        else {
+            Remove-StartupState
+            Write-Log "INFO" "Ready endpoint confirmed: $readyUrlHit"
+        }
+    }
 
     $resolvedPid = $null
 
@@ -511,14 +898,7 @@ try {
     }
 
     if ($latestLaunchId -eq $launchId) {
-        try {
-            Write-Log "INFO" "Opening browser: $url"
-            Start-Process $url
-        }
-        catch {
-            Write-Log "WARN" "Failed to open browser automatically: $($_.Exception.Message)"
-            Write-Host "[WARN] Failed to open browser automatically. Open this URL manually: $url"
-        }
+        Try-OpenBrowser -TargetUrl $url -Reason "startup"
     }
     else {
         Write-Log "INFO" "Browser open skipped - superseded by newer launch ID."

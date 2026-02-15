@@ -386,7 +386,11 @@ fun ModelConfigScreen(
                                                                 runToolCallTest("strict_probe_unlisted_tool")
                                                             }
                                                             if (strictProbeResult.isFailure) {
-                                                                showNotification("需要开启严格toolcall")
+                                                                showNotification(
+                                                                    context.getString(
+                                                                        R.string.strict_tool_call_required
+                                                                    )
+                                                                )
                                                                 runToolCallTest("echo")
                                                             }
                                                         }

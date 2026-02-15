@@ -43,6 +43,9 @@ const RESOURCES = {
       toggleAdvancedHide: "Hide Advanced",
       toCommands: "Go to Commands",
       toSettings: "Go to Settings",
+      applyRecommendedBind: "Use Recommended IPv4 and Restart",
+      applyingRecommendedBind: "Applying and Restarting...",
+      dismiss: "Dismiss",
       working: "Working...",
       running: "Running...",
       refreshing: "Refreshing..."
@@ -62,6 +65,12 @@ const RESOURCES = {
       dataRefreshed: "Data refreshed",
       refreshFailed: "Refresh failed: {error}",
       initializationFailed: "Initialization failed: {error}"
+    },
+    startup: {
+      title: "Startup Recovery",
+      bindUnavailableMessage:
+        "Configured bind address {configuredBind} is unavailable. Service is temporarily running on {runtimeBind}. Recommended IPv4: {recommendedBind}.",
+      bindUnavailableMeta: "Detected IPv4 candidates: {ipv4Candidates}"
     },
     card: {
       healthTitle: "Health Status",
@@ -187,7 +196,9 @@ const RESOURCES = {
       copyPayloadSuccess: "Copied",
       copyJsonSuccess: "Copied",
       copyEnvSuccess: "Copied",
-      copyFailed: "Copy failed: {error}"
+      copyFailed: "Copy failed: {error}",
+      startupApplyRestarting: "Applied bind address {bindAddress}. Restarting service...",
+      startupApplyFailed: "Failed to apply recommended IPv4: {error}"
     },
     error: {
       unknown: "Unknown error"
@@ -235,6 +246,9 @@ const RESOURCES = {
       toggleAdvancedHide: "收起高级",
       toCommands: "前往命令页",
       toSettings: "前往设置页",
+      applyRecommendedBind: "使用推荐 IPv4 并重启",
+      applyingRecommendedBind: "应用并重启中...",
+      dismiss: "暂不处理",
       working: "处理中...",
       running: "执行中...",
       refreshing: "刷新中..."
@@ -254,6 +268,12 @@ const RESOURCES = {
       dataRefreshed: "数据刷新完成",
       refreshFailed: "刷新失败: {error}",
       initializationFailed: "初始化失败: {error}"
+    },
+    startup: {
+      title: "启动恢复",
+      bindUnavailableMessage:
+        "配置的绑定地址 {configuredBind} 当前不可用。服务已临时运行在 {runtimeBind}。推荐 IPv4: {recommendedBind}。",
+      bindUnavailableMeta: "检测到的 IPv4 候选: {ipv4Candidates}"
     },
     card: {
       healthTitle: "健康状态",
@@ -379,7 +399,9 @@ const RESOURCES = {
       copyPayloadSuccess: "已复制",
       copyJsonSuccess: "已复制",
       copyEnvSuccess: "已复制",
-      copyFailed: "复制失败: {error}"
+      copyFailed: "复制失败: {error}",
+      startupApplyRestarting: "已应用绑定地址 {bindAddress}，正在重启服务...",
+      startupApplyFailed: "应用推荐 IPv4 失败: {error}"
     },
     error: {
       unknown: "未知错误"

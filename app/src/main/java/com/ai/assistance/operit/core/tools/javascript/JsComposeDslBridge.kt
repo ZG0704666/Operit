@@ -68,7 +68,8 @@ internal fun buildComposeDslContextBridgeDefinition(): String {
                     toolPkgId: String(options.toolPkgId || options.__operit_ui_toolpkg_id || ''),
                     uiModuleId: String(options.uiModuleId || options.__operit_ui_module_id || ''),
                     actionStore: {},
-                    actionCounter: 0
+                    actionCounter: 0,
+                    stateChangeListeners: []
                 };
 
                 function registerAction(handler) {
@@ -76,6 +77,41 @@ internal fun buildComposeDslContextBridgeDefinition(): String {
                     var actionId = '__action_' + runtime.actionCounter;
                     runtime.actionStore[actionId] = handler;
                     return actionId;
+                }
+
+                function notifyStateChanged() {
+                    if (!runtime.stateChangeListeners || runtime.stateChangeListeners.length <= 0) {
+                        return;
+                    }
+                    var listeners = runtime.stateChangeListeners.slice();
+                    for (var i = 0; i < listeners.length; i += 1) {
+                        try {
+                            listeners[i]();
+                        } catch (e) {
+                            try {
+                                console.warn('compose_dsl state listener failed:', e);
+                            } catch (__ignore) {
+                            }
+                        }
+                    }
+                }
+
+                function subscribeStateChange(listener) {
+                    if (typeof listener !== 'function') {
+                        return function() {};
+                    }
+                    runtime.stateChangeListeners.push(listener);
+                    var active = true;
+                    return function() {
+                        if (!active) {
+                            return;
+                        }
+                        active = false;
+                        var index = runtime.stateChangeListeners.indexOf(listener);
+                        if (index >= 0) {
+                            runtime.stateChangeListeners.splice(index, 1);
+                        }
+                    };
                 }
 
                 function normalizePropValue(value) {
@@ -131,6 +167,7 @@ internal fun buildComposeDslContextBridgeDefinition(): String {
                         runtime.stateStore[stateKey],
                         function(nextValue) {
                             runtime.stateStore[stateKey] = nextValue;
+                            notifyStateChanged();
                         }
                     ];
                 }
@@ -371,7 +408,8 @@ internal fun buildComposeDslContextBridgeDefinition(): String {
                             throw new Error('compose action not found: ' + id);
                         }
                         return handler(payload);
-                    }
+                    },
+                    subscribeStateChange: subscribeStateChange
                 };
             }
 
