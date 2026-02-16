@@ -46,6 +46,16 @@ object ShowerController {
     suspend fun requestScreenshot(timeoutMs: Long = 3000L): ByteArray? =
         requestScreenshot("default", timeoutMs)
 
+    /**
+     * Prepares Shower input for the physical main display (displayId=0) without creating
+     * a virtual display.
+     */
+    suspend fun prepareMainDisplay(agentId: String, context: Context): Boolean =
+        getInstance(agentId).prepareMainDisplay(context)
+
+    suspend fun prepareMainDisplay(context: Context): Boolean =
+        prepareMainDisplay("default", context)
+
     /** Ensures a virtual display is created and ready for the specified agent. */
     suspend fun ensureDisplay(
         agentId: String,

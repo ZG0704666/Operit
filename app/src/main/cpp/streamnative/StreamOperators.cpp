@@ -313,7 +313,9 @@ MarkdownSession* createMarkdownBlockSession() {
     plugins.push_back({std::make_unique<StreamMarkdownUnorderedListPlugin>(false), MD_UNORDERED_LIST});
     plugins.push_back({std::make_unique<StreamMarkdownHorizontalRulePlugin>(true), MD_HORIZONTAL_RULE});
     plugins.push_back({std::make_unique<StreamMarkdownBlockLaTeXPlugin>(false), MD_BLOCK_LATEX});
-    plugins.push_back({std::make_unique<StreamMarkdownBlockBracketLaTeXPlugin>(false), MD_BLOCK_LATEX});
+    // Keep delimiters for \[...\] to avoid swallowing '\' in failed end-matcher branches.
+    // Delimiters are removed later by extractLatexContent().
+    plugins.push_back({std::make_unique<StreamMarkdownBlockBracketLaTeXPlugin>(true), MD_BLOCK_LATEX});
     plugins.push_back({std::make_unique<StreamMarkdownTablePlugin>(true), MD_TABLE});
     plugins.push_back({std::make_unique<StreamMarkdownImagePlugin>(true), MD_IMAGE});
     plugins.push_back({std::make_unique<StreamXmlPlugin>(true), MD_XML_BLOCK});
@@ -331,7 +333,9 @@ MarkdownSession* createMarkdownInlineSession() {
     plugins.push_back({std::make_unique<StreamMarkdownStrikethroughPlugin>(false), MD_STRIKETHROUGH});
     plugins.push_back({std::make_unique<StreamMarkdownUnderlinePlugin>(true), MD_UNDERLINE});
     plugins.push_back({std::make_unique<StreamMarkdownInlineLaTeXPlugin>(false), MD_INLINE_LATEX});
-    plugins.push_back({std::make_unique<StreamMarkdownInlineParenLaTeXPlugin>(false), MD_INLINE_LATEX});
+    // Keep delimiters for \(...\) to avoid swallowing '\' in failed end-matcher branches.
+    // Delimiters are removed later by extractLatexContent().
+    plugins.push_back({std::make_unique<StreamMarkdownInlineParenLaTeXPlugin>(true), MD_INLINE_LATEX});
     return new MarkdownSession(std::move(plugins));
 }
 

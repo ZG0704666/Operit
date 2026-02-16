@@ -126,6 +126,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
 
         // Chat style preference
         private val CHAT_STYLE = stringPreferencesKey("chat_style")
+        private val INPUT_STYLE = stringPreferencesKey("input_style")
 
         private val BUBBLE_SHOW_AVATAR = booleanPreferencesKey("bubble_show_avatar")
 
@@ -149,6 +150,9 @@ class UserPreferencesManager private constructor(private val context: Context) {
 
         const val CHAT_STYLE_CURSOR = "cursor"
         const val CHAT_STYLE_BUBBLE = "bubble"
+
+        const val INPUT_STYLE_CLASSIC = "classic"
+        const val INPUT_STYLE_AGENT = "agent"
 
         private val KEY_BACKGROUND_BLUR_RADIUS = floatPreferencesKey("background_blur_radius")
         private val KEY_CHAT_STYLE = stringPreferencesKey("chat_style")
@@ -420,6 +424,11 @@ class UserPreferencesManager private constructor(private val context: Context) {
                 preferences[CHAT_STYLE] ?: CHAT_STYLE_CURSOR
             }
 
+    val inputStyle: Flow<String> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[INPUT_STYLE] ?: INPUT_STYLE_AGENT
+            }
+
     val bubbleShowAvatar: Flow<Boolean> =
             context.userPreferencesDataStore.data.map { preferences ->
                 preferences[BUBBLE_SHOW_AVATAR] ?: true
@@ -656,6 +665,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
             onColorMode: String? = null,
             customChatTitle: String? = null,
             showInputProcessingStatus: Boolean? = null,
+            inputStyle: String? = null,
             useCustomFont: Boolean? = null,
             fontType: String? = null,
             systemFontName: String? = null,
@@ -705,6 +715,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
             onColorMode?.let { preferences[KEY_ON_COLOR_MODE] = it }
             customChatTitle?.let { preferences[KEY_CUSTOM_CHAT_TITLE] = it }
             showInputProcessingStatus?.let { preferences[KEY_SHOW_INPUT_PROCESSING_STATUS] = it }
+            inputStyle?.let { preferences[INPUT_STYLE] = it }
             // 注意：全局用户头像和名称已移至 DisplayPreferencesManager
             // 字体设置
             useCustomFont?.let { preferences[USE_CUSTOM_FONT] = it }
@@ -754,6 +765,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
             preferences.remove(KEY_ON_COLOR_MODE)
             preferences.remove(KEY_CUSTOM_CHAT_TITLE)
             preferences.remove(KEY_SHOW_INPUT_PROCESSING_STATUS)
+            preferences.remove(INPUT_STYLE)
             // 全局用户头像和名称已迁移到 DisplayPreferencesManager
             // 重置字体设置
             preferences.remove(USE_CUSTOM_FONT)
@@ -1007,7 +1019,7 @@ class UserPreferencesManager private constructor(private val context: Context) {
         return listOf(
             THEME_MODE, BACKGROUND_IMAGE_URI, BACKGROUND_MEDIA_TYPE, APP_BAR_CONTENT_COLOR_MODE,
             CHAT_STYLE, KEY_CUSTOM_USER_AVATAR_URI, KEY_CUSTOM_AI_AVATAR_URI, KEY_AVATAR_SHAPE,
-            KEY_ON_COLOR_MODE, KEY_CUSTOM_CHAT_TITLE, FONT_TYPE, SYSTEM_FONT_NAME, CUSTOM_FONT_PATH
+            KEY_ON_COLOR_MODE, KEY_CUSTOM_CHAT_TITLE, INPUT_STYLE, FONT_TYPE, SYSTEM_FONT_NAME, CUSTOM_FONT_PATH
             // 注意：全局用户头像和名称已移至 DisplayPreferencesManager，不跟随角色卡主题切换
         )
     }

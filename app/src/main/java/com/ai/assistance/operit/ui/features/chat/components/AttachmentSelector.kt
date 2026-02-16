@@ -14,21 +14,25 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Description
@@ -57,6 +61,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.services.core.AttachmentDelegate
@@ -312,6 +318,204 @@ fun AttachmentSelectorPanel(
                                                                         alpha = 0.2f
                                                                 )
                                                     )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Agent 模式用的附件弹窗（上方悬浮样式，功能与经典模式 8 项保持一致） */
+@Composable
+fun AttachmentSelectorPopupPanel(
+        visible: Boolean,
+        onAttachImage: (String) -> Unit,
+        onAttachFile: (String) -> Unit,
+        onAttachScreenContent: () -> Unit,
+        onAttachNotifications: () -> Unit = {},
+        onAttachLocation: () -> Unit = {},
+        onAttachMemory: () -> Unit = {},
+        onTakePhoto: (Uri) -> Unit,
+        onDismiss: () -> Unit
+) {
+    if (!visible) return
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            coroutineScope.launch {
+                uris.forEach { uri ->
+                    getFilePathFromUri(context, uri)?.let { path ->
+                        onAttachImage(path)
+                    }
+                }
+                onDismiss()
+            }
+        }
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            coroutineScope.launch {
+                uris.forEach { uri ->
+                    getFilePathFromUri(context, uri)?.let { path ->
+                        onAttachFile(path)
+                    }
+                }
+                onDismiss()
+            }
+        }
+    }
+
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val takePictureLauncher =
+            rememberLauncherForActivityResult(contract = ActivityResultContracts.TakePicture()) { success ->
+                if (success) {
+                    tempCameraUri?.let {
+                        onTakePhoto(it)
+                        onDismiss()
+                    }
+                }
+            }
+
+    fun getTmpFileUri(context: Context): Uri {
+        val authority = "${context.applicationContext.packageName}.fileprovider"
+        val tmpFile =
+                File.createTempFile("temp_image_", ".jpg", context.cacheDir).apply {
+                    createNewFile()
+                    deleteOnExit()
+                }
+        return FileProvider.getUriForFile(context, authority, tmpFile)
+    }
+
+    val panelItems =
+            listOf(
+                    AttachmentPanelItem(
+                            icon = Icons.Default.Image,
+                            label = context.getString(R.string.attachment_photo),
+                            onClick = { imagePickerLauncher.launch("image/*") }
+                    ),
+                    AttachmentPanelItem(
+                            icon = Icons.Default.PhotoCamera,
+                            label = context.getString(R.string.attachment_camera),
+                            onClick = {
+                                val uri = getTmpFileUri(context)
+                                tempCameraUri = uri
+                                takePictureLauncher.launch(uri)
+                            }
+                    ),
+                    AttachmentPanelItem(
+                            icon = Icons.Default.Memory,
+                            label = context.getString(R.string.attachment_memory),
+                            onClick = {
+                                onAttachMemory()
+                                onDismiss()
+                            }
+                    ),
+                    AttachmentPanelItem(
+                            icon = Icons.Default.AudioFile,
+                            label = context.getString(R.string.attachment_audio),
+                            onClick = { imagePickerLauncher.launch("audio/*") }
+                    ),
+                    AttachmentPanelItem(
+                            icon = Icons.Default.Description,
+                            label = context.getString(R.string.attachment_file),
+                            onClick = { filePickerLauncher.launch("*/*") }
+                    ),
+                    AttachmentPanelItem(
+                            icon = Icons.Default.ScreenshotMonitor,
+                            label = context.getString(R.string.attachment_screen_content),
+                            onClick = {
+                                onAttachScreenContent()
+                                onDismiss()
+                            }
+                    ),
+                    AttachmentPanelItem(
+                            icon = Icons.Default.Notifications,
+                            label = context.getString(R.string.attachment_notifications),
+                            onClick = {
+                                onAttachNotifications()
+                                onDismiss()
+                            }
+                    ),
+                    AttachmentPanelItem(
+                            icon = Icons.Default.LocationOn,
+                            label = context.getString(R.string.attachment_location),
+                            onClick = {
+                                onAttachLocation()
+                                onDismiss()
+                            }
+                    )
+            )
+
+    Popup(
+            alignment = Alignment.TopStart,
+            onDismissRequest = onDismiss,
+            properties =
+                    PopupProperties(
+                            focusable = true,
+                            dismissOnBackPress = true,
+                            dismissOnClickOutside = false
+                    )
+    ) {
+        Box(
+                modifier =
+                        Modifier.fillMaxSize()
+                                .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = onDismiss
+                                ),
+                contentAlignment = Alignment.BottomEnd
+        ) {
+            Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    shadowElevation = 4.dp,
+                    modifier =
+                            Modifier.padding(bottom = 44.dp, end = 12.dp)
+                                    .width(200.dp)
+                                    .heightIn(max = 420.dp)
+                                    .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {}
+                                    )
+            ) {
+                Column(
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .verticalScroll(rememberScrollState())
+                ) {
+                    panelItems.forEach { item ->
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .height(36.dp)
+                                                .clickable(onClick = item.onClick)
+                                                .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                    text = item.label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }

@@ -110,7 +110,9 @@ object NestedMarkdownProcessor {
                     StreamMarkdownHorizontalRulePlugin(),
                     // LaTeX 块级公式：同时支持 $$...$$ 和 \\[...\\]
                     StreamMarkdownBlockLaTeXPlugin(includeDelimiters = false),
-                    StreamMarkdownBlockBracketLaTeXPlugin(includeDelimiters = false),
+                    // 对 \[...\] 保留分隔符，避免在结束匹配失败分支吞掉反斜杠；
+                    // 渲染阶段会通过 extractLatexContent 移除分隔符。
+                    StreamMarkdownBlockBracketLaTeXPlugin(includeDelimiters = true),
                     StreamMarkdownTablePlugin(),
                     StreamMarkdownImagePlugin(),
                     StreamXmlPlugin(includeTagsInOutput = true) // 使用现有的StreamXmlPlugin
@@ -127,7 +129,9 @@ object NestedMarkdownProcessor {
                     StreamMarkdownUnderlinePlugin(),
                     // LaTeX 行内公式：支持 $...$ 与 \\(...\\)
                     StreamMarkdownInlineLaTeXPlugin(includeDelimiters = false),
-                    StreamMarkdownInlineParenLaTeXPlugin(includeDelimiters = false)
+                    // 对 \(...\) 保留分隔符，避免在结束匹配失败分支吞掉反斜杠；
+                    // 渲染阶段会通过 extractLatexContent 移除分隔符。
+                    StreamMarkdownInlineParenLaTeXPlugin(includeDelimiters = true)
             )
 
     /** 根据插件获取对应的Markdown处理器类型 */

@@ -155,6 +155,79 @@ class ShowerController {
             }
         }
 
+    /**
+     * Prepares this controller to inject input on the physical main display (displayId=0)
+     * without creating a virtual display.
+     */
+    suspend fun prepareMainDisplay(context: Context): Boolean = withContext(Dispatchers.IO) {
+        fun clearCachedBinder() {
+            binderService = null
+            ShowerBinderRegistry.setService(null)
+        }
+
+        fun resetLocalDisplayState() {
+            virtualDisplayId = null
+            videoWidth = 0
+            videoHeight = 0
+        }
+
+        fun isBinderDied(e: Throwable): Boolean {
+            return e is DeadObjectException || e is RemoteException || e.cause is DeadObjectException
+        }
+
+        fun doPrepare(service: IShowerService): Boolean {
+            // If this controller was previously bound to a virtual display, release it first.
+            val oldId = virtualDisplayId
+            if (oldId != null && oldId > 0) {
+                try {
+                    service.setVideoSink(oldId, null)
+                } catch (_: Exception) {
+                }
+                try {
+                    service.destroyDisplay(oldId)
+                } catch (_: Exception) {
+                }
+            }
+
+            virtualDisplayId = 0
+            videoWidth = 0
+            videoHeight = 0
+            // Probe the input path once. keyCode=0 (KEYCODE_UNKNOWN) should be harmless.
+            service.injectKey(0, 0)
+            Log.d(TAG, "prepareMainDisplay complete, displayId=0")
+            return true
+        }
+
+        val service = getBinder(context) ?: return@withContext false
+        try {
+            doPrepare(service)
+        } catch (e: Exception) {
+            Log.e(TAG, "prepareMainDisplay failed", e)
+            resetLocalDisplayState()
+            if (!isBinderDied(e)) {
+                return@withContext false
+            }
+
+            clearCachedBinder()
+            try {
+                Log.d(TAG, "prepareMainDisplay: binder died, restarting Shower server and retrying")
+                val ok = ShowerServerManager.ensureServerStarted(context.applicationContext)
+                if (!ok) {
+                    Log.e(TAG, "prepareMainDisplay: failed to restart Shower server")
+                    return@withContext false
+                }
+                delay(200)
+                val retryService = getBinder(context) ?: return@withContext false
+                doPrepare(retryService)
+            } catch (retryError: Exception) {
+                Log.e(TAG, "prepareMainDisplay retry failed", retryError)
+                resetLocalDisplayState()
+                clearCachedBinder()
+                false
+            }
+        }
+    }
+
     suspend fun ensureDisplay(
         context: Context,
         width: Int,
@@ -380,7 +453,7 @@ class ShowerController {
             binaryHandler = null
             earlyBinaryFrames.clear()
         }
-        if (id != null && service?.asBinder()?.isBinderAlive == true) {
+        if (id != null && id > 0 && service?.asBinder()?.isBinderAlive == true) {
             try {
                 service.setVideoSink(id, null)
                 service.destroyDisplay(id)

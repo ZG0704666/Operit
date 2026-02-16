@@ -104,7 +104,6 @@ fun ToolboxScreen(
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
-        val screenWidth = configuration.screenWidthDp.dp
         val context = LocalContext.current
         val packageManager =
                 remember {
@@ -127,14 +126,6 @@ fun ToolboxScreen(
                                 )
                         }
         }
-
-        // 根据屏幕宽度决定每行显示的卡片数量
-        val columnsCount =
-                when {
-                        screenWidth > 840.dp -> 3 // 大屏幕设备显示3列
-                        screenWidth > 600.dp -> 2 // 中等屏幕设备显示2列
-                        else -> 2 // 小屏幕设备显示2列
-                }
 
         // 当前选中的分类过滤器
         var selectedCategory by remember { mutableStateOf(ToolCategory.ALL) }
@@ -303,7 +294,7 @@ fun ToolboxScreen(
 
                         // 工具网格
                         LazyVerticalGrid(
-                                columns = GridCells.Fixed(columnsCount),
+                                columns = GridCells.Adaptive(minSize = 156.dp),
                                 contentPadding = PaddingValues(12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -439,7 +430,7 @@ fun ToolCard(tool: Tool) {
                                 isPressed = false
                         }
                 },
-                modifier = Modifier.fillMaxWidth().height(188.dp).scale(scale),
+                modifier = Modifier.fillMaxWidth().height(156.dp).scale(scale),
                 colors =
                         CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation =
@@ -507,7 +498,7 @@ fun ToolCard(tool: Tool) {
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
-                                minLines = 2,
+                                minLines = 1,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                         )
@@ -518,7 +509,7 @@ fun ToolCard(tool: Tool) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(horizontal = 2.dp),
-                                minLines = 2,
+                                minLines = 1,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                         )

@@ -101,6 +101,7 @@ public class Main {
     private static Main sInstance;
 
     private final Context appContext;
+    private final InputController mainDisplayInputController;
 
     // Map of displayId -> DisplaySession
     private final Map<Integer, DisplaySession> displays = new ConcurrentHashMap<>();
@@ -447,6 +448,16 @@ public class Main {
     public Main(Context context) {
         this.appContext = context.getApplicationContext();
         sInstance = this;
+        InputController tmpMainInputController;
+        try {
+            tmpMainInputController = new InputController();
+            tmpMainInputController.setDisplayId(0);
+            logToFile("Main display InputController initialized", null);
+        } catch (Throwable t) {
+            tmpMainInputController = null;
+            logToFile("Failed to init main display InputController: " + t.getMessage(), t);
+        }
+        this.mainDisplayInputController = tmpMainInputController;
 
         try {
             IShowerService service = new IShowerService.Stub() {
@@ -474,48 +485,38 @@ public class Main {
                 @Override
                 public void tap(int displayId, float x, float y) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.injectTap(x, y);
-                        logToFile("Binder TAP injected: " + x + "," + y + " on " + displayId, null);
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.injectTap(x, y);
+                    logToFile("Binder TAP injected: " + x + "," + y + " on " + displayId, null);
                 }
 
                 @Override
                 public void swipe(int displayId, float x1, float y1, float x2, float y2, long durationMs) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.injectSwipe(x1, y1, x2, y2, durationMs);
-                        logToFile("Binder SWIPE injected on " + displayId, null);
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.injectSwipe(x1, y1, x2, y2, durationMs);
+                    logToFile("Binder SWIPE injected on " + displayId, null);
                 }
 
                 @Override
                 public void touchDown(int displayId, float x, float y) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.touchDown(x, y);
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.touchDown(x, y);
                 }
 
                 @Override
                 public void touchMove(int displayId, float x, float y) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.touchMove(x, y);
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.touchMove(x, y);
                 }
 
                 @Override
                 public void touchUp(int displayId, float x, float y) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.touchUp(x, y);
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.touchUp(x, y);
                 }
 
                 @Override
@@ -535,46 +536,40 @@ public class Main {
                         int edgeFlags
                 ) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.injectTouchEventFull(
-                                action,
-                                x,
-                                y,
-                                downTime,
-                                eventTime,
-                                pressure,
-                                size,
-                                metaState,
-                                xPrecision,
-                                yPrecision,
-                                deviceId,
-                                edgeFlags
-                        );
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.injectTouchEventFull(
+                            action,
+                            x,
+                            y,
+                            downTime,
+                            eventTime,
+                            pressure,
+                            size,
+                            metaState,
+                            xPrecision,
+                            yPrecision,
+                            deviceId,
+                            edgeFlags
+                    );
                 }
 
                 @Override
                 public void injectKey(int displayId, int keyCode) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.injectKey(keyCode);
-                        logToFile("Binder KEY injected: " + keyCode + " on " + displayId, null);
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.injectKey(keyCode);
+                    logToFile("Binder KEY injected: " + keyCode + " on " + displayId, null);
                 }
 
                 @Override
                 public void injectKeyWithMeta(int displayId, int keyCode, int metaState) {
                     markClientActive();
-                    DisplaySession session = displays.get(displayId);
-                    if (session != null && session.inputController != null) {
-                        session.inputController.injectKeyWithMeta(keyCode, metaState);
-                        logToFile(
-                                "Binder KEY(meta=" + metaState + ") injected: " + keyCode + " on " + displayId,
-                                null
-                        );
-                    }
+                    InputController controller = requireInputController(displayId);
+                    controller.injectKeyWithMeta(keyCode, metaState);
+                    logToFile(
+                            "Binder KEY(meta=" + metaState + ") injected: " + keyCode + " on " + displayId,
+                            null
+                    );
                 }
 
                 @Override
@@ -602,6 +597,22 @@ public class Main {
         }
 
         startIdleWatcher();
+    }
+
+    private InputController resolveInputController(int displayId) {
+        if (displayId == 0) {
+            return mainDisplayInputController;
+        }
+        DisplaySession session = displays.get(displayId);
+        return session != null ? session.inputController : null;
+    }
+
+    private InputController requireInputController(int displayId) {
+        InputController controller = resolveInputController(displayId);
+        if (controller == null) {
+            throw new IllegalStateException("No InputController for displayId=" + displayId);
+        }
+        return controller;
     }
 
     public static Main start(Context context) {

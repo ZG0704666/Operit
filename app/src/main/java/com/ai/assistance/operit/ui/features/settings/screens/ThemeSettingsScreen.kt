@@ -1,68 +1,56 @@
 package com.ai.assistance.operit.ui.features.settings.screens
 
 import android.net.Uri
-import com.ai.assistance.operit.util.AppLogger
-import android.view.ViewGroup
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.DragInteraction
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Loop
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.automirrored.outlined.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.outlined.Loop
-import androidx.compose.material3.*
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.runtime.*
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import coil.compose.rememberAsyncImagePainter
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.data.preferences.UserPreferencesManager
-import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
-import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.model.CharacterCard
+import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.features.settings.components.ColorPickerDialog
-import com.ai.assistance.operit.ui.features.settings.components.ColorSelectionItem
-import com.ai.assistance.operit.ui.features.settings.components.MediaTypeOption
-import com.ai.assistance.operit.ui.features.settings.components.ThemeModeOption
-import com.ai.assistance.operit.ui.features.settings.components.ChatStyleOption
-import com.ai.assistance.operit.ui.features.settings.components.AvatarPicker
-import com.ai.assistance.operit.ui.theme.getTextColorForBackground
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsAvatarSection
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsBackgroundSection
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsCharacterBindingInfoCard
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsChatStyleSection
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsColorCustomizationSection
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsDisplayOptionsSection
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsFontSection
+import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsThemeModeSection
+import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.FileUtils
 import com.canhub.cropper.CropImageContract
 import com.canhub.cropper.CropImageContractOptions
@@ -71,14 +59,7 @@ import com.google.android.exoplayer2.DefaultLoadControl
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
-import com.google.android.exoplayer2.ui.StyledPlayerView
 import kotlinx.coroutines.launch
-
-// Add utility function to calculate the luminance of a color
-private fun calculateLuminance(color: Color): Float {
-    return 0.299f * color.red + 0.587f * color.green + 0.114f * color.blue
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -190,6 +171,12 @@ fun ThemeSettingsScreen() {
     // Collect chat style setting
     val chatStyle = preferencesManager.chatStyle.collectAsState(initial = UserPreferencesManager.CHAT_STYLE_CURSOR).value
 
+    // Collect input style setting
+    val inputStyle =
+        preferencesManager.inputStyle.collectAsState(
+            initial = UserPreferencesManager.INPUT_STYLE_AGENT,
+        ).value
+
     val bubbleShowAvatar = preferencesManager.bubbleShowAvatar.collectAsState(initial = true).value
 
     // Collect new display settings
@@ -285,6 +272,7 @@ fun ThemeSettingsScreen() {
 
     // Chat style state
     var chatStyleInput by remember { mutableStateOf(chatStyle) }
+    var inputStyleInput by remember { mutableStateOf(inputStyle) }
 
     var bubbleShowAvatarInput by remember { mutableStateOf(bubbleShowAvatar) }
 
@@ -665,6 +653,7 @@ fun ThemeSettingsScreen() {
             useBackgroundBlur,
             backgroundBlurRadius,
             chatStyle,
+            inputStyle,
             bubbleShowAvatar,
             showThinkingProcess,
             showStatusTags,
@@ -712,6 +701,7 @@ fun ThemeSettingsScreen() {
         useBackgroundBlurInput = useBackgroundBlur
         backgroundBlurRadiusInput = backgroundBlurRadius
         chatStyleInput = chatStyle
+        inputStyleInput = inputStyle
         bubbleShowAvatarInput = bubbleShowAvatar
         showThinkingProcessInput = showThinkingProcess
         showStatusTagsInput = showStatusTags
@@ -862,1885 +852,152 @@ fun ThemeSettingsScreen() {
     val scrollState = rememberScrollState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState)) {
-        // ======= 角色卡主题绑定信息 =======
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            colors = cardModifier,
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 显示头像但不可编辑
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (aiAvatarUri != null) {
-                        Image(
-                            painter = rememberAsyncImagePainter(Uri.parse(aiAvatarUri)),
-                            contentDescription = stringResource(R.string.character_avatar),
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = stringResource(R.string.character_card_default_avatar),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = context.getString(R.string.current_character, activeCharacterCard.name),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = context.getString(R.string.theme_auto_bind_character_card),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Icon(
-                    Icons.Default.Link,
-                    contentDescription = stringResource(R.string.bind),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // ======= SECTION 1: THEME MODE =======
-        ThemeSectionTitle(
-                title = stringResource(id = R.string.theme_title_mode),
-                icon = Icons.Default.Brightness4
+        ThemeSettingsCharacterBindingInfoCard(
+            aiAvatarUri = aiAvatarUri,
+            activeCharacterName = activeCharacterCard.name,
+            cardColors = cardModifier,
         )
 
-        // System theme settings
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_system_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                // Follow system theme
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_follow_system),
-                                style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_follow_system_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Switch(
-                            checked = useSystemThemeInput,
-                            onCheckedChange = {
-                                useSystemThemeInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(useSystemTheme = it)
-                                }
-                            }
-                    )
-                }
-
-                // Only show theme selection when not following system
-                if (!useSystemThemeInput) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    Text(
-                            text = stringResource(id = R.string.theme_select),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    // Theme mode selection
-                    Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ThemeModeOption(
-                                title = stringResource(id = R.string.theme_light),
-                                selected =
-                                        themeModeInput == UserPreferencesManager.THEME_MODE_LIGHT,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    themeModeInput = UserPreferencesManager.THEME_MODE_LIGHT
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(
-                                                themeMode = UserPreferencesManager.THEME_MODE_LIGHT
-                                        )
-                                    }
-                                }
-                        )
-
-                        ThemeModeOption(
-                                title = stringResource(id = R.string.theme_dark),
-                                selected = themeModeInput == UserPreferencesManager.THEME_MODE_DARK,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    themeModeInput = UserPreferencesManager.THEME_MODE_DARK
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(
-                                                themeMode = UserPreferencesManager.THEME_MODE_DARK
-                                        )
-                                    }
-                                }
-                        )
-                    }
-                }
-            }
-        }
-
-        // ======= SECTION 2: COLOR CUSTOMIZATION =======
-        ThemeSectionTitle(
-                title = stringResource(id = R.string.theme_title_color),
-                icon = Icons.Default.ColorLens
+        ThemeSettingsThemeModeSection(
+            cardColors = cardModifier,
+            useSystemThemeInput = useSystemThemeInput,
+            onUseSystemThemeInputChange = { useSystemThemeInput = it },
+            themeModeInput = themeModeInput,
+            onThemeModeInputChange = { themeModeInput = it },
+            saveThemeSettingsWithCharacterCard = ::saveThemeSettingsWithCharacterCard,
+            preferencesManager = preferencesManager,
         )
 
-        // Add status bar color settings
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_statusbar_color),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                // Status bar hidden switch
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_statusbar_hidden),
-                                style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_statusbar_hidden_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = statusBarHiddenInput,
-                            onCheckedChange = {
-                                statusBarHiddenInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(statusBarHidden = it)
-                                }
-                            }
-                    )
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                // Status bar transparent switch
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_statusbar_transparent),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (statusBarHiddenInput) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_statusbar_transparent_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (statusBarHiddenInput) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = statusBarTransparentInput,
-                            enabled = !statusBarHiddenInput,
-                            onCheckedChange = {
-                                statusBarTransparentInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(statusBarTransparent = it)
-                                }
-                            }
-                    )
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                // Use custom status bar color switch
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_use_custom_statusbar_color),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (statusBarTransparentInput || statusBarHiddenInput) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_use_custom_statusbar_color_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (statusBarTransparentInput || statusBarHiddenInput) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = useCustomStatusBarColorInput,
-                            enabled = !statusBarTransparentInput && !statusBarHiddenInput,
-                            onCheckedChange = {
-                                useCustomStatusBarColorInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(useCustomStatusBarColor = it)
-                                }
-                            }
-                    )
-                }
-
-                if (useCustomStatusBarColorInput) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    // Status bar color selection
-                    ColorSelectionItem(
-                            title = stringResource(id = R.string.theme_statusbar_color),
-                            color = Color(customStatusBarColorInput),
-                            enabled = !statusBarTransparentInput && !statusBarHiddenInput,
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                if (!statusBarTransparentInput && !statusBarHiddenInput) {
-                                    currentColorPickerMode = "statusBar"
-                                    showColorPicker = true
-                                }
-                            }
-                    )
-                }
-            }
-        }
-
-
-        // Add toolbar transparency settings
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_toolbar_transparent),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                // Toolbar transparency
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = stringResource(id = R.string.theme_toolbar_transparent_desc), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                                text = stringResource(id = R.string.theme_toolbar_transparent_desc_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = toolbarTransparentInput,
-                            onCheckedChange = {
-                                toolbarTransparentInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(toolbarTransparent = it)
-                                }
-                            }
-                    )
-                }
-                
-                // Custom AppBar Color
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_use_custom_appbar_color),
-                                style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_use_custom_appbar_color_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = useCustomAppBarColorInput,
-                            enabled = !toolbarTransparentInput,
-                            onCheckedChange = {
-                                useCustomAppBarColorInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(useCustomAppBarColor = it)
-                                }
-                            }
-                    )
-                }
-                
-                // AppBar Color Picker
-                if (useCustomAppBarColorInput && !toolbarTransparentInput) {
-                    ColorSelectionItem(
-                            title = stringResource(id = R.string.theme_appbar_color),
-                            color = Color(customAppBarColorInput),
-                            enabled = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                currentColorPickerMode = "appBar"
-                                showColorPicker = true
-                            }
-                    )
-                }
-            }
-        }
-
-        // Chat header transparency
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_chat_header_transparent_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = stringResource(id = R.string.theme_chat_header_transparent), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                                text = stringResource(id = R.string.theme_chat_header_transparent_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = chatHeaderTransparentInput,
-                            onCheckedChange = {
-                                chatHeaderTransparentInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(chatHeaderTransparent = it)
-                                }
-                            }
-                    )
-                }
-
-                if (chatHeaderTransparentInput) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                    text = stringResource(id = R.string.theme_chat_header_overlay_mode),
-                                    style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                    text = stringResource(id = R.string.theme_chat_header_overlay_mode_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                                checked = chatHeaderOverlayModeInput,
-                                onCheckedChange = {
-                                    chatHeaderOverlayModeInput = it
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(
-                                                chatHeaderOverlayMode = it
-                                        )
-                                    }
-                                }
-                        )
-                    }
-                }
-            }
-        }
-
-        // Chat input transparency
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_chat_input_transparent_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = stringResource(id = R.string.theme_chat_input_transparent), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                                text = stringResource(id = R.string.theme_chat_input_transparent_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = chatInputTransparentInput,
-                            onCheckedChange = {
-                                chatInputTransparentInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(chatInputTransparent = it)
-                                }
-                            }
-                    )
-                }
-            }
-        }
-
-        // Add AppBar content color settings
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_appbar_content_color_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                // Force AppBar content color
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_force_appbar_content_color),
-                                style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_force_appbar_content_color_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = forceAppBarContentColorInput,
-                            onCheckedChange = {
-                                forceAppBarContentColorInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(forceAppBarContentColor = it)
-                                }
-                            }
-                    )
-                }
-
-                if (forceAppBarContentColorInput) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    Text(
-                            text = stringResource(id = R.string.theme_appbar_content_color_mode),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ThemeModeOption(
-                                title = stringResource(id = R.string.theme_appbar_content_color_light),
-                                selected = appBarContentColorModeInput == UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    appBarContentColorModeInput = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(appBarContentColorMode = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT)
-                                    }
-                                }
-                        )
-                        ThemeModeOption(
-                                title = stringResource(id = R.string.theme_appbar_content_color_dark),
-                                selected = appBarContentColorModeInput == UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_DARK,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    appBarContentColorModeInput = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_DARK
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(appBarContentColorMode = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_DARK)
-                                    }
-                                }
-                        )
-                    }
-                }
-            }
-        }
-
-        // ChatHeader icon color settings
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_chat_header_icons_color_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-                ColorSelectionItem(
-                        title = stringResource(id = R.string.theme_chat_header_history_icon_color),
-                        color = Color(chatHeaderHistoryIconColorInput),
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            currentColorPickerMode = "historyIcon"
-                            showColorPicker = true
-                        }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ColorSelectionItem(
-                        title = stringResource(id = R.string.theme_chat_header_pip_icon_color),
-                        color = Color(chatHeaderPipIconColorInput),
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            currentColorPickerMode = "pipIcon"
-                            showColorPicker = true
-                        }
-                )
-            }
-        }
-
-        // Custom color settings
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_custom_color),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                // Whether to use custom colors
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_use_custom_color),
-                                style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_custom_color_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Switch(
-                            checked = useCustomColorsInput,
-                            onCheckedChange = {
-                                useCustomColorsInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(useCustomColors = it)
-                                }
-                            }
-                    )
-                }
-
-                // Only show color selection when custom colors are enabled
-                if (useCustomColorsInput) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    Text(
-                            text = stringResource(id = R.string.theme_select_color),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    // Color selection
-                    Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Primary color selection
-                        ColorSelectionItem(
-                                title = stringResource(id = R.string.theme_primary_color),
-                                color = Color(primaryColorInput),
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    currentColorPickerMode = "primary"
-                                    showColorPicker = true
-                                }
-                        )
-
-                        // Secondary color selection
-                        ColorSelectionItem(
-                                title = stringResource(id = R.string.theme_secondary_color),
-                                color = Color(secondaryColorInput),
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    currentColorPickerMode = "secondary"
-                                    showColorPicker = true
-                                }
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    Text(
-                        text = stringResource(id = R.string.theme_on_color_mode),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ThemeModeOption(
-                            title = stringResource(id = R.string.theme_on_color_auto),
-                            selected = onColorModeInput == UserPreferencesManager.ON_COLOR_MODE_AUTO,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                onColorModeInput = UserPreferencesManager.ON_COLOR_MODE_AUTO
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(onColorMode = UserPreferencesManager.ON_COLOR_MODE_AUTO)
-                                }
-                            }
-                        )
-                        ThemeModeOption(
-                            title = stringResource(id = R.string.theme_on_color_light),
-                            selected = onColorModeInput == UserPreferencesManager.ON_COLOR_MODE_LIGHT,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                onColorModeInput = UserPreferencesManager.ON_COLOR_MODE_LIGHT
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(onColorMode = UserPreferencesManager.ON_COLOR_MODE_LIGHT)
-                                }
-                            }
-                        )
-                        ThemeModeOption(
-                            title = stringResource(id = R.string.theme_on_color_dark),
-                            selected = onColorModeInput == UserPreferencesManager.ON_COLOR_MODE_DARK,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                onColorModeInput = UserPreferencesManager.ON_COLOR_MODE_DARK
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(onColorMode = UserPreferencesManager.ON_COLOR_MODE_DARK)
-                                }
-                                }
-                        )
-                    }
-
-                    // Add a color preview section to show how colors will look
-                    Text(
-                            text = stringResource(id = R.string.theme_preview),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                    )
-
-                    // Create a mini-preview of how the selected colors will look
-                    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                        // Primary color demo
-                        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                            val primaryColor = Color(primaryColorInput)
-                            val onPrimaryColor = getTextColorForBackground(primaryColor)
-
-                            // Primary button preview
-                            Surface(
-                                    modifier =
-                                            Modifier.weight(1f).height(40.dp).padding(end = 8.dp),
-                                    color = primaryColor,
-                                    shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                            stringResource(id = R.string.theme_primary_button),
-                                            color = onPrimaryColor,
-                                            style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-
-                            // Secondary button preview
-                            val secondaryColor = Color(secondaryColorInput)
-                            val onSecondaryColor = getTextColorForBackground(secondaryColor)
-
-                            Surface(
-                                    modifier = Modifier.weight(1f).height(40.dp),
-                                    color = secondaryColor,
-                                    shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                            stringResource(id = R.string.theme_secondary_button),
-                                            color = onSecondaryColor,
-                                            style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-                        }
-
-                        Text(
-                                text = stringResource(id = R.string.theme_contrast_tip),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-
-                    // Save custom colors button
-                    Button(
-                            onClick = {
-                                scope.launch {
-                                    preferencesManager.saveThemeSettings(
-                                            customPrimaryColor = primaryColorInput,
-                                            customSecondaryColor = secondaryColorInput
-                                    )
-                                    showSaveSuccessMessage = true
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                    ) { Text(stringResource(id = R.string.theme_save_colors)) }
-                }
-            }
-        }
-
-        // ======= SECTION 2: CHAT STYLE =======
-        ThemeSectionTitle(
-            title = stringResource(id = R.string.chat_style_title),
-            icon = Icons.Default.ColorLens // 您可以根据需要更改图标
+        ThemeSettingsColorCustomizationSection(
+            cardColors = cardModifier,
+            preferencesManager = preferencesManager,
+            scope = scope,
+            saveThemeSettingsWithCharacterCard = ::saveThemeSettingsWithCharacterCard,
+            statusBarHiddenInput = statusBarHiddenInput,
+            onStatusBarHiddenInputChange = { statusBarHiddenInput = it },
+            statusBarTransparentInput = statusBarTransparentInput,
+            onStatusBarTransparentInputChange = { statusBarTransparentInput = it },
+            useCustomStatusBarColorInput = useCustomStatusBarColorInput,
+            onUseCustomStatusBarColorInputChange = { useCustomStatusBarColorInput = it },
+            customStatusBarColorInput = customStatusBarColorInput,
+            toolbarTransparentInput = toolbarTransparentInput,
+            onToolbarTransparentInputChange = { toolbarTransparentInput = it },
+            useCustomAppBarColorInput = useCustomAppBarColorInput,
+            onUseCustomAppBarColorInputChange = { useCustomAppBarColorInput = it },
+            customAppBarColorInput = customAppBarColorInput,
+            chatHeaderTransparentInput = chatHeaderTransparentInput,
+            onChatHeaderTransparentInputChange = { chatHeaderTransparentInput = it },
+            chatHeaderOverlayModeInput = chatHeaderOverlayModeInput,
+            onChatHeaderOverlayModeInputChange = { chatHeaderOverlayModeInput = it },
+            chatInputTransparentInput = chatInputTransparentInput,
+            onChatInputTransparentInputChange = { chatInputTransparentInput = it },
+            forceAppBarContentColorInput = forceAppBarContentColorInput,
+            onForceAppBarContentColorInputChange = { forceAppBarContentColorInput = it },
+            appBarContentColorModeInput = appBarContentColorModeInput,
+            onAppBarContentColorModeInputChange = { appBarContentColorModeInput = it },
+            chatHeaderHistoryIconColorInput = chatHeaderHistoryIconColorInput,
+            chatHeaderPipIconColorInput = chatHeaderPipIconColorInput,
+            useCustomColorsInput = useCustomColorsInput,
+            onUseCustomColorsInputChange = { useCustomColorsInput = it },
+            primaryColorInput = primaryColorInput,
+            secondaryColorInput = secondaryColorInput,
+            onColorModeInput = onColorModeInput,
+            onOnColorModeInputChange = { onColorModeInput = it },
+            onShowColorPicker = {
+                currentColorPickerMode = it
+                showColorPicker = true
+            },
+            onShowSaveSuccessMessage = { showSaveSuccessMessage = true },
         )
 
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = stringResource(id = R.string.chat_style_desc),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ChatStyleOption(
-                        title = stringResource(id = R.string.chat_style_cursor),
-                        selected = chatStyleInput == UserPreferencesManager.CHAT_STYLE_CURSOR,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        chatStyleInput = UserPreferencesManager.CHAT_STYLE_CURSOR
-                        saveThemeSettingsWithCharacterCard {
-                            preferencesManager.saveThemeSettings(chatStyle = UserPreferencesManager.CHAT_STYLE_CURSOR)
-                        }
-                    }
-
-                    ChatStyleOption(
-                        title = stringResource(id = R.string.chat_style_bubble),
-                        selected = chatStyleInput == UserPreferencesManager.CHAT_STYLE_BUBBLE,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        chatStyleInput = UserPreferencesManager.CHAT_STYLE_BUBBLE
-                        saveThemeSettingsWithCharacterCard {
-                            preferencesManager.saveThemeSettings(chatStyle = UserPreferencesManager.CHAT_STYLE_BUBBLE)
-                        }
-                    }
-                }
-
-                if (chatStyleInput == UserPreferencesManager.CHAT_STYLE_BUBBLE) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(id = R.string.chat_style_bubble_show_avatar),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = stringResource(id = R.string.chat_style_bubble_show_avatar_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = bubbleShowAvatarInput,
-                            onCheckedChange = {
-                                bubbleShowAvatarInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(bubbleShowAvatar = it)
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        // ======= SECTION 4: DISPLAY OPTIONS =======
-        ThemeSectionTitle(
-            title = stringResource(id = R.string.display_options_title),
-            icon = Icons.Default.ColorLens // Replace with a more appropriate icon if available
-        )
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // Show thinking process switch
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = stringResource(id = R.string.show_thinking_process), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(id = R.string.show_thinking_process_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = showThinkingProcessInput,
-                        onCheckedChange = {
-                            showThinkingProcessInput = it
-                            saveThemeSettingsWithCharacterCard {
-                                preferencesManager.saveThemeSettings(showThinkingProcess = it)
-                            }
-                        }
-                    )
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                // Show status tags switch
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = stringResource(id = R.string.show_status_tags), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(id = R.string.show_status_tags_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = showStatusTagsInput,
-                        onCheckedChange = {
-                            showStatusTagsInput = it
-                            saveThemeSettingsWithCharacterCard {
-                                preferencesManager.saveThemeSettings(showStatusTags = it)
-                            }
-                        }
-                    )
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                // Show input processing status switch
-                Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = stringResource(id = R.string.show_input_processing_status), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                                text = stringResource(id = R.string.show_input_processing_status_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                            checked = showInputProcessingStatusInput,
-                            onCheckedChange = {
-                                showInputProcessingStatusInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(showInputProcessingStatus = it)
-                                }
-                            }
-                    )
-                }
-            }
-        }
-
-        // ======= SECTION: FONT SETTINGS =======
-        ThemeSectionTitle(
-            title = stringResource(R.string.theme_font_settings),
-            icon = Icons.Default.TextFields
+        ThemeSettingsChatStyleSection(
+            cardColors = cardModifier,
+            chatStyleInput = chatStyleInput,
+            onChatStyleInputChange = { chatStyleInput = it },
+            inputStyleInput = inputStyleInput,
+            onInputStyleInputChange = { inputStyleInput = it },
+            bubbleShowAvatarInput = bubbleShowAvatarInput,
+            onBubbleShowAvatarInputChange = { bubbleShowAvatarInput = it },
+            saveThemeSettingsWithCharacterCard = ::saveThemeSettingsWithCharacterCard,
+            preferencesManager = preferencesManager,
         )
 
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // 启用自定义字体开关
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = context.getString(R.string.enable_custom_font),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = context.getString(R.string.use_system_or_custom_font),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = useCustomFontInput,
-                        onCheckedChange = {
-                            useCustomFontInput = it
-                            saveThemeSettingsWithCharacterCard {
-                                preferencesManager.saveThemeSettings(useCustomFont = it)
-                            }
-                        }
-                    )
-                }
-
-                // 字体设置只在启用自定义字体时显示
-                if (useCustomFontInput) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    // 字体类型选择
-                    Text(
-                        text = context.getString(R.string.font_type_label),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // 系统字体按钮
-                        FilterChip(
-                            selected = fontTypeInput == UserPreferencesManager.FONT_TYPE_SYSTEM,
-                            onClick = {
-                                fontTypeInput = UserPreferencesManager.FONT_TYPE_SYSTEM
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(
-                                        fontType = UserPreferencesManager.FONT_TYPE_SYSTEM
-                                    )
-                                }
-                            },
-                            label = { Text(context.getString(R.string.system_font)) }
-                        )
-
-                        // 自定义文件按钮
-                        FilterChip(
-                            selected = fontTypeInput == UserPreferencesManager.FONT_TYPE_FILE,
-                            onClick = {
-                                fontTypeInput = UserPreferencesManager.FONT_TYPE_FILE
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(
-                                        fontType = UserPreferencesManager.FONT_TYPE_FILE
-                                    )
-                                }
-                            },
-                            label = { Text(context.getString(R.string.custom_font_file)) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 根据选择的类型显示不同的设置
-                    when (fontTypeInput) {
-                        UserPreferencesManager.FONT_TYPE_SYSTEM -> {
-                            // 系统字体选择
-                            Text(
-                                text = context.getString(R.string.select_system_font),
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(
-                                    UserPreferencesManager.SYSTEM_FONT_DEFAULT to stringResource(R.string.theme_font_default),
-                                    UserPreferencesManager.SYSTEM_FONT_SERIF to stringResource(R.string.theme_font_serif),
-                                    UserPreferencesManager.SYSTEM_FONT_SANS_SERIF to stringResource(R.string.theme_font_sans_serif),
-                                    UserPreferencesManager.SYSTEM_FONT_MONOSPACE to stringResource(R.string.theme_font_monospace),
-                                    UserPreferencesManager.SYSTEM_FONT_CURSIVE to stringResource(R.string.theme_font_cursive)
-                                ).forEach { (fontName, displayName) ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = systemFontNameInput == fontName,
-                                            onClick = {
-                                                systemFontNameInput = fontName
-                                                saveThemeSettingsWithCharacterCard {
-                                                    preferencesManager.saveThemeSettings(
-                                                        systemFontName = fontName
-                                                    )
-                                                }
-                                            }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = displayName,
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        UserPreferencesManager.FONT_TYPE_FILE -> {
-                            // 自定义字体文件
-                            Text(
-                                text = context.getString(R.string.custom_font_file_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-
-                            Text(
-                                text = context.getString(R.string.font_file_support_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    onClick = {
-                                        // 使用 */* 让用户可以选择任意文件，包括 .ttf 和 .otf 字体文件
-                                        fontPickerLauncher.launch("*/*")
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(context.getString(R.string.select_font_file))
-                                }
-
-                                if (!customFontPathInput.isNullOrEmpty()) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            customFontPathInput = null
-                                            saveThemeSettingsWithCharacterCard {
-                                                preferencesManager.saveThemeSettings(
-                                                    customFontPath = ""
-                                                )
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Clear,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(context.getString(R.string.clear_font))
-                                    }
-                                }
-                            }
-
-                            if (!customFontPathInput.isNullOrEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = context.getString(R.string.current_font_file_path, customFontPathInput?.substringAfterLast("/") ?: ""),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // 添加字体大小调整滑块
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-                    Text(
-                        text = context.getString(R.string.font_size_scale_label, String.format("%.1f", fontScaleInput)),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Slider(
-                        value = fontScaleInput,
-                        onValueChange = { fontScaleInput = it },
-                        onValueChangeFinished = {
-                            saveThemeSettingsWithCharacterCard {
-                                preferencesManager.saveThemeSettings(fontScale = fontScaleInput)
-                            }
-                        },
-                        valueRange = 0.8f..1.5f,
-                        steps = 6
-                    )
-                }
-            }
-        }
-
-        // ======= SECTION 5: AVATAR CUSTOMIZATION =======
-        ThemeSectionTitle(
-            title = stringResource(id = R.string.avatar_customization_title),
-            icon = Icons.Default.Person // Replace with a more appropriate icon if available
-        )
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // User Avatar Pickers - 横向排列
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    // User Avatar Picker
-                    AvatarPicker(
-                        label = stringResource(id = R.string.user_avatar_label),
-                        avatarUri = userAvatarUriInput,
-                        onAvatarChange = {
-                            avatarPickerMode = "user"
-                            avatarImagePicker.launch("image/*")
-                        },
-                        onAvatarReset = {
-                            userAvatarUriInput = null
-                            saveThemeSettingsWithCharacterCard {
-                                preferencesManager.saveThemeSettings(customUserAvatarUri = "")
-                            }
-                        }
-                    )
-
-                    // Global User Avatar Picker
-                    AvatarPicker(
-                        label = stringResource(id = R.string.global_user_avatar_label),
-                        avatarUri = globalUserAvatarUriInput,
-                        onAvatarChange = {
-                            avatarPickerMode = "global_user"
-                            avatarImagePicker.launch("image/*")
-                        },
-                        onAvatarReset = {
-                            globalUserAvatarUriInput = null
-                            scope.launch {
-                                displayPreferencesManager.saveDisplaySettings(globalUserAvatarUri = "")
-                            }
-                        }
-                    )
-                }
-
-                // 添加说明文字
-                Text(
-                    text = stringResource(R.string.theme_avatar_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                // 全局用户名称设置
-                Text(
-                    text = stringResource(id = R.string.global_user_name_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                OutlinedTextField(
-                    value = globalUserNameInput ?: "",
-                    onValueChange = { globalUserNameInput = it },
-                    label = { Text(stringResource(id = R.string.global_user_name_label)) },
-                    placeholder = { Text(stringResource(id = R.string.global_user_name_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    singleLine = true,
-                    trailingIcon = {
-                        if (globalUserNameInput.isNullOrEmpty()) {
-                            IconButton(
-                                onClick = {
-                                    globalUserNameInput = ""
-                                    scope.launch {
-                                        displayPreferencesManager.saveDisplaySettings(globalUserName = "")
-                                    }
-                                }
-                            ) {
-                                Icon(Icons.Default.Clear, contentDescription = stringResource(id = R.string.clear_action))
-                            }
-                        } else {
-                            IconButton(
-                                onClick = {
-                                    scope.launch {
-                                        displayPreferencesManager.saveDisplaySettings(globalUserName = globalUserNameInput)
-                                    }
-                                }
-                            ) {
-                                Icon(Icons.Default.Save, contentDescription = stringResource(id = R.string.save_action))
-                            }
-                        }
-                    }
-                )
-
-                Text(
-                    text = stringResource(id = R.string.global_user_name_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                Text(
-                    text = stringResource(id = R.string.avatar_shape_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ChatStyleOption(
-                        title = stringResource(id = R.string.avatar_shape_circle),
-                        selected = avatarShapeInput == UserPreferencesManager.AVATAR_SHAPE_CIRCLE,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        avatarShapeInput = UserPreferencesManager.AVATAR_SHAPE_CIRCLE
-                        saveThemeSettingsWithCharacterCard {
-                            preferencesManager.saveThemeSettings(avatarShape = UserPreferencesManager.AVATAR_SHAPE_CIRCLE)
-                        }
-                    }
-                    ChatStyleOption(
-                        title = stringResource(id = R.string.avatar_shape_square),
-                        selected = avatarShapeInput == UserPreferencesManager.AVATAR_SHAPE_SQUARE,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        avatarShapeInput = UserPreferencesManager.AVATAR_SHAPE_SQUARE
-                        saveThemeSettingsWithCharacterCard {
-                            preferencesManager.saveThemeSettings(avatarShape = UserPreferencesManager.AVATAR_SHAPE_SQUARE)
-                        }
-                    }
-                }
-
-                AnimatedVisibility(visible = avatarShapeInput == UserPreferencesManager.AVATAR_SHAPE_SQUARE) {
-                    Column {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        Text(
-                            text = stringResource(id = R.string.avatar_corner_radius),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    val newValue = (avatarCornerRadiusInput - 1f).coerceIn(0f, 16f)
-                                    avatarCornerRadiusInput = newValue
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(avatarCornerRadius = newValue)
-                                    }
-                                },
-                                shape = CircleShape,
-                                contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(Icons.Default.Remove, contentDescription = stringResource(id = R.string.avatar_corner_decrease))
-                            }
-
-                            Text(
-                                text = "${avatarCornerRadiusInput.toInt()} dp",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 24.dp)
-                            )
-
-                            OutlinedButton(
-                                onClick = {
-                                    val newValue = (avatarCornerRadiusInput + 1f).coerceIn(0f, 16f)
-                                    avatarCornerRadiusInput = newValue
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(avatarCornerRadius = newValue)
-                                    }
-                                },
-                                shape = CircleShape,
-                                contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = stringResource(id = R.string.avatar_corner_increase))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-
-        // ======= SECTION 3: BACKGROUND CUSTOMIZATION =======
-        ThemeSectionTitle(
-                title = stringResource(id = R.string.theme_title_background),
-                icon = Icons.Default.Image
+        ThemeSettingsDisplayOptionsSection(
+            cardColors = cardModifier,
+            showThinkingProcessInput = showThinkingProcessInput,
+            onShowThinkingProcessInputChange = { showThinkingProcessInput = it },
+            showStatusTagsInput = showStatusTagsInput,
+            onShowStatusTagsInputChange = { showStatusTagsInput = it },
+            showInputProcessingStatusInput = showInputProcessingStatusInput,
+            onShowInputProcessingStatusInputChange = { showInputProcessingStatusInput = it },
+            saveThemeSettingsWithCharacterCard = ::saveThemeSettingsWithCharacterCard,
+            preferencesManager = preferencesManager,
         )
 
-        // Background media settings
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                        text = stringResource(id = R.string.theme_bg_media),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                )
+        ThemeSettingsFontSection(
+            cardColors = cardModifier,
+            context = context,
+            preferencesManager = preferencesManager,
+            saveThemeSettingsWithCharacterCard = ::saveThemeSettingsWithCharacterCard,
+            useCustomFontInput = useCustomFontInput,
+            onUseCustomFontInputChange = { useCustomFontInput = it },
+            fontTypeInput = fontTypeInput,
+            onFontTypeInputChange = { fontTypeInput = it },
+            systemFontNameInput = systemFontNameInput,
+            onSystemFontNameInputChange = { systemFontNameInput = it },
+            customFontPathInput = customFontPathInput,
+            onCustomFontPathInputChange = { customFontPathInput = it },
+            fontScaleInput = fontScaleInput,
+            onFontScaleInputChange = { fontScaleInput = it },
+            fontPickerLauncher = fontPickerLauncher,
+        )
 
-                // Whether to use background image
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                                text = stringResource(id = R.string.theme_use_custom_bg),
-                                style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                                text = stringResource(id = R.string.theme_custom_bg_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+        ThemeSettingsAvatarSection(
+            cardColors = cardModifier,
+            scope = scope,
+            preferencesManager = preferencesManager,
+            displayPreferencesManager = displayPreferencesManager,
+            saveThemeSettingsWithCharacterCard = ::saveThemeSettingsWithCharacterCard,
+            userAvatarUriInput = userAvatarUriInput,
+            onUserAvatarUriInputChange = { userAvatarUriInput = it },
+            globalUserAvatarUriInput = globalUserAvatarUriInput,
+            onGlobalUserAvatarUriInputChange = { globalUserAvatarUriInput = it },
+            globalUserNameInput = globalUserNameInput,
+            onGlobalUserNameInputChange = { globalUserNameInput = it },
+            avatarShapeInput = avatarShapeInput,
+            onAvatarShapeInputChange = { avatarShapeInput = it },
+            avatarCornerRadiusInput = avatarCornerRadiusInput,
+            onAvatarCornerRadiusInputChange = { avatarCornerRadiusInput = it },
+            avatarImagePicker = avatarImagePicker,
+            onAvatarPickerModeChange = { avatarPickerMode = it },
+        )
 
-                    Switch(
-                            checked = useBackgroundImageInput,
-                            onCheckedChange = {
-                                useBackgroundImageInput = it
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(useBackgroundImage = it)
-                                }
-                            }
-                    )
-                }
 
-                // Only show image selection when background image is enabled
-                if (useBackgroundImageInput) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    // Media type selection
-                    Text(
-                            text = stringResource(id = R.string.theme_media_type),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        MediaTypeOption(
-                                title = stringResource(id = R.string.theme_media_image),
-                                icon = Icons.Default.Image,
-                                selected =
-                                        backgroundMediaTypeInput ==
-                                                UserPreferencesManager.MEDIA_TYPE_IMAGE,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    backgroundMediaTypeInput =
-                                            UserPreferencesManager.MEDIA_TYPE_IMAGE
-                                    if (!backgroundImageUriInput.isNullOrEmpty()) {
-                                        // If there's already a background, save the media type
-                                        saveThemeSettingsWithCharacterCard {
-                                            preferencesManager.saveThemeSettings(
-                                                    backgroundMediaType =
-                                                            UserPreferencesManager.MEDIA_TYPE_IMAGE
-                                            )
-                                        }
-                                    }
-                                }
-                        )
-
-                        MediaTypeOption(
-                                title = stringResource(id = R.string.theme_media_video),
-                                icon = Icons.Default.Videocam,
-                                selected =
-                                        backgroundMediaTypeInput ==
-                                                UserPreferencesManager.MEDIA_TYPE_VIDEO,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    backgroundMediaTypeInput =
-                                            UserPreferencesManager.MEDIA_TYPE_VIDEO
-                                    if (!backgroundImageUriInput.isNullOrEmpty()) {
-                                        // If there's already a background, save the media type
-                                        saveThemeSettingsWithCharacterCard {
-                                            preferencesManager.saveThemeSettings(
-                                                    backgroundMediaType =
-                                                            UserPreferencesManager.MEDIA_TYPE_VIDEO
-                                            )
-                                        }
-                                    }
-                                }
-                        )
-                    }
-
-                    // Current selected media preview
-                    if (!backgroundImageUriInput.isNullOrEmpty()) {
-                        Box(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .height(200.dp)
-                                                .padding(bottom = 16.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .border(
-                                                        1.dp,
-                                                        MaterialTheme.colorScheme.outline,
-                                                        RoundedCornerShape(8.dp)
-                                                )
-                                                .background(Color.Black.copy(alpha = 0.1f))
-                        ) {
-                            if (backgroundMediaTypeInput == UserPreferencesManager.MEDIA_TYPE_IMAGE
-                            ) {
-                                // Image preview
-                                Image(
-                                        painter =
-                                                rememberAsyncImagePainter(
-                                                        Uri.parse(backgroundImageUriInput)
-                                                ),
-                                        contentDescription = stringResource(R.string.theme_background_preview),
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                )
-
-                                // Crop button
-                                IconButton(
-                                        onClick = {
-                                            backgroundImageUriInput?.let {
-                                                launchImageCrop(Uri.parse(it))
-                                            }
-                                        },
-                                        modifier =
-                                                Modifier.align(Alignment.TopEnd)
-                                                        .padding(8.dp)
-                                                        .background(
-                                                                MaterialTheme.colorScheme.surface
-                                                                        .copy(alpha = 0.7f),
-                                                                CircleShape
-                                                        )
-                                ) {
-                                    Icon(
-                                            imageVector = Icons.Default.Crop,
-                                            contentDescription = stringResource(R.string.theme_recrop),
-                                            tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            } else {
-                                // Video preview
-                                // Capture the background color from the Composable context
-                                val backgroundColor = MaterialTheme.colorScheme.background.toArgb()
-                                // Determine if it's a light theme
-                                val isLightTheme =
-                                        calculateLuminance(MaterialTheme.colorScheme.background) >
-                                                0.5f
-
-                                AndroidView(
-                                        factory = { ctx ->
-                                            StyledPlayerView(ctx).apply {
-                                                player = exoPlayer
-                                                useController = false
-                                                layoutParams =
-                                                        ViewGroup.LayoutParams(
-                                                                MATCH_PARENT,
-                                                                MATCH_PARENT
-                                                        )
-                                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                                // Use the captured background color
-                                                setBackgroundColor(backgroundColor)
-                                                // Create a semi-transparent overlay on the player
-                                                // itself for opacity control
-                                                foreground =
-                                                        android.graphics.drawable.ColorDrawable(
-                                                                android.graphics.Color.argb(
-                                                                        ((1f -
-                                                                                        backgroundImageOpacityInput) *
-                                                                                        255)
-                                                                                .toInt(),
-                                                                        // Use white for light
-                                                                        // theme, black for dark
-                                                                        // theme
-                                                                        if (isLightTheme) 255
-                                                                        else 0,
-                                                                        if (isLightTheme) 255
-                                                                        else 0,
-                                                                        if (isLightTheme) 255 else 0
-                                                                )
-                                                        )
-                                            }
-                                        },
-                                        update = { view ->
-                                            // Update the foreground transparency when opacity
-                                            // changes
-                                            view.foreground =
-                                                    android.graphics.drawable.ColorDrawable(
-                                                            android.graphics.Color.argb(
-                                                                    ((1f -
-                                                                                    backgroundImageOpacityInput) *
-                                                                                    255)
-                                                                            .toInt(),
-                                                                    // Use white for light theme,
-                                                                    // black for dark theme
-                                                                    if (isLightTheme) 255 else 0,
-                                                                    if (isLightTheme) 255 else 0,
-                                                                    if (isLightTheme) 255 else 0
-                                                            )
-                                                    )
-                                        },
-                                        modifier = Modifier.fillMaxSize()
-                                )
-
-                                // Video control buttons
-                                Row(modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
-                                    // Mute button
-                                    IconButton(
-                                            onClick = {
-                                                videoBackgroundMutedInput =
-                                                        !videoBackgroundMutedInput
-                                                saveThemeSettingsWithCharacterCard {
-                                                    preferencesManager.saveThemeSettings(
-                                                            videoBackgroundMuted =
-                                                                    videoBackgroundMutedInput
-                                                    )
-                                                }
-                                            },
-                                            modifier =
-                                                    Modifier.padding(end = 8.dp)
-                                                            .background(
-                                                                    MaterialTheme.colorScheme
-                                                                            .surface.copy(
-                                                                            alpha = 0.7f
-                                                                    ),
-                                                                    CircleShape
-                                                            )
-                                    ) {
-                                        Icon(
-                                                imageVector =
-                                                        if (videoBackgroundMutedInput)
-                                                                Icons.AutoMirrored.Outlined.VolumeOff
-                                                        else Icons.AutoMirrored.Rounded.VolumeUp,
-                                                contentDescription =
-                                                        if (videoBackgroundMutedInput)
-                                                                stringResource(
-                                                                        id = R.string.theme_unmute
-                                                                )
-                                                        else
-                                                                stringResource(
-                                                                        id = R.string.theme_mute
-                                                                ),
-                                                tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-
-                                    // Loop button
-                                    IconButton(
-                                            onClick = {
-                                                videoBackgroundLoopInput = !videoBackgroundLoopInput
-                                                saveThemeSettingsWithCharacterCard {
-                                                    preferencesManager.saveThemeSettings(
-                                                            videoBackgroundLoop =
-                                                                    videoBackgroundLoopInput
-                                                    )
-
-                                                    // Show Toast notification about status change
-                                                    Toast.makeText(
-                                                                    context,
-                                                                    if (videoBackgroundLoopInput)
-                                                                            context.getString(
-                                                                                    R.string
-                                                                                            .theme_loop_enabled
-                                                                            )
-                                                                    else
-                                                                            context.getString(
-                                                                                    R.string
-                                                                                            .theme_loop_disabled
-                                                                            ),
-                                                                    Toast.LENGTH_SHORT
-                                                            )
-                                                            .show()
-                                                }
-                                            },
-                                            modifier =
-                                                    Modifier.background(
-                                                            // Show different background color based
-                                                            // on loop state
-                                                            if (videoBackgroundLoopInput)
-                                                                    MaterialTheme.colorScheme
-                                                                            .primary.copy(
-                                                                            alpha = 0.3f
-                                                                    )
-                                                            else
-                                                                    MaterialTheme.colorScheme
-                                                                            .surface.copy(
-                                                                            alpha = 0.7f
-                                                                    ),
-                                                            CircleShape
-                                                    )
-                                    ) {
-                                        Icon(
-                                                if (videoBackgroundLoopInput) Icons.Default.Loop
-                                                else Icons.Outlined.Loop,
-                                                contentDescription =
-                                                        if (videoBackgroundLoopInput)
-                                                                stringResource(
-                                                                        id = R.string.theme_loop_on
-                                                                )
-                                                        else
-                                                                stringResource(
-                                                                        id = R.string.theme_loop_off
-                                                                ),
-                                                tint =
-                                                        if (videoBackgroundLoopInput)
-                                                                MaterialTheme.colorScheme.onPrimary
-                                                        else MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        Box(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .height(150.dp)
-                                                .padding(bottom = 16.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .border(
-                                                        1.dp,
-                                                        MaterialTheme.colorScheme.outline,
-                                                        RoundedCornerShape(8.dp)
-                                                )
-                                                .background(
-                                                        MaterialTheme.colorScheme.surfaceVariant
-                                                ),
-                                contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                    text = stringResource(id = R.string.theme_no_bg_selected),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Button(
-                            onClick = {
-                                if (backgroundMediaTypeInput ==
-                                                UserPreferencesManager.MEDIA_TYPE_VIDEO
-                                ) {
-                                    mediaPickerLauncher.launch("video/*")
-                                } else {
-                                    mediaPickerLauncher.launch("image/*")
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                                if (backgroundMediaTypeInput ==
-                                                UserPreferencesManager.MEDIA_TYPE_VIDEO
-                                )
-                                        stringResource(id = R.string.theme_select_video)
-                                else stringResource(id = R.string.theme_select_image)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Opacity adjustment
-                    Text(
-                            text =
-                                    stringResource(
-                                            id = R.string.theme_bg_opacity,
-                                            (backgroundImageOpacityInput * 100).toInt()
-                                    ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    // Remember last saved value for debounce save operation
-                    var lastSavedOpacity by remember { mutableStateOf(backgroundImageOpacityInput) }
-
-                    // Use rememberUpdatedState to stabilize callback function
-                    val currentScope = rememberCoroutineScope()
-
-                    // Create a simpler disableScrollWhileDragging state
-                    var isDragging by remember { mutableStateOf(false) }
-
-                    // Custom interaction source, helps us monitor drag state
-                    val interactionSource = remember { MutableInteractionSource() }
-
-                    // Monitor drag state
-                    LaunchedEffect(interactionSource) {
-                        interactionSource.interactions.collect { interaction ->
-                            when (interaction) {
-                                is DragInteraction.Start -> isDragging = true
-                                is DragInteraction.Stop -> isDragging = false
-                                is DragInteraction.Cancel -> isDragging = false
-                            }
-                        }
-                    }
-
-                    // If in drag state, temporarily lock scrolling
-                    if (isDragging) {
-                        DisposableEffect(Unit) {
-                            val previousScrollValue = scrollState.value
-                            onDispose {
-                                // Nothing to do on dispose
-                            }
-                        }
-                    }
-
-                    // Create a fixed update callback and finish callback
-                    val updateOpacity = remember {
-                        { value: Float -> backgroundImageOpacityInput = value }
-                    }
-
-                    val onValueChangeFinished = remember {
-                        {
-                            if (kotlin.math.abs(lastSavedOpacity - backgroundImageOpacityInput) >
-                                            0.01f
-                            ) {
-                                saveThemeSettingsWithCharacterCard {
-                                    preferencesManager.saveThemeSettings(
-                                            backgroundImageOpacity = backgroundImageOpacityInput
-                                    )
-                                    lastSavedOpacity = backgroundImageOpacityInput
-                                }
-                            }
-                        }
-                    }
-
-                    // Use Box to wrap slider, solve drag issue
-                    Box(modifier = Modifier.fillMaxWidth().height(56.dp).padding(vertical = 8.dp)) {
-                        Slider(
-                                value = backgroundImageOpacityInput,
-                                onValueChange = updateOpacity,
-                                onValueChangeFinished = onValueChangeFinished,
-                                valueRange = 0.1f..1f,
-                                interactionSource = interactionSource,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                        SliderDefaults.colors(
-                                                thumbColor = MaterialTheme.colorScheme.primary,
-                                                activeTrackColor =
-                                                        MaterialTheme.colorScheme.primary,
-                                                inactiveTrackColor =
-                                                        MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                        )
-                    }
-
-                    // Add a gap, ensure slider below has enough space
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    // Background blur settings
-                    Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                    text = stringResource(id = R.string.theme_background_blur),
-                                    style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                    text = stringResource(id = R.string.theme_background_blur_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                                checked = useBackgroundBlurInput,
-                                onCheckedChange = {
-                                    useBackgroundBlurInput = it
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(useBackgroundBlur = it)
-                                    }
-                                }
-                        )
-                    }
-
-                    if (useBackgroundBlurInput) {
-                        Text(
-                                text =
-                                        stringResource(id = R.string.theme_background_blur_radius) +
-                                                ": ${backgroundBlurRadiusInput.toInt()}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
-                        )
-
-                        // Remember last saved value for debounce save operation
-                        var lastSavedBlurRadius by remember { mutableStateOf(backgroundBlurRadiusInput) }
-                        val blurInteractionSource = remember { MutableInteractionSource() }
-
-                        val onBlurValueChangeFinished = remember {
-                            {
-                                if (kotlin.math.abs(lastSavedBlurRadius - backgroundBlurRadiusInput) >
-                                                0.1f
-                                ) {
-                                    saveThemeSettingsWithCharacterCard {
-                                        preferencesManager.saveThemeSettings(
-                                                backgroundBlurRadius = backgroundBlurRadiusInput
-                                        )
-                                        lastSavedBlurRadius = backgroundBlurRadiusInput
-                                    }
-                                }
-                            }
-                        }
-
-                        // Use Box to wrap slider, solve drag issue
-                        Box(
-                                modifier =
-                                        Modifier.fillMaxWidth().height(56.dp).padding(vertical = 8.dp)
-                        ) {
-                            Slider(
-                                    value = backgroundBlurRadiusInput,
-                                    onValueChange = { backgroundBlurRadiusInput = it },
-                                    onValueChangeFinished = onBlurValueChangeFinished,
-                                    valueRange = 1f..30f,
-                                    interactionSource = blurInteractionSource,
-                                    modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        ThemeSettingsBackgroundSection(
+            cardColors = cardModifier,
+            context = context,
+            preferencesManager = preferencesManager,
+            saveThemeSettingsWithCharacterCard = ::saveThemeSettingsWithCharacterCard,
+            exoPlayer = exoPlayer,
+            launchImageCrop = ::launchImageCrop,
+            mediaPickerLauncher = mediaPickerLauncher,
+            scrollState = scrollState,
+            useBackgroundImageInput = useBackgroundImageInput,
+            onUseBackgroundImageInputChange = { useBackgroundImageInput = it },
+            backgroundMediaTypeInput = backgroundMediaTypeInput,
+            onBackgroundMediaTypeInputChange = { backgroundMediaTypeInput = it },
+            backgroundImageUriInput = backgroundImageUriInput,
+            backgroundImageOpacityInput = backgroundImageOpacityInput,
+            onBackgroundImageOpacityInputChange = { backgroundImageOpacityInput = it },
+            videoBackgroundMutedInput = videoBackgroundMutedInput,
+            onVideoBackgroundMutedInputChange = { videoBackgroundMutedInput = it },
+            videoBackgroundLoopInput = videoBackgroundLoopInput,
+            onVideoBackgroundLoopInputChange = { videoBackgroundLoopInput = it },
+            useBackgroundBlurInput = useBackgroundBlurInput,
+            onUseBackgroundBlurInputChange = { useBackgroundBlurInput = it },
+            backgroundBlurRadiusInput = backgroundBlurRadiusInput,
+            onBackgroundBlurRadiusInputChange = { backgroundBlurRadiusInput = it },
+        )
 
         // Reset button
         OutlinedButton(
@@ -2778,6 +1035,7 @@ fun ThemeSettingsScreen() {
                         useBackgroundBlurInput = false
                         backgroundBlurRadiusInput = 10f
                         chatStyleInput = UserPreferencesManager.CHAT_STYLE_CURSOR
+                        inputStyleInput = UserPreferencesManager.INPUT_STYLE_AGENT
                         bubbleShowAvatarInput = true
                         showThinkingProcessInput = true
                         showStatusTagsInput = true
@@ -2899,29 +1157,4 @@ fun ThemeSettingsScreen() {
 
 
     }
-}
-
-@Composable
-private fun ThemeSectionTitle(
-        title: String,
-        icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-    Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(vertical = 8.dp)
-    ) {
-        Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-        )
-    }
-    HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp))
 }

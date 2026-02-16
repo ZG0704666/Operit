@@ -3359,6 +3359,11 @@
     <string name="chat_style_desc">Choose chat interface style</string>
     <string name="chat_style_cursor">Command Box</string>
     <string name="chat_style_bubble">Bubble</string>
+    <string name="input_style_title">Input Style</string>
+    <string name="input_style_desc">Choose the style for the message input area</string>
+    <string name="input_style_classic">Classic</string>
+    <string name="input_style_agent">Agent</string>
+    <string name="input_style_agent_reserved">Agent style is in development; this is a reserved entry for now</string>
     <string name="display_options_title">Display Options</string>
     <string name="show_thinking_process">Show Thinking Process</string>
     <string name="show_thinking_process_desc">Toggle visibility of &lt;think&gt; tags in AI responses</string>

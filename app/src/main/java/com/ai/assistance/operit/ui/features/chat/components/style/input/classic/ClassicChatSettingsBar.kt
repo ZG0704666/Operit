@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.chat.components
+package com.ai.assistance.operit.ui.features.chat.components.style.input.classic
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -81,7 +81,7 @@ import kotlinx.coroutines.launch
 import com.ai.assistance.operit.R
 
 @Composable
-fun ChatSettingsBar(
+fun ClassicChatSettingsBar(
     modifier: Modifier = Modifier,
     enableAiPlanning: Boolean,
     onToggleAiPlanning: () -> Unit,

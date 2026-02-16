@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.chat.components
+package com.ai.assistance.operit.ui.features.chat.components.style.input.classic
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,6 +52,10 @@ import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.core.tools.ToolProgressBus
 import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
+import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
+import com.ai.assistance.operit.ui.features.chat.components.AttachmentSelectorPanel
+import com.ai.assistance.operit.ui.features.chat.components.FullscreenInputDialog
+import com.ai.assistance.operit.ui.features.chat.components.SimpleLinearProgressIndicator
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.util.ChatUtils
@@ -59,7 +63,7 @@ import androidx.compose.ui.res.stringResource
 import android.net.Uri
 
 @Composable
-fun ChatInputSection(
+fun ClassicChatInputSection(
     actualViewModel: ChatViewModel,
     userMessage: TextFieldValue,
     onUserMessageChange: (TextFieldValue) -> Unit,
@@ -581,73 +585,6 @@ fun ChatInputSection(
                 )
             }
 
-        }
-    }
-}
-
-@Composable
-fun AttachmentChip(attachmentInfo: AttachmentInfo, onRemove: () -> Unit, onInsert: () -> Unit) {
-    val context = LocalContext.current
-    val isImage = attachmentInfo.mimeType.startsWith("image/")
-    val icon: ImageVector = if (isImage) Icons.Default.Image else Icons.Default.Description
-
-    Surface(
-        modifier =
-        Modifier
-            .height(26.dp)
-            .border(
-                width = 1.dp,
-                color =
-                MaterialTheme.colorScheme.outline.copy(
-                    alpha = 0.5f
-                ),
-                shape = RoundedCornerShape(13.dp)
-            ),
-        shape = RoundedCornerShape(13.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            Text(
-                text = attachmentInfo.fileName,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 80.dp)
-            )
-
-            Spacer(modifier = Modifier.width(2.dp))
-
-            IconButton(onClick = onInsert, modifier = Modifier.size(14.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = context.getString(R.string.insert_attachment),
-                    modifier = Modifier.size(10.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            Spacer(modifier = Modifier.width(2.dp))
-
-            IconButton(onClick = onRemove, modifier = Modifier.size(14.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = context.getString(R.string.remove_attachment),
-                    modifier = Modifier.size(10.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }

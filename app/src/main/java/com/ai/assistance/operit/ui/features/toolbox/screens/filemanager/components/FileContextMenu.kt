@@ -452,6 +452,19 @@ fun FileContextMenu(
                                 onDismissRequest()
                             }
                     )
+
+                    if (!contextMenuFile!!.isDirectory &&
+                                    contextMenuFile!!.name.endsWith(".zip", ignoreCase = true)
+                    ) {
+                        FileActionButton(
+                                icon = Icons.Default.FolderZip,
+                                text = stringResource(R.string.file_menu_extract),
+                                onClick = {
+                                    showUnzipDialog = true
+                                    onDismissRequest()
+                                }
+                        )
+                    }
                 } else {
                     // 多选模式下添加批量重命名选项
                     FileActionButton(
