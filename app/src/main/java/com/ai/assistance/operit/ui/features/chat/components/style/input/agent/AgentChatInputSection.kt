@@ -386,7 +386,7 @@ fun AgentChatInputSection(
             Triple(MaterialTheme.colorScheme.primary, "", 0f)
         }
 
-    Surface(color = inputContainerColor, modifier = modifier.imePadding()) {
+    Surface(color = Color.Transparent, modifier = modifier.imePadding()) {
         Column {
             replyToMessage?.let { message ->
                 Surface(
