@@ -2,7 +2,6 @@ const DEFAULT_CONFIG = {
   bindAddress: "127.0.0.1",
   port: 58321,
   apiToken: "",
-  allowRawCommands: false,
   maxCommandMs: 30000,
   allowedPresets: ["health_probe", "hostname", "whoami", "list_processes"]
 };

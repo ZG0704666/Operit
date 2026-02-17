@@ -12,11 +12,13 @@ exports.WINDOWS_SETUP_ZH_CN = {
     step1SuccessPrefix: "已导出并拉起分享：",
     step1ShareFailed: "分享失败",
     step1MissingResource: "安装包资源不存在",
-    step2Title: "步骤 2：粘贴并应用配置",
-    step2Desc: "粘贴 JSON 后写入环境变量并启用 windows_control 包。",
-    configLabel: "粘贴配置 JSON",
+    step2Title: "步骤 2：电脑端解压并启动代理",
+    step2Desc: "在电脑端解压刚才导出的 ZIP。解压后会看到文件列表（包含 operit_pc_agent.bat），双击 operit_pc_agent.bat 启动。",
+    step3Title: "步骤 3：网页向导复制配置并粘贴到下方",
+    step3Desc: "跟随自动弹出的网页完成配置向导，并在最后一步点击“复制”，把复制的配置粘贴到下面输入框。",
+    configLabel: "粘贴向导复制的配置 JSON",
     configPlaceholder: "{\"WINDOWS_AGENT_BASE_URL\":\"http://...\",\"WINDOWS_AGENT_TOKEN\":\"...\"}",
-    envTip: "需要包含 WINDOWS_AGENT_BASE_URL 与 WINDOWS_AGENT_TOKEN。",
+    envTip: "请粘贴网页向导最后一步复制的完整内容，且需要包含 WINDOWS_AGENT_BASE_URL 与 WINDOWS_AGENT_TOKEN。",
     applyButton: "粘贴并应用",
     applying: "正在应用...",
     recheckButton: "再次检测连接",
@@ -42,5 +44,5 @@ exports.WINDOWS_SETUP_ZH_CN = {
     connectionFixBaseUrlLabel: "修复 Base URL",
     connectionFixBaseUrlPlaceholder: "例如 192.168.1.10 或 http://192.168.1.10:58321",
     connectionFixApplyButton: "应用并重试连接",
-    packageNotEnabled: "包未导入或配置不完整，请先完成步骤 2。"
+    packageNotEnabled: "包未导入或配置不完整，请先完成步骤 3。"
 };

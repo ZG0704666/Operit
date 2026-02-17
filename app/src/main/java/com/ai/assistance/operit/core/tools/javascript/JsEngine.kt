@@ -83,6 +83,8 @@ class JsEngine(private val context: Context) {
 
     // 用于存储工具调用的回调
     private val toolCallbacks = mutableMapOf<String, CompletableFuture<String>>()
+    private val composeDslActionCompleteCallbacks = ConcurrentHashMap<String, () -> Unit>()
+    private val composeDslActionErrorCallbacks = ConcurrentHashMap<String, (String) -> Unit>()
 
     // 标记 JS 环境是否已初始化
     private var jsEnvironmentInitialized = false
@@ -1408,13 +1410,146 @@ class JsEngine(private val context: Context) {
         )
     }
 
+    private fun toJsLiteral(value: Any?): String {
+        if (value == null) {
+            return "undefined"
+        }
+        return when (value) {
+            is Number, is Boolean -> value.toString()
+            is String -> JSONObject.quote(value)
+            else -> {
+                try {
+                    val wrapped = JSONObject.wrap(value)
+                    when (wrapped) {
+                        null -> JSONObject.quote(value.toString())
+                        JSONObject.NULL -> "null"
+                        else -> wrapped.toString()
+                    }
+                } catch (e: Exception) {
+                    JSONObject.quote(value.toString())
+                }
+            }
+        }
+    }
+
+    fun dispatchComposeDslActionAsync(
+            actionId: String,
+            payload: Any? = null,
+            envOverrides: Map<String, String> = emptyMap(),
+            onIntermediateResult: ((Any?) -> Unit)? = null,
+            onComplete: (() -> Unit)? = null,
+            onError: ((String) -> Unit)? = null
+    ): Boolean {
+        val normalizedActionId = actionId.trim()
+        if (normalizedActionId.isBlank()) {
+            onError?.invoke("compose action id is required")
+            onComplete?.invoke()
+            return false
+        }
+
+        if (onIntermediateResult != null) {
+            intermediateResultCallback = onIntermediateResult
+        }
+        this.envOverrides = envOverrides
+
+        initWebView()
+        if (!jsEnvironmentInitialized) {
+            initJavaScriptEnvironment()
+        }
+
+        val actionToken = UUID.randomUUID().toString()
+        if (onComplete != null) {
+            composeDslActionCompleteCallbacks[actionToken] = onComplete
+        }
+        if (onError != null) {
+            composeDslActionErrorCallbacks[actionToken] = onError
+        }
+
+        val actionIdJson = JSONObject.quote(normalizedActionId)
+        val actionTokenJson = JSONObject.quote(actionToken)
+        val hasPayload = payload != null
+        val payloadLiteral = if (hasPayload) toJsLiteral(payload) else "undefined"
+        val asyncDispatchScript =
+                """
+            (function() {
+                var __actionToken = $actionTokenJson;
+                try {
+                    var __dispatchFn =
+                        (typeof window !== 'undefined' && typeof window.__operit_dispatch_compose_dsl_action === 'function')
+                            ? window.__operit_dispatch_compose_dsl_action
+                            : (typeof __operit_dispatch_compose_dsl_action === 'function'
+                                ? __operit_dispatch_compose_dsl_action
+                                : null);
+                    if (typeof __dispatchFn !== 'function') {
+                        NativeInterface.reportComposeDslActionError(__actionToken, 'compose_dsl runtime dispatch function not found');
+                        NativeInterface.reportComposeDslActionCompleted(__actionToken);
+                        return;
+                    }
+
+                    var __request = { __action_id: $actionIdJson };
+                    if ($hasPayload) {
+                        __request.__action_payload = $payloadLiteral;
+                    }
+
+                    Promise.resolve(__dispatchFn(__request))
+                        .then(function(__result) {
+                            try {
+                                NativeInterface.sendIntermediateResult(JSON.stringify(__result));
+                            } catch (__ignored) {
+                            }
+                            NativeInterface.reportComposeDslActionCompleted(__actionToken);
+                        })
+                        .catch(function(__error) {
+                            var __message = (__error && __error.message) ? __error.message : String(__error);
+                            NativeInterface.reportComposeDslActionError(__actionToken, __message);
+                            NativeInterface.reportComposeDslActionCompleted(__actionToken);
+                        });
+                } catch (__e) {
+                    var __message = (__e && __e.message) ? __e.message : String(__e);
+                    NativeInterface.reportComposeDslActionError(__actionToken, __message);
+                    NativeInterface.reportComposeDslActionCompleted(__actionToken);
+                }
+            })();
+        """.trimIndent()
+
+        ContextCompat.getMainExecutor(context).execute {
+            try {
+                webView?.evaluateJavascript(asyncDispatchScript, null)
+            } catch (e: Exception) {
+                val errorText = "dispatch compose action failed: ${e.message}"
+                AppLogger.e(TAG, errorText, e)
+                composeDslActionErrorCallbacks.remove(actionToken)?.invoke(errorText)
+                composeDslActionCompleteCallbacks.remove(actionToken)?.invoke()
+            }
+        }
+
+        return true
+    }
+
+    fun cancelCurrentExecution(reason: String = "Execution canceled: requested by caller") {
+        AppLogger.d(TAG, "Cancel current JS execution: $reason")
+        resetState(cancellationMessage = reason)
+        if (webView != null) {
+            ContextCompat.getMainExecutor(context).execute {
+                try {
+                    webView?.evaluateJavascript(
+                            "window._hasCompleted = true; clearTimeout(window._safetyTimeout);",
+                            null
+                    )
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "Error stopping current JS execution: ${e.message}", e)
+                }
+            }
+        }
+    }
+
     /** 重置引擎状态，避免多次调用时的状态干扰 */
-    private fun resetState() {
+    private fun resetState(cancellationMessage: String = "Execution canceled: new execution started") {
         // 只有当之前的回调存在时才需要完成它
         val callback = resultCallback
         if (callback != null && !callback.isDone) {
             try {
-                callback.complete("Execution canceled: new execution started")
+                callback.complete(cancellationMessage)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error completing previous callback: ${e.message}", e)
             }
@@ -1429,6 +1564,8 @@ class JsEngine(private val context: Context) {
             }
         }
         toolCallbacks.clear()
+        composeDslActionCompleteCallbacks.clear()
+        composeDslActionErrorCallbacks.clear()
 
         envOverrides = emptyMap()
 
@@ -1687,6 +1824,39 @@ class JsEngine(private val context: Context) {
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error processing intermediate result: ${e.message}", e)
+            }
+        }
+
+        @JavascriptInterface
+        fun reportComposeDslActionError(actionToken: String, error: String) {
+            try {
+                AppLogger.e(
+                        TAG,
+                        "compose_dsl async action error: token=$actionToken, error=$error"
+                )
+                val callback = composeDslActionErrorCallbacks.remove(actionToken)
+                if (callback != null) {
+                    ContextCompat.getMainExecutor(context).execute {
+                        callback.invoke(error)
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error reporting compose_dsl action error: ${e.message}", e)
+            }
+        }
+
+        @JavascriptInterface
+        fun reportComposeDslActionCompleted(actionToken: String) {
+            try {
+                val callback = composeDslActionCompleteCallbacks.remove(actionToken)
+                composeDslActionErrorCallbacks.remove(actionToken)
+                if (callback != null) {
+                    ContextCompat.getMainExecutor(context).execute {
+                        callback.invoke()
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error reporting compose_dsl action completion: ${e.message}", e)
             }
         }
 
@@ -2175,6 +2345,8 @@ class JsEngine(private val context: Context) {
                 }
             }
             toolCallbacks.clear()
+            composeDslActionCompleteCallbacks.clear()
+            composeDslActionErrorCallbacks.clear()
 
             // 清理Bitmap注册表
             bitmapRegistry.values.forEach { it.recycle() }

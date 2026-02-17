@@ -299,7 +299,13 @@ fun WorkspaceManager(
     }
 
     // 新的布局根节点，使用Box来支持FAB和底部面板的覆盖
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .imePadding()
+                .navigationBarsPadding()
+    ) {
         val isBrowserPreviewVisible = isVisible && currentFileIndex == -1 && workspaceConfig.preview.type == "browser"
 
         BackHandler(enabled = isBrowserPreviewVisible && canWebViewGoBack) {

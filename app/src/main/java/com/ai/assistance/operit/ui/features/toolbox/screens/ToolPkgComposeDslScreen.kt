@@ -100,6 +100,7 @@ fun ToolPkgComposeDslToolScreen(
     var errorMessage by remember(containerPackageName, uiModuleId) { mutableStateOf<String?>(null) }
     var isLoading by remember(containerPackageName, uiModuleId) { mutableStateOf(true) }
     var isDispatching by remember(containerPackageName, uiModuleId) { mutableStateOf(false) }
+    var dispatchingCount by remember(containerPackageName, uiModuleId) { mutableStateOf(0) }
 
     fun buildModuleSpec(entryPath: String?): Map<String, Any?> =
         mapOf(
@@ -110,15 +111,53 @@ fun ToolPkgComposeDslToolScreen(
             "toolPkgId" to containerPackageName
         )
 
-    suspend fun render(actionId: String? = null, payload: Any? = null) {
+    fun dispatchAction(actionId: String, payload: Any? = null) {
+        val normalizedActionId = actionId.trim()
+        if (normalizedActionId.isBlank()) {
+            return
+        }
+
+        dispatchingCount += 1
+        isDispatching = dispatchingCount > 0
+
+        val dispatched =
+            jsEngine.dispatchComposeDslActionAsync(
+                actionId = normalizedActionId,
+                payload = payload,
+                onIntermediateResult = { intermediateResult ->
+                    val parsedIntermediate =
+                        ToolPkgComposeDslParser.parseRenderResult(intermediateResult)
+                    if (parsedIntermediate != null) {
+                        renderResult = parsedIntermediate
+                        errorMessage = null
+                    }
+                },
+                onComplete = {
+                    dispatchingCount = (dispatchingCount - 1).coerceAtLeast(0)
+                    isDispatching = dispatchingCount > 0
+                },
+                onError = { error ->
+                    errorMessage = "compose_dsl runtime error: $error"
+                    AppLogger.e(
+                        TAG,
+                        "compose_dsl async action failed: actionId=$normalizedActionId, error=$error"
+                    )
+                }
+            )
+
+        if (!dispatched) {
+            dispatchingCount = (dispatchingCount - 1).coerceAtLeast(0)
+            isDispatching = dispatchingCount > 0
+        }
+    }
+
+    suspend fun render() {
         var followUpActionId: String? = null
         renderMutex.withLock {
             try {
-                if (actionId.isNullOrBlank()) {
-                    isLoading = true
-                } else {
-                    isDispatching = true
-                }
+                isLoading = true
+                dispatchingCount = 0
+                isDispatching = false
                 errorMessage = null
 
                 val scriptText: String? =
@@ -156,42 +195,27 @@ fun ToolPkgComposeDslToolScreen(
 
                 val rawResult =
                     withContext(Dispatchers.IO) {
-                        if (actionId.isNullOrBlank()) {
-                            val language = LocaleUtils.getCurrentLanguage(context).trim()
-                            jsEngine.executeComposeDslScript(
-                                script = scriptText,
-                                runtimeOptions =
-                                    mapOf(
-                                        "packageName" to containerPackageName,
-                                        "toolPkgId" to containerPackageName,
-                                        "uiModuleId" to uiModuleId,
-                                        "__operit_package_lang" to
-                                            (if (language.isNotBlank()) language else "zh"),
-                                        "__operit_script_entry" to (scriptEntryPath ?: ""),
-                                        "moduleSpec" to buildModuleSpec(scriptEntryPath),
-                                        "state" to (renderResult?.state ?: emptyMap<String, Any?>()),
-                                        "memo" to (renderResult?.memo ?: emptyMap<String, Any?>())
-                                    )
-                            )
-                        } else {
-                            jsEngine.executeComposeDslAction(
-                                actionId = actionId,
-                                payload = payload,
-                                onIntermediateResult = { intermediateResult ->
-                                    val parsedIntermediate =
-                                        ToolPkgComposeDslParser.parseRenderResult(intermediateResult)
-                                    if (parsedIntermediate != null) {
-                                        renderResult = parsedIntermediate
-                                        errorMessage = null
-                                    }
-                                }
-                            )
-                        }
+                        val language = LocaleUtils.getCurrentLanguage(context).trim()
+                        jsEngine.executeComposeDslScript(
+                            script = scriptText,
+                            runtimeOptions =
+                                mapOf(
+                                    "packageName" to containerPackageName,
+                                    "toolPkgId" to containerPackageName,
+                                    "uiModuleId" to uiModuleId,
+                                    "__operit_package_lang" to
+                                        (if (language.isNotBlank()) language else "zh"),
+                                    "__operit_script_entry" to (scriptEntryPath ?: ""),
+                                    "moduleSpec" to buildModuleSpec(scriptEntryPath),
+                                    "state" to (renderResult?.state ?: emptyMap<String, Any?>()),
+                                    "memo" to (renderResult?.memo ?: emptyMap<String, Any?>())
+                                )
+                        )
                     }
 
+                val rawText = rawResult?.toString()?.trim().orEmpty()
                 val parsed = ToolPkgComposeDslParser.parseRenderResult(rawResult)
                 if (parsed == null) {
-                    val rawText = rawResult?.toString()?.trim().orEmpty()
                     val normalizedError =
                         when {
                             rawText.startsWith("Error:", ignoreCase = true) -> rawText
@@ -207,10 +231,8 @@ fun ToolPkgComposeDslToolScreen(
                 renderResult = parsed
                 errorMessage = null
 
-                if (actionId.isNullOrBlank()) {
-                    followUpActionId =
-                        ToolPkgComposeDslParser.extractActionId(parsed.tree.props["onLoad"])
-                }
+                followUpActionId =
+                    ToolPkgComposeDslParser.extractActionId(parsed.tree.props["onLoad"])
                 Unit
             } catch (e: Exception) {
                 renderResult = null
@@ -218,23 +240,19 @@ fun ToolPkgComposeDslToolScreen(
                 AppLogger.e(TAG, "compose_dsl render failed", e)
             } finally {
                 isLoading = false
-                isDispatching = false
             }
         }
 
-        if (actionId.isNullOrBlank() && !followUpActionId.isNullOrBlank()) {
-            render(actionId = followUpActionId, payload = null)
-        }
-    }
-
-    fun dispatchAction(actionId: String, payload: Any? = null) {
-        scope.launch {
-            render(actionId = actionId, payload = payload)
+        val onLoadActionId = followUpActionId
+        if (!onLoadActionId.isNullOrBlank()) {
+            dispatchAction(actionId = onLoadActionId, payload = null)
         }
     }
 
     LaunchedEffect(containerPackageName, uiModuleId) {
-        render(actionId = null, payload = null)
+        scope.launch {
+            render()
+        }
     }
 
     CustomScaffold { paddingValues ->
@@ -271,7 +289,9 @@ fun ToolPkgComposeDslToolScreen(
                         )
                         Button(
                             onClick = {
-                                scope.launch { render(actionId = null, payload = null) }
+                                scope.launch {
+                                    render()
+                                }
                             }
                         ) {
                             Text("Retry")

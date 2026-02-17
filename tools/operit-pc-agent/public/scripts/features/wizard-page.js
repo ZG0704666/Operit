@@ -9,9 +9,7 @@ export function createWizardPage({ t, W, on = {} }) {
       W.Box(
         { className: "wizard-steps" },
         W.Button({ text: t("wizard.stepNav1"), variant: "soft", className: "wizard-step-btn", ref: "wizardStep1Button", on: { click: on.wizardStep1 } }),
-        W.Button({ text: t("wizard.stepNav2"), variant: "soft", className: "wizard-step-btn", ref: "wizardStep2Button", on: { click: on.wizardStep2 } }),
-        W.Button({ text: t("wizard.stepNav3"), variant: "soft", className: "wizard-step-btn", ref: "wizardStep3Button", on: { click: on.wizardStep3 } }),
-        W.Button({ text: t("wizard.stepNav4"), variant: "soft", className: "wizard-step-btn", ref: "wizardStep4Button", on: { click: on.wizardStep4 } })
+        W.Button({ text: t("wizard.stepNav2"), variant: "soft", className: "wizard-step-btn", ref: "wizardStep2Button", on: { click: on.wizardStep2 } })
       ),
 
       W.Panel(
@@ -38,32 +36,6 @@ export function createWizardPage({ t, W, on = {} }) {
         { className: "wizard-step-panel", ref: "wizardStep2Panel" },
         W.PanelTitle(t("wizard.step2Title")),
         W.Text({ as: "p", className: "wizard-step-desc", text: t("wizard.step2Desc") }),
-        W.Field({ label: t("field.token") }, W.Input({ ref: "wizardSshTokenInput", type: "password", placeholder: t("placeholder.tokenRequiredWhenApiTokenEnabled") })),
-        W.ButtonGroup(
-          {},
-          W.Button({ text: t("action.verifyAndNext"), ref: "wizardRunSshButton", on: { click: on.wizardRunSsh } }),
-          W.Button({ text: t("action.skipToNext"), variant: "soft", ref: "wizardSkipSshButton", on: { click: on.wizardSkipSsh } })
-        ),
-        W.Output({ ref: "wizardSshOutput", minHeight: 100, text: "{}" })
-      ),
-
-      W.Panel(
-        { className: "wizard-step-panel", ref: "wizardStep3Panel" },
-        W.PanelTitle(t("wizard.step3Title")),
-        W.Text({ as: "p", className: "wizard-step-desc", text: t("wizard.step3Desc") }),
-        W.Field({ label: t("field.token") }, W.Input({ ref: "wizardVerifyTokenInput", type: "password", placeholder: t("placeholder.tokenRequiredWhenApiTokenEnabled") })),
-        W.ButtonGroup(
-          {},
-          W.Button({ text: t("action.verifyAndNext"), ref: "wizardVerifyButton", on: { click: on.wizardVerify } }),
-          W.Button({ text: t("action.skipToNext"), variant: "soft", ref: "wizardSkipVerifyButton", on: { click: on.wizardSkipVerify } })
-        ),
-        W.Output({ ref: "wizardVerifyOutput", minHeight: 120, text: "{}" })
-      ),
-
-      W.Panel(
-        { className: "wizard-step-panel", ref: "wizardStep4Panel" },
-        W.PanelTitle(t("wizard.step4Title")),
-        W.Text({ as: "p", className: "wizard-step-desc", text: t("wizard.step4Desc") }),
         W.Panel(
           { className: "wizard-one-click" },
           W.PanelTitle(t("wizard.oneClickTitle")),
@@ -104,10 +76,10 @@ export function createWizardPage({ t, W, on = {} }) {
 
 export function createWizardController({ api, refs, state, t, helpers, callbacks = {} }) {
   const { setBusy, setNotice, setJsonOutput, asErrorMessage } = helpers;
-  const { refreshHealth, reloadConfigAndHealth, onConfigUpdated } = callbacks;
+  const { reloadConfigAndHealth, onConfigUpdated } = callbacks;
 
   function setWizardStep(stepIndex) {
-    const safeStep = Math.max(0, Math.min(3, Number(stepIndex) || 0));
+    const safeStep = Math.max(0, Math.min(1, Number(stepIndex) || 0));
     state.wizardStep = safeStep;
     applyWizardStepUi();
   }
@@ -290,8 +262,8 @@ export function createWizardController({ api, refs, state, t, helpers, callbacks
   }
 
   function applyWizardStepUi() {
-    const panels = [refs.wizardStep1Panel, refs.wizardStep2Panel, refs.wizardStep3Panel, refs.wizardStep4Panel];
-    const buttons = [refs.wizardStep1Button, refs.wizardStep2Button, refs.wizardStep3Button, refs.wizardStep4Button];
+    const panels = [refs.wizardStep1Panel, refs.wizardStep2Panel];
+    const buttons = [refs.wizardStep1Button, refs.wizardStep2Button];
 
     panels.forEach((panel, index) => {
       panel.hidden = index !== state.wizardStep;
@@ -310,29 +282,6 @@ export function createWizardController({ api, refs, state, t, helpers, callbacks
     applyWizardBindAddressAutoDefault();
     applyOneClickMobileDefaults({ force: !!options.forceMobileDefaults });
     renderMobileSnippets();
-  }
-
-  async function runPresetVerification({ token, presets, outputRefName, successNoticeKey, warnNoticeKey }) {
-    const results = [];
-
-    for (const preset of presets) {
-      try {
-        const result = await api.executeCommand({ token, preset });
-        results.push({ preset, ok: !!result.ok, result });
-      } catch (error) {
-        results.push({ preset, ok: false, error: asErrorMessage(error) });
-      }
-    }
-
-    const ok = results.every((item) => item.ok);
-    setJsonOutput(outputRefName, { ok, results });
-    setNotice(ok ? "ok" : "warn", ok ? t(successNoticeKey) : t(warnNoticeKey));
-
-    if (typeof refreshHealth === "function") {
-      await refreshHealth();
-    }
-
-    return { ok, results };
   }
 
   async function handleWizardStep1SaveNext() {
@@ -368,53 +317,6 @@ export function createWizardController({ api, refs, state, t, helpers, callbacks
     }
   }
 
-  async function handleWizardStep2Run() {
-    setBusy("wizardRunSshButton", true, t("action.verifyAndNext"), t("action.running"));
-
-    try {
-      const token = refs.wizardSshTokenInput.value;
-      const result = await runPresetVerification({
-        token,
-        presets: ["health_probe", "whoami"],
-        outputRefName: "wizardSshOutput",
-        successNoticeKey: "message.wizardStep2Done",
-        warnNoticeKey: "message.wizardStep3Warn"
-      });
-
-      if (result.ok) {
-        setWizardStep(2);
-      }
-    } catch (error) {
-      setJsonOutput("wizardSshOutput", { ok: false, error: asErrorMessage(error) });
-      setNotice("error", t("message.wizardStep3Failed", { error: asErrorMessage(error) }));
-    } finally {
-      setBusy("wizardRunSshButton", false, t("action.verifyAndNext"), t("action.running"));
-    }
-  }
-
-  async function handleWizardStep3Verify() {
-    setBusy("wizardVerifyButton", true, t("action.verifyAndNext"), t("action.running"));
-
-    try {
-      const token = refs.wizardVerifyTokenInput.value;
-      const result = await runPresetVerification({
-        token,
-        presets: ["list_processes", "hostname"],
-        outputRefName: "wizardVerifyOutput",
-        successNoticeKey: "message.wizardStep3Done",
-        warnNoticeKey: "message.wizardStep3Warn"
-      });
-
-      if (result.ok) {
-        setWizardStep(3);
-      }
-    } catch (error) {
-      setJsonOutput("wizardVerifyOutput", { ok: false, error: asErrorMessage(error) });
-      setNotice("error", t("message.wizardStep3Failed", { error: asErrorMessage(error) }));
-    } finally {
-      setBusy("wizardVerifyButton", false, t("action.verifyAndNext"), t("action.running"));
-    }
-  }
 
   async function ensureAgentTokenForOneClick() {
     const currentToken = String((state.config && state.config.apiToken) || "").trim();
@@ -496,8 +398,6 @@ export function createWizardController({ api, refs, state, t, helpers, callbacks
     applyWizardStepUi,
     syncFromState,
     handleWizardStep1SaveNext,
-    handleWizardStep2Run,
-    handleWizardStep3Verify,
     handleWizardOneClickFill,
     handleWizardCopyPayload,
     handleWizardToggleAdvanced,

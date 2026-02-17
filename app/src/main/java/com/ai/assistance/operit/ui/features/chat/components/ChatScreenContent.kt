@@ -197,7 +197,6 @@ fun ChatScreenContent(
                     }
                 }
             }
-
     LaunchedEffect(activeCharacterCard, displayedChatHistories, currentChatId, chatHistories) {
         val activeCard = activeCharacterCard ?: return@LaunchedEffect
         if (displayedChatHistories.isEmpty()) {

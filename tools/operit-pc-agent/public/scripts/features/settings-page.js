@@ -17,7 +17,6 @@ export function createSettingsPage({ t, W, on = {} }) {
           W.Field({ label: t("field.maxCommandTimeoutMs") }, W.Input({ ref: "settingsMaxCommandInput", type: "number", min: 1000, max: 600000 })),
           W.Field({ label: t("field.apiToken") }, W.Input({ ref: "settingsApiTokenInput", type: "password", placeholder: t("placeholder.apiTokenEmptyDisable") }))
         ),
-        W.Toggle({ inputRef: "settingsAllowRawInput", text: t("field.allowRawHighRisk") }),
         W.Panel({}, W.PanelTitle(t("panel.allowedPresets")), W.CheckList({ ref: "settingsPresetChecksWrap" })),
         W.ButtonGroup({}, W.Button({ text: t("action.saveConfig"), type: "submit", ref: "saveConfigButton" }))
       ),
@@ -35,7 +34,6 @@ export function createSettingsController({ api, refs, t, W, render, helpers, cal
     refs.settingsPortInput.value = config.port || 58321;
     refs.settingsMaxCommandInput.value = config.maxCommandMs || 30000;
     refs.settingsApiTokenInput.value = config.apiToken || "";
-    refs.settingsAllowRawInput.checked = !!config.allowRawCommands;
   }
 
   function collectCheckedPresets() {
@@ -85,7 +83,6 @@ export function createSettingsController({ api, refs, t, W, render, helpers, cal
         port: Number(refs.settingsPortInput.value),
         maxCommandMs: Number(refs.settingsMaxCommandInput.value),
         apiToken: refs.settingsApiTokenInput.value,
-        allowRawCommands: refs.settingsAllowRawInput.checked,
         allowedPresets: collectCheckedPresets()
       };
 

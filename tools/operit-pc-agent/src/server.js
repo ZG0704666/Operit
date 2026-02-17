@@ -93,7 +93,6 @@ logger.info("config.loaded", {
   runtimeBindAddress: runtimeBinding.runtimeBindAddress,
   bindOverrideActive: runtimeBinding.bindOverrideActive,
   port: state.config.port,
-  allowRawCommands: state.config.allowRawCommands,
   maxCommandMs: state.config.maxCommandMs,
   allowedPresets: state.config.allowedPresets
 });

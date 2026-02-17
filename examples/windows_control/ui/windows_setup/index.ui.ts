@@ -654,7 +654,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
     ctx.Card({ fillMaxWidth: true }, [
       ctx.Column({ padding: 16, spacing: 10 }, [
         ctx.Row({ verticalAlignment: "center" }, [
-          ctx.Icon({ name: "settings", tint: "primary" }),
+          ctx.Icon({ name: "computer", tint: "primary" }),
           ctx.Spacer({ width: 8 }),
           ctx.Text({
             text: TEXT.step2Title,
@@ -664,6 +664,24 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
         ]),
         ctx.Text({
           text: TEXT.step2Desc,
+          style: "bodyMedium",
+          color: "onSurfaceVariant"
+        })
+      ])
+    ]),
+    ctx.Card({ fillMaxWidth: true }, [
+      ctx.Column({ padding: 16, spacing: 10 }, [
+        ctx.Row({ verticalAlignment: "center" }, [
+          ctx.Icon({ name: "settings", tint: "primary" }),
+          ctx.Spacer({ width: 8 }),
+          ctx.Text({
+            text: TEXT.step3Title,
+            style: "titleMedium",
+            fontWeight: "semiBold"
+          })
+        ]),
+        ctx.Text({
+          text: TEXT.step3Desc,
           style: "bodyMedium",
           color: "onSurfaceVariant"
         }),

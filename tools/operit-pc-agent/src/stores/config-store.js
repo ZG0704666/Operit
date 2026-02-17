@@ -2,6 +2,15 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { ensureDir } = require("../lib/fs-utils");
 
+function pickDefined(...values) {
+  for (const value of values) {
+    if (value !== undefined) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function createConfigStore({ dataDir, configPath, defaultConfig, presetCommands }) {
   function generateApiToken() {
     return crypto.randomBytes(24).toString("base64url");
@@ -37,11 +46,24 @@ function createConfigStore({ dataDir, configPath, defaultConfig, presetCommands 
 
     try {
       const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      const bindAddress = pickDefined(parsed.bindAddress, parsed.bind_address);
+      const port = pickDefined(parsed.port);
+      const maxCommandMs = pickDefined(parsed.maxCommandMs, parsed.max_command_ms);
+      const apiToken = pickDefined(parsed.apiToken, parsed.api_token);
+      const allowedPresets = pickDefined(parsed.allowedPresets, parsed.allowed_presets);
+
       const normalized = {
-        ...defaultConfig,
-        ...parsed,
-        allowedPresets: normalizeAllowedPresets(parsed.allowedPresets),
-        apiToken: ensureApiToken(parsed.apiToken)
+        bindAddress: typeof bindAddress === "string" && bindAddress.trim() ? bindAddress.trim() : defaultConfig.bindAddress,
+        port:
+          Number.isFinite(Number(port)) && Number(port) > 0 && Number(port) <= 65535
+            ? Math.floor(Number(port))
+            : defaultConfig.port,
+        apiToken: ensureApiToken(apiToken),
+        maxCommandMs:
+          Number.isFinite(Number(maxCommandMs)) && Number(maxCommandMs) >= 1000 && Number(maxCommandMs) <= 600000
+            ? Math.floor(Number(maxCommandMs))
+            : defaultConfig.maxCommandMs,
+        allowedPresets: normalizeAllowedPresets(allowedPresets)
       };
 
       fs.writeFileSync(configPath, JSON.stringify(normalized, null, 2), "utf8");

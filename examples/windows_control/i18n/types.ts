@@ -11,6 +11,8 @@ export interface WindowsSetupI18n {
   step1MissingResource: string;
   step2Title: string;
   step2Desc: string;
+  step3Title: string;
+  step3Desc: string;
   configLabel: string;
   configPlaceholder: string;
   envTip: string;

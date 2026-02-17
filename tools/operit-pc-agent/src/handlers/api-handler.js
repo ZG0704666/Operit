@@ -7,13 +7,28 @@ function buildPublicConfig(config, versionInfo) {
   return {
     bindAddress: config.bindAddress,
     port: config.port,
-    allowRawCommands: !!config.allowRawCommands,
     maxCommandMs: config.maxCommandMs,
     allowedPresets: config.allowedPresets,
     apiTokenConfigured: !!config.apiToken,
     apiToken: config.apiToken || "",
     version: versionInfo.agentVersion
   };
+}
+
+function pickConfigInput(body, camelKey, snakeKey) {
+  if (!body || typeof body !== "object") {
+    return undefined;
+  }
+
+  if (body[camelKey] !== undefined) {
+    return body[camelKey];
+  }
+
+  if (snakeKey && body[snakeKey] !== undefined) {
+    return body[snakeKey];
+  }
+
+  return undefined;
 }
 
 function isAuthorized(config, token) {
@@ -365,12 +380,14 @@ function createApiHandler({
         const body = await readJsonBody(req);
         const nextConfig = { ...state.config };
 
-        if (typeof body.bindAddress === "string" && body.bindAddress.trim()) {
-          nextConfig.bindAddress = body.bindAddress.trim();
+        const bindAddressInput = pickConfigInput(body, "bindAddress", "bind_address");
+        if (typeof bindAddressInput === "string" && bindAddressInput.trim()) {
+          nextConfig.bindAddress = bindAddressInput.trim();
         }
 
-        if (body.port !== undefined) {
-          const parsed = Number(body.port);
+        const portInput = pickConfigInput(body, "port", null);
+        if (portInput !== undefined) {
+          const parsed = Number(portInput);
           if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65535) {
             sendJson(res, 400, { ok: false, error: "Invalid port" });
             return true;
@@ -378,8 +395,9 @@ function createApiHandler({
           nextConfig.port = Math.floor(parsed);
         }
 
-        if (body.maxCommandMs !== undefined) {
-          const parsed = Number(body.maxCommandMs);
+        const maxCommandMsInput = pickConfigInput(body, "maxCommandMs", "max_command_ms");
+        if (maxCommandMsInput !== undefined) {
+          const parsed = Number(maxCommandMsInput);
           if (!Number.isFinite(parsed) || parsed < 1000 || parsed > 600000) {
             sendJson(res, 400, { ok: false, error: "maxCommandMs must be 1000..600000" });
             return true;
@@ -387,18 +405,16 @@ function createApiHandler({
           nextConfig.maxCommandMs = Math.floor(parsed);
         }
 
-        if (body.allowRawCommands !== undefined) {
-          nextConfig.allowRawCommands = parseBoolean(body.allowRawCommands, false);
-        }
-
-        if (body.apiToken !== undefined) {
-          nextConfig.apiToken = configStore.ensureApiToken(body.apiToken);
+        const apiTokenInput = pickConfigInput(body, "apiToken", "api_token");
+        if (apiTokenInput !== undefined) {
+          nextConfig.apiToken = configStore.ensureApiToken(apiTokenInput);
         }
 
         nextConfig.apiToken = configStore.ensureApiToken(nextConfig.apiToken);
 
-        if (Array.isArray(body.allowedPresets)) {
-          nextConfig.allowedPresets = configStore.normalizeAllowedPresets(body.allowedPresets);
+        const allowedPresetsInput = pickConfigInput(body, "allowedPresets", "allowed_presets");
+        if (Array.isArray(allowedPresetsInput)) {
+          nextConfig.allowedPresets = configStore.normalizeAllowedPresets(allowedPresetsInput);
         }
 
         const restartRequired =
@@ -410,7 +426,6 @@ function createApiHandler({
         logger.info("config.update.success", {
           bindAddress: state.config.bindAddress,
           port: state.config.port,
-          allowRawCommands: state.config.allowRawCommands,
           maxCommandMs: state.config.maxCommandMs,
           allowedPresets: state.config.allowedPresets,
           restartRequired
@@ -473,12 +488,6 @@ function createApiHandler({
           shell = presetCommands[body.preset].shell;
           command = presetCommands[body.preset].command;
         } else {
-          if (!state.config.allowRawCommands) {
-            logger.warn("command.execute.rawDisabled", {});
-            sendJson(res, 403, { ok: false, error: "Raw command mode is disabled" });
-            return true;
-          }
-
           if (!body.command || typeof body.command !== "string") {
             logger.warn("command.execute.missingCommand", {});
             sendJson(res, 400, { ok: false, error: "Missing command" });
@@ -525,12 +534,6 @@ function createApiHandler({
 
         if (!isAuthorized(state.config, body.token)) {
           unauthorized(res, "process.start", body.token);
-          return true;
-        }
-
-        if (!state.config.allowRawCommands) {
-          logger.warn("process.start.rawDisabled", {});
-          sendJson(res, 403, { ok: false, error: "Raw command mode is disabled" });
           return true;
         }
 

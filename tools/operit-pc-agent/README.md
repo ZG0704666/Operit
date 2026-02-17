@@ -5,7 +5,7 @@ Windows side helper project for Operit.
 - Local config UI: `http://127.0.0.1:58321`
 - Single-entry launcher: `operit_pc_agent.bat`
 - HTTP relay for mobile side `windows_control`
-- Preset command execution endpoint (and optional raw command mode)
+- Preset and raw command execution endpoints
 
 ## Quick Start
 
@@ -83,10 +83,8 @@ File endpoints (all require `token` in JSON body):
 ## Security Notes
 
 - Default bind address is `127.0.0.1`.
-- By default only preset commands are allowed.
 - `apiToken` is always enabled. If missing, agent auto-generates one.
 - In wizard one-click fill, token is generated only when missing (existing token is reused).
-- Keep `allowRawCommands=false` unless you fully trust callers.
 
 ## Troubleshooting
 

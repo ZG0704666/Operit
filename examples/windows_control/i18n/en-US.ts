@@ -12,12 +12,17 @@ export const WINDOWS_SETUP_EN_US: WindowsSetupI18n = {
   step1SuccessPrefix: "Exported and opened share sheet: ",
   step1ShareFailed: "Share failed",
   step1MissingResource: "Installer resource not found",
-  step2Title: "Step 2: Paste and Apply Config",
-  step2Desc: "Paste JSON, write env vars, and enable the windows_control package.",
-  configLabel: "Paste Config JSON",
+  step2Title: "Step 2: Unzip and Start Agent on PC",
+  step2Desc:
+    "On Windows, unzip the exported ZIP. In the extracted file list, find operit_pc_agent.bat and double-click it.",
+  step3Title: "Step 3: Finish Web Wizard and Paste Config Below",
+  step3Desc:
+    "Follow the auto-opened web setup wizard. On the final step, click Copy, then paste the copied config into the field below.",
+  configLabel: "Paste Copied Config JSON",
   configPlaceholder:
     "{\"WINDOWS_AGENT_BASE_URL\":\"http://...\",\"WINDOWS_AGENT_TOKEN\":\"...\"}",
-  envTip: "Must include WINDOWS_AGENT_BASE_URL and WINDOWS_AGENT_TOKEN.",
+  envTip:
+    "Paste the full config copied in the final web wizard step. Must include WINDOWS_AGENT_BASE_URL and WINDOWS_AGENT_TOKEN.",
   applyButton: "Paste and Apply",
   applying: "Applying...",
   recheckButton: "Check Connection Again",
@@ -44,5 +49,5 @@ export const WINDOWS_SETUP_EN_US: WindowsSetupI18n = {
   connectionFixBaseUrlLabel: "Fix Base URL",
   connectionFixBaseUrlPlaceholder: "e.g. 192.168.1.10 or http://192.168.1.10:58321",
   connectionFixApplyButton: "Apply and Retry",
-  packageNotEnabled: "Package not imported or env incomplete. Complete step 2 first."
+  packageNotEnabled: "Package not imported or env incomplete. Complete step 3 first."
 };

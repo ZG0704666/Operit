@@ -184,19 +184,6 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
             initial = UserPreferencesManager.INPUT_STYLE_AGENT,
         )
     val hostActivity = remember(context) { context.findActivity() }
-    DisposableEffect(inputStyle, hostActivity) {
-        val window = hostActivity?.window
-        if (window != null && inputStyle == UserPreferencesManager.INPUT_STYLE_AGENT) {
-            val previousSoftInputMode = window.attributes.softInputMode
-            // Agent 输入样式使用局部 imePadding 处理，不走全局 pan
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-            onDispose {
-                window.setSoftInputMode(previousSoftInputMode)
-            }
-        } else {
-            onDispose { }
-        }
-    }
 
     // Collect chat area horizontal padding from preferences
     val chatAreaHorizontalPadding by preferencesManager.chatAreaHorizontalPadding.collectAsState(initial = 16f)
@@ -340,6 +327,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     // 滚动状态
     var autoScrollToBottom by remember { mutableStateOf(true) }
     val onAutoScrollToBottomChange = remember { { it: Boolean -> autoScrollToBottom = it } }
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
 
     // 处理来自ViewModel的滚动事件（流式输出时）
     LaunchedEffect(Unit) {
@@ -354,8 +342,8 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
         }
     }
 
-    // 自动滚动处理 - 仅在消息数量变化时触发
-    LaunchedEffect(chatHistory.size, scrollState.maxValue) {
+    // 消息新增时的自动滚动
+    LaunchedEffect(chatHistory.size) {
         if (autoScrollToBottom) {
             try {
                 scrollState.animateScrollTo(scrollState.maxValue)
@@ -413,6 +401,35 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val showWebView by actualViewModel.showWebView.collectAsState()
     // 收集AI电脑显示状态
     val showAiComputer by actualViewModel.showAiComputer.collectAsState()
+    DisposableEffect(inputStyle, showWebView, showAiComputer, hostActivity) {
+        val window = hostActivity?.window
+        if (window != null) {
+            val previousSoftInputMode = window.attributes.softInputMode
+            val shouldUseChatLocalImeHandling =
+                inputStyle == UserPreferencesManager.INPUT_STYLE_AGENT &&
+                    !showWebView &&
+                    !showAiComputer
+            val shouldUseWorkspaceImeResize = showWebView || showAiComputer
+            val targetSoftInputMode =
+                if (shouldUseChatLocalImeHandling) {
+                    // 聊天输入页：由 Compose 局部位移处理输入法
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                } else if (shouldUseWorkspaceImeResize) {
+                    // 工作区/终端等页面：使用系统 resize，避免输入框被键盘遮挡
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                } else {
+                    // 常规页面保持 pan，与 Manifest 默认行为一致
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+                }
+            window.setSoftInputMode(targetSoftInputMode)
+            onDispose {
+                window.setSoftInputMode(previousSoftInputMode)
+            }
+        } else {
+            onDispose { }
+        }
+    }
+
     var hasEverShownWebView by remember { mutableStateOf(false) }
     LaunchedEffect(showWebView) {
         if (showWebView) {
@@ -739,7 +756,16 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                 // The main content area is now a Box to allow overlaying.
                 // It respects the padding from the Scaffold's bottomBar.
                 Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                    Box(modifier = Modifier.weight(1f)) {
+                    val chatContentImeLiftModifier =
+                        if (
+                            inputStyle == UserPreferencesManager.INPUT_STYLE_AGENT &&
+                                imeBottomPx > 0
+                        ) {
+                            Modifier.graphicsLayer { translationY = -imeBottomPx.toFloat() }
+                        } else {
+                            Modifier
+                        }
+                    Box(modifier = Modifier.weight(1f).then(chatContentImeLiftModifier)) {
                         ChatScreenContent(
                                 // modifier = Modifier.weight(1f), // This is no longer needed here
                                 paddingValues =
