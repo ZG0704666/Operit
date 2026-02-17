@@ -57,6 +57,7 @@ export interface ToolResultMap {
     'web_fill': StringResultData;
     'web_wait_for': StringResultData;
     'web_snapshot': StringResultData;
+    'web_file_upload': StringResultData;
     'multipart_request': HttpResponseData;
     'manage_cookies': HttpResponseData;
 

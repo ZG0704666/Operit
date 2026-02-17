@@ -149,6 +149,20 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    handler.registerTool(
+            name = "input_in_terminal_session",
+            dangerCheck = { true },
+            descriptionGenerator = { tool ->
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value
+                val control = tool.parameters.find { it.name == "control" }?.value ?: "-"
+                s(R.string.toolreg_input_in_terminal_session_desc, sessionId ?: "", control)
+            },
+            executor = { tool ->
+                val terminalTool = ToolGetter.getTerminalCommandExecutor(context)
+                terminalTool.inputInSession(tool)
+            }
+    )
+
     // 注册问题库查询工具
     handler.registerTool(
             name = "query_memory",
@@ -520,6 +534,23 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             descriptionGenerator = { tool ->
                 val selector = tool.parameters.find { it.name == "selector" }?.value ?: ""
                 "Fill element: $selector"
+            },
+            executor = { tool ->
+                val webSessionTool = ToolGetter.getWebSessionTools(context)
+                webSessionTool.invoke(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "web_file_upload",
+            descriptionGenerator = { tool ->
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value
+                val rawPaths = tool.parameters.find { it.name == "paths" }?.value
+                if (rawPaths.isNullOrBlank()) {
+                    "Resolve file chooser in web session ${sessionId?.take(8) ?: "(active)"} with cancel"
+                } else {
+                    "Resolve file chooser in web session ${sessionId?.take(8) ?: "(active)"} with provided paths"
+                }
             },
             executor = { tool ->
                 val webSessionTool = ToolGetter.getWebSessionTools(context)

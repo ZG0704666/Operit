@@ -6,8 +6,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.model.Memory
-import com.ai.assistance.operit.data.model.MemoryLink
 import com.ai.assistance.operit.data.model.DocumentChunk
+import com.ai.assistance.operit.data.model.CloudEmbeddingConfig
+import com.ai.assistance.operit.data.model.EmbeddingDimensionUsage
+import com.ai.assistance.operit.data.model.EmbeddingRebuildProgress
+import com.ai.assistance.operit.data.model.MemorySearchConfig
+import com.ai.assistance.operit.data.preferences.MemorySearchSettingsPreferences
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Edge
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Graph
@@ -21,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /** Memory UI State Represents the current state of the Memory screen. */
@@ -55,14 +60,26 @@ data class MemoryUiState(
 
         // --- 新增：文件夹相关状态 ---
         val folderPaths: List<String> = emptyList(), // 所有文件夹路径
-        val selectedFolderPath: String = "" // 当前选中的文件夹路径，空字符串表示显示全部
+        val selectedFolderPath: String = "", // 当前选中的文件夹路径，空字符串表示显示全部
+
+        // --- 新增：搜索设置 ---
+        val isSearchSettingsDialogVisible: Boolean = false,
+        val searchConfig: MemorySearchConfig = MemorySearchConfig(),
+        val cloudEmbeddingConfig: CloudEmbeddingConfig = CloudEmbeddingConfig(),
+        val embeddingDimensionUsage: EmbeddingDimensionUsage = EmbeddingDimensionUsage(),
+        val isEmbeddingRebuildRunning: Boolean = false,
+        val embeddingRebuildProgress: EmbeddingRebuildProgress = EmbeddingRebuildProgress()
 )
 
 /**
  * ViewModel for the Memory/Memory Library screen. It handles the business logic for interacting
  * with the MemoryRepository.
  */
-class MemoryViewModel(private val repository: MemoryRepository, private val context: Context) : ViewModel() {
+class MemoryViewModel(
+    private val repository: MemoryRepository,
+    private val context: Context,
+    private val profileId: String
+) : ViewModel() {
 
     companion object {
         private const val TAG = "MemoryViewModel"
@@ -70,8 +87,12 @@ class MemoryViewModel(private val repository: MemoryRepository, private val cont
 
     private val _uiState = MutableStateFlow(MemoryUiState())
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
+    private val searchSettingsPreferences = MemorySearchSettingsPreferences(context, profileId)
 
     init {
+        loadSearchSettings()
+        loadCloudEmbeddingSettings()
+        refreshEmbeddingDimensionUsage()
         // Initially load the graph
         loadMemoryGraph()
         loadFolderPaths()
@@ -110,11 +131,26 @@ class MemoryViewModel(private val repository: MemoryRepository, private val cont
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val query = _uiState.value.searchQuery
+                val config = _uiState.value.searchConfig
                 val memories =
                     if (query.isBlank()) {
-                        repository.searchMemories("") // Get all
+                        repository.searchMemories(
+                            query = "",
+                            semanticThreshold = config.semanticThreshold,
+                            scoreMode = config.scoreMode,
+                            keywordWeight = config.keywordWeight,
+                            semanticWeight = config.vectorWeight,
+                            edgeWeight = config.edgeWeight
+                        )
                     } else {
-                        repository.searchMemories(query)
+                        repository.searchMemories(
+                            query = query,
+                            semanticThreshold = config.semanticThreshold,
+                            scoreMode = config.scoreMode,
+                            keywordWeight = config.keywordWeight,
+                            semanticWeight = config.vectorWeight,
+                            edgeWeight = config.edgeWeight
+                        )
                     }
                 val graphData = repository.getGraphForMemories(memories)
                 _uiState.update { it.copy(graph = graphData, isLoading = false) }
@@ -129,6 +165,99 @@ class MemoryViewModel(private val repository: MemoryRepository, private val cont
     /** Updates the search query in the state. */
     fun onSearchQueryChange(newQuery: String) {
         _uiState.update { it.copy(searchQuery = newQuery) }
+    }
+
+    fun showSearchSettingsDialog(visible: Boolean) {
+        _uiState.update { it.copy(isSearchSettingsDialogVisible = visible) }
+        if (visible) {
+            loadCloudEmbeddingSettings()
+            refreshEmbeddingDimensionUsage()
+        }
+    }
+
+    fun saveSearchSettings(newConfig: MemorySearchConfig, newCloudConfig: CloudEmbeddingConfig) {
+        val normalizedSearchConfig = newConfig.normalized()
+        val normalizedCloudConfig = newCloudConfig.normalized()
+        _uiState.update {
+            it.copy(
+                searchConfig = normalizedSearchConfig,
+                cloudEmbeddingConfig = normalizedCloudConfig,
+                isSearchSettingsDialogVisible = false
+            )
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            searchSettingsPreferences.save(normalizedSearchConfig)
+            repository.saveCloudEmbeddingConfig(normalizedCloudConfig)
+        }
+    }
+
+    fun resetSearchSettings() {
+        val defaults = MemorySearchConfig()
+        _uiState.update { it.copy(searchConfig = defaults) }
+    }
+
+    private fun loadSearchSettings() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val config = searchSettingsPreferences.load()
+            _uiState.update { it.copy(searchConfig = config) }
+        }
+    }
+
+    private fun loadCloudEmbeddingSettings() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val config = repository.loadCloudEmbeddingConfig()
+            _uiState.update { it.copy(cloudEmbeddingConfig = config) }
+        }
+    }
+
+    fun refreshEmbeddingDimensionUsage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val usage = repository.getEmbeddingDimensionUsage()
+            _uiState.update { it.copy(embeddingDimensionUsage = usage) }
+        }
+    }
+
+    fun rebuildVectorIndex() {
+        if (_uiState.value.isEmbeddingRebuildRunning) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isEmbeddingRebuildRunning = true,
+                    embeddingRebuildProgress = EmbeddingRebuildProgress(
+                        total = 0,
+                        processed = 0,
+                        failed = 0,
+                        currentStage = "preparing"
+                    )
+                )
+            }
+
+            try {
+                repository.rebuildEmbeddings { progress ->
+                    _uiState.update { state ->
+                        state.copy(embeddingRebuildProgress = progress)
+                    }
+                }
+                val usage = repository.getEmbeddingDimensionUsage()
+                _uiState.update {
+                    it.copy(
+                        isEmbeddingRebuildRunning = false,
+                        embeddingDimensionUsage = usage
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isEmbeddingRebuildRunning = false,
+                        error = context.getString(
+                            R.string.memory_embedding_rebuild_failed,
+                            e.message ?: "Unknown error"
+                        )
+                    )
+                }
+            }
+        }
     }
 
     // --- 文件夹相关方法 ---
@@ -719,7 +848,7 @@ class MemoryViewModelFactory(private val context: Context, private val profileId
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MemoryViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST") val repository = MemoryRepository(context, profileId)
-            return MemoryViewModel(repository, context.applicationContext) as T
+            return MemoryViewModel(repository, context.applicationContext, profileId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

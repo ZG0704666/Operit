@@ -16,9 +16,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,7 +55,7 @@ fun MemoryAppBar(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onClear: () -> Unit,
-    onTestToolClick: () -> Unit
+    onSettingsClick: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedProfileName = profileNameMap[selectedProfileId] ?: selectedProfileId
@@ -109,9 +108,9 @@ fun MemoryAppBar(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 新增：测试工具按钮
-        IconButton(onClick = onTestToolClick) {
-            Icon(Icons.Default.Psychology, contentDescription = "Simulate AI Attaching Memory")
+        // 搜索设置按钮
+        IconButton(onClick = onSettingsClick) {
+            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.memory_search_settings_title))
         }
 
         // 用户偏好选择器

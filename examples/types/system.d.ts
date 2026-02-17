@@ -167,5 +167,20 @@ export namespace System {
          * @returns Promise resolving to the session close result.
          */
         function close(sessionId: string): Promise<TerminalSessionCloseResultData>;
+
+        /**
+         * Write input to a terminal session.
+         * At least one of `input` or `control` should be provided.
+         * - Typical usage: send input first, then send control=`enter` to submit.
+         * - If `control` and `input` are provided together, it is treated as a key combo
+         *   (for example, control=`ctrl`, input=`c` means Ctrl+C).
+         * @param sessionId The ID of the session.
+         * @param options Input options for this write.
+         * @returns Promise resolving to the write result message.
+         */
+        function input(sessionId: string, options?: {
+            input?: string;
+            control?: string;
+        }): Promise<StringResultData>;
     }
 }

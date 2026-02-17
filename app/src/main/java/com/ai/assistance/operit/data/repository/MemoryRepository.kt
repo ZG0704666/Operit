@@ -10,15 +10,16 @@ import com.ai.assistance.operit.data.model.MemoryTag
 import com.ai.assistance.operit.data.model.MemoryTag_
 import com.ai.assistance.operit.data.model.Memory_
 import com.ai.assistance.operit.data.model.DocumentChunk
-import com.ai.assistance.operit.data.model.DocumentChunk_
 import com.ai.assistance.operit.data.model.Embedding
-import com.ai.assistance.operit.data.model.ChunkReference
-import com.ai.assistance.operit.services.OnnxEmbeddingService
+import com.ai.assistance.operit.data.model.CloudEmbeddingConfig
+import com.ai.assistance.operit.data.model.DimensionCount
+import com.ai.assistance.operit.data.model.EmbeddingDimensionUsage
+import com.ai.assistance.operit.data.model.EmbeddingRebuildProgress
+import com.ai.assistance.operit.data.preferences.MemorySearchSettingsPreferences
+import com.ai.assistance.operit.services.CloudEmbeddingService
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Edge
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Graph
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Node
-import com.ai.assistance.operit.util.vector.IndexItem
-import com.ai.assistance.operit.util.vector.VectorIndexManager
 import io.objectbox.Box
 import io.objectbox.kotlin.boxFor
 import io.objectbox.kotlin.query
@@ -35,10 +36,12 @@ import com.ai.assistance.operit.data.model.SerializableMemory
 import com.ai.assistance.operit.data.model.SerializableLink
 import com.ai.assistance.operit.data.model.ImportStrategy
 import com.ai.assistance.operit.data.model.MemoryImportResult
+import com.ai.assistance.operit.data.model.MemoryScoreMode
 import com.ai.assistance.operit.util.OperitPaths
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlin.math.sqrt
 
 /**
  * Repository for handling Memory data operations. It abstracts the data source (ObjectBox) from the
@@ -74,30 +77,39 @@ class MemoryRepository(private val context: Context, profileId: String) {
     private val tagBox = store.boxFor<MemoryTag>()
     private val linkBox = store.boxFor<MemoryLink>()
     private val chunkBox = store.boxFor<DocumentChunk>()
-    
-    // --- HNSW向量索引集成 ---
-    private val vectorIndexManager: VectorIndexManager<IndexItem<Memory>, String> by lazy {
-        val indexFile = File(OperitPaths.vectorIndexDir(context), "memory_hnsw_${profileId}.idx")
-        
-        // 检查是否有旧的100维向量，如果有则删除旧索引
-        val hasOldEmbeddings = memoryBox.all.any { it.embedding != null && it.embedding!!.vector.size == 100 }
-        if (hasOldEmbeddings && indexFile.exists()) {
-            com.ai.assistance.operit.util.AppLogger.w("MemoryRepo", "Detected old 100-dim embeddings, deleting old index file")
-            indexFile.delete()
+
+    private val searchSettingsPreferences = MemorySearchSettingsPreferences(context, profileId)
+    private val cloudEmbeddingService = CloudEmbeddingService()
+
+    private suspend fun generateEmbedding(text: String, config: CloudEmbeddingConfig): Embedding? {
+        return cloudEmbeddingService.generateEmbedding(config, text)
+    }
+
+    private fun cosineSimilarity(left: Embedding, right: Embedding): Float {
+        val leftVector = left.vector
+        val rightVector = right.vector
+
+        if (leftVector.isEmpty() || rightVector.isEmpty() || leftVector.size != rightVector.size) {
+            return 0f
         }
-        
-        val manager =
-                VectorIndexManager<IndexItem<Memory>, String>(
-                        dimensions = 384, // ONNX模型的embedding维度为384
-                        maxElements = 100_000,
-                        indexFile = indexFile
-                )
-        manager.initIndex()
-        // 首次构建索引 - 只添加384维的向量
-        memoryBox.all.filter { it.embedding != null && it.embedding!!.vector.size == 384 }.forEach { memory ->
-            manager.addItem(IndexItem(memory.uuid, memory.embedding!!.vector, memory))
+
+        var dot = 0.0
+        var leftNorm = 0.0
+        var rightNorm = 0.0
+
+        for (index in leftVector.indices) {
+            val leftValue = leftVector[index].toDouble()
+            val rightValue = rightVector[index].toDouble()
+            dot += leftValue * rightValue
+            leftNorm += leftValue * leftValue
+            rightNorm += rightValue * rightValue
         }
-        manager
+
+        if (leftNorm <= 0.0 || rightNorm <= 0.0) {
+            return 0f
+        }
+
+        return (dot / (sqrt(leftNorm) * sqrt(rightNorm))).toFloat()
     }
     
     /**
@@ -109,40 +121,27 @@ class MemoryRepository(private val context: Context, profileId: String) {
      * @return 创建的Memory对象。
      */
     suspend fun createMemoryFromDocument(documentName: String, originalPath: String, text: String, folderPath: String = ""): Memory = withContext(Dispatchers.IO) {
-        // 1. 为文档本身生成嵌入
-        val documentEmbedding = OnnxEmbeddingService.generateEmbedding(documentName)?.vector ?: FloatArray(384)
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
+        val documentEmbedding = generateEmbedding(documentName, cloudConfig)
 
-        // 2. 创建一个初始的Memory对象并立即保存以获得ID
         val documentMemory = Memory(
             title = documentName,
             content = context.getString(R.string.memory_repository_document_node_content, documentName),
             uuid = UUID.randomUUID().toString()
         ).apply {
-            this.embedding = Embedding(documentEmbedding)
+            this.embedding = documentEmbedding
             this.isDocumentNode = true
             this.documentPath = originalPath
+            this.chunkIndexFilePath = null
             this.folderPath = normalizeFolderPath(folderPath)
         }
         memoryBox.put(documentMemory)
 
-        // 3. 为文档块创建专用的HNSW索引，确保从干净的状态开始
-        val indexFile = File(OperitPaths.vectorIndexDir(context), "doc_index_${documentMemory.id}.hnsw")
-        if (indexFile.exists()) {
-            indexFile.delete()
-        }
-        documentMemory.chunkIndexFilePath = indexFile.absolutePath
-        val chunkIndexManager = VectorIndexManager<IndexItem<ChunkReference>, String>(
-            dimensions = 384, // ONNX模型的embedding维度
-            maxElements = 20000,
-            indexFile = indexFile
-        )
-
-        // 4. 分割、清洗和处理文本块
         val chunks = text.split(Regex("(\\r?\\n[\\t ]*){2,}"))
             .mapNotNull { chunkText ->
                 val cleanedText = chunkText.replace(Regex("(?m)^[\\*\\-=_]{3,}\\s*$"), "").trim()
                 if (cleanedText.isNotBlank()) {
-                    DocumentChunk(content = cleanedText, chunkIndex = 0) // chunkIndex will be set later
+                    DocumentChunk(content = cleanedText, chunkIndex = 0)
                 } else {
                     null
                 }
@@ -150,38 +149,23 @@ class MemoryRepository(private val context: Context, profileId: String) {
                 chunk.apply { this.chunkIndex = index }
             }
 
-        // 5. 为所有块生成嵌入并添加到索引和数据库
         if (chunks.isNotEmpty()) {
-            // 首先，将所有块链接到父级Memory
             chunks.forEach { it.memory.target = documentMemory }
-            // 其次，将chunks存入数据库以获取它们的永久ID
             chunkBox.put(chunks)
 
-            // 然后为所有块生成嵌入
-            val embeddings = chunks.map { OnnxEmbeddingService.generateEmbedding(it.content) }
+            val embeddings = chunks.map { generateEmbedding(it.content, cloudConfig) }
 
-            // 最后，用有效ID和嵌入更新块，并将它们添加到索引管理器中
             chunks.forEachIndexed { index, chunk ->
                 if (index < embeddings.size) {
                     val embedding = embeddings[index]
                     if (embedding != null) {
                         chunk.embedding = embedding
-                        // 此时 chunk.id 是有效的, 存入ChunkReference而不是整个chunk
-                        val reference = ChunkReference(chunk.id)
-                        chunkIndexManager.addItem(IndexItem("chunk_${chunk.id}", embedding.vector, reference))
                     }
                 }
             }
-            // 因为embedding被设置了，再次put来更新它们
             chunkBox.put(chunks)
         }
 
-        // 保存索引到文件
-        chunkIndexManager.save()
-        com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Chunk index saved to: ${indexFile.absolutePath}. File exists: ${indexFile.exists()}")
-
-        // 更新父Memory以保存ToMany关系和索引路径
-        com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Saving memory ${documentMemory.id} with chunkIndexFilePath: ${documentMemory.chunkIndexFilePath}")
         memoryBox.put(documentMemory)
         documentMemory
     }
@@ -190,30 +174,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
      * 生成带有元数据（可信度、重要性）的文本，用于embedding。
      */
     private fun generateTextForEmbedding(memory: Memory): String {
-        // 只使用核心内容来生成向量，以确保语义的纯粹性。
-        // 元数据（如credibility, importance）应该在评分阶段作为权重使用，而不是成为文本本身的一部分。
         return memory.content
-    }
-
-    /**
-     * 检查并修复旧的嵌入向量（从100维升级到384维）
-     * 如果检测到旧向量，自动重新生成
-     */
-    private suspend fun ensureEmbeddingUpToDate(memory: Memory): Boolean = withContext(Dispatchers.IO) {
-        val embedding = memory.embedding
-        if (embedding != null && embedding.vector.size == 100) {
-            // 检测到旧的100维向量，重新生成
-            com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Upgrading embedding for '${memory.title}' from 100 to 384 dimensions")
-            val textForEmbedding = generateTextForEmbedding(memory)
-            val newEmbedding = OnnxEmbeddingService.generateEmbedding(textForEmbedding)
-            if (newEmbedding != null) {
-                memory.embedding = newEmbedding
-                memoryBox.put(memory)
-                addMemoryToIndex(memory)
-                return@withContext true
-            }
-        }
-        return@withContext false
     }
 
     // --- Memory CRUD Operations ---
@@ -224,14 +185,13 @@ class MemoryRepository(private val context: Context, profileId: String) {
      * @return The ID of the saved memory.
      */
     suspend fun saveMemory(memory: Memory): Long = withContext(Dispatchers.IO){
-        // Generate embedding before saving
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
         memory.folderPath = normalizeFolderPath(memory.folderPath)
         if (memory.content.isNotBlank()) {
             val textForEmbedding = generateTextForEmbedding(memory)
-            memory.embedding = OnnxEmbeddingService.generateEmbedding(textForEmbedding)
+            memory.embedding = generateEmbedding(textForEmbedding, cloudConfig)
         }
         val id = memoryBox.put(memory)
-        // After saving to DB, ensure it's also added to the live vector index
         addMemoryToIndex(memory)
         id
     }
@@ -443,6 +403,10 @@ class MemoryRepository(private val context: Context, profileId: String) {
         query: String,
         folderPath: String? = null,
         semanticThreshold: Float = 0.6f,
+        scoreMode: MemoryScoreMode = MemoryScoreMode.BALANCED,
+        keywordWeight: Float = 10.0f,
+        semanticWeight: Float = 0.5f,
+        edgeWeight: Float = 0.4f,
         createdAtStartMs: Long? = null,
         createdAtEndMs: Long? = null
     ): List<Memory> = withContext(Dispatchers.IO) {
@@ -490,6 +454,25 @@ class MemoryRepository(private val context: Context, profileId: String) {
         val scores = mutableMapOf<Long, Double>()
         val k = 60.0 // RRF constant for result fusion
 
+        val normalizedThreshold = semanticThreshold.coerceIn(0.0f, 1.0f)
+        val normalizedKeywordWeight = keywordWeight.coerceAtLeast(0.0f).toDouble()
+        val normalizedSemanticWeight = semanticWeight.coerceAtLeast(0.0f)
+        val normalizedEdgeWeight = edgeWeight.coerceAtLeast(0.0f).toDouble()
+
+        val (modeKeywordMultiplier, modeSemanticMultiplier, modeEdgeMultiplier) = when (scoreMode) {
+            MemoryScoreMode.BALANCED -> Triple(1.0, 1.0, 1.0)
+            MemoryScoreMode.KEYWORD_FIRST -> Triple(1.3, 0.8, 0.9)
+            MemoryScoreMode.SEMANTIC_FIRST -> Triple(0.8, 1.3, 1.1)
+        }
+        val effectiveKeywordWeight = normalizedKeywordWeight * modeKeywordMultiplier
+        val effectiveSemanticWeight = normalizedSemanticWeight * modeSemanticMultiplier.toFloat()
+        val effectiveEdgeWeight = normalizedEdgeWeight * modeEdgeMultiplier
+        com.ai.assistance.operit.util.AppLogger.d(
+            "MemoryRepo",
+            "search settings => mode=$scoreMode, threshold=${String.format("%.2f", normalizedThreshold)}, " +
+                "keyword=${String.format("%.2f", effectiveKeywordWeight)}, semantic=${String.format("%.2f", effectiveSemanticWeight)}, edge=${String.format("%.2f", effectiveEdgeWeight)}"
+        )
+
         // --- PRE-FILTERING BY FOLDER ---
         // If a folder path is provided, all subsequent searches will be performed on this subset.
         // Otherwise, search all memories.
@@ -514,8 +497,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
         keywordResults.forEachIndexed { index, memory ->
             val rank = index + 1
             val baseScore = 1.0 / (k + rank)
-            val keywordWeight = 10.0 // Boost keyword search importance
-            val weightedScore = baseScore * memory.importance * keywordWeight
+            val weightedScore = baseScore * memory.importance * effectiveKeywordWeight
             scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
         }
 
@@ -531,78 +513,68 @@ class MemoryRepository(private val context: Context, profileId: String) {
             val rank = index + 1
             // Use the same RRF formula to add to the score
             val baseScore = 1.0 / (k + rank)
-            val revContainWeight = 10.0 // Also boost this signal
-            val weightedScore = baseScore * memory.importance * revContainWeight
+            val weightedScore = baseScore * memory.importance * effectiveKeywordWeight
             scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
         }
 
         // 3. Semantic search (for conceptual matches)
-        // 自动升级旧的100维向量到384维
-        memoriesToSearch.forEach { memory ->
-            if (memory.embedding != null && memory.embedding!!.vector.size == 100) {
-                ensureEmbeddingUpToDate(memory)
-            }
-        }
-        
         val allMemoriesWithEmbedding = memoriesToSearch.filter { it.embedding != null }
-        val minSimilarityThreshold = semanticThreshold // 语义相似度阈值（可配置）
+        val minSimilarityThreshold = normalizedThreshold
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
 
-        // 对每个关键词分别进行语义搜索和评分
-        com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "--- Starting Semantic Search for ${keywords.size} keywords ---")
-        keywords.forEachIndexed { keywordIndex, keyword ->
-            val queryEmbedding = OnnxEmbeddingService.generateEmbedding(keyword)
-            if (queryEmbedding != null) {
-                // Calculate ALL similarities for this keyword
-                val allSimilarities = allMemoriesWithEmbedding
-                    .map { memory ->
-                        memory.embedding?.let { memoryEmbedding ->
-                            val similarity = OnnxEmbeddingService.cosineSimilarity(
-                                queryEmbedding,
-                                memoryEmbedding
-                            )
-                            Triple(memory, similarity, similarity >= minSimilarityThreshold)
-                        } ?: Triple(memory, 0f, false)
+        if (effectiveSemanticWeight > 0.0f && cloudConfig.isReady()) {
+            com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "--- Starting Semantic Search for ${keywords.size} keywords ---")
+            keywords.forEach { keyword ->
+                val queryEmbedding = generateEmbedding(keyword, cloudConfig)
+                if (queryEmbedding == null) {
+                    com.ai.assistance.operit.util.AppLogger.w("MemoryRepo", "Failed to generate embedding for: '$keyword'")
+                    return@forEach
+                }
+
+                val semanticResultsWithScores = allMemoriesWithEmbedding
+                    .mapNotNull { memory ->
+                        val memoryEmbedding = memory.embedding ?: return@mapNotNull null
+                        if (memoryEmbedding.vector.size != queryEmbedding.vector.size) return@mapNotNull null
+                        val similarity = cosineSimilarity(queryEmbedding, memoryEmbedding)
+                        if (similarity >= minSimilarityThreshold) {
+                            Pair(memory, similarity)
+                        } else {
+                            null
+                        }
                     }
                     .sortedByDescending { it.second }
-                
-                val semanticResultsWithScores = allSimilarities
-                    .filter { it.third }
-                    .map { Pair(it.first, it.second) }
 
-                // 只在有结果时输出关键词信息
                 if (semanticResultsWithScores.isNotEmpty()) {
-                    com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Keyword '${keyword}': ${semanticResultsWithScores.size} matches (top: ${String.format("%.2f", allSimilarities.firstOrNull()?.second ?: 0f)})")
+                    com.ai.assistance.operit.util.AppLogger.d(
+                        "MemoryRepo",
+                        "Keyword '$keyword': ${semanticResultsWithScores.size} matches (top: ${String.format("%.2f", semanticResultsWithScores.first().second)})"
+                    )
                 }
 
                 semanticResultsWithScores.forEachIndexed { index, (memory, similarity) ->
                     val rank = index + 1
-                    
-                    // RRF score (retains ranking information but has low impact)
                     val rankScore = 1.0 / (k + rank)
-                    
-                    // Raw similarity score (high impact, directly reflects semantic relevance)
-                    val semanticWeight = 0.5f 
-                    val similarityScore = similarity * semanticWeight
-
-                    // Combine them. Importance should only affect the rank score, not the raw similarity.
-                    val weightedScore = (rankScore * Math.sqrt(memory.importance.toDouble())) + similarityScore
+                    val similarityScore = similarity * effectiveSemanticWeight
+                    val weightedScore = (rankScore * sqrt(memory.importance.toDouble())) + similarityScore
                     scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
                 }
-            } else {
-                com.ai.assistance.operit.util.AppLogger.w("MemoryRepo", "Failed to generate embedding for: '$keyword'")
             }
+            com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "--- Semantic Search Completed ---")
         }
-        com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "--- Semantic Search Completed ---")
 
         // 4. Graph-based expansion: Boost scores of connected memories based on edge weights
         // Take top-scoring memories as "seed nodes" and propagate scores through edges
-        val topMemoriesForExpansion = scores.entries.sortedByDescending { it.value }.take(10)
+        val topMemoriesForExpansion = if (effectiveEdgeWeight > 0.0) {
+            scores.entries.sortedByDescending { it.value }.take(10)
+        } else {
+            emptyList()
+        }
 
         var edgesTraversed = 0
-        val graphPropagationWeight = 0.4 // Increased from 0.1
-        val basePropagationScore = 0.03 // Give a minimum score boost for any connection
+        val graphPropagationWeight = effectiveEdgeWeight
+        val basePropagationScore = 0.03 * effectiveEdgeWeight // Give a minimum score boost for any connection
 
-        topMemoriesForExpansion.forEach { (sourceId, sourceScore) ->
+        topMemoriesForExpansion.forEach { (sourceId, _) ->
             val sourceMemory = memoriesToSearch.find { it.id == sourceId } ?: return@forEach
             val sourceScore = scores[sourceId] ?: 0.0
             
@@ -725,6 +697,9 @@ class MemoryRepository(private val context: Context, profileId: String) {
         val memory = findMemoryById(memoryId) ?: return@withContext emptyList<DocumentChunk>().also {
             com.ai.assistance.operit.util.AppLogger.w("MemoryRepo", "Document with ID $memoryId not found.")
         }
+        if (!memory.isDocumentNode) {
+            return@withContext emptyList()
+        }
 
         if (query.isBlank()) {
             com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Query is blank, returning all chunks sorted by index.")
@@ -736,39 +711,36 @@ class MemoryRepository(private val context: Context, profileId: String) {
             return@withContext getChunksForMemory(memoryId)
         }
 
-        // --- 关键词搜索（作为补充） ---
-        val keywordResults = getChunksForMemory(memoryId)
+        val allChunks = getChunksForMemory(memoryId)
+        val keywordResults = allChunks
             .filter { chunk -> keywords.any { keyword -> chunk.content.contains(keyword, ignoreCase = true) } }
             .toMutableList()
 
-        // 2. 向量语义搜索
         val semanticResults = mutableListOf<DocumentChunk>()
-        val documentMemory = memoryBox.get(memoryId)
-        if (documentMemory?.chunkIndexFilePath != null && File(documentMemory.chunkIndexFilePath!!).exists()) {
-            val queryEmbedding = OnnxEmbeddingService.generateEmbedding(query)?.vector
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
+        if (cloudConfig.isReady()) {
+            val queryEmbedding = generateEmbedding(query, cloudConfig)
             if (queryEmbedding != null) {
-                com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Generated query embedding successfully. Starting semantic search.")
-                try {
-                    val chunkIndexManager = VectorIndexManager<IndexItem<ChunkReference>, String>(
-                        dimensions = 384,
-                        maxElements = 20000,
-                        indexFile = File(documentMemory.chunkIndexFilePath!!)
-                    )
-                    val searchResults = chunkIndexManager.findNearest(queryEmbedding, 20)
-                    val chunkIds = searchResults.map { it.value.chunkId }
-                    // 从数据库批量获取完整的chunk对象
-                    semanticResults.addAll(chunkBox.get(chunkIds))
-
-                    com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Semantic search found ${semanticResults.size} results (similarity > 0.82).")
-                } catch (e: Exception) {
-                    com.ai.assistance.operit.util.AppLogger.e("MemoryRepo", "Error during semantic search in document", e)
-                }
+                val semanticThreshold = 0.55f
+                semanticResults.addAll(
+                    allChunks
+                        .mapNotNull { chunk ->
+                            val chunkEmbedding = chunk.embedding ?: return@mapNotNull null
+                            if (chunkEmbedding.vector.size != queryEmbedding.vector.size) return@mapNotNull null
+                            val similarity = cosineSimilarity(queryEmbedding, chunkEmbedding)
+                            if (similarity >= semanticThreshold) {
+                                Pair(chunk, similarity)
+                            } else {
+                                null
+                            }
+                        }
+                        .sortedByDescending { it.second }
+                        .take(20)
+                        .map { it.first }
+                )
             }
-        } else {
-            com.ai.assistance.operit.util.AppLogger.w("MemoryRepo", "Chunk index file not found or path is null for document ID $memoryId. Skipping semantic search.")
         }
 
-        // 3. 合并并去重结果
         val combinedResults = (keywordResults + semanticResults).distinctBy { it.id }
         com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Combined and deduplicated results count: ${combinedResults.size}. Results are now ordered by relevance.")
         com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "--- Search in document finished ---")
@@ -783,55 +755,169 @@ class MemoryRepository(private val context: Context, profileId: String) {
      */
     suspend fun updateChunk(chunkId: Long, newContent: String) = withContext(Dispatchers.IO) {
         val chunk = chunkBox.get(chunkId) ?: return@withContext
-        val memory = chunk.memory.target ?: return@withContext
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
 
         chunk.content = newContent
-        val newEmbeddingVector = OnnxEmbeddingService.generateEmbedding(newContent)?.vector ?: return@withContext // 重新生成向量并获取vector
-        chunk.embedding = Embedding(newEmbeddingVector)
+        chunk.embedding = generateEmbedding(newContent, cloudConfig)
         chunkBox.put(chunk)
-
-        // 同时更新专用索引文件中的向量
-        val parentMemory = memory
-        if (parentMemory?.chunkIndexFilePath != null) {
-            val indexFile = File(parentMemory.chunkIndexFilePath!!)
-            if (indexFile.exists()) {
-                val chunkIndexManager = VectorIndexManager<IndexItem<ChunkReference>, String>(384, 20_000, indexFile)
-                chunkIndexManager.initIndex() // 加载
-                chunkIndexManager.addItem(IndexItem(chunk.id.toString(), newEmbeddingVector, ChunkReference(chunk.id)))
-                chunkIndexManager.save() // 保存更改
-                com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Updated chunk ${chunk.id} in index file: ${indexFile.path}")
-            }
-        }
     }
 
     suspend fun addMemoryToIndex(memory: Memory) = withContext(Dispatchers.IO) {
-        if (memory.embedding != null) {
-            // 只添加384维的向量到索引
-            if (memory.embedding!!.vector.size == 384) {
-                vectorIndexManager.addItem(IndexItem(memory.uuid, memory.embedding!!.vector, memory))
-            } else {
-                com.ai.assistance.operit.util.AppLogger.w("MemoryRepo", "Skipping adding memory '${memory.title}' to index: wrong dimension ${memory.embedding!!.vector.size}")
-            }
-        }
-    }
-    suspend fun removeMemoryFromIndex(memory: Memory) = withContext(Dispatchers.IO) {
-        // hnswlib支持removeEnabled时可用，若不支持可忽略
-        // vectorIndexManager.removeItem(memory.uuid)
+        // No-op: HNSW is intentionally not used in the current memory retrieval path.
+        memory.id
     }
 
-    /** 使用HNSW索引的高效语义检索。 */
+    suspend fun removeMemoryFromIndex(memory: Memory) = withContext(Dispatchers.IO) {
+        // No-op: HNSW is intentionally not used in the current memory retrieval path.
+        memory.id
+    }
+
+    /** 基于数据库向量的精确语义检索。 */
     suspend fun searchMemoriesPrecise(query: String, similarityThreshold: Float = 0.95f): List<Memory> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
-        val queryEmbedding = OnnxEmbeddingService.generateEmbedding(query) ?: return@withContext emptyList()
-        // 取前100个最相近的记忆，再按阈值过滤
-        val candidates = vectorIndexManager.findNearest(queryEmbedding.vector, 100)
-        candidates.mapNotNull {
-            val memory = it.value
-            if (memory.embedding != null && OnnxEmbeddingService.cosineSimilarity(queryEmbedding, memory.embedding!!) >= similarityThreshold) {
-                memory
-            } else {
-                null
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
+        if (!cloudConfig.isReady()) return@withContext emptyList()
+
+        val queryEmbedding = generateEmbedding(query, cloudConfig) ?: return@withContext emptyList()
+        memoryBox.all
+            .mapNotNull { memory ->
+                val memoryEmbedding = memory.embedding ?: return@mapNotNull null
+                if (memoryEmbedding.vector.size != queryEmbedding.vector.size) return@mapNotNull null
+                val similarity = cosineSimilarity(queryEmbedding, memoryEmbedding)
+                if (similarity >= similarityThreshold) {
+                    Pair(memory, similarity)
+                } else {
+                    null
+                }
             }
+            .sortedByDescending { it.second }
+            .map { it.first }
+    }
+
+    fun loadCloudEmbeddingConfig(): CloudEmbeddingConfig {
+        return searchSettingsPreferences.loadCloudEmbedding()
+    }
+
+    fun saveCloudEmbeddingConfig(config: CloudEmbeddingConfig) {
+        searchSettingsPreferences.saveCloudEmbedding(config.normalized())
+    }
+
+    suspend fun getEmbeddingDimensionUsage(): EmbeddingDimensionUsage = withContext(Dispatchers.IO) {
+        val memories = memoryBox.all
+        val chunks = chunkBox.all
+
+        val memoryDimensions = memories
+            .mapNotNull { it.embedding?.vector?.size?.takeIf { dimension -> dimension > 0 } }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .map { DimensionCount(dimension = it.key, count = it.value) }
+
+        val chunkDimensions = chunks
+            .mapNotNull { it.embedding?.vector?.size?.takeIf { dimension -> dimension > 0 } }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .map { DimensionCount(dimension = it.key, count = it.value) }
+
+        EmbeddingDimensionUsage(
+            memoryTotal = memories.size,
+            memoryMissing = memories.count { it.embedding == null || it.embedding!!.vector.isEmpty() },
+            memoryDimensions = memoryDimensions,
+            chunkTotal = chunks.size,
+            chunkMissing = chunks.count { it.embedding == null || it.embedding!!.vector.isEmpty() },
+            chunkDimensions = chunkDimensions
+        )
+    }
+
+    suspend fun rebuildEmbeddings(onProgress: (EmbeddingRebuildProgress) -> Unit) = withContext(Dispatchers.IO) {
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
+        if (!cloudConfig.isReady()) {
+            throw IOException("Cloud embedding configuration is incomplete.")
+        }
+
+        val memories = memoryBox.all
+        val chunks = chunkBox.all
+        val total = memories.size + chunks.size
+        var processed = 0
+        var failed = 0
+
+        onProgress(
+            EmbeddingRebuildProgress(
+                total = total,
+                processed = processed,
+                failed = failed,
+                currentStage = "preparing"
+            )
+        )
+
+        memories.forEach { memory ->
+            val textForEmbedding = if (memory.isDocumentNode) memory.title else generateTextForEmbedding(memory)
+            val embedding = generateEmbedding(textForEmbedding, cloudConfig)
+            if (embedding == null) {
+                failed += 1
+            }
+            memory.embedding = embedding
+            memoryBox.put(memory)
+            processed += 1
+            onProgress(
+                EmbeddingRebuildProgress(
+                    total = total,
+                    processed = processed,
+                    failed = failed,
+                    currentStage = "memory"
+                )
+            )
+        }
+
+        chunks.forEach { chunk ->
+            val embedding = generateEmbedding(chunk.content, cloudConfig)
+            if (embedding == null) {
+                failed += 1
+            }
+            chunk.embedding = embedding
+            chunkBox.put(chunk)
+            processed += 1
+            onProgress(
+                EmbeddingRebuildProgress(
+                    total = total,
+                    processed = processed,
+                    failed = failed,
+                    currentStage = "chunk"
+                )
+            )
+        }
+
+        cleanupLegacyVectorIndexFiles()
+        onProgress(
+            EmbeddingRebuildProgress(
+                total = total,
+                processed = processed,
+                failed = failed,
+                currentStage = "done"
+            )
+        )
+    }
+
+    private fun cleanupLegacyVectorIndexFiles() {
+        val vectorDir = OperitPaths.vectorIndexDir(context)
+        if (vectorDir.exists()) {
+            vectorDir.listFiles()?.forEach { file ->
+                val shouldDelete =
+                    (file.name.startsWith("memory_hnsw_") && file.name.endsWith(".idx")) ||
+                        (file.name.startsWith("doc_index_") && file.name.endsWith(".hnsw"))
+                if (shouldDelete) {
+                    file.delete()
+                }
+            }
+        }
+
+        val documentMemories = memoryBox.all.filter { it.chunkIndexFilePath != null }
+        if (documentMemories.isNotEmpty()) {
+            documentMemories.forEach { it.chunkIndexFilePath = null }
+            memoryBox.put(documentMemories)
         }
     }
 
@@ -986,11 +1072,8 @@ class MemoryRepository(private val context: Context, profileId: String) {
                 uuid = UUID.randomUUID().toString(),
                 folderPath = normalizedFolderPath
             )
-            val embedding = try {
-                OnnxEmbeddingService.generateEmbedding(placeholder.content)
-            } catch (_: Exception) {
-                null
-            }
+            val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
+            val embedding = generateEmbedding(placeholder.content, cloudConfig)
             if (embedding != null) placeholder.embedding = embedding
             memoryBox.put(placeholder)
             true
@@ -1011,8 +1094,6 @@ class MemoryRepository(private val context: Context, profileId: String) {
             source = source,
             folderPath = normalizeFolderPath(folderPath)
         )
-        val textForEmbedding = generateTextForEmbedding(memory)
-        memory.embedding = OnnxEmbeddingService.generateEmbedding(textForEmbedding) ?: return@withContext null
         saveMemory(memory)
         addMemoryToIndex(memory)
         memory
@@ -1032,15 +1113,12 @@ class MemoryRepository(private val context: Context, profileId: String) {
         newFolderPath: String? = memory.folderPath,
         newTags: List<String>? = null // 可选的要更新的标签列表
     ): Memory? = withContext(Dispatchers.IO) {
-        // 检查是否有旧的100维向量需要升级
-        val hasOldEmbedding = memory.embedding != null && memory.embedding!!.vector.size == 100
-        
+        val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
         val contentChanged = memory.content != newContent
         val credibilityChanged = memory.credibility != newCredibility
         val importanceChanged = memory.importance != newImportance
 
-        // 只有在影响embedding的因素变化时才重新生成，或者发现旧向量时强制升级
-        val needsReEmbedding = contentChanged || credibilityChanged || importanceChanged || hasOldEmbedding
+        val needsReEmbedding = contentChanged || credibilityChanged || importanceChanged
 
         // 更新记忆属性
         memory.apply {
@@ -1055,7 +1133,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
         val newEmbedding = if (needsReEmbedding) {
             val textForEmbedding = generateTextForEmbedding(memory)
-            OnnxEmbeddingService.generateEmbedding(textForEmbedding) ?: memory.embedding
+            generateEmbedding(textForEmbedding, cloudConfig)
         } else {
             memory.embedding
         }
@@ -1159,9 +1237,10 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
             // After the transaction, handle non-transactional parts
             newMemory?.let { memory ->
+                val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
                 // Generate and save embedding for the new memory
                 val textForEmbedding = generateTextForEmbedding(memory)
-                memory.embedding = OnnxEmbeddingService.generateEmbedding(textForEmbedding)
+                memory.embedding = generateEmbedding(textForEmbedding, cloudConfig)
                 memoryBox.put(memory)
 
                 // Update vector index

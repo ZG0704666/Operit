@@ -4871,6 +4871,7 @@
     <string name="toolreg_create_terminal_session_desc">Create or get terminal session: %1$s</string>
     <string name="toolreg_execute_in_terminal_session_desc">Execute in terminal session [%1$s]: %2$s</string>
     <string name="toolreg_close_terminal_session_desc">Close terminal session: %1$s</string>
+    <string name="toolreg_input_in_terminal_session_desc">Write input to terminal session [%1$s] (control=%2$s)</string>
     <string name="toolreg_query_memory_desc">Query memory library: %1$s</string>
     <string name="toolreg_get_memory_by_title_desc">Get memory by title: %1$s</string>
 
@@ -5132,6 +5133,34 @@
     <string name="memory_test_ai_tool">Test AI Memory Tool</string>
     <string name="memory_test_tool_hint">Enter a query to simulate AI retrieving relevant memories from the knowledge base:</string>
     <string name="memory_test_results">Results</string>
+    <string name="memory_search_settings_title">Memory Search Settings</string>
+    <string name="memory_search_threshold">Semantic Threshold</string>
+    <string name="memory_search_calc_mode">Scoring Mode</string>
+    <string name="memory_search_weight_section">Threshold &amp; Weights</string>
+    <string name="memory_search_mode_balanced">Balanced</string>
+    <string name="memory_search_mode_keyword_first">Keyword First</string>
+    <string name="memory_search_mode_semantic_first">Semantic First</string>
+    <string name="memory_search_keyword_weight">Keyword Weight</string>
+    <string name="memory_search_vector_weight">Vector Weight</string>
+    <string name="memory_search_edge_weight">Edge Propagation Weight</string>
+    <string name="memory_search_reset_default">Reset Default</string>
+    <string name="memory_embedding_cloud_title">Cloud Embedding Model</string>
+    <string name="memory_embedding_cloud_enable">Enable cloud embedding model</string>
+    <string name="memory_embedding_cloud_endpoint">Embedding API endpoint</string>
+    <string name="memory_embedding_cloud_api_key">Embedding API key</string>
+    <string name="memory_embedding_cloud_model">Embedding model name</string>
+    <string name="memory_embedding_dimension_usage">Current embedding dimension usage</string>
+    <string name="memory_embedding_dimension_memory_summary">Memory vectors: total %1$d, missing %2$d</string>
+    <string name="memory_embedding_dimension_chunk_summary">Document chunk vectors: total %1$d, missing %2$d</string>
+    <string name="memory_embedding_dimension_none">No vectors</string>
+    <string name="memory_embedding_dimension_item">%1$d-dim: %2$d items</string>
+    <string name="memory_embedding_rebuild_action">Rebuild Vector Index</string>
+    <string name="memory_embedding_rebuild_progress">Progress %1$d/%2$d, failed %3$d, stage: %4$s</string>
+    <string name="memory_embedding_stage_preparing">Preparing</string>
+    <string name="memory_embedding_stage_memory">Rebuilding memory vectors</string>
+    <string name="memory_embedding_stage_chunk">Rebuilding chunk vectors</string>
+    <string name="memory_embedding_stage_done">Done</string>
+    <string name="memory_embedding_rebuild_failed">Failed to rebuild vector index: %1$s</string>
     <string name="memory_document_title">Document Title</string>
     <string name="memory_search_in_document">Search in document...</string>
     <string name="memory_save_all">Save All</string>
@@ -6258,6 +6287,14 @@
     <string name="terminal_error_execute_command">Error executing terminal command: %1$s</string>
     <string name="terminal_session_closed">Terminal session \'%1$s\' closed successfully.</string>
     <string name="terminal_error_close_session">Error closing terminal session \'%1$s\': %2$s</string>
+    <string name="terminal_error_missing_input_or_control">Missing parameter: input or control (at least one is required)</string>
+    <string name="terminal_error_control_requires_input">Parameter %1$s requires input</string>
+    <string name="terminal_error_ctrl_input_single_char">When control=ctrl, input must be a single character</string>
+    <string name="terminal_error_ctrl_input_unsupported">Unsupported input for control=ctrl: %1$s</string>
+    <string name="terminal_error_unsupported_control">Unsupported control: %1$s</string>
+    <string name="terminal_error_input">Error writing input to terminal session</string>
+    <string name="terminal_error_input_with_reason">Error writing input to terminal session: %1$s</string>
+    <string name="terminal_input_sent">Input sent to terminal session \'%1$s\' (acceptedChars=%2$d)</string>
 
     <!-- OpenAISttProvider -->
     <string name="openai_stt_error_url_not_set">OpenAI STT URL not set, please enter the complete interface address (e.g., https://api.openai.com/v1/audio/transcriptions).</string>

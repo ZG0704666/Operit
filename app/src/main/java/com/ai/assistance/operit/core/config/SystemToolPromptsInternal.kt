@@ -65,6 +65,31 @@ object SystemToolPromptsInternal {
                                 )
                         ),
                         ToolPrompt(
+                            name = "input_in_terminal_session",
+                            description = "Write input to a terminal session. At least one of input or control is required. Typical usage is sending input first, then control=enter to submit.",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "session_id",
+                                        type = "string",
+                                        description = "terminal session id",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "input",
+                                        type = "string",
+                                        description = "text to write to the terminal (can include newlines)",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "control",
+                                        type = "string",
+                                        description = "control key or modifier (e.g. enter/tab/esc/up/down/left/right/home/end/pageup/pagedown, or ctrl with input=c for Ctrl+C)",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
                             name = "close_terminal_session",
                             description = "Close a terminal session.",
                             parametersStructured =
@@ -246,6 +271,25 @@ object SystemToolPromptsInternal {
                                         type = "string",
                                         description = "value to set",
                                         required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "web_file_upload",
+                            description = "Upload one or multiple files to an active file chooser in a web session. `paths` is optional; omit it to cancel the file chooser.",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "session_id",
+                                        type = "string",
+                                        description = "optional, web session id",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "paths",
+                                        type = "string",
+                                        description = "optional JSON array of absolute file paths, e.g. [\"/sdcard/Download/a.txt\"]",
+                                        required = false
                                     )
                                 )
                         ),
@@ -1716,6 +1760,31 @@ object SystemToolPromptsInternal {
                                 )
                         ),
                         ToolPrompt(
+                            name = "input_in_terminal_session",
+                            description = "向终端会话写入输入。input 与 control 至少传一个。通常先发送 input，再发送 control=enter 提交内容。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "session_id",
+                                        type = "string",
+                                        description = "终端会话 ID",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "input",
+                                        type = "string",
+                                        description = "要写入终端的文本（可包含换行）",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "control",
+                                        type = "string",
+                                        description = "控制键或修饰键（如 enter/tab/esc/up/down/left/right/home/end/pageup/pagedown，或 control=ctrl 且 input=c 表示 Ctrl+C）",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
                             name = "close_terminal_session",
                             description = "关闭终端会话。",
                             parametersStructured =
@@ -1917,6 +1986,25 @@ object SystemToolPromptsInternal {
                                         type = "string",
                                         description = "要写入的值",
                                         required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "web_file_upload",
+                            description = "向网页会话中的文件选择器上传一个或多个文件。`paths` 为可选，不传时会取消 file chooser。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "session_id",
+                                        type = "string",
+                                        description = "可选，网页会话 ID",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "paths",
+                                        type = "string",
+                                        description = "可选，绝对路径数组的 JSON 字符串，例如 [\"/sdcard/Download/a.txt\"]",
+                                        required = false
                                     )
                                 )
                         ),

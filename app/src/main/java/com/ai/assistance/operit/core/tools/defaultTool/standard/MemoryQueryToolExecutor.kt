@@ -10,6 +10,7 @@ import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.Memory
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
+import com.ai.assistance.operit.data.preferences.MemorySearchSettingsPreferences
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -28,9 +29,16 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
         private const val TAG = "MemoryQueryToolExecutor"
     }
 
+    private val activeProfileId by lazy {
+        runBlocking { preferencesManager.activeProfileIdFlow.first() }
+    }
+
     private val memoryRepository by lazy {
-        val profileId = runBlocking { preferencesManager.activeProfileIdFlow.first() }
-        MemoryRepository(context, profileId)
+        MemoryRepository(context, activeProfileId)
+    }
+
+    private val memorySearchSettingsPreferences by lazy {
+        MemorySearchSettingsPreferences(context, activeProfileId)
     }
 
     override fun invoke(tool: AITool): ToolResult = runBlocking {
@@ -54,7 +62,8 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
     private suspend fun executeQueryMemory(tool: AITool): ToolResult {
         val query = tool.parameters.find { it.name == "query" }?.value ?: ""
         val folderPath = tool.parameters.find { it.name == "folder_path" }?.value
-        val threshold = tool.parameters.find { it.name == "threshold" }?.value?.toFloatOrNull() ?: 0.25f
+        val settings = memorySearchSettingsPreferences.load()
+        val threshold = tool.parameters.find { it.name == "threshold" }?.value?.toFloatOrNull() ?: settings.semanticThreshold
         val limitParam = tool.parameters.find { it.name == "limit" }?.value
         val limit = limitParam?.toIntOrNull()
         val startTimeParam = tool.parameters.find { it.name == "start_time" }?.value
@@ -109,7 +118,7 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
 
         AppLogger.d(
             TAG,
-            "Executing memory query: '$query' in folder: '${folderPath ?: "All"}', start_time: ${startTimeMs ?: "null"}, end_time: ${endTimeMs ?: "null"}, threshold: $validThreshold, limit: $validLimit"
+            "Executing memory query: '$query' in folder: '${folderPath ?: "All"}', start_time: ${startTimeMs ?: "null"}, end_time: ${endTimeMs ?: "null"}, threshold: $validThreshold, limit: $validLimit, mode=${settings.scoreMode}, keywordWeight=${settings.keywordWeight}, vectorWeight=${settings.vectorWeight}, edgeWeight=${settings.edgeWeight}"
         )
 
         return try {
@@ -117,6 +126,10 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
                 query = query,
                 folderPath = folderPath,
                 semanticThreshold = validThreshold,
+                scoreMode = settings.scoreMode,
+                keywordWeight = settings.keywordWeight,
+                semanticWeight = settings.vectorWeight,
+                edgeWeight = settings.edgeWeight,
                 createdAtStartMs = startTimeMs,
                 createdAtEndMs = endTimeMs
             )

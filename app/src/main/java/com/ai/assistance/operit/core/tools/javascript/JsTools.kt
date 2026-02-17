@@ -279,6 +279,19 @@ fun getJsToolsDefinition(): String {
                     }
                     return toolCall("web_snapshot", params);
                 },
+                webFileUpload: (sessionId, paths) => {
+                    const params = {};
+                    if (sessionId !== undefined && sessionId !== null && String(sessionId).trim() !== "") {
+                        params.session_id = String(sessionId);
+                    }
+                    if (paths !== undefined) {
+                        if (!Array.isArray(paths)) {
+                            throw new Error("paths must be an array");
+                        }
+                        params.paths = JSON.stringify(paths.map((p) => String(p)));
+                    }
+                    return toolCall("web_file_upload", params);
+                },
                 // 新增增强版HTTP请求
                 http: (options) => {
                     const params = { ...options };
@@ -350,7 +363,19 @@ fun getJsToolsDefinition(): String {
                         const params = { session_id: sessionId, command };
                         return toolCall("execute_in_terminal_session", params);
                     },
-                    close: (sessionId) => toolCall("close_terminal_session", { session_id: sessionId })
+                    close: (sessionId) => toolCall("close_terminal_session", { session_id: sessionId }),
+                    input: (sessionId, options = {}) => {
+                        const params = { session_id: sessionId };
+                        if (options && typeof options === "object") {
+                            if (options.input !== undefined && options.input !== null) {
+                                params.input = String(options.input);
+                            }
+                            if (options.control !== undefined && options.control !== null) {
+                                params.control = String(options.control);
+                            }
+                        }
+                        return toolCall("input_in_terminal_session", params);
+                    }
                 },
                 // 执行Intent
                 intent: (options = {}) => {

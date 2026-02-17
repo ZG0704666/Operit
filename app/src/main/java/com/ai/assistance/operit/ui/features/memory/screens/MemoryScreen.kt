@@ -62,7 +62,6 @@ import com.ai.assistance.operit.ui.features.memory.screens.dialogs.LinkMemoryDia
 import com.ai.assistance.operit.ui.features.memory.screens.dialogs.MemoryInfoDialog
 import com.ai.assistance.operit.ui.features.memory.screens.dialogs.EdgeInfoDialog
 import com.ai.assistance.operit.ui.features.memory.screens.dialogs.EditEdgeDialog
-import com.ai.assistance.operit.ui.features.memory.screens.dialogs.ToolTestDialog
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryViewModel
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryViewModelFactory
 import kotlinx.coroutines.Dispatchers
@@ -79,18 +78,19 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.ui.features.memory.screens.dialogs.MemorySearchSettingsDialog
 
 @Composable
 fun MemorySearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
-    onTestToolClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onMenuClick: () -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -120,10 +120,10 @@ fun MemorySearchBar(
                 onSearch()
             })
         )
-        IconButton(onClick = onTestToolClick) {
+        IconButton(onClick = onSettingsClick) {
             Icon(
-                Icons.Default.Psychology, 
-                contentDescription = "Test AI Memory",
+                Icons.Default.Settings,
+                contentDescription = stringResource(R.string.memory_search_settings_title),
                 tint = MaterialTheme.colorScheme.secondary
             )
         }
@@ -326,7 +326,7 @@ fun MemoryScreen() {
                         keyboardController?.hide()
                         viewModel.searchMemories()
                     },
-                    onTestToolClick = { viewModel.showToolTestDialog(true) },
+                    onSettingsClick = { viewModel.showSearchSettingsDialog(true) },
                     onMenuClick = { showFolderNavigator = !showFolderNavigator }
                 )
 
@@ -382,12 +382,19 @@ fun MemoryScreen() {
             }
 
             // 对话框层
-            if (uiState.isToolTestDialogVisible) {
-                ToolTestDialog(
-                    onDismiss = { viewModel.showToolTestDialog(false) },
-                    onExecute = { query -> viewModel.testQueryTool(query) },
-                    result = uiState.toolTestResult,
-                    isLoading = uiState.isToolTestLoading
+            if (uiState.isSearchSettingsDialogVisible) {
+                MemorySearchSettingsDialog(
+                    currentConfig = uiState.searchConfig,
+                    cloudConfig = uiState.cloudEmbeddingConfig,
+                    dimensionUsage = uiState.embeddingDimensionUsage,
+                    rebuildProgress = uiState.embeddingRebuildProgress,
+                    isRebuilding = uiState.isEmbeddingRebuildRunning,
+                    onDismiss = { viewModel.showSearchSettingsDialog(false) },
+                    onSave = { config, cloudConfig ->
+                        viewModel.saveSearchSettings(config, cloudConfig)
+                        viewModel.searchMemories()
+                    },
+                    onRebuild = { viewModel.rebuildVectorIndex() }
                 )
             }
 

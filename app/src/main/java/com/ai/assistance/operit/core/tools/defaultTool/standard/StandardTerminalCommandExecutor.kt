@@ -173,6 +173,85 @@ class StandardTerminalCommandExecutor(private val context: Context) {
         }
     }
 
+    /** 向指定的终端会话写入输入 */
+    fun inputInSession(tool: AITool): ToolResult {
+        return runBlocking {
+            val sessionId = tool.parameters.find { it.name == "session_id" }?.value
+            try {
+                if (sessionId.isNullOrBlank()) {
+                    return@runBlocking ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = context.getString(R.string.terminal_error_missing_session_id)
+                    )
+                }
+
+                val inputParam = tool.parameters.find { it.name == "input" }
+                val hasInput = inputParam != null
+                val input = inputParam?.value ?: ""
+                val control = normalizeControl(tool.parameters.find { it.name == "control" }?.value)
+
+                if (!hasInput && control == null) {
+                    return@runBlocking ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = context.getString(R.string.terminal_error_missing_input_or_control)
+                    )
+                }
+
+                val terminal = Terminal.getInstance(context)
+
+                // 检查会话是否存在
+                if (terminal.terminalState.value.sessions.none { it.id == sessionId }) {
+                    sessionNameToIdMap.entries.removeIf { it.value == sessionId }
+                    return@runBlocking ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = context.getString(R.string.terminal_error_session_not_exist, sessionId)
+                    )
+                }
+
+                val acceptedChars = applyTerminalInput(
+                    terminal = terminal,
+                    sessionId = sessionId,
+                    hasInput = hasInput,
+                    input = input,
+                    control = control
+                )
+
+                ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = StringResultData(
+                        context.getString(
+                            R.string.terminal_input_sent,
+                            sessionId,
+                            acceptedChars
+                        )
+                    )
+                )
+            } catch (e: IllegalArgumentException) {
+                ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = e.message ?: context.getString(R.string.terminal_error_input)
+                )
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "向终端会话写入输入时出错", e)
+                ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = context.getString(R.string.terminal_error_input_with_reason, e.message ?: "")
+                )
+            }
+        }
+    }
+
     /** 关闭一个终端会话 */
     fun closeSession(tool: AITool): ToolResult {
         return runBlocking {
@@ -211,6 +290,135 @@ class StandardTerminalCommandExecutor(private val context: Context) {
                     error = context.getString(R.string.terminal_error_close_session, sessionId, e.message ?: "")
                 )
             }
+        }
+    }
+
+    private fun normalizeControl(rawControl: String?): String? {
+        val value = rawControl?.trim()?.lowercase()
+        if (value.isNullOrEmpty()) return null
+        return when (value) {
+            "return" -> "enter"
+            "escape" -> "esc"
+            "arrowup" -> "up"
+            "arrowdown" -> "down"
+            "arrowleft" -> "left"
+            "arrowright" -> "right"
+            "pgup", "page_up" -> "pageup"
+            "pgdn", "page_down" -> "pagedown"
+            "del" -> "delete"
+            else -> value
+        }
+    }
+
+    private fun applyTerminalInput(
+        terminal: Terminal,
+        sessionId: String,
+        hasInput: Boolean,
+        input: String,
+        control: String?
+    ): Int {
+        if (control == null) {
+            if (hasInput && input.isNotEmpty()) {
+                terminal.sendInput(sessionId, input)
+            }
+            return if (hasInput) input.length else 0
+        }
+
+        if (isModifierControl(control)) {
+            return applyModifierControl(terminal, sessionId, control, hasInput, input)
+        }
+
+        val controlSequence = controlToSequence(control)
+            ?: throw IllegalArgumentException(context.getString(R.string.terminal_error_unsupported_control, control))
+
+        if (hasInput && input.isNotEmpty()) {
+            terminal.sendInput(sessionId, input)
+        }
+        terminal.sendInput(sessionId, controlSequence)
+        return (if (hasInput) input.length else 0) + controlSequence.length
+    }
+
+    private fun isModifierControl(control: String): Boolean {
+        return control == "ctrl" || control == "control" || control == "alt" || control == "shift" || control == "meta" || control == "cmd"
+    }
+
+    private fun applyModifierControl(
+        terminal: Terminal,
+        sessionId: String,
+        control: String,
+        hasInput: Boolean,
+        input: String
+    ): Int {
+        if (!hasInput) {
+            throw IllegalArgumentException(context.getString(R.string.terminal_error_control_requires_input, control))
+        }
+
+        return when (control) {
+            "ctrl", "control" -> applyCtrlCombination(terminal, sessionId, input)
+            "alt", "meta", "cmd" -> {
+                val payload = "\u001b$input"
+                terminal.sendInput(sessionId, payload)
+                payload.length
+            }
+            "shift" -> {
+                val payload = input.uppercase()
+                terminal.sendInput(sessionId, payload)
+                payload.length
+            }
+            else -> throw IllegalArgumentException(context.getString(R.string.terminal_error_unsupported_control, control))
+        }
+    }
+
+    private fun applyCtrlCombination(terminal: Terminal, sessionId: String, input: String): Int {
+        if (input.length != 1) {
+            throw IllegalArgumentException(context.getString(R.string.terminal_error_ctrl_input_single_char))
+        }
+
+        val value = input[0]
+        if (value.equals('c', ignoreCase = true)) {
+            terminal.sendInterruptSignal(sessionId)
+            return 1
+        }
+
+        val code =
+            when (val upper = value.uppercaseChar()) {
+                in 'A'..'Z' -> upper.code - 'A'.code + 1
+                '@' -> 0
+                '[' -> 27
+                '\\' -> 28
+                ']' -> 29
+                '^' -> 30
+                '_' -> 31
+                '?' -> 127
+                else ->
+                    throw IllegalArgumentException(
+                        context.getString(
+                            R.string.terminal_error_ctrl_input_unsupported,
+                            input
+                        )
+                    )
+            }
+
+        terminal.sendInput(sessionId, code.toChar().toString())
+        return 1
+    }
+
+    private fun controlToSequence(control: String): String? {
+        return when (control) {
+            "enter" -> "\n"
+            "tab" -> "\t"
+            "esc" -> "\u001b"
+            "up" -> "\u001b[A"
+            "down" -> "\u001b[B"
+            "left" -> "\u001b[D"
+            "right" -> "\u001b[C"
+            "home" -> "\u001b[H"
+            "end" -> "\u001b[F"
+            "pageup" -> "\u001b[5~"
+            "pagedown" -> "\u001b[6~"
+            "backspace" -> "\u007f"
+            "delete" -> "\u001b[3~"
+            else -> null
         }
     }
 }

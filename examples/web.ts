@@ -98,6 +98,14 @@
             ]
         },
         {
+            "name": "upload",
+            "description": { "zh": "向网页文件选择器上传文件。paths 不传时取消当前 file chooser。", "en": "Upload files to an active web file chooser. If paths is omitted, cancels the current file chooser." },
+            "parameters": [
+                { "name": "session_id", "description": { "zh": "可选，不传则使用 Kotlin 侧当前活动会话", "en": "Optional. Uses active Kotlin-side session when omitted." }, "type": "string", "required": false },
+                { "name": "paths", "description": { "zh": "可选，绝对路径数组。示例：['/sdcard/Download/a.txt']", "en": "Optional absolute file path array. Example: ['/sdcard/Download/a.txt']" }, "type": "array", "required": false }
+            ]
+        },
+        {
             "name": "close",
             "description": { "zh": "关闭网页会话。", "en": "Close web session." },
             "parameters": [
@@ -424,6 +432,30 @@ const Web = (function () {
         };
     }
 
+    async function upload(params: AnyObject = {}): Promise<AnyObject> {
+        const sessionId = optionalSessionId(params.session_id);
+
+        let paths: string[] | undefined = undefined;
+        if (params.paths !== undefined) {
+            let parsed: any = params.paths;
+            if (typeof parsed === "string") {
+                try {
+                    parsed = JSON.parse(parsed);
+                } catch {
+                    throw new Error("paths 必须是合法 JSON 数组字符串");
+                }
+            }
+            if (!Array.isArray(parsed)) {
+                throw new Error("paths 参数必须是数组");
+            }
+            paths = parsed.map((p: any) => String(p));
+        }
+
+        return toPayload(
+            await Tools.Net.webFileUpload(sessionId, paths)
+        );
+    }
+
     async function close(params: AnyObject = {}): Promise<AnyObject> {
         const closeAll = Boolean(params.close_all);
         if (closeAll) {
@@ -464,7 +496,7 @@ const Web = (function () {
     async function main() {
         complete({
             success: true,
-            message: 'Web 已就绪，可调用 start/goto/click/fill/evaluate/wait_for/snapshot/content/open_in_system_browser/close',
+            message: 'Web 已就绪，可调用 start/goto/click/fill/evaluate/wait_for/snapshot/content/open_in_system_browser/upload/close',
         });
     }
 
@@ -478,6 +510,7 @@ const Web = (function () {
         snapshot: (params: AnyObject) => wrap('snapshot', snapshot, params),
         content: (params: AnyObject) => wrap('content', content, params),
         open_in_system_browser: (params: AnyObject) => wrap('open_in_system_browser', open_in_system_browser, params),
+        upload: (params: AnyObject) => wrap('upload', upload, params),
         close: (params: AnyObject) => wrap('close', close, params),
         main,
     };
@@ -492,5 +525,6 @@ exports.wait_for = Web.wait_for;
 exports.snapshot = Web.snapshot;
 exports.content = Web.content;
 exports.open_in_system_browser = Web.open_in_system_browser;
+exports.upload = Web.upload;
 exports.close = Web.close;
 exports.main = Web.main;

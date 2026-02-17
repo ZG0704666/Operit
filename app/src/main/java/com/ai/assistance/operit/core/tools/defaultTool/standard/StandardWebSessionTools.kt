@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -12,6 +13,8 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -72,6 +75,7 @@ import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.util.AppLogger
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -198,6 +202,8 @@ private class WebSessionOverlayLifecycleOwner :
         @Volatile var currentUrl: String = "about:blank"
         @Volatile var pageTitle: String = ""
         @Volatile var pageLoaded: Boolean = false
+        @Volatile var pendingFileChooserCallback: ValueCallback<Array<Uri>>? = null
+        @Volatile var lastFileChooserRequestAt: Long = 0L
     }
 
     private data class OverlayController(
@@ -228,6 +234,7 @@ private class WebSessionOverlayLifecycleOwner :
                 "web_eval" -> webEval(tool)
                 "web_click" -> webClick(tool)
                 "web_fill" -> webFill(tool)
+                "web_file_upload" -> webFileUpload(tool)
                 "web_wait_for" -> webWaitFor(tool)
                 "web_snapshot" -> webSnapshot(tool)
                 else -> error(tool.name, "Unsupported web session tool: ${tool.name}")
@@ -786,6 +793,80 @@ private class WebSessionOverlayLifecycleOwner :
         return ok(tool.name, payload)
     }
 
+    private fun webFileUpload(tool: AITool): ToolResult {
+        val session = getSession(param(tool, "session_id"))
+            ?: return error(tool.name, "Session not found")
+
+        val rawPaths = param(tool, "paths")?.trim().orEmpty()
+        val shouldCancel = rawPaths.isBlank()
+
+        val files: List<File> =
+            if (shouldCancel) {
+                emptyList()
+            } else {
+                val pathList = parseStringArrayParam(rawPaths)
+                    ?: return error(tool.name, "paths must be a JSON array")
+
+                val resolved = mutableListOf<File>()
+                for (rawPath in pathList) {
+                    val path = rawPath.trim()
+                    if (path.isBlank()) {
+                        return error(tool.name, "paths contains an empty item")
+                    }
+                    val file = File(path)
+                    if (!file.isAbsolute) {
+                        return error(tool.name, "path must be absolute: $path")
+                    }
+                    if (!file.exists() || !file.isFile) {
+                        return error(tool.name, "file does not exist: $path")
+                    }
+                    resolved.add(file)
+                }
+                resolved
+            }
+
+        val callbackResult =
+            runOnMainSync {
+                ensureSessionAttachedOnMain(session.id)
+
+                val callback = session.pendingFileChooserCallback
+                    ?: return@runOnMainSync error(tool.name, "No file chooser is active")
+
+                return@runOnMainSync try {
+                    if (shouldCancel) {
+                        callback.onReceiveValue(null)
+                        session.pendingFileChooserCallback = null
+
+                        val payload =
+                            JSONObject()
+                                .put("session_id", session.id)
+                                .put("status", "ok")
+                                .put("cancelled", true)
+                        ok(tool.name, payload)
+                    } else {
+                        val uris = files.map { Uri.fromFile(it) }.toTypedArray()
+                        callback.onReceiveValue(uris)
+                        session.pendingFileChooserCallback = null
+
+                        val uploaded = JSONArray()
+                        files.forEach { uploaded.put(it.absolutePath) }
+
+                        val payload =
+                            JSONObject()
+                                .put("session_id", session.id)
+                                .put("status", "ok")
+                                .put("uploaded_count", files.size)
+                                .put("paths", uploaded)
+                        ok(tool.name, payload)
+                    }
+                } catch (e: Exception) {
+                    error(tool.name, "Failed to resolve file chooser: ${e.message}")
+                }
+            }
+
+        return callbackResult
+    }
+
     private fun webWaitFor(tool: AITool): ToolResult {
         val session = getSession(param(tool, "session_id"))
             ?: return error(tool.name, "Session not found")
@@ -1012,6 +1093,30 @@ private class WebSessionOverlayLifecycleOwner :
                 isScreenReaderFocusable = true
             }
         }
+
+        session.webView.webChromeClient =
+            object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallback: ValueCallback<Array<Uri>>?,
+                    fileChooserParams: WebChromeClient.FileChooserParams?
+                ): Boolean {
+                    if (filePathCallback == null) {
+                        return false
+                    }
+
+                    session.pendingFileChooserCallback?.onReceiveValue(null)
+                    session.pendingFileChooserCallback = filePathCallback
+                    session.lastFileChooserRequestAt = System.currentTimeMillis()
+
+                    AppLogger.d(
+                        TAG,
+                        "Captured file chooser request for session=${session.id}, " +
+                            "mode=${fileChooserParams?.mode}, multiple=${fileChooserParams?.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE}"
+                    )
+                    return true
+                }
+            }
 
         session.webView.webViewClient =
             object : WebViewClient() {
@@ -1760,6 +1865,8 @@ private class WebSessionOverlayLifecycleOwner :
             if (parent is ViewGroup) {
                 parent.removeView(session.webView)
             }
+            session.pendingFileChooserCallback?.onReceiveValue(null)
+            session.pendingFileChooserCallback = null
             cleanupWebViewOnMain(session.webView)
 
             val nextSessionId = listSessionIdsInOrder().firstOrNull()
@@ -1914,6 +2021,28 @@ private class WebSessionOverlayLifecycleOwner :
         } catch (e: Exception) {
             AppLogger.w(TAG, "Invalid headers JSON: ${e.message}")
             emptyMap()
+        }
+    }
+
+    private fun parseStringArrayParam(raw: String?): List<String>? {
+        if (raw.isNullOrBlank()) {
+            return emptyList()
+        }
+
+        return try {
+            val array = JSONArray(raw)
+            val out = mutableListOf<String>()
+            for (i in 0 until array.length()) {
+                val value = array.opt(i)
+                if (value == null || value == JSONObject.NULL) {
+                    continue
+                }
+                out.add(value.toString())
+            }
+            out
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Invalid array JSON: ${e.message}")
+            null
         }
     }
 

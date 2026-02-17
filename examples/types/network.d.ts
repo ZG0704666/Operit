@@ -116,6 +116,15 @@ export namespace Net {
     ): Promise<StringResultData>;
 
     /**
+     * Resolve an active file chooser in a web session.
+     * If `paths` is omitted, the file chooser is cancelled.
+     */
+    function webFileUpload(
+        sessionId: string | undefined,
+        paths?: string[]
+    ): Promise<StringResultData>;
+
+    /**
      * Enhanced HTTP request with flexible options
      * @param options - HTTP request options
      */

@@ -36,7 +36,6 @@ import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreference
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.data.repository.CustomEmojiRepository
-import com.ai.assistance.operit.services.OnnxEmbeddingService
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.language.LanguageFactory
 import com.ai.assistance.operit.util.GlobalExceptionHandler
@@ -122,14 +121,6 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
 
         startGlobalAIForegroundService()
         AppLogger.d(TAG, "【启动计时】AIForegroundService 启动完成 - ${System.currentTimeMillis() - startTime}ms")
-
-        // Initialize Embedding Service asynchronously in background
-        // Using ONNX-based multilingual model for better Chinese support
-        applicationScope.launch {
-            val embeddingStartTime = System.currentTimeMillis()
-            OnnxEmbeddingService.initialize(this@OperitApplication)
-            AppLogger.d(TAG, "【启动计时】OnnxEmbeddingService初始化完成（异步） - ${System.currentTimeMillis() - embeddingStartTime}ms")
-        }
 
         // Initialize ANR monitor
         // AnrMonitor.start()

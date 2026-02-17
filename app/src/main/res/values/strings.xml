@@ -4820,6 +4820,7 @@
     <string name="toolreg_create_terminal_session_desc">创建或获取终端会话: %1$s</string>
     <string name="toolreg_execute_in_terminal_session_desc">在终端会话「%1$s」中执行: %2$s</string>
     <string name="toolreg_close_terminal_session_desc">关闭终端会话: %1$s</string>
+    <string name="toolreg_input_in_terminal_session_desc">向终端会话「%1$s」写入输入（control=%2$s）</string>
     <string name="toolreg_query_memory_desc">查询问题库: %1$s</string>
     <string name="toolreg_get_memory_by_title_desc">根据标题获取记忆: %1$s</string>
 
@@ -4980,6 +4981,34 @@
     <string name="memory_test_ai_tool">测试AI记忆工具</string>
     <string name="memory_test_tool_hint">输入查询内容，模拟AI从知识库中检索并附着相关记忆：</string>
     <string name="memory_test_results">结果</string>
+    <string name="memory_search_settings_title">记忆搜索设置</string>
+    <string name="memory_search_threshold">语义阈值</string>
+    <string name="memory_search_calc_mode">计算方式</string>
+    <string name="memory_search_weight_section">阈值与权重</string>
+    <string name="memory_search_mode_balanced">平衡模式</string>
+    <string name="memory_search_mode_keyword_first">关键词优先</string>
+    <string name="memory_search_mode_semantic_first">向量优先</string>
+    <string name="memory_search_keyword_weight">关键词权重</string>
+    <string name="memory_search_vector_weight">向量权重</string>
+    <string name="memory_search_edge_weight">边传播权重</string>
+    <string name="memory_search_reset_default">恢复默认</string>
+    <string name="memory_embedding_cloud_title">云端向量模型</string>
+    <string name="memory_embedding_cloud_enable">启用云端向量模型</string>
+    <string name="memory_embedding_cloud_endpoint">向量API端点</string>
+    <string name="memory_embedding_cloud_api_key">向量API Key</string>
+    <string name="memory_embedding_cloud_model">向量模型名</string>
+    <string name="memory_embedding_dimension_usage">当前向量维度使用情况</string>
+    <string name="memory_embedding_dimension_memory_summary">记忆向量：总数 %1$d，缺失 %2$d</string>
+    <string name="memory_embedding_dimension_chunk_summary">文档块向量：总数 %1$d，缺失 %2$d</string>
+    <string name="memory_embedding_dimension_none">暂无向量</string>
+    <string name="memory_embedding_dimension_item">%1$d 维：%2$d 条</string>
+    <string name="memory_embedding_rebuild_action">重建向量索引</string>
+    <string name="memory_embedding_rebuild_progress">进度 %1$d/%2$d，失败 %3$d，阶段：%4$s</string>
+    <string name="memory_embedding_stage_preparing">准备中</string>
+    <string name="memory_embedding_stage_memory">重建记忆向量</string>
+    <string name="memory_embedding_stage_chunk">重建文档块向量</string>
+    <string name="memory_embedding_stage_done">完成</string>
+    <string name="memory_embedding_rebuild_failed">重建向量索引失败: %1$s</string>
     <string name="memory_document_title">文档标题</string>
     <string name="memory_search_in_document">在文档内搜索...</string>
     <string name="memory_save_all">保存全部</string>
@@ -6246,6 +6275,14 @@
     <string name="terminal_error_execute_command">执行终端命令时出错: %1$s</string>
     <string name="terminal_session_closed">终端会话 \'%1$s\' 已成功关闭。</string>
     <string name="terminal_error_close_session">关闭终端会话 \'%1$s\' 时出错: %2$s</string>
+    <string name="terminal_error_missing_input_or_control">缺少参数: input 或 control（至少需要一个）</string>
+    <string name="terminal_error_control_requires_input">参数 %1$s 需要与 input 一起使用</string>
+    <string name="terminal_error_ctrl_input_single_char">当 control=ctrl 时，input 必须是单个字符</string>
+    <string name="terminal_error_ctrl_input_unsupported">control=ctrl 不支持的 input: %1$s</string>
+    <string name="terminal_error_unsupported_control">不支持的 control: %1$s</string>
+    <string name="terminal_error_input">向终端会话写入输入时出错</string>
+    <string name="terminal_error_input_with_reason">向终端会话写入输入时出错: %1$s</string>
+    <string name="terminal_input_sent">已向终端会话 \'%1$s\' 写入输入（acceptedChars=%2$d）</string>
 
     <!-- OpenAISttProvider -->
     <string name="openai_stt_error_url_not_set">OpenAI STT URL 未设置，请填写完整接口地址（例如 https://api.openai.com/v1/audio/transcriptions）。</string>
