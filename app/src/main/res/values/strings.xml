@@ -114,6 +114,7 @@
     <string name="nav_group_system">系统</string>
     <string name="menu">菜单</string>
     <string name="token_config">获取密钥</string>
+    <string name="package_category_plugin">插件</string>
     <string name="desktop_pet_start">启动桌宠</string>
     
     <!-- 工作流相关 -->
@@ -362,7 +363,7 @@
     <string name="avatar_import_methods_desc">- 直接选文件：.glb / .gltf\n- ZIP 导入：DragonBones、WebP、MMD 或多文件 glTF 包</string>
     <string name="import_structure_guide_tap_to_expand">导入结构指南（点击展开）</string>
     <string name="import_structure_guide_tap_to_collapse">导入结构指南（点击收起）</string>
-    <string name="import_structure_guide_content">这是“导入包”的目录结构（ZIP 或选中文件内部），不是应用内部存储。\n\nDragonBones（.zip）\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  要求：ske/tex json/png 文件名前缀一致。\n\nWebP（.zip）\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  要求：至少包含一个 .webp 文件。\n\nMMD（.zip）\n  my_mmd.zip\n    any_folder_name/\n      character.pmx（或 .pmd）\n      motions/idle.vmd（可选）\n      textures/...\n  要求：保持 PMX/PMD 引用的相对路径不变。\n\nglTF\n  方式 A（直接文件）:\n    avatar.glb\n  方式 B（多文件 glTF 使用 .zip）:\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  要求：保持 .gltf 引用的相对路径不变。\n\nLive2D（.zip）\n  my_live2d.zip\n    any_folder_name/\n      avatar.model3.json\n      avatar.moc3\n      textures/...\n      motions/...\n      expressions/...\n  要求：包含 model3.json 引用到的全部文件。</string>
+    <string name="import_structure_guide_content">这是“导入包”的目录结构（ZIP 或选中文件内部），不是应用内部存储。\n\nDragonBones（.zip）\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  要求：ske/tex json/png 文件名前缀一致。\n\nWebP（.zip）\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  要求：至少包含一个 .webp 文件。\n\nMMD（.zip）\n  my_mmd.zip\n    any_folder_name/\n      character.pmx（或 .pmd）\n      motions/idle.vmd（可选）\n      textures/...\n  要求：保持 PMX/PMD 引用的相对路径不变。\n\nglTF\n  方式 A（直接文件）:\n    avatar.glb\n  方式 B（多文件 glTF 使用 .zip）:\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  要求：保持 .gltf 引用的相对路径不变。</string>
     <string name="enter">进入</string>
     <string name="about_avatar_formats">本应用支持多种虚拟形象格式，包括DragonBones。以下是制作和导入模型的说明。</string>
     <string name="dragon_bones_config">DragonBones配置</string>
@@ -2728,8 +2729,8 @@
     <string name="feature_file_operations">文件操作</string>
     <string name="feature_screen_auto_click">屏幕自动点击</string>
     <string name="feature_system_permission_modification">系统权限修改</string>
-    <string name="feature_termux_support">Termux支持</string>
-    <string name="feature_run_js">运行JS</string>
+    <string name="feature_termux_support">终端支持</string>
+    <string name="feature_run_js">虚拟屏幕</string>
     <string name="feature_plugin_market_mcp">插件市场MCP</string>
     <string name="supported">支持</string>
     <string name="not_supported">不支持</string>

@@ -1655,32 +1655,36 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
      * 自动移除那些已经被删除但仍然在导入列表中的包。
      */
     private fun cleanupNonExistentPackages(currentPackages: List<String>): List<String> {
-        val normalizedPackages = normalizeImportedPackageNames(currentPackages)
-        val cleanedPackages = normalizedPackages.filter { packageName ->
-            availablePackages.containsKey(packageName)
-        }
-
-        if (cleanedPackages.size != currentPackages.size || cleanedPackages != currentPackages) {
-            val removed = currentPackages.filter { !cleanedPackages.contains(it) }
-            AppLogger.d(
-                TAG,
-                "Found ${removed.size} non-existent packages in imported list: $removed"
-            )
-            saveImportedPackages(cleanedPackages)
-            AppLogger.d(TAG, "Cleaned up imported packages list. Removed: $removed")
-        }
-
-        val states = getToolPkgSubpackageStatesInternal()
-        val cleanedStates =
-            states.filterKeys { packageName ->
-                toolPkgSubpackageByPackageName.containsKey(packageName)
+        // Serialize cleanup with package reload to avoid transient map states
+        // (e.g. during forceRefresh) causing accidental removal of valid imports.
+        synchronized(initLock) {
+            val normalizedPackages = normalizeImportedPackageNames(currentPackages)
+            val cleanedPackages = normalizedPackages.filter { packageName ->
+                availablePackages.containsKey(packageName)
             }
 
-        if (cleanedStates.size != states.size) {
-            saveToolPkgSubpackageStates(cleanedStates)
-        }
+            if (cleanedPackages.size != currentPackages.size || cleanedPackages != currentPackages) {
+                val removed = currentPackages.filter { !cleanedPackages.contains(it) }
+                AppLogger.d(
+                    TAG,
+                    "Found ${removed.size} non-existent packages in imported list: $removed"
+                )
+                saveImportedPackages(cleanedPackages)
+                AppLogger.d(TAG, "Cleaned up imported packages list. Removed: $removed")
+            }
 
-        return cleanedPackages
+            val states = getToolPkgSubpackageStatesInternal()
+            val cleanedStates =
+                states.filterKeys { packageName ->
+                    toolPkgSubpackageByPackageName.containsKey(packageName)
+                }
+
+            if (cleanedStates.size != states.size) {
+                saveToolPkgSubpackageStates(cleanedStates)
+            }
+
+            return cleanedPackages
+        }
     }
 
     /**

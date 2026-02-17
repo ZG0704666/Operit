@@ -57,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -331,6 +332,7 @@ fun AttachmentSelectorPanel(
 @Composable
 fun AttachmentSelectorPopupPanel(
         visible: Boolean,
+        containerColor: Color,
         onAttachImage: (String) -> Unit,
         onAttachFile: (String) -> Unit,
         onAttachScreenContent: () -> Unit,
@@ -478,7 +480,7 @@ fun AttachmentSelectorPopupPanel(
         ) {
             Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    color = containerColor,
                     shadowElevation = 4.dp,
                     modifier =
                             Modifier.padding(bottom = 44.dp, end = 12.dp)

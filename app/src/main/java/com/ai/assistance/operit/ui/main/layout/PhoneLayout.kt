@@ -62,6 +62,7 @@ fun PhoneLayout(
         showFpsCounter: Boolean,
         onScreenChange: (Screen) -> Unit,
         onNavItemChange: (NavItem) -> Unit,
+        onDrawerItemSelected: (Screen, NavItem) -> Unit,
         navigateToTokenConfig: () -> Unit,
         canGoBack: Boolean,
         onGoBack: () -> Unit,
@@ -150,10 +151,7 @@ fun PhoneLayout(
                                 networkType = networkType,
                                 scope = scope,
                                 drawerState = drawerState,
-                                onScreenSelected = { screen, item ->
-                                        onScreenChange(screen)
-                                        onNavItemChange(item)
-                                }
+                                onScreenSelected = { screen, item -> onDrawerItemSelected(screen, item) }
                         )
                 }
         }

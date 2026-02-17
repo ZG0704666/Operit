@@ -495,6 +495,9 @@ fun PackageManagerScreen(
 
                                     val groupedPackages =
                                         linkedMapOf<String, Map<String, ToolPackage>>()
+                                    if (toolPkgPackages.isNotEmpty()) {
+                                        groupedPackages["ToolPkg"] = toolPkgPackages
+                                    }
                                     if (automaticPackages.isNotEmpty()) {
                                         groupedPackages["Automatic"] = automaticPackages
                                     }
@@ -504,9 +507,6 @@ fun PackageManagerScreen(
                                     if (drawPackages.isNotEmpty()) {
                                         groupedPackages["Draw"] = drawPackages
                                     }
-                                    if (toolPkgPackages.isNotEmpty()) {
-                                        groupedPackages["ToolPkg"] = toolPkgPackages
-                                    }
                                     if (otherPackages.isNotEmpty()) {
                                         groupedPackages["Other"] = otherPackages
                                     }
@@ -515,7 +515,7 @@ fun PackageManagerScreen(
                                     val automaticColor = MaterialTheme.colorScheme.primary
                                     val experimentalColor = MaterialTheme.colorScheme.tertiary
                                     val drawColor = MaterialTheme.colorScheme.secondary
-                                    val toolPkgColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    val toolPkgColor = MaterialTheme.colorScheme.primary
                                     val otherColor = MaterialTheme.colorScheme.onSurfaceVariant
 
                                     LazyColumn(
@@ -537,6 +537,12 @@ fun PackageManagerScreen(
                                                 key = { it }) { packageName ->
                                                 val isFirstInCategory =
                                                     packageName == packagesInCategory.keys.first()
+                                                val categoryTagText =
+                                                    if (category == "ToolPkg") {
+                                                        context.getString(R.string.package_category_plugin)
+                                                    } else {
+                                                        category
+                                                    }
 
                                                 PackageListItemWithTag(
                                                     packageName = packageName,
@@ -545,9 +551,10 @@ fun PackageManagerScreen(
                                                     isImported = visibleImportedPackages.value.contains(
                                                         packageName
                                                     ),
-                                                    categoryTag = if (isFirstInCategory) category else null,
+                                                    categoryTag = if (isFirstInCategory) categoryTagText else null,
                                                     category = category, // 传递完整的分类信息
                                                     categoryColor = categoryColor,
+                                                    isProminent = category == "ToolPkg",
                                                     onPackageClick = {
                                                         selectedPackage = packageName
                                                         showDetails = true
@@ -984,6 +991,7 @@ private fun PackageListItemWithTag(
     categoryTag: String?,
     category: String, // 新增分类参数
     categoryColor: Color,
+    isProminent: Boolean = false,
     onPackageClick: () -> Unit,
     onToggleImport: (Boolean) -> Unit
 ) {
@@ -1008,24 +1016,49 @@ private fun PackageListItemWithTag(
             ?.takeIf { it.isNotBlank() }
     val displayName = containerDisplayName ?: packageDisplayName ?: toolPackage?.name ?: packageName
 
-    Surface(
-        onClick = onPackageClick,
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Column {
-            // 分类标签（仅在有标签时显示）
-            if (categoryTag != null) {
-                Row(
-                    modifier = Modifier
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // 分类标签（仅在有标签时显示）
+        if (categoryTag != null) {
+            Row(
+                modifier =
+                    Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                        .padding(
+                            horizontal = if (isProminent) 4.dp else 16.dp,
+                            vertical = if (isProminent) 8.dp else 6.dp
+                        ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isProminent) {
                     Surface(
-                        modifier = Modifier
-                            .width(3.dp)
-                            .height(12.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Apps,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = categoryColor
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = categoryTag,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = categoryColor,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        modifier =
+                            Modifier
+                                .width(3.dp)
+                                .height(12.dp),
                         color = categoryColor,
                         shape = RoundedCornerShape(1.5.dp)
                     ) {}
@@ -1038,15 +1071,38 @@ private fun PackageListItemWithTag(
                     )
                 }
             }
+        }
 
+        Surface(
+            onClick = onPackageClick,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .then(if (isProminent) Modifier.padding(horizontal = 4.dp) else Modifier),
+            color =
+                if (isProminent) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+            tonalElevation = if (isProminent) 2.dp else 0.dp,
+            shadowElevation = 0.dp,
+            shape = if (isProminent) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
+        ) {
             // 主要内容行
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = 16.dp,
-                        vertical = if (categoryTag != null) 4.dp else 8.dp
-                    ),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = 16.dp,
+                            vertical =
+                                if (isProminent) {
+                                    if (categoryTag != null) 10.dp else 12.dp
+                                } else {
+                                    if (categoryTag != null) 4.dp else 8.dp
+                                }
+                        ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -1067,7 +1123,7 @@ private fun PackageListItemWithTag(
                     Text(
                         text = displayName,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = if (isProminent) FontWeight.SemiBold else FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

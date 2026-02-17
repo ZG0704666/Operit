@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.avatar.common.model.AvatarModel
+import com.ai.assistance.operit.core.avatar.common.model.AvatarType
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.ai.assistance.operit.core.avatar.impl.factory.AvatarModelFactoryImpl
 import com.ai.assistance.operit.data.repository.AvatarConfig
@@ -48,8 +49,14 @@ class AssistantConfigViewModel(
                 repository.currentAvatar,
                 repository.instanceSettings
             ) { configs, currentAvatar, instanceSettings ->
+                val persistedSettings = currentAvatar?.let { instanceSettings[it.id] }
                 val currentSettings =
-                    currentAvatar?.let { instanceSettings[it.id] } ?: AvatarInstanceSettings()
+                    when {
+                        currentAvatar == null -> AvatarInstanceSettings()
+                        persistedSettings != null -> persistedSettings
+                        currentAvatar.type == AvatarType.DRAGONBONES -> AvatarInstanceSettings(scale = 0.5f)
+                        else -> AvatarInstanceSettings()
+                    }
                 val currentConfig =
                     currentAvatar?.let { avatar -> configs.find { it.id == avatar.id } }
                 val emotionAnimationMapping = currentConfig?.getEmotionAnimationMapping().orEmpty()

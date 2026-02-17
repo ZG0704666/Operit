@@ -1341,8 +1341,10 @@ private fun FeatureGrid(level: AndroidPermissionLevel) {
                         context.getString(R.string.feature_screen_auto_click) to isFeatureSupported(level, false, true, true, true, true),
                         context.getString(R.string.feature_system_permission_modification) to isFeatureSupported(level, false, false, false, true, true),
                         context.getString(R.string.feature_termux_support) to isFeatureSupported(level, true, true, true, true, true),
-                        context.getString(R.string.feature_run_js) to isFeatureSupported(level, true, true, true, true, true),
-                        context.getString(R.string.feature_plugin_market_mcp) to isFeatureSupported(level, false, false, false, true, true)
+                        context.getString(R.string.feature_run_js) to
+                                (level == AndroidPermissionLevel.DEBUGGER ||
+                                        level == AndroidPermissionLevel.ROOT),
+                        context.getString(R.string.feature_plugin_market_mcp) to isFeatureSupported(level, true, true, true, true, true)
                 )
 
         // 每行3个功能项
@@ -1391,7 +1393,7 @@ private fun isFeatureSupported(
         AndroidPermissionLevel.ADMIN -> inAdmin
         AndroidPermissionLevel.DEBUGGER -> inDebugger
         AndroidPermissionLevel.ROOT -> inRoot
-        null -> inStandard // 如果级别为null，使用标准权限级别的功能支持情况
+        null -> inStandard
     }
 }
 

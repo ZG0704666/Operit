@@ -100,6 +100,7 @@ fun ToolboxScreen(
         onAutoGlmOneClickSelected: () -> Unit,
         onAutoGlmToolSelected: () -> Unit,
         onSqlViewerSelected: () -> Unit,
+        onTokenConfigSelected: () -> Unit,
         onToolPkgComposeDslSelected: (containerPackageName: String, uiModuleId: String, title: String) -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
@@ -222,6 +223,13 @@ fun ToolboxScreen(
                                 description = stringResource(R.string.tool_sql_viewer_desc),
                                 category = ToolCategory.DEVELOPMENT,
                                 onClick = onSqlViewerSelected
+                        ),
+                        Tool(
+                                name = stringResource(R.string.token_config),
+                                icon = Icons.Default.Token,
+                                description = stringResource(R.string.token_config_title),
+                                category = ToolCategory.SYSTEM,
+                                onClick = onTokenConfigSelected
                         ),
                         Tool(
                                 name = stringResource(R.string.tool_process_limit_remover),

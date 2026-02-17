@@ -19,10 +19,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.ai.assistance.operit.core.avatar.common.view.AvatarView
-import com.ai.assistance.operit.core.avatar.impl.factory.AvatarControllerFactoryImpl
 import com.ai.assistance.operit.core.avatar.impl.factory.AvatarRendererFactoryImpl
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 
@@ -30,10 +30,10 @@ import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigV
 fun AvatarPreviewSection(
     modifier: Modifier = Modifier,
     uiState: AssistantConfigViewModel.UiState,
+    avatarController: AvatarController?,
     showPreviewContent: Boolean = true
 ) {
     val context = LocalContext.current
-    val controllerFactory = remember { AvatarControllerFactoryImpl() }
     val rendererFactory = remember { AvatarRendererFactoryImpl() }
 
     Surface(
@@ -57,8 +57,6 @@ fun AvatarPreviewSection(
             Box(modifier = Modifier.fillMaxSize()) {
                 val currentModel = uiState.currentAvatarModel
                 if (currentModel != null) {
-                    val avatarController = controllerFactory.createController(currentModel)
-
                     if (avatarController != null) {
                         val lastEmotionAnimationMappingState =
                             remember(avatarController) {
@@ -153,4 +151,3 @@ fun AvatarPreviewSection(
         }
     }
 }
-

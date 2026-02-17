@@ -74,11 +74,15 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -289,13 +293,28 @@ fun AgentChatInputSection(
         onAttachmentPanelStateChange?.invoke(showAttachmentPanel)
     }
 
+    val isDarkTheme = MaterialTheme.colorScheme.onSurface.luminance() > 0.5f
+    val darkModeInputColor =
+        lerp(
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.onSurface,
+            0.08f,
+        )
+
     val inputContainerColor =
         when {
             chatInputTransparent -> Color.Transparent
+            isDarkTheme && hasBackgroundImage -> darkModeInputColor.copy(alpha = 0.82f)
+            isDarkTheme -> darkModeInputColor
             hasBackgroundImage -> MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
             else -> MaterialTheme.colorScheme.surface
         }
-
+    val popupContainerColor =
+        if (isDarkTheme) {
+            inputContainerColor
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        }
     val modelLabel =
         if (displayModelName.isBlank()) {
             context.getString(R.string.model_config)
@@ -470,18 +489,29 @@ fun AgentChatInputSection(
             }
 
             val inputCardShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            val inputContainerEffectModifier =
+                if (isDarkTheme) {
+                    Modifier.topEdgeHighlight(
+                        shape = inputCardShape,
+                        lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                        glowColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+                        glowHeight = 2.dp,
+                    )
+                } else {
+                    Modifier.outerDiffuseShadow(
+                        shape = inputCardShape,
+                        spread = 6.dp,
+                    )
+                }
 
             if (chatInputTransparent) {
-                // 透明模式改回 Card：保持标准阴影，同时继续使用透明输入框配置
+                // 透明模式：暗色顶部高光，亮色保持原阴影
                 Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp)
-                            .outerDiffuseShadow(
-                                shape = inputCardShape,
-                                spread = 6.dp,
-                            )
+                            .then(inputContainerEffectModifier)
                             .clip(inputCardShape)
                             .background(inputContainerColor),
                 ) {
@@ -569,6 +599,7 @@ fun AgentChatInputSection(
                                     Text(
                                         text = modelLabel,
                                         style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.widthIn(max = 160.dp),
@@ -737,16 +768,13 @@ fun AgentChatInputSection(
                 }
             }
             } else {
-                // 非透明模式：使用标准阴影
+                // 非透明模式：暗色顶部高光，亮色保持原阴影
                 Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp)
-                            .outerDiffuseShadow(
-                                shape = inputCardShape,
-                                spread = 6.dp,
-                            )
+                            .then(inputContainerEffectModifier)
                             .clip(inputCardShape)
                             .background(inputContainerColor),
                 ) {
@@ -834,6 +862,7 @@ fun AgentChatInputSection(
                                         Text(
                                             text = modelLabel,
                                             style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.widthIn(max = 160.dp),
@@ -1005,6 +1034,7 @@ fun AgentChatInputSection(
 
             AgentModelSelectorPopup(
                 visible = showModelSelectorPopup.value,
+                popupContainerColor = popupContainerColor,
                 configSummaries = configSummaries,
                 currentConfigMapping = currentConfigMapping,
                 enableThinkingMode = enableThinkingMode,
@@ -1023,6 +1053,7 @@ fun AgentChatInputSection(
 
             AgentExtraSettingsPopup(
                 visible = showExtraSettingsPopup.value,
+                popupContainerColor = popupContainerColor,
                 preferenceProfiles = preferenceProfiles,
                 currentProfileId = activeProfileId,
                 onSelectMemory = onSelectMemory,
@@ -1070,6 +1101,7 @@ fun AgentChatInputSection(
 
             AttachmentSelectorPopupPanel(
                 visible = showAttachmentPanel,
+                containerColor = popupContainerColor,
                 onAttachImage = { filePath -> onAttachmentRequest(filePath) },
                 onAttachFile = { filePath -> onAttachmentRequest(filePath) },
                 onAttachScreenContent = onAttachScreenContent,
@@ -1095,6 +1127,7 @@ fun AgentChatInputSection(
 @Composable
 private fun AgentModelSelectorPopup(
     visible: Boolean,
+    popupContainerColor: Color,
     configSummaries: List<ModelConfigSummary>,
     currentConfigMapping: FunctionConfigMapping,
     enableThinkingMode: Boolean,
@@ -1146,7 +1179,7 @@ private fun AgentModelSelectorPopup(
                 shape = RoundedCornerShape(8.dp),
                 colors =
                     CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                        containerColor = popupContainerColor,
                     ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
@@ -1158,6 +1191,7 @@ private fun AgentModelSelectorPopup(
                             .verticalScroll(rememberScrollState()),
                 ) {
                     AgentThinkingSettingsItem(
+                        popupContainerColor = popupContainerColor,
                         enableThinkingMode = enableThinkingMode,
                         onToggleThinkingMode = onToggleThinkingMode,
                         enableThinkingGuidance = enableThinkingGuidance,
@@ -1170,6 +1204,7 @@ private fun AgentModelSelectorPopup(
                         onToggleEnableMaxContextMode = onToggleEnableMaxContextMode,
                     )
                     AgentModelSelectorItem(
+                        popupContainerColor = popupContainerColor,
                         configSummaries = configSummaries,
                         currentConfigMapping = currentConfigMapping,
                         onSelectModel = onSelectModel,
@@ -1186,6 +1221,7 @@ private fun AgentModelSelectorPopup(
 
 @Composable
 private fun AgentThinkingSettingsItem(
+    popupContainerColor: Color,
     enableThinkingMode: Boolean,
     onToggleThinkingMode: () -> Unit,
     enableThinkingGuidance: Boolean,
@@ -1242,7 +1278,7 @@ private fun AgentThinkingSettingsItem(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                    .background(popupContainerColor)
                     .padding(horizontal = 12.dp),
         ) {
             AgentThinkingSubSettingItem(
@@ -1397,6 +1433,7 @@ private fun AgentMaxContextSettingItem(
 
 @Composable
 private fun AgentModelSelectorItem(
+    popupContainerColor: Color,
     configSummaries: List<ModelConfigSummary>,
     currentConfigMapping: FunctionConfigMapping,
     onSelectModel: (String, Int) -> Unit,
@@ -1474,7 +1511,7 @@ private fun AgentModelSelectorItem(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                    .background(popupContainerColor)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             if (configSummaries.isEmpty()) {
@@ -1574,7 +1611,7 @@ private fun AgentModelSelectorItem(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        .background(popupContainerColor)
                                         .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 8.dp),
                             ) {
                                 val validIndex =
@@ -1656,6 +1693,7 @@ private fun AgentModelSelectorItem(
 @Composable
 private fun AgentExtraSettingsPopup(
     visible: Boolean,
+    popupContainerColor: Color,
     preferenceProfiles: List<PreferenceProfile>,
     currentProfileId: String,
     onSelectMemory: (String) -> Unit,
@@ -1720,7 +1758,7 @@ private fun AgentExtraSettingsPopup(
                 shape = RoundedCornerShape(8.dp),
                 colors =
                     CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                        containerColor = popupContainerColor,
                     ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
@@ -2163,6 +2201,123 @@ private fun Modifier.outerDiffuseShadow(
             }
         }
     }
+
+private fun Modifier.topEdgeHighlight(
+    shape: Shape,
+    lineColor: Color,
+    glowColor: Color,
+    lineWidth: Dp = 1.dp,
+    glowHeight: Dp = 12.dp,
+): Modifier =
+    this.drawWithCache {
+        val outline = shape.createOutline(size, layoutDirection, this)
+        val innerPath = outlineToPath(outline)
+        val lineWidthPx = lineWidth.toPx().coerceAtLeast(0f)
+        val glowHeightPx = glowHeight.toPx().coerceAtLeast(0f)
+
+        onDrawWithContent {
+            drawContent()
+            if ((lineColor.alpha <= 0f && glowColor.alpha <= 0f) || size.width <= 0f || size.height <= 0f) {
+                return@onDrawWithContent
+            }
+
+            clipPath(innerPath) {
+                if (glowColor.alpha > 0f && glowHeightPx > 0f) {
+                    val glowLayers = 4
+                    repeat(glowLayers) { index ->
+                        val ratio = (index + 1) / glowLayers.toFloat()
+                        val strokeWidth = lineWidthPx + glowHeightPx * ratio * 2f
+                        val alpha = glowColor.alpha * (1f - ratio).coerceAtLeast(0f)
+                        if (alpha <= 0f || strokeWidth <= 0f) return@repeat
+
+                        when (outline) {
+                            is Outline.Rounded -> {
+                                drawRoundedTopEdge(
+                                    roundRect = outline.roundRect,
+                                    color = glowColor.copy(alpha = alpha),
+                                    strokeWidth = strokeWidth,
+                                )
+                            }
+
+                            else -> {
+                                drawLine(
+                                    color = glowColor.copy(alpha = alpha),
+                                    start = Offset(0f, 0f),
+                                    end = Offset(size.width, 0f),
+                                    strokeWidth = strokeWidth,
+                                )
+                            }
+                        }
+                    }
+                }
+                if (lineColor.alpha > 0f && lineWidthPx > 0f) {
+                    when (outline) {
+                        is Outline.Rounded -> {
+                            drawRoundedTopEdge(
+                                roundRect = outline.roundRect,
+                                color = lineColor,
+                                strokeWidth = lineWidthPx,
+                            )
+                        }
+
+                        else -> {
+                            drawLine(
+                                color = lineColor,
+                                start = Offset(0f, 0f),
+                                end = Offset(size.width, 0f),
+                                strokeWidth = lineWidthPx,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRoundedTopEdge(
+    roundRect: RoundRect,
+    color: Color,
+    strokeWidth: Float,
+) {
+    val leftRadius = roundRect.topLeftCornerRadius.x.coerceAtLeast(0f)
+    val rightRadius = roundRect.topRightCornerRadius.x.coerceAtLeast(0f)
+    val y = roundRect.top
+    val startX = roundRect.left + leftRadius
+    val endX = roundRect.right - rightRadius
+
+    if (endX > startX) {
+        drawLine(
+            color = color,
+            start = Offset(startX, y),
+            end = Offset(endX, y),
+            strokeWidth = strokeWidth,
+        )
+    }
+
+    if (leftRadius > 0f) {
+        drawArc(
+            color = color,
+            startAngle = 180f,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = Offset(roundRect.left, roundRect.top),
+            size = Size(leftRadius * 2f, leftRadius * 2f),
+            style = Stroke(width = strokeWidth),
+        )
+    }
+
+    if (rightRadius > 0f) {
+        drawArc(
+            color = color,
+            startAngle = 270f,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = Offset(roundRect.right - rightRadius * 2f, roundRect.top),
+            size = Size(rightRadius * 2f, rightRadius * 2f),
+            style = Stroke(width = strokeWidth),
+        )
+    }
+}
 
 private fun outlineToPath(outline: Outline): Path =
     Path().apply {

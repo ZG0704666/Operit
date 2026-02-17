@@ -3,6 +3,7 @@ package com.ai.assistance.operit.core.avatar.impl.dragonbones.control
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
+import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.ai.assistance.operit.core.avatar.common.state.AvatarState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,9 +57,36 @@ class DragonBonesAvatarController(
     }
 
     override fun updateSettings(settings: Map<String, Any>) {
-        settings["scale"]?.let { if (it is Number) libController.scale = it.toFloat() }
-        settings["translateX"]?.let { if (it is Number) libController.translationX = it.toFloat() }
-        settings["translateY"]?.let { if (it is Number) libController.translationY = it.toFloat() }
+        settings[AvatarSettingKeys.SCALE]
+            ?.let { it as? Number }
+            ?.toFloat()
+            ?.let { scale ->
+                val normalizedScale =
+                    if (scale.isFinite()) {
+                        scale.coerceIn(0.1f, 5.0f)
+                    } else {
+                        0.5f
+                    }
+                libController.scale = normalizedScale
+            }
+
+        settings[AvatarSettingKeys.TRANSLATE_X]
+            ?.let { it as? Number }
+            ?.toFloat()
+            ?.let { translateX ->
+                if (translateX.isFinite()) {
+                    libController.translationX = translateX.coerceIn(-2000f, 2000f)
+                }
+            }
+
+        settings[AvatarSettingKeys.TRANSLATE_Y]
+            ?.let { it as? Number }
+            ?.toFloat()
+            ?.let { translateY ->
+                if (translateY.isFinite()) {
+                    libController.translationY = translateY.coerceIn(-2000f, 2000f)
+                }
+            }
     }
 
     override fun updateEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>) {

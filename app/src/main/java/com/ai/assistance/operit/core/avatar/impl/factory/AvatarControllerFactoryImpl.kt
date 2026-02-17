@@ -51,7 +51,6 @@ class AvatarControllerFactoryImpl : AvatarControllerFactory {
                     null
                 }
             }
-            AvatarType.LIVE2D -> null
         }
     }
 
@@ -61,7 +60,6 @@ class AvatarControllerFactoryImpl : AvatarControllerFactory {
             AvatarType.WEBP -> model is WebPAvatarModel
             AvatarType.MMD -> model is MmdAvatarModel
             AvatarType.GLTF -> model is GltfAvatarModel
-            AvatarType.LIVE2D -> false
         }
     }
 

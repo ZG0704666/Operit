@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -442,18 +443,22 @@ internal fun ThemeSettingsBackgroundSection(
                     }
                 }
 
+                val latestOpacity by rememberUpdatedState(backgroundImageOpacityInput)
+                val latestOpacityChange by rememberUpdatedState(onBackgroundImageOpacityInputChange)
+
                 val updateOpacity = remember {
-                    { value: Float -> onBackgroundImageOpacityInputChange(value) }
+                    { value: Float -> latestOpacityChange(value) }
                 }
 
                 val onValueChangeFinished = remember {
                     {
-                        if (abs(lastSavedOpacity - backgroundImageOpacityInput) > 0.01f) {
+                        val newOpacity = latestOpacity
+                        if (abs(lastSavedOpacity - newOpacity) > 0.01f) {
                             saveThemeSettingsWithCharacterCard {
                                 preferencesManager.saveThemeSettings(
-                                    backgroundImageOpacity = backgroundImageOpacityInput,
+                                    backgroundImageOpacity = newOpacity,
                                 )
-                                lastSavedOpacity = backgroundImageOpacityInput
+                                lastSavedOpacity = newOpacity
                             }
                         }
                     }
@@ -520,15 +525,23 @@ internal fun ThemeSettingsBackgroundSection(
                         mutableStateOf(backgroundBlurRadiusInput)
                     }
                     val blurInteractionSource = remember { MutableInteractionSource() }
+                    val latestBlurRadius by rememberUpdatedState(backgroundBlurRadiusInput)
+                    val latestBlurRadiusChange by
+                        rememberUpdatedState(onBackgroundBlurRadiusInputChange)
+
+                    val onBlurValueChange = remember {
+                        { value: Float -> latestBlurRadiusChange(value) }
+                    }
 
                     val onBlurValueChangeFinished = remember {
                         {
-                            if (abs(lastSavedBlurRadius - backgroundBlurRadiusInput) > 0.1f) {
+                            val newBlurRadius = latestBlurRadius
+                            if (abs(lastSavedBlurRadius - newBlurRadius) > 0.1f) {
                                 saveThemeSettingsWithCharacterCard {
                                     preferencesManager.saveThemeSettings(
-                                        backgroundBlurRadius = backgroundBlurRadiusInput,
+                                        backgroundBlurRadius = newBlurRadius,
                                     )
-                                    lastSavedBlurRadius = backgroundBlurRadiusInput
+                                    lastSavedBlurRadius = newBlurRadius
                                 }
                             }
                         }
@@ -539,7 +552,7 @@ internal fun ThemeSettingsBackgroundSection(
                     ) {
                         Slider(
                             value = backgroundBlurRadiusInput,
-                            onValueChange = { onBackgroundBlurRadiusInputChange(it) },
+                            onValueChange = onBlurValueChange,
                             onValueChangeFinished = onBlurValueChangeFinished,
                             valueRange = 1f..30f,
                             interactionSource = blurInteractionSource,

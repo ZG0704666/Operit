@@ -109,6 +109,7 @@
     <string name="nav_group_system">System</string>
     <string name="menu">Menu</string>
     <string name="token_config">Get API Key</string>
+    <string name="package_category_plugin">Plugin</string>
     <string name="desktop_pet_start">Start Desktop Pet</string>
     
     <!-- Workflow related -->
@@ -363,7 +364,7 @@
     <string name="avatar_import_methods_desc">- Direct file picker: .glb / .gltf\n- ZIP import: DragonBones, WebP, MMD, or multi-file glTF packages</string>
     <string name="import_structure_guide_tap_to_expand">Import structure guide (tap to expand)</string>
     <string name="import_structure_guide_tap_to_collapse">Import structure guide (tap to collapse)</string>
-    <string name="import_structure_guide_content">This is the IMPORT PACKAGE layout (files inside your ZIP / picked file), not app internal storage.\n\nDragonBones (.zip)\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  Requirement: ske/tex json/png files must share the same filename prefix.\n\nWebP (.zip)\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  Requirement: include at least one .webp file.\n\nMMD (.zip)\n  my_mmd.zip\n    any_folder_name/\n      character.pmx (or .pmd)\n      motions/idle.vmd (optional)\n      textures/...\n  Requirement: keep relative paths referenced by PMX/PMD unchanged.\n\nglTF\n  Method A (direct file):\n    avatar.glb\n  Method B (.zip for multi-file glTF):\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  Requirement: keep relative paths referenced by .gltf unchanged.\n\nLive2D (.zip)\n  my_live2d.zip\n    any_folder_name/\n      avatar.model3.json\n      avatar.moc3\n      textures/...\n      motions/...\n      expressions/...\n  Requirement: include all files referenced by model3.json.</string>
+    <string name="import_structure_guide_content">This is the IMPORT PACKAGE layout (files inside your ZIP / picked file), not app internal storage.\n\nDragonBones (.zip)\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  Requirement: ske/tex json/png files must share the same filename prefix.\n\nWebP (.zip)\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  Requirement: include at least one .webp file.\n\nMMD (.zip)\n  my_mmd.zip\n    any_folder_name/\n      character.pmx (or .pmd)\n      motions/idle.vmd (optional)\n      textures/...\n  Requirement: keep relative paths referenced by PMX/PMD unchanged.\n\nglTF\n  Method A (direct file):\n    avatar.glb\n  Method B (.zip for multi-file glTF):\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  Requirement: keep relative paths referenced by .gltf unchanged.</string>
     <string name="enter">Enter</string>
     <string name="about_avatar_formats">This app supports multiple avatar formats, including DragonBones. Here are instructions for creating and importing models.</string>
     <string name="dragon_bones_renamed">DragonBones has been renamed to LoongBones, and a new online editor has been launched.\nLoongBones supports professional animation features like IK, mesh deformation, and bone binding.</string>
@@ -2685,8 +2686,8 @@
     <string name="feature_file_operations">File Operations</string>
     <string name="feature_screen_auto_click">Screen Auto Click</string>
     <string name="feature_system_permission_modification">System Permission Modification</string>
-    <string name="feature_termux_support">Termux Support</string>
-    <string name="feature_run_js">Run JavaScript</string>
+    <string name="feature_termux_support">Terminal Support</string>
+    <string name="feature_run_js">Virtual Screen</string>
     <string name="feature_plugin_market_mcp">Plugin Market MCP</string>
     <string name="supported">Supported</string>
     <string name="not_supported">Not Supported</string>

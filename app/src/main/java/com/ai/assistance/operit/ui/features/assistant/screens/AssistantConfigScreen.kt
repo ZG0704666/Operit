@@ -35,6 +35,7 @@ import com.ai.assistance.operit.ui.features.assistant.components.AvatarConfigSec
 import com.ai.assistance.operit.ui.features.assistant.components.AvatarPreviewSection
 import com.ai.assistance.operit.ui.features.assistant.components.CompactSwitchRow
 import com.ai.assistance.operit.ui.features.assistant.components.VoiceAutoAttachGrid
+import com.ai.assistance.operit.core.avatar.impl.factory.AvatarControllerFactoryImpl
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 import kotlinx.coroutines.launch
 
@@ -46,6 +47,11 @@ fun AssistantConfigScreen() {
     val viewModel: AssistantConfigViewModel =
         viewModel(factory = AssistantConfigViewModel.Factory(context))
     val uiState by viewModel.uiState.collectAsState()
+    val avatarControllerFactory = remember { AvatarControllerFactoryImpl() }
+    val sharedAvatarController =
+        uiState.currentAvatarModel?.let { model ->
+            avatarControllerFactory.createController(model)
+        }
 
     val wakePrefs = remember { WakeWordPreferences(context.applicationContext) }
     val wakeListeningEnabled by wakePrefs.alwaysListeningEnabledFlow.collectAsState(initial = WakeWordPreferences.DEFAULT_ALWAYS_LISTENING_ENABLED)
@@ -216,7 +222,8 @@ fun AssistantConfigScreen() {
                         ) {
                             AvatarPreviewSection(
                                 modifier = Modifier.fillMaxSize(),
-                                uiState = uiState
+                                uiState = uiState,
+                                avatarController = sharedAvatarController
                             )
                         }
                     }
@@ -251,6 +258,7 @@ fun AssistantConfigScreen() {
                             AvatarConfigSection(
                                 viewModel = viewModel,
                                 uiState = uiState,
+                                avatarController = sharedAvatarController,
                                 onImportClick = { openZipFilePicker() }
                             )
 
@@ -708,4 +716,3 @@ fun AssistantConfigScreen() {
         }
     }
 }
-

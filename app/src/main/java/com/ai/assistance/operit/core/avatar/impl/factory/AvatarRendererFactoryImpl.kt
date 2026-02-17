@@ -80,7 +80,6 @@ class AvatarRendererFactoryImpl : AvatarRendererFactory {
                     null
                 }
             }
-            AvatarType.LIVE2D -> null
         }
     }
 }

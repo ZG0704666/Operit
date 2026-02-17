@@ -36,7 +36,7 @@ interface AvatarController {
 
     /**
      * Instructs the avatar to look at a specific point on the screen.
-     * This is an advanced feature that may only be supported by certain avatar types (e.g., Live2D).
+     * This is an advanced feature that may only be supported by certain avatar types.
      * Implementations for unsupported types should do nothing.
      *
      * @param x The normalized x-coordinate (-1 to 1).

@@ -23,7 +23,6 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
             AvatarType.WEBP -> createWebPModel(id, name, data)
             AvatarType.MMD -> createMmdModel(id, name, data)
             AvatarType.GLTF -> createGltfModel(id, name, data)
-            AvatarType.LIVE2D -> null
         }
     }
 
@@ -83,7 +82,6 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
                 )
                 createGltfModel("default_gltf", baseName, defaultData)
             }
-            AvatarType.LIVE2D -> null
         }
     }
 
@@ -96,7 +94,6 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
                 val requiredKeys = getRequiredDataKeys(type)
                 requiredKeys.all { key -> data.containsKey(key) && data[key] != null }
             }
-            AvatarType.LIVE2D -> false
         }
     }
 
@@ -114,7 +111,6 @@ class AvatarModelFactoryImpl : AvatarModelFactory {
             AvatarType.WEBP -> listOf("basePath")
             AvatarType.MMD -> listOf("basePath", "modelFile")
             AvatarType.GLTF -> listOf("basePath", "modelFile")
-            AvatarType.LIVE2D -> emptyList()
         }
     }
 

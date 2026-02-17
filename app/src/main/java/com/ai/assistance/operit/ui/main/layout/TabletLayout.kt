@@ -42,6 +42,7 @@ fun TabletLayout(
         collapsedTabletSidebarWidth: androidx.compose.ui.unit.Dp,
         onScreenChange: (Screen) -> Unit,
         onNavItemChange: (NavItem) -> Unit,
+        onDrawerItemSelected: (Screen, NavItem) -> Unit,
         onToggleSidebar: () -> Unit,
         navigateToTokenConfig: () -> Unit,
         canGoBack: Boolean,
@@ -98,20 +99,14 @@ fun TabletLayout(
                                         networkType = networkType,
                                         scope = scope,
                                         drawerState = drawerState,
-                                        onScreenSelected = { screen, item ->
-                                                onScreenChange(screen)
-                                                onNavItemChange(item)
-                                        }
+                                        onScreenSelected = { screen, item -> onDrawerItemSelected(screen, item) }
                                 )
                         } else {
                                 CollapsedDrawerContent(
                                         navItems = navItems,
                                         selectedItem = selectedItem,
                                         isNetworkAvailable = isNetworkAvailable,
-                                        onScreenSelected = { screen, item ->
-                                                onScreenChange(screen)
-                                                onNavItemChange(item)
-                                        }
+                                        onScreenSelected = { screen, item -> onDrawerItemSelected(screen, item) }
                                 )
                         }
                 }

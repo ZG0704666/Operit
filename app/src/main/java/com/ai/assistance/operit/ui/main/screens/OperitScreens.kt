@@ -401,6 +401,7 @@ sealed class Screen(
                     onAutoGlmOneClickSelected = { navigateTo(AutoGlmOneClick) },
                     onAutoGlmToolSelected = { navigateTo(AutoGlmTool) },
                     onSqlViewerSelected = { navigateTo(SqlViewer) },
+                    onTokenConfigSelected = { navigateTo(TokenConfig) },
                     onToolPkgComposeDslSelected = { containerPackageName, uiModuleId, title ->
                         navigateTo(
                             ToolPkgComposeDsl(

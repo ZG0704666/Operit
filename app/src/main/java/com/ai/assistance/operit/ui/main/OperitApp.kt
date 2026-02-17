@@ -176,8 +176,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                 NavItem.AiChat,
                 NavItem.AssistantConfig,
                 NavItem.Packages,
-                NavItem.MemoryBase,
-                NavItem.TokenConfig
+                NavItem.MemoryBase
             )
         ),
         NavGroup(
@@ -267,10 +266,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     collapsedTabletSidebarWidth = collapsedTabletSidebarWidth,
                     onScreenChange = { screen -> navigateTo(screen) },
                     onNavItemChange = { item ->
-                        navigateTo(
-                            OperitRouter.getScreenForNavItem(item),
-                            fromDrawer = true
-                        )
+                        selectedItem = item
+                    },
+                    onDrawerItemSelected = { screen, _ ->
+                        navigateTo(screen, fromDrawer = true)
                     },
                     onToggleSidebar = {
                         isTabletSidebarExpanded = !isTabletSidebarExpanded
@@ -297,10 +296,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     showFpsCounter = showFpsCounter,
                     onScreenChange = { screen -> navigateTo(screen) },
                     onNavItemChange = { item ->
-                        navigateTo(
-                            OperitRouter.getScreenForNavItem(item),
-                            fromDrawer = true
-                        )
+                        selectedItem = item
+                    },
+                    onDrawerItemSelected = { screen, _ ->
+                        navigateTo(screen, fromDrawer = true)
                     },
                     navigateToTokenConfig = ::navigateToTokenConfig,
                     canGoBack = canGoBack,

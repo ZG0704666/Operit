@@ -338,8 +338,9 @@ fun AppContent(
                     Box(modifier = Modifier.fillMaxSize()) {
                         // 将当前屏幕的 Composable 缓存起来
                         if (!screenCache.containsKey(currentScreenKey)) {
+                            val screenSnapshot = currentScreen
                             screenCache[currentScreenKey] = {
-                                currentScreen.Content(
+                                screenSnapshot.Content(
                                     navController = navController,
                                     navigateTo = onScreenChange,
                                     updateNavItem = onNavItemChange,
@@ -347,66 +348,83 @@ fun AppContent(
                                     hasBackgroundImage = hasBackgroundImage,
                                     onLoading = onLoading,
                                     onError = onError,
-                                    onGestureConsumed = if (currentScreen is Screen.AiChat) onGestureConsumed else { _ -> }
+                                    onGestureConsumed = if (screenSnapshot is Screen.AiChat) onGestureConsumed else { _ -> }
                                 )
                             }
                         }
 
-                        // 优化渲染：只渲染当前屏幕和正在过渡的屏幕
-                        // 记录上一个屏幕用于过渡动画
-                        var previousScreenKey by remember { mutableStateOf<String?>(null) }
+                        // 优化渲染：只渲染当前屏幕和正在过渡的上一个屏幕
+                        // 使用稳定的状态机，避免同一 key 被重复触发转场
+                        var lastObservedCurrentKey by remember { mutableStateOf(currentScreenKey) }
+                        var transitionFromKey by remember { mutableStateOf<String?>(null) }
                         var isTransitioning by remember { mutableStateOf(false) }
-                        
-                        LaunchedEffect(currentScreenKey) {
-                            if (previousScreenKey != null && previousScreenKey != currentScreenKey) {
-                                isTransitioning = true
-                                // 等待动画完成后停止过渡状态
-                                kotlinx.coroutines.delay(400) // 与动画时长一致
-                                isTransitioning = false
+
+                        val effectivePreviousKey =
+                            when {
+                                currentScreenKey != lastObservedCurrentKey -> lastObservedCurrentKey
+                                isTransitioning -> transitionFromKey
+                                else -> null
                             }
-                            previousScreenKey = currentScreenKey
+
+                        LaunchedEffect(currentScreenKey) {
+                            val fromKey = lastObservedCurrentKey
+                            if (currentScreenKey == fromKey) return@LaunchedEffect
+
+                            transitionFromKey = fromKey
+                            isTransitioning = true
+                            lastObservedCurrentKey = currentScreenKey
+
+                            // 等待动画完成后停止过渡状态
+                            kotlinx.coroutines.delay(400) // 与动画时长一致
+
+                            isTransitioning = false
+                            transitionFromKey = null
                         }
 
-                        screenCache.forEach { (screenKey, screenContent) ->
+                        val renderKeys = buildList {
+                            if (effectivePreviousKey != null && effectivePreviousKey != currentScreenKey) {
+                                add(effectivePreviousKey)
+                            }
+                            add(currentScreenKey)
+                        }
+
+                        renderKeys.forEach { screenKey ->
+                            val screenContent = screenCache[screenKey] ?: return@forEach
                             val isCurrentScreen = screenKey == currentScreenKey
-                            val isPreviousScreen = screenKey == previousScreenKey && isTransitioning
-                            
-                            // 只渲染当前屏幕或正在过渡的上一个屏幕
-                            if (isCurrentScreen || isPreviousScreen) {
-                                key(screenKey) {
-                                    // 为每个屏幕维护一个独立的可见性状态
-                                    var visibility by remember { mutableStateOf(ScreenVisibility.HIDDEN) }
 
-                                    // 使用 LaunchedEffect 在 isCurrentScreen 状态变化后更新可见性
-                                    LaunchedEffect(isCurrentScreen) {
-                                        visibility = if (isCurrentScreen) ScreenVisibility.VISIBLE else ScreenVisibility.HIDDEN
-                                    }
+                            key(screenKey) {
+                                // 为每个屏幕维护一个独立的可见性状态
+                                var visibility by remember { mutableStateOf(ScreenVisibility.HIDDEN) }
 
-                                    // 使用 updateTransition 来处理动画状态
-                                    val transition = updateTransition(
-                                        targetState = visibility,
-                                        label = "ScreenVisibilityTransition"
-                                    )
+                                // 使用 LaunchedEffect 在 isCurrentScreen 状态变化后更新可见性
+                                LaunchedEffect(isCurrentScreen) {
+                                    visibility = if (isCurrentScreen) ScreenVisibility.VISIBLE else ScreenVisibility.HIDDEN
+                                }
 
-                                    val alpha by transition.animateFloat(
-                                        transitionSpec = {
-                                            tween(durationMillis = 400)
-                                        },
-                                        label = "ScreenAlphaAnimation"
-                                    ) { visibility ->
-                                        if (visibility == ScreenVisibility.VISIBLE) 1f else 0f
-                                    }
+                                // 使用 updateTransition 来处理动画状态
+                                val transition = updateTransition(
+                                    targetState = visibility,
+                                    label = "ScreenVisibilityTransition"
+                                )
 
-                                    Box(
-                                        modifier =
-                                            Modifier.fillMaxSize()
-                                                .zIndex(if (isCurrentScreen) 1f else 0f)
-                                                .graphicsLayer { this.alpha = alpha }
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize()) {
-                                            CompositionLocalProvider(LocalIsCurrentScreen provides isCurrentScreen) {
-                                                screenContent()
-                                            }
+                                val alpha by transition.animateFloat(
+                                    transitionSpec = {
+                                        tween(durationMillis = 400)
+                                    },
+                                    label = "ScreenAlphaAnimation"
+                                ) { visibility ->
+                                    if (visibility == ScreenVisibility.VISIBLE) 1f else 0f
+                                }
+
+                                Box(
+                                    modifier =
+                                        Modifier.fillMaxSize()
+                                            .zIndex(if (isCurrentScreen) 1f else 0f)
+                                            .graphicsLayer { this.alpha = alpha }
+                                ) {
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        CompositionLocalProvider(LocalIsCurrentScreen provides isCurrentScreen) {
+                                            screenContent()
                                         }
                                     }
                                 }
@@ -428,4 +446,3 @@ fun AppContent(
         }
     }
 }
-

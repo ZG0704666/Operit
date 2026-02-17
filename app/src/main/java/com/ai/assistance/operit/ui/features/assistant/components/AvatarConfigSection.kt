@@ -43,10 +43,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
-import com.ai.assistance.operit.core.avatar.impl.factory.AvatarControllerFactoryImpl
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -55,6 +55,7 @@ import kotlinx.coroutines.isActive
 fun AvatarConfigSection(
     viewModel: AssistantConfigViewModel,
     uiState: AssistantConfigViewModel.UiState,
+    avatarController: AvatarController?,
     onImportClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -79,11 +80,6 @@ fun AvatarConfigSection(
             val currentAvatarModel = uiState.currentAvatarModel
             val currentSettings = uiState.config
 
-            val controllerFactory = remember { AvatarControllerFactoryImpl() }
-            val avatarController =
-                currentAvatarModel?.let { model ->
-                    controllerFactory.createController(model)
-                }
             var availableAnimations by remember(currentAvatarModel?.id) {
                 mutableStateOf(emptyList<String>())
             }
