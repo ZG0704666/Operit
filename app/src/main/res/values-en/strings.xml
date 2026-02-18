@@ -4872,6 +4872,7 @@
     <string name="toolreg_execute_in_terminal_session_desc">Execute in terminal session [%1$s]: %2$s</string>
     <string name="toolreg_close_terminal_session_desc">Close terminal session: %1$s</string>
     <string name="toolreg_input_in_terminal_session_desc">Write input to terminal session [%1$s] (control=%2$s)</string>
+    <string name="toolreg_get_terminal_session_screen_desc">Get current terminal screen content for session [%1$s] (single screen)</string>
     <string name="toolreg_query_memory_desc">Query memory library: %1$s</string>
     <string name="toolreg_get_memory_by_title_desc">Get memory by title: %1$s</string>
 
@@ -6284,6 +6285,8 @@
     <string name="terminal_error_missing_session_id">Missing parameter: session_id</string>
     <string name="terminal_error_session_not_exist">Terminal session \'%1$s\' does not exist or is closed</string>
     <string name="terminal_error_command_failed">Terminal command execution failed or timed out</string>
+    <string name="terminal_error_command_timeout">Terminal command timed out (%1$dms)</string>
+    <string name="terminal_error_command_non_zero_exit">Terminal command exited with non-zero status (exitCode=%1$d)</string>
     <string name="terminal_error_execute_command">Error executing terminal command: %1$s</string>
     <string name="terminal_session_closed">Terminal session \'%1$s\' closed successfully.</string>
     <string name="terminal_error_close_session">Error closing terminal session \'%1$s\': %2$s</string>
@@ -6294,6 +6297,7 @@
     <string name="terminal_error_unsupported_control">Unsupported control: %1$s</string>
     <string name="terminal_error_input">Error writing input to terminal session</string>
     <string name="terminal_error_input_with_reason">Error writing input to terminal session: %1$s</string>
+    <string name="terminal_error_get_screen">Error reading current terminal screen content: %1$s</string>
     <string name="terminal_input_sent">Input sent to terminal session \'%1$s\' (acceptedChars=%2$d)</string>
 
     <!-- OpenAISttProvider -->
@@ -6704,4 +6708,10 @@
     <string name="windows_one_click_field_config_text_placeholder">Paste the configuration text copied from the PC here (WINDOWS_AGENT_*)</string>
     <string name="windows_one_click_status_success">Configuration saved, windows_control is enabled.</string>
     <string name="windows_one_click_status_error">Operation failed: %1$s</string>
+    <string name="request_limit_per_minute">Requests per minute</string>
+    <string name="request_limit_per_minute_desc">Requests over this limit will wait in queue. Use 0 or empty for no rate limit.</string>
+    <string name="max_concurrent_requests">Max concurrent requests</string>
+    <string name="max_concurrent_requests_desc">Requests over this limit will wait in queue. Use 0 or empty for unlimited concurrency.</string>
+    <string name="request_queue_controls">Request Queue Controls</string>
+    <string name="request_queue_controls_desc">Collapsed by default. Controls rate and concurrency; overflow requests wait in queue.</string>
 </resources>

@@ -488,6 +488,9 @@ export interface TerminalCommandResultData {
     /** ID of the terminal session used for execution */
     sessionId: string;
 
+    /** Whether this execution ended due to timeout */
+    timedOut?: boolean;
+
     /** Returns a formatted string representation of the terminal execution result */
     toString(): string;
 }
@@ -514,6 +517,22 @@ export interface TerminalSessionCloseResultData {
     success: boolean;
     /** A message describing the result */
     message: string;
+}
+
+/**
+ * Terminal session current screen snapshot result data (single screen, no scrollback/history)
+ */
+export interface TerminalSessionScreenResultData {
+    /** ID of the session */
+    sessionId: string;
+    /** Screen row count */
+    rows: number;
+    /** Screen column count */
+    cols: number;
+    /** Current visible screen text content */
+    content: string;
+    /** Returns a formatted string representation */
+    toString(): string;
 }
 
 // ============================================================================
@@ -666,6 +685,10 @@ export interface TerminalSessionCreationResult extends BaseResult {
 
 export interface TerminalSessionCloseResult extends BaseResult {
     data: TerminalSessionCloseResultData;
+}
+
+export interface TerminalSessionScreenResult extends BaseResult {
+    data: TerminalSessionScreenResultData;
 }
 
 export interface DeviceInfoResult extends BaseResult {

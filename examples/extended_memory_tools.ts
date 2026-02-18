@@ -56,6 +56,29 @@
             ]
         },
         {
+            "name": "update_memory_link",
+            "description": { "zh": "更新记忆链接（按 link_id 或 source/target/link_type 定位）。", "en": "Update a memory link (by link_id or source/target/link_type)." },
+            "parameters": [
+                { "name": "link_id", "description": { "zh": "可选：链接ID（优先使用）", "en": "Optional: link ID (preferred)" }, "type": "number", "required": false },
+                { "name": "source_title", "description": { "zh": "可选：源记忆标题（未提供 link_id 时使用）", "en": "Optional: source title (used when link_id is not provided)" }, "type": "string", "required": false },
+                { "name": "target_title", "description": { "zh": "可选：目标记忆标题（未提供 link_id 时使用）", "en": "Optional: target title (used when link_id is not provided)" }, "type": "string", "required": false },
+                { "name": "link_type", "description": { "zh": "可选：当前关系类型（用于唯一定位）", "en": "Optional: current relation type (for unique resolution)" }, "type": "string", "required": false },
+                { "name": "new_link_type", "description": { "zh": "可选：新的关系类型", "en": "Optional: new relation type" }, "type": "string", "required": false },
+                { "name": "weight", "description": { "zh": "可选：新的强度 0-1", "en": "Optional: new weight 0-1" }, "type": "number", "required": false },
+                { "name": "description", "description": { "zh": "可选：新的关系描述", "en": "Optional: new relationship description" }, "type": "string", "required": false }
+            ]
+        },
+        {
+            "name": "delete_memory_link",
+            "description": { "zh": "删除记忆链接（按 link_id 或 source/target/link_type 定位）。", "en": "Delete a memory link (by link_id or source/target/link_type)." },
+            "parameters": [
+                { "name": "link_id", "description": { "zh": "可选：链接ID（优先使用）", "en": "Optional: link ID (preferred)" }, "type": "number", "required": false },
+                { "name": "source_title", "description": { "zh": "可选：源记忆标题（未提供 link_id 时使用）", "en": "Optional: source title (used when link_id is not provided)" }, "type": "string", "required": false },
+                { "name": "target_title", "description": { "zh": "可选：目标记忆标题（未提供 link_id 时使用）", "en": "Optional: target title (used when link_id is not provided)" }, "type": "string", "required": false },
+                { "name": "link_type", "description": { "zh": "可选：关系类型（用于唯一定位）", "en": "Optional: relation type (for unique resolution)" }, "type": "string", "required": false }
+            ]
+        },
+        {
             "name": "update_user_preferences",
             "description": { "zh": "更新用户偏好信息（至少提供一个字段）。", "en": "Update user preferences (provide at least one field)." },
             "parameters": [
@@ -108,6 +131,29 @@ const ExtendedMemoryTools = (function () {
         return { success: !!result, message: '记忆链接创建完成', data: result };
     }
 
+    async function update_memory_link(params: { link_id?: number; source_title?: string; target_title?: string; link_type?: string; new_link_type?: string; weight?: number; description?: string }): Promise<ToolResponse> {
+        const result = await Tools.Memory.updateLink(
+            params.link_id,
+            params.source_title,
+            params.target_title,
+            params.link_type,
+            params.new_link_type,
+            params.weight,
+            params.description
+        );
+        return { success: !!result, message: '记忆链接更新完成', data: result };
+    }
+
+    async function delete_memory_link(params: { link_id?: number; source_title?: string; target_title?: string; link_type?: string }): Promise<ToolResponse> {
+        const result = await Tools.Memory.deleteLink(
+            params.link_id,
+            params.source_title,
+            params.target_title,
+            params.link_type
+        );
+        return { success: typeof result === 'string' ? result.length > 0 : !!result, message: '记忆链接删除完成', data: result };
+    }
+
     async function update_user_preferences(params: { birth_date?: number; gender?: string; personality?: string; identity?: string; occupation?: string; ai_style?: string }): Promise<ToolResponse> {
         const toolParams: ToolParams = {};
         if (params.birth_date !== undefined) toolParams.birth_date = params.birth_date;
@@ -143,6 +189,8 @@ const ExtendedMemoryTools = (function () {
         results.push({ tool: 'update_memory', result: { success: null, message: '未测试（会修改记忆库）' } });
         results.push({ tool: 'delete_memory', result: { success: null, message: '未测试（会删除记忆库数据）' } });
         results.push({ tool: 'link_memories', result: { success: null, message: '未测试（会修改记忆库链接）' } });
+        results.push({ tool: 'update_memory_link', result: { success: null, message: '未测试（会修改记忆库链接）' } });
+        results.push({ tool: 'delete_memory_link', result: { success: null, message: '未测试（会删除记忆库链接）' } });
         results.push({ tool: 'update_user_preferences', result: { success: null, message: '未测试（会修改用户偏好）' } });
 
         complete({
@@ -157,6 +205,8 @@ const ExtendedMemoryTools = (function () {
         update_memory: (params: { old_title: string; new_title?: string; content?: string; content_type?: string; source?: string; credibility?: number; importance?: number; folder_path?: string; tags?: string }) => wrapToolExecution(update_memory, params),
         delete_memory: (params: { title: string }) => wrapToolExecution(delete_memory, params),
         link_memories: (params: { source_title: string; target_title: string; link_type?: string; weight?: number; description?: string }) => wrapToolExecution(link_memories, params),
+        update_memory_link: (params: { link_id?: number; source_title?: string; target_title?: string; link_type?: string; new_link_type?: string; weight?: number; description?: string }) => wrapToolExecution(update_memory_link, params),
+        delete_memory_link: (params: { link_id?: number; source_title?: string; target_title?: string; link_type?: string }) => wrapToolExecution(delete_memory_link, params),
         update_user_preferences: (params: { birth_date?: number; gender?: string; personality?: string; identity?: string; occupation?: string; ai_style?: string }) => wrapToolExecution(update_user_preferences, params),
         main,
     };
@@ -166,5 +216,7 @@ exports.create_memory = ExtendedMemoryTools.create_memory;
 exports.update_memory = ExtendedMemoryTools.update_memory;
 exports.delete_memory = ExtendedMemoryTools.delete_memory;
 exports.link_memories = ExtendedMemoryTools.link_memories;
+exports.update_memory_link = ExtendedMemoryTools.update_memory_link;
+exports.delete_memory_link = ExtendedMemoryTools.delete_memory_link;
 exports.update_user_preferences = ExtendedMemoryTools.update_user_preferences;
 exports.main = ExtendedMemoryTools.main;

@@ -6,7 +6,7 @@ import {
     SleepResultData, SystemSettingData, AppOperationData, AppListData,
     DeviceInfoResultData, NotificationData, LocationData,
     ADBResultData, IntentResultData, TerminalCommandResultData,
-    TerminalSessionCreationResultData, TerminalSessionCloseResultData,
+    TerminalSessionCreationResultData, TerminalSessionCloseResultData, TerminalSessionScreenResultData,
     StringResultData
 } from './results';
 
@@ -157,9 +157,10 @@ export namespace System {
          * Execute a command in a terminal session.
          * @param sessionId The ID of the session.
          * @param command The command to execute.
+         * @param timeoutMs Optional timeout in milliseconds. Strongly recommended to always pass explicitly.
          * @returns Promise resolving to the command execution result.
          */
-        function exec(sessionId: string, command: string): Promise<TerminalCommandResultData>;
+        function exec(sessionId: string, command: string, timeoutMs?: number | string): Promise<TerminalCommandResultData>;
 
         /**
          * Close a terminal session.
@@ -167,6 +168,13 @@ export namespace System {
          * @returns Promise resolving to the session close result.
          */
         function close(sessionId: string): Promise<TerminalSessionCloseResultData>;
+
+        /**
+         * Get the current visible terminal screen content for a session (single screen only, no history).
+         * @param sessionId The ID of the session.
+         * @returns Promise resolving to the current screen snapshot result.
+         */
+        function screen(sessionId: string): Promise<TerminalSessionScreenResultData>;
 
         /**
          * Write input to a terminal session.

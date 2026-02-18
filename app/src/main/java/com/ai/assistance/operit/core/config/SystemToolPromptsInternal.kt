@@ -103,6 +103,19 @@ object SystemToolPromptsInternal {
                                 )
                         ),
                         ToolPrompt(
+                            name = "get_terminal_session_screen",
+                            description = "Get only the current visible PTY screen content for a terminal session (single screen, no scrollback/history).",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "session_id",
+                                        type = "string",
+                                        description = "terminal session id",
+                                        required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
                             name = "start_web",
                             description = "Start a persistent web session and open a floating browser window.",
                             parametersStructured =
@@ -1787,6 +1800,19 @@ object SystemToolPromptsInternal {
                         ToolPrompt(
                             name = "close_terminal_session",
                             description = "关闭终端会话。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "session_id",
+                                        type = "string",
+                                        description = "终端会话 ID",
+                                        required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "get_terminal_session_screen",
+                            description = "获取终端会话当前可见 PTY 屏幕内容（仅一屏，不包含历史滚动缓冲）。",
                             parametersStructured =
                                 listOf(
                                     ToolParameterSchema(

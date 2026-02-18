@@ -359,10 +359,14 @@ fun getJsToolsDefinition(): String {
                 // 执行终端命令 - 一次性收集输出
                 terminal: {
                     create: (sessionName) => toolCall("create_terminal_session", { session_name: sessionName }),
-                    exec: (sessionId, command) => {
+                    exec: (sessionId, command, timeoutMs) => {
                         const params = { session_id: sessionId, command };
+                        if (timeoutMs !== undefined && timeoutMs !== null) {
+                            params.timeout_ms = String(timeoutMs);
+                        }
                         return toolCall("execute_in_terminal_session", params);
                     },
+                    screen: (sessionId) => toolCall("get_terminal_session_screen", { session_id: sessionId }),
                     close: (sessionId) => toolCall("close_terminal_session", { session_id: sessionId }),
                     input: (sessionId, options = {}) => {
                         const params = { session_id: sessionId };
@@ -516,6 +520,27 @@ fun getJsToolsDefinition(): String {
                     if (weight !== undefined) params.weight = weight;
                     if (description) params.description = description;
                     return toolCall("link_memories", params);
+                },
+                // 更新记忆链接（优先按 linkId）
+                updateLink: (linkId, sourceTitle, targetTitle, linkType, newLinkType, weight, description) => {
+                    const params = {};
+                    if (linkId !== undefined && linkId !== null) params.link_id = linkId;
+                    if (sourceTitle) params.source_title = sourceTitle;
+                    if (targetTitle) params.target_title = targetTitle;
+                    if (linkType) params.link_type = linkType;
+                    if (newLinkType) params.new_link_type = newLinkType;
+                    if (weight !== undefined) params.weight = weight;
+                    if (description !== undefined) params.description = description;
+                    return toolCall("update_memory_link", params);
+                },
+                // 删除记忆链接（优先按 linkId）
+                deleteLink: (linkId, sourceTitle, targetTitle, linkType) => {
+                    const params = {};
+                    if (linkId !== undefined && linkId !== null) params.link_id = linkId;
+                    if (sourceTitle) params.source_title = sourceTitle;
+                    if (targetTitle) params.target_title = targetTitle;
+                    if (linkType) params.link_type = linkType;
+                    return toolCall("delete_memory_link", params);
                 }
             },
             // 计算功能

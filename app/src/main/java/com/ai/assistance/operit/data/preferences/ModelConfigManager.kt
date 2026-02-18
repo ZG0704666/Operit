@@ -380,6 +380,19 @@ class ModelConfigManager(private val context: Context) {
         }
     }
 
+    suspend fun updateRequestQueueSettings(
+            configId: String,
+            requestLimitPerMinute: Int,
+            maxConcurrentRequests: Int
+    ): ModelConfigData {
+        return updateConfigInternal(configId) {
+            it.copy(
+                    requestLimitPerMinute = requestLimitPerMinute.coerceAtLeast(0),
+                    maxConcurrentRequests = maxConcurrentRequests.coerceAtLeast(0)
+            )
+        }
+    }
+
     suspend fun updateApiKeyPoolSettings(
             configId: String,
             useMultipleApiKeys: Boolean,

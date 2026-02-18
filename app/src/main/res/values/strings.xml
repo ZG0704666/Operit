@@ -4821,6 +4821,7 @@
     <string name="toolreg_execute_in_terminal_session_desc">在终端会话「%1$s」中执行: %2$s</string>
     <string name="toolreg_close_terminal_session_desc">关闭终端会话: %1$s</string>
     <string name="toolreg_input_in_terminal_session_desc">向终端会话「%1$s」写入输入（control=%2$s）</string>
+    <string name="toolreg_get_terminal_session_screen_desc">获取终端会话「%1$s」当前屏幕内容（单屏）</string>
     <string name="toolreg_query_memory_desc">查询问题库: %1$s</string>
     <string name="toolreg_get_memory_by_title_desc">根据标题获取记忆: %1$s</string>
 
@@ -6272,6 +6273,8 @@
     <string name="terminal_error_missing_session_id">缺少参数: session_id</string>
     <string name="terminal_error_session_not_exist">终端会话 \'%1$s\' 不存在或已关闭</string>
     <string name="terminal_error_command_failed">终端命令执行失败或超时</string>
+    <string name="terminal_error_command_timeout">终端命令执行超时（%1$dms）</string>
+    <string name="terminal_error_command_non_zero_exit">终端命令以非零状态退出（exitCode=%1$d）</string>
     <string name="terminal_error_execute_command">执行终端命令时出错: %1$s</string>
     <string name="terminal_session_closed">终端会话 \'%1$s\' 已成功关闭。</string>
     <string name="terminal_error_close_session">关闭终端会话 \'%1$s\' 时出错: %2$s</string>
@@ -6282,6 +6285,7 @@
     <string name="terminal_error_unsupported_control">不支持的 control: %1$s</string>
     <string name="terminal_error_input">向终端会话写入输入时出错</string>
     <string name="terminal_error_input_with_reason">向终端会话写入输入时出错: %1$s</string>
+    <string name="terminal_error_get_screen">获取终端会话当前屏幕内容时出错: %1$s</string>
     <string name="terminal_input_sent">已向终端会话 \'%1$s\' 写入输入（acceptedChars=%2$d）</string>
 
     <!-- OpenAISttProvider -->
@@ -6692,4 +6696,10 @@
     <string name="windows_one_click_field_config_text_placeholder">在这里粘贴电脑端复制的配置文本（WINDOWS_AGENT_*）</string>
     <string name="windows_one_click_status_success">配置已保存，windows_control 已启用。</string>
     <string name="windows_one_click_status_error">操作失败：%1$s</string>
+    <string name="request_limit_per_minute">每分钟请求次数</string>
+    <string name="request_limit_per_minute_desc">超过该阈值会进入排队等待。填 0 或留空表示不限流。</string>
+    <string name="max_concurrent_requests">最大并发请求数</string>
+    <string name="max_concurrent_requests_desc">超过该阈值会排队等待。填 0 或留空表示不限制。</string>
+    <string name="request_queue_controls">请求队列控制</string>
+    <string name="request_queue_controls_desc">默认折叠。用于限制请求频率和并发，超限会排队等待。</string>
 </resources>

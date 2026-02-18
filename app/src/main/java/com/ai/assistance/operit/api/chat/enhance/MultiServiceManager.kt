@@ -4,6 +4,9 @@ import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.api.chat.llmprovider.AIService
 import com.ai.assistance.operit.api.chat.llmprovider.AIServiceFactory
+import com.ai.assistance.operit.api.chat.llmprovider.RateLimitedAIService
+import com.ai.assistance.operit.api.chat.llmprovider.RateLimiterRegistry
+import com.ai.assistance.operit.api.chat.llmprovider.RequestConcurrencyRegistry
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.getModelByIndex
@@ -195,11 +198,44 @@ class MultiServiceManager(private val context: Context) {
         
         AppLogger.d(TAG, "创建服务: 原始模型='${config.modelName}', 选中模型='$selectedModelName' (请求索引=$modelIndex, 实际索引=$actualIndex)")
 
-        return AIServiceFactory.createService(
+        val rawService = AIServiceFactory.createService(
             config = configWithSelectedModel,
             customHeadersJson = customHeadersJson,
             modelConfigManager = modelConfigManager,
             context = context
+        )
+
+        val requestLimitPerMinute = config.requestLimitPerMinute.coerceAtLeast(0)
+        val maxConcurrentRequests = config.maxConcurrentRequests.coerceAtLeast(0)
+
+        if (requestLimitPerMinute == 0 && maxConcurrentRequests == 0) {
+            return rawService
+        }
+
+        val limiter =
+            if (requestLimitPerMinute > 0) {
+                RateLimiterRegistry.getOrCreate(
+                    key = config.id,
+                    maxRequestsPerMinute = requestLimitPerMinute
+                )
+            } else {
+                null
+            }
+
+        val concurrencySemaphore =
+            if (maxConcurrentRequests > 0) {
+                RequestConcurrencyRegistry.getOrCreate(
+                    key = config.id,
+                    maxConcurrentRequests = maxConcurrentRequests
+                )
+            } else {
+                null
+            }
+
+        return RateLimitedAIService(
+            delegate = rawService,
+            rateLimiter = limiter,
+            concurrencySemaphore = concurrencySemaphore
         )
     }
 

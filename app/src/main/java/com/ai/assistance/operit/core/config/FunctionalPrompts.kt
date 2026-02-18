@@ -843,173 +843,146 @@ $toolList
     ): String {
         return if (useEnglish) {
             """
- You are a knowledge graph construction expert. Your task is to analyze a conversation and extract key knowledge the AI learned to build a memory graph. You also need to analyze user preferences.
+You are building a long-term memory graph from this conversation.
 
- $duplicatesPromptPart
- $existingMemoriesPrompt
+$duplicatesPromptPart
+$existingMemoriesPrompt
+$existingFoldersPrompt
 
- $existingFoldersPrompt
+[Selection gate - apply first]
+- Store only user-specific reusable knowledge: stable preferences, constraints, confirmed decisions, recurring mistakes, project facts, or recurring worldbuilding facts.
+- Do NOT store common/public definitions (e.g., "What is TypeScript", "What is Node.js", "What is magnetic declination").
+- Do NOT store future/speculative items: next-step suggestions, TODO lists, tentative plans.
+- If no valuable long-term signal exists, return `{}`.
 
- [Memory selection principles]: The AI's core task is to learn information beyond its own built-in knowledge. When extracting knowledge, strictly follow these principles:
- - Prefer recording:
-     - User-provided personal information, preferences, project details, relationships.
-     - Unique, context-strong new concepts produced in the conversation.
-     - File contents or data summaries provided by the user that the AI cannot obtain through normal channels.
-     - Events outside the AI's knowledge cutoff (e.g., things that happened after its training cutoff).
- - Avoid recording:
-     - Common, widely-known facts (e.g., "The earth is round").
-     - Famous historical events/figures/places (e.g., "World War I", "Einstein").
-     - Publicly available information.
- When deciding whether something is "common knowledge", think as a large language model: "Is this extremely likely to already exist in my training data?" If yes, avoid creating a separate memory node. You may use such info as background context rather than a new knowledge item.
+[Extraction policy]
+- Prefer `update` / `merge` over creating `new`.
+- Use `new` only when concept is truly novel (max 5 items).
+- In long-running fiction, recurring characters/places/factions/rules/timeline constraints are valid memories.
+- If core meaning is "update existing concept", set `main` to null and use `update` only.
 
- Your goals:
- 1. Identify core entities and concepts: people, places, projects, concepts, technologies, etc. Each entity should be a reusable knowledge unit.
- 2. Define relations between entities.
- 3. Summarize the core knowledge learned in this conversation as a central memory node.
- 4. Categorize knowledge: propose a suitable hierarchical folder path (`folder_path`) for all new knowledge.
- 5. Update user preferences incrementally.
- 6. Critically update and refine existing memories: when new info can correct/supplement/deepen existing memories, prefer updating them rather than creating duplicates.
+[Style policy]
+- Style can adapt to the conversation domain (technical / daily chat / fiction).
+- Keep structure strict and facts stable: style changes wording only, not selection criteria.
+- Never use style adaptation as a reason to store common knowledge or future plans.
+- Keep titles concise and event-centered; keep content readable and context-matched.
 
- [Memory attributes]:
- - `credibility` (0.0-1.0): accuracy of the memory content. This affects how memory content is represented when retrieved.
- - `importance` (0.0-1.0): importance in the knowledge network. This acts as a search weight.
- - `edge.weight` (0.0-1.0): strength of relation between two memory nodes.
+[Title & content writing]
+- `main` title should be event-first, not definition-first.
+- Good title patterns:
+  - Event: `[Domain] Event: action + result`
+  - Worldbuilding entity: `Entity: name (role/type)`
+- Bad title patterns: `What is X`, `Definition of X`, generic encyclopedia headings.
+- Content should describe happened facts and current confirmed state only.
+- Do not write future actions, TODOs, or speculative plans in content.
 
- [Output format]: You MUST return a compact JSON using arrays to reduce token usage.
- - Keys MUST be abbreviated: "main", "new", "update", "merge", "links", "user".
- - Values MUST be arrays in the specified order. If an optional field does not exist, use `null` as a placeholder.
+[Link rules]
+- Create a link only when the relation is explicitly supported by conversation evidence.
+- Recommended relation types:
+  - Event flow: `FOLLOWS`, `CORRECTS`, `UPDATES`
+  - Participation/context: `INVOLVES`, `HAPPENS_AT`
+  - Worldbuilding structure: `PART_OF`, `ALLIED_WITH`, `OPPOSES`
+- Do not create links from weak co-occurrence alone.
+- If uncertain, do not create the link.
 
- ```json
- {
-   "main": ["Title", "Detailed content", ["tag1", "tag2"], "folder_path"],
-   "new": [
-     ["Entity title", "Entity content", ["tags"], "folder_path", "alias_for title or null"]
-   ],
-   "update": [
-     ["Title to update", "New full content", "Reason", newCredibilityOrNull, newImportanceOrNull]
-   ],
-   "merge": [
-     {
-       "source_titles": ["A", "B"],
-       "new_title": "Merged title",
-       "new_content": "Merged content",
-       "new_tags": ["tags"],
-       "folder_path": "folder_path",
-       "reason": "merge reason"
-     }
-   ],
-   "links": [
-     ["Source title", "Target title", "RELATION_TYPE", "Description", weight]
-   ],
-   "user": {
-     "personality": "Updated personality",
-     "occupation": "<UNCHANGED>"
-   }
- }
- ```
+[Examples]
+- Common-knowledge Q&A only (e.g., "What is magnetic declination?"): return `{}`.
+- TS/Node definition explanation only: return `{}`.
+- Small talk with meaningful interaction: store one compressed event-style `main` (no technical/entity over-expansion).
+- Trivial greeting with no meaningful content: return `{}`.
+- User made a mistake and it was corrected in this turn: store this as an event in `main`.
+- Ongoing fiction/worldbuilding: recurring characters, places, factions, rules, and timeline constraints should be stored (use `new`/`links` as needed).
+- Medical concept explanation only (e.g., "What is flu?"): return `{}`.
+- Finance concept explanation only (e.g., "What is ETF?"): return `{}`.
+- Project turn with concrete progress (debug fixed / summary finished / task canceled): store one event `main`.
+- Repeated explanation with no new progress/decision: return `{}`.
+- Worldbuilding update (character relation or place ownership changed): use `update`, and link with `UPDATES`/`PART_OF` when explicit.
 
- [Important guidelines]:
- - MOST IMPORTANT: If the conversation is trivial (small talk) and contains no valuable long-term knowledge, return an empty JSON object `{}`.
- - `main`: the core knowledge learned. Focus on the knowledge itself, not the user's asking behavior.
- - `folder_path`: use meaningful hierarchical paths. Prefer existing folders.
- - `new`: If an extracted entity is essentially the same as an existing memory, you MUST set the 5th element to that existing title; otherwise it MUST be JSON null.
- - `update`: Prefer updating when new info substantially improves an existing memory. Do NOT create updates for mere repetition.
- - Conflict resolution: `update` and `main` are mutually exclusive. If the core is updating an existing concept, ONLY use `update` and set `main` to null.
- - `merge`: Use to merge multiple existing memories describing the same concept.
- - `links`: Relation type should use UPPER_SNAKE_CASE (e.g., `IS_A`, `PART_OF`, `LEADS_TO`). Recommended weights: 1.0 / 0.7 / 0.3.
- - `user`: structured JSON. For fields with no new discoveries, use "<UNCHANGED>".
+[Output schema - strict JSON only]
+- Keys: `main`, `new`, `update`, `merge`, `links`, `user`.
+- `main`: `["Title", "Content", ["tags"], "folder_path"]` or `null`.
+- `new`: `[["Title", "Content", ["tags"], "folder_path", "alias_for_or_null"], ...]`.
+- `update`: `[["Title", "New full content", "Reason", credibility_or_null, importance_or_null], ...]`.
+- `merge`: `[{"source_titles":["A","B"],"new_title":"...","new_content":"...","new_tags":["..."],"folder_path":"...","reason":"..."}, ...]`.
+- `links`: `[["Source", "Target", "RELATION_TYPE", "Description", weight], ...]` (type must be UPPER_SNAKE_CASE).
+- `user`: structured object; unknown fields should be `"<UNCHANGED>"`.
+- Use JSON `null` for missing optional values.
 
- Existing user preferences: $currentPreferences
+Existing user preferences: $currentPreferences
 
- Only return a valid JSON object. Do not add any other content.
- """.trimIndent()
+Return only a valid JSON object. No extra text.
+""".trimIndent()
         } else {
             """
-                你是一个知识图谱构建专家。你的任务是分析一段对话，并从中提取AI自己学到的关键知识，用于构建一个记忆图谱。同时，你还需要分析用户偏好。
+你要从对话中构建长期记忆图谱。
 
-                $duplicatesPromptPart
-                $existingMemoriesPrompt
+$duplicatesPromptPart
+$existingMemoriesPrompt
+$existingFoldersPrompt
 
-                $existingFoldersPrompt
+【写入前先过筛】
+- 只记录“用户特异且可复用”的信息：稳定偏好、约束、已确认决策、反复错误、项目事实、长期世界观中的稳定设定。
+- 不记录常识/公开定义（如“TS是什么”“Node是什么”“磁偏角是什么”）。
+- 不记录未来推测项：下一步建议、TODO、暂定计划。
+- 若没有长期价值信号，直接返回 `{}`。
 
-                【记忆筛选原则】: AI的核心任务是学习其自身知识库之外的信息。在提取知识时，请严格遵守以下原则：
-                - **优先记录**:
-                    - 用户提供的个人信息、偏好、项目细节、人际关系。
-                    - 对话中产生的、独特的、上下文强相关的新概念。
-                    - 用户提供的、AI无法通过常规渠道获取的文件内容或数据摘要。
-                    - 在AI认知范围之外的事件（例如，发生在其知识截止日期之后的事情）。
-                - **避免记录**:
-                    - 普遍存在的常识、事实（例如：'地球是圆的'）。
-                    - 著名的历史事件、人物、地点（例如：'第一次世界大战'、'爱因斯坦'）。
-                    - 广泛可用的公开信息。
-                在判断一个信息是否为'常识'时，请站在一个大型语言模型的角度思考：'这个信息是否极有可能已经包含在我的训练数据中？'。如果答案是肯定的，则应避免为其创建独立的记忆节点。可以将这些常识性信息作为丰富现有上下文记忆的背景，而不是作为新的知识点进行存储。
+【抽取策略】
+- 优先 `update` / `merge`，其次才是 `new`。
+- `new` 仅在确实新增概念时使用（最多 5 条）。
+- 长期小说/世界观场景中，反复出现且影响连续性的角色、地点、组织、规则、时间线可以入库。
+- 若核心是“更新旧概念”，`main` 必须为 `null`，只用 `update`。
 
-                你的目标是：
-                1.  **识别核心实体和概念**: 从对话中找出关键的人物、地点、项目、概念、技术等。每个实体都应该是一个独立的、可复用的知识单元。
-                2.  **定义实体间的关系**: 找出这些实体之间是如何关联的。
-                3.  **总结核心知识**: 将本次对话学习到的最核心的知识点作为一个中心记忆节点。
-                4.  **为知识分类**: 为所有新创建的知识（包括核心知识和实体）建议一个合适的文件夹路径（`folder_path`），以便于管理。
-                5.  **更新用户偏好**: 根据对话内容，增量更新对用户的了解。
-                6.  **批判性地更新和完善现有记忆**: 如果对话中的新信息可以纠正、补充或深化 `$existingMemoriesPrompt` 中列出的任何记忆，请优先更新它们，而不是创建重复的实体。
+【语气策略】
+- 语气可根据场景变化（技术、日常聊天、小说创作），但只能改变表达方式，不能改变入库标准。
+- 结构和事实必须稳定：语气变化不等于放宽筛选。
+- 不能因为语气自然化就记录常识或未来计划。
+- 标题保持简洁并聚焦事件，内容在可读的前提下贴合场景语气。
 
-                【记忆属性定义】:
-                - `credibility` (可信度): 代表该条记忆内容的准确性。取值范围 0.0 ~ 1.0。1.0代表完全可信，0.0代表完全不可信。**此值会影响记忆在被检索时的内容表示**。
-                - `importance` (重要性): 代表该条记忆对于整个知识网络的重要性。取值范围 0.0 ~ 1.0。1.0代表核心知识，0.0代表非常边缘的信息。**此值会作为搜索时的权重，直接影响其被检索到的概率**。
-                - `edge.weight` (连接权重): 代表两个记忆节点之间关联的强度。取值范围 0.0 ~ 1.0。
+【标题与内容写法】
+- `main` 标题优先写事件，不写定义。
+- 推荐标题模板：
+  - 事件：`[领域] 事件：动作 + 结果`
+  - 世界观实体：`实体：名称（身份/类型）`
+- 不推荐标题：`X是什么`、`X的定义`、百科式泛标题。
+- 内容只写“已发生事实 + 当前已确认状态”。
+- 内容禁止写未来动作、TODO、推测性计划。
 
-                **【输出格式】: 你必须返回一个使用数组的紧凑型JSON，以减少Token消耗。**
-                - **键名**: 必须使用缩写: "main" (核心知识), "new" (新实体), "update" (更新实体), "merge" (合并实体), "links" (关系), "user" (用户偏好)。
-                - **值**: 必须是数组形式，并严格按照以下顺序和类型排列元素。可选字段如果不存在，请使用 `null` 占位。
+【连接关系规则】
+- 只有当对话里有明确证据时才建边。
+- 推荐关系类型：
+  - 事件流程：`FOLLOWS`、`CORRECTS`、`UPDATES`
+  - 参与与上下文：`INVOLVES`、`HAPPENS_AT`
+  - 世界观结构：`PART_OF`、`ALLIED_WITH`、`OPPOSES`
+- 不能仅凭“同段提到过”就连边。
+- 拿不准就不连。
 
-                ```json
-                {
-                  "main": ["标题", "详细内容", ["标签1", "标签2"], "文件夹路径"],
-                  "new": [
-                    ["实体标题", "实体内容", ["标签"], "文件夹路径", "alias_for指向的标题或null"]
-                  ],
-                  "update": [
-                    ["要更新的标题", "新的完整内容", "更新原因", 新的可信度(0.0-1.0)或null, 新的重要性(0.0-1.0)或null]
-                  ],
-                  "merge": [
-                    {
-                      "source_titles": ["要合并的标题1", "要合并的标题2"],
-                      "new_title": "合并后的新标题",
-                      "new_content": "合并并提炼后的新内容",
-                      "new_tags": ["合并后的标签"],
-                      "folder_path": "合并后的文件夹路径",
-                      "reason": "简述合并原因"
-                    }
-                  ],
-                  "links": [
-                    ["源实体标题", "目标实体标题", "关系类型", "关系描述", 权重(0.0-1.0)]
-                  ],
-                  "user": {
-                    "personality": "更新后的人格",
-                    "occupation": "<UNCHANGED>"
-                  }
-                }
-                ```
+【示例（必须遵循）】
+- 仅在问答常识（如“磁偏角是什么”）且无用户特异信号：返回 `{}`。
+- 仅解释 TS/Node 等公开定义：返回 `{}`。
+- 闲聊但有实际交流内容：压缩成一条事件型 `main` 记录，不拆技术细节。
+- 只有空泛寒暄（如仅“你好/在吗”）：返回 `{}`。
+- 本轮出现“用户犯错并被纠正”：作为事件写入 `main`。
+- 长期小说/世界观讨论：反复出现且影响连续性的角色、地名、组织、规则、时间线应入库，按需使用 `new`/`links`。
+- 仅解释医疗定义（如“流感是什么”）：返回 `{}`。
+- 仅解释金融定义（如“ETF是什么”）：返回 `{}`。
+- 项目本轮有明确进展（修复完成/摘要完成/任务终止）：写一条事件型 `main`。
+- 反复解释但没有新进展/新决策：返回 `{}`。
+- 世界观设定发生变化（关系/归属变更）：优先 `update`，并在证据明确时连 `UPDATES` / `PART_OF`。
 
-                【重要指南】:
-                - 【**最重要**】如果本次对话内容非常简单、属于日常寒暄、没有包含任何新的、有价值的、值得长期记忆的知识点，或只是对已有知识的简单重复应用，请直接返回一个空的 JSON 对象 `{}`。这是控制记忆库质量的关键。
-                - `main`: 这是AI学到的核心知识，作为一个中心记忆节点。它的 `title` 和 `content` 应该聚焦于知识本身，而不是用户的提问行为。
-                - `folder_path`: 为所有新知识指定一个有意义的、层级化的文件夹路径。尽量复用已有的文件夹。如果实体与`main`主题紧密相关，它们的`folder_path`应该一致。
-                - `new`: 【极其重要】为每个提取的实体做出判断。如果它与提供的“已有记忆”列表中的某一项实质上是同一个东西，必须在数组的第5个元素提供已有记忆的标题。否则，此元素的值必须是 JSON null。
-                - `update`: **【优先更新】** 你的首要任务是维护一个准确、丰富的记忆库。当新信息可以**实质性地**改进现有记忆时（纠正错误、补充重要细节、提供全新视角），请使用此字段进行更新。然而，如果新信息只是对现有记忆的简单重述或没有提供有价值的新内容，请**不要**生成`update`指令，以保持记忆库的简洁和高质量。**优先更新和合并，而不是创建大量相似或零散的新记忆。** 如果你认为新信息影响了某条记忆的【可信度】或【重要性】，请务必在数组的第4和第5个元素中给出新的评估值。
-                - 【**冲突解决**】: `update` 和 `main` 是互斥的。如果对话的核心是**更新**一个现有概念，请**只使用 `update`**，并将 `main` 设置为 `null`。**绝对不要**在一次返回中同时使用 `update` 和 `main`。
-                - `merge`: **【合并相似项】** 当你发现多个现有记忆（在`${existingMemoriesPrompt.take(1000)}...`中提供）实际上描述的是同一个核心概念时，使用此字段将它们合并成一个更完整、更准确的单一记忆。这对于保持记忆库的整洁至关重要。
-                - `links`: 定义实体之间的关系。`source_title` 和 `target_title` 必须对应 `main` 或 `new` 中的实体标题。关系类型 (type) 应该使用大写字母和下划线 (e.g., `IS_A`, `PART_OF`, `LEADS_TO`)。`weight` 字段表示关系的强度 (0.0-1.0)，【强烈推荐】只使用以下三个标准值：
-                  - `1.0`: 代表强关联 (例如: "A 是 B 的一部分", "A 导致了 B")
-                  - `0.7`: 代表中等关联 (例如: "A 和 B 相关", "A 影响了 B")
-                  - `0.3`: 代表弱关联 (例如: "A 有时会和 B 一起提及")
-                - `user`: 【特别重要】用结构化JSON格式表示，在现有偏好的基础上进行小幅增量更新。
-                  现有用户偏好：$currentPreferences
-                  对于没有新发现的字段，使用"<UNCHANGED>"特殊标记表示保持不变。
+【输出格式（严格JSON）】
+- 顶层键：`main`、`new`、`update`、`merge`、`links`、`user`。
+- `main`: `["标题","内容",["标签"],"folder_path"]` 或 `null`。
+- `new`: `[["标题","内容",["标签"],"folder_path","alias_for_or_null"], ...]`。
+- `update`: `[["标题","新完整内容","原因",可信度或null,重要性或null], ...]`。
+- `merge`: `[{"source_titles":["A","B"],"new_title":"...","new_content":"...","new_tags":["..."],"folder_path":"...","reason":"..."}, ...]`。
+- `links`: `[["源","目标","RELATION_TYPE","描述",权重], ...]`，关系类型用大写下划线。
+- `user`: 结构化对象，未变化字段填 `"<UNCHANGED>"`。
+- 可选值缺失时使用 JSON `null`。
 
-                【规则补充】: 当对话的核心结论仅仅是对一个现有概念的**深化**、**确认**或**补充**时（例如，从一次失败的工具调用中学会了‘激活机制很重要’），你**必须**通过 `update` 数组来增强现有记忆的`content`或调整其`importance`值，并且**禁止**在这种情况下使用 `main` 字段创建重复的新记忆。
+现有用户偏好：$currentPreferences
 
-                只返回格式正确的JSON对象，不要添加任何其他内容。
-                """.trimIndent()
+只返回合法 JSON 对象，不要输出其他内容。
+""".trimIndent()
         }
     }
 

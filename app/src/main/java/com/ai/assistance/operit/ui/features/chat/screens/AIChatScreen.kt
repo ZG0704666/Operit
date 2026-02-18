@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.chat.screens
 
 import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.ContextWrapper
 import android.os.Build
 import android.provider.Settings
@@ -401,10 +402,10 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val showWebView by actualViewModel.showWebView.collectAsState()
     // 收集AI电脑显示状态
     val showAiComputer by actualViewModel.showAiComputer.collectAsState()
-    DisposableEffect(inputStyle, showWebView, showAiComputer, hostActivity) {
+    val manifestSoftInputMode = remember(hostActivity) { hostActivity?.manifestSoftInputMode() }
+    LaunchedEffect(inputStyle, showWebView, showAiComputer, hostActivity) {
         val window = hostActivity?.window
         if (window != null) {
-            val previousSoftInputMode = window.attributes.softInputMode
             val shouldUseChatLocalImeHandling =
                 inputStyle == UserPreferencesManager.INPUT_STYLE_AGENT &&
                     !showWebView &&
@@ -422,11 +423,14 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                     WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
                 }
             window.setSoftInputMode(targetSoftInputMode)
-            onDispose {
-                window.setSoftInputMode(previousSoftInputMode)
+        }
+    }
+    DisposableEffect(hostActivity, manifestSoftInputMode) {
+        onDispose {
+            val window = hostActivity?.window
+            if (window != null && manifestSoftInputMode != null) {
+                window.setSoftInputMode(manifestSoftInputMode)
             }
-        } else {
-            onDispose { }
         }
     }
 
@@ -1165,4 +1169,15 @@ private tailrec fun Context.findActivity(): Activity? =
         is Activity -> this
         is ContextWrapper -> baseContext.findActivity()
         else -> null
+    }
+
+private fun Activity.manifestSoftInputMode(): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        packageManager.getActivityInfo(
+            componentName,
+            PackageManager.ComponentInfoFlags.of(0)
+        ).softInputMode
+    } else {
+        @Suppress("DEPRECATION")
+        packageManager.getActivityInfo(componentName, 0).softInputMode
     }

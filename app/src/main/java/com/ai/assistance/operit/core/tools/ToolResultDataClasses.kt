@@ -99,7 +99,8 @@ data class TerminalCommandResultData(
         val command: String,
         val output: String,
         val exitCode: Int,
-        val sessionId: String
+        val sessionId: String,
+        val timedOut: Boolean = false
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
@@ -107,6 +108,9 @@ data class TerminalCommandResultData(
         sb.appendLine("Command: $command")
         sb.appendLine("Session: $sessionId")
         sb.appendLine("Exit Code: $exitCode")
+        if (timedOut) {
+            sb.appendLine("Timed Out: true")
+        }
         sb.appendLine("\nOutput:")
         sb.appendLine(output)
         return sb.toString()
@@ -1080,6 +1084,25 @@ data class TerminalSessionCloseResultData(
     val message: String
 ) : ToolResultData() {
     override fun toString(): String = message
+}
+
+/** 终端会话当前屏幕内容结果数据（仅当前屏，不含历史滚动缓冲） */
+@Serializable
+data class TerminalSessionScreenResultData(
+    val sessionId: String,
+    val rows: Int,
+    val cols: Int,
+    val content: String
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("Terminal Session Screen Snapshot:")
+        sb.appendLine("Session: $sessionId")
+        sb.appendLine("Size: ${cols}x${rows}")
+        sb.appendLine()
+        sb.append(content)
+        return sb.toString()
+    }
 }
 
 /** Grep代码搜索结果数据 */

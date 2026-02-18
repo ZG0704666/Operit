@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,15 +21,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.api.chat.llmprovider.ApiKeyPoolAvailabilityTester
 import com.ai.assistance.operit.data.model.ApiKeyAvailabilityStatus
 import com.ai.assistance.operit.data.model.ApiKeyInfo
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -43,6 +51,25 @@ fun AdvancedSettingsSection(
 
     var useApiKeyPool by remember(config.id) { mutableStateOf(config.useMultipleApiKeys) }
     var apiKeyPool by remember(config.id) { mutableStateOf(config.apiKeyPool) }
+    var showRequestQueueControls by remember(config.id) { mutableStateOf(false) }
+    var requestLimitPerMinuteInput by
+        remember(config.id) {
+            mutableStateOf(
+                config.requestLimitPerMinute
+                    .takeIf { it > 0 }
+                    ?.toString()
+                    .orEmpty()
+            )
+        }
+    var maxConcurrentRequestsInput by
+        remember(config.id) {
+            mutableStateOf(
+                config.maxConcurrentRequests
+                    .takeIf { it > 0 }
+                    ?.toString()
+                    .orEmpty()
+            )
+        }
 
     var showAddKeyDialog by remember { mutableStateOf(false) }
     var editingKey by remember { mutableStateOf<ApiKeyInfo?>(null) }
@@ -61,6 +88,39 @@ fun AdvancedSettingsSection(
             )
             showNotification(context.getString(R.string.advanced_settings_saved))
         }
+    }
+
+    data class RequestQueueControlState(
+        val requestLimitPerMinute: Int,
+        val maxConcurrentRequests: Int
+    )
+
+    suspend fun persistRequestQueueControlState(state: RequestQueueControlState) {
+        configManager.updateRequestQueueSettings(
+            configId = config.id,
+            requestLimitPerMinute = state.requestLimitPerMinute,
+            maxConcurrentRequests = state.maxConcurrentRequests
+        )
+        EnhancedAIService.refreshAllServices(configManager.appContext)
+    }
+
+    LaunchedEffect(config.id) {
+        snapshotFlow {
+            RequestQueueControlState(
+                requestLimitPerMinute = requestLimitPerMinuteInput.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+                maxConcurrentRequests = maxConcurrentRequestsInput.toIntOrNull()?.coerceAtLeast(0) ?: 0
+            )
+        }
+            .drop(1)
+            .debounce(700)
+            .distinctUntilChanged()
+            .collectLatest { state ->
+                runCatching {
+                    persistRequestQueueControlState(state)
+                }.onFailure { e ->
+                    showNotification(context.getString(R.string.save_failed) + ": " + (e.message ?: ""))
+                }
+            }
     }
 
     fun exportKeyPoolToUri(uri: Uri) {
@@ -148,6 +208,86 @@ fun AdvancedSettingsSection(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showRequestQueueControls = !showRequestQueueControls },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.request_queue_controls),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = stringResource(R.string.request_queue_controls_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector =
+                                if (showRequestQueueControls) Icons.Default.KeyboardArrowUp
+                                else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = showRequestQueueControls,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            SettingsTextField(
+                                title = stringResource(R.string.request_limit_per_minute),
+                                subtitle = stringResource(R.string.request_limit_per_minute_desc),
+                                value = requestLimitPerMinuteInput,
+                                onValueChange = {
+                                    requestLimitPerMinuteInput = it.filter { ch -> ch.isDigit() }
+                                },
+                                placeholder = "0",
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Next
+                                )
+                            )
+
+                            SettingsTextField(
+                                title = stringResource(R.string.max_concurrent_requests),
+                                subtitle = stringResource(R.string.max_concurrent_requests_desc),
+                                value = maxConcurrentRequestsInput,
+                                onValueChange = {
+                                    maxConcurrentRequestsInput = it.filter { ch -> ch.isDigit() }
+                                },
+                                placeholder = "0",
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                )
+                            )
+                        }
+                    }
+                }
             }
 
             // API Key Pool Toggle

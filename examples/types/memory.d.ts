@@ -79,5 +79,36 @@ export namespace Memory {
      * @returns Link creation result
      */
     function link(sourceTitle: string, targetTitle: string, linkType?: string, weight?: number, description?: string): Promise<import('./results').MemoryLinkResultData>;
+
+    /**
+     * Update an existing memory link
+     * @param linkId - Optional link ID (preferred locator)
+     * @param sourceTitle - Optional source memory title (used when linkId is not provided)
+     * @param targetTitle - Optional target memory title (used when linkId is not provided)
+     * @param linkType - Optional current link type (for unique resolution)
+     * @param newLinkType - Optional new link type
+     * @param weight - Optional new link strength (0.0-1.0)
+     * @param description - Optional new relationship description
+     * @returns Link update result
+     */
+    function updateLink(
+        linkId?: number,
+        sourceTitle?: string,
+        targetTitle?: string,
+        linkType?: string,
+        newLinkType?: string,
+        weight?: number,
+        description?: string
+    ): Promise<import('./results').MemoryLinkResultData>;
+
+    /**
+     * Delete an existing memory link
+     * @param linkId - Optional link ID (preferred locator)
+     * @param sourceTitle - Optional source memory title (used when linkId is not provided)
+     * @param targetTitle - Optional target memory title (used when linkId is not provided)
+     * @param linkType - Optional link type (for unique resolution)
+     * @returns Deletion result as a string
+     */
+    function deleteLink(linkId?: number, sourceTitle?: string, targetTitle?: string, linkType?: string): Promise<string>;
 }
 

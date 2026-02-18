@@ -163,6 +163,19 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    handler.registerTool(
+            name = "get_terminal_session_screen",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value ?: ""
+                s(R.string.toolreg_get_terminal_session_screen_desc, sessionId)
+            },
+            executor = { tool ->
+                val terminalTool = ToolGetter.getTerminalCommandExecutor(context)
+                terminalTool.getSessionScreen(tool)
+            }
+    )
+
     // 注册问题库查询工具
     handler.registerTool(
             name = "query_memory",
@@ -275,6 +288,48 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 val targetTitle = tool.parameters.find { it.name == "target_title" }?.value ?: ""
                 val linkType = tool.parameters.find { it.name == "link_type" }?.value ?: "related"
                 s(R.string.toolreg_link_memories_desc, sourceTitle, targetTitle, linkType)
+            },
+            executor = { tool ->
+                val memoryTool = ToolGetter.getMemoryQueryToolExecutor(context)
+                memoryTool.invoke(tool)
+            }
+    )
+
+    // 注册更新记忆链接工具
+    handler.registerTool(
+            name = "update_memory_link",
+            dangerCheck = null,
+            descriptionGenerator = { tool ->
+                val linkId = tool.parameters.find { it.name == "link_id" }?.value
+                val sourceTitle = tool.parameters.find { it.name == "source_title" }?.value
+                val targetTitle = tool.parameters.find { it.name == "target_title" }?.value
+                val locator = when {
+                    !linkId.isNullOrBlank() -> "link_id=$linkId"
+                    !sourceTitle.isNullOrBlank() && !targetTitle.isNullOrBlank() -> "$sourceTitle -> $targetTitle"
+                    else -> "unknown link"
+                }
+                "Update memory link: $locator"
+            },
+            executor = { tool ->
+                val memoryTool = ToolGetter.getMemoryQueryToolExecutor(context)
+                memoryTool.invoke(tool)
+            }
+    )
+
+    // 注册删除记忆链接工具
+    handler.registerTool(
+            name = "delete_memory_link",
+            dangerCheck = null,
+            descriptionGenerator = { tool ->
+                val linkId = tool.parameters.find { it.name == "link_id" }?.value
+                val sourceTitle = tool.parameters.find { it.name == "source_title" }?.value
+                val targetTitle = tool.parameters.find { it.name == "target_title" }?.value
+                val locator = when {
+                    !linkId.isNullOrBlank() -> "link_id=$linkId"
+                    !sourceTitle.isNullOrBlank() && !targetTitle.isNullOrBlank() -> "$sourceTitle -> $targetTitle"
+                    else -> "unknown link"
+                }
+                "Delete memory link: $locator"
             },
             executor = { tool ->
                 val memoryTool = ToolGetter.getMemoryQueryToolExecutor(context)

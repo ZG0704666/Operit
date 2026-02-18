@@ -766,7 +766,7 @@ fun ModelApiSettingsSection(
                     onCheckedChange = { strictToolCallInput = it }
                 )
             }
-            
+
         }
     }
 

@@ -116,7 +116,11 @@ data class ModelConfigData(
 
         // Tool Call配置
         val enableToolCall: Boolean = false, // 是否启用Tool Call接口调用工具（使用模型原生工具调用而非XML格式）
-        val strictToolCall: Boolean = false // 严格Tool Call模式（用于Tool Call支持不稳定时的兼容代理）
+        val strictToolCall: Boolean = false, // 严格Tool Call模式（用于Tool Call支持不稳定时的兼容代理）
+
+        // 请求频率限制配置
+        val requestLimitPerMinute: Int = 0, // 每分钟最大请求次数，0表示不限流
+        val maxConcurrentRequests: Int = 0 // 最大并发请求数，0表示不限制
 )
 
 /** 简化版的模型配置数据，用于列表显示 */

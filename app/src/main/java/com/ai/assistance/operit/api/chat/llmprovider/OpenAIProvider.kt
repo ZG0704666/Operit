@@ -1017,17 +1017,19 @@ open class OpenAIProvider(
     }
 
     private fun sanitizeToolCallId(raw: String): String {
-        val sb = StringBuilder(raw.length)
-        for (ch in raw) {
-            if ((ch in 'a'..'z') || (ch in 'A'..'Z') || (ch in '0'..'9') || ch == '_' || ch == '-') {
-                sb.append(ch)
-            } else {
-                sb.append('_')
-            }
+        val cleaned = raw.filter { it.isLetterOrDigit() }
+        if (cleaned.isEmpty()) {
+            return "call00000"
         }
-        var out = sb.toString().replace(Regex("_+"), "_")
-        out = out.trim('_')
-        return if (out.isEmpty()) "call" else out
+        if (cleaned.length == 9) {
+            return cleaned
+        }
+        if (cleaned.length > 9) {
+            return cleaned.takeLast(9)
+        }
+
+        val filler = stableIdHashPart(raw)
+        return (cleaned + filler + "000000000").take(9)
     }
 
     private fun stableIdHashPart(raw: String): String {

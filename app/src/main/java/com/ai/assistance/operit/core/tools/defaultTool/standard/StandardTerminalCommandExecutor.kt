@@ -7,6 +7,7 @@ import com.ai.assistance.operit.core.tools.*
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.core.tools.system.Terminal
+import com.ai.assistance.operit.terminal.view.domain.ansi.TerminalChar
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -121,6 +122,7 @@ class StandardTerminalCommandExecutor(private val context: Context) {
                     val events = mutableListOf<String>()
                     var exitCode = 0
                     var hasCompleted = false
+                    var didTimeout = false
 
                     try {
                         withTimeout(timeout) {
@@ -138,20 +140,33 @@ class StandardTerminalCommandExecutor(private val context: Context) {
                         AppLogger.w(TAG, "Command execution timed out after ${timeout}ms")
                         hasCompleted = true
                         exitCode = -1
+                        didTimeout = true
                     }
 
                     val fullOutput = events.joinToString("")
                     AppLogger.d(TAG, "Command output collected: '$fullOutput', exitCode: $exitCode")
+                    val errorMessage =
+                            when {
+                                !hasCompleted -> context.getString(R.string.terminal_error_command_failed)
+                                exitCode != 0 && !didTimeout ->
+                                        context.getString(
+                                                R.string.terminal_error_command_non_zero_exit,
+                                                exitCode
+                                        )
+                                else -> null
+                            }
 
                     ToolResult(
                             toolName = tool.name,
-                            success = hasCompleted && exitCode == 0,
+                            success = errorMessage == null,
                             result = TerminalCommandResultData(
                                     command = command,
                                     output = fullOutput,
                                     exitCode = exitCode,
-                                    sessionId = sessionId
-                            )
+                                    sessionId = sessionId,
+                                    timedOut = didTimeout
+                            ),
+                            error = errorMessage
                     )
                 } else {
                     ToolResult(
@@ -293,6 +308,73 @@ class StandardTerminalCommandExecutor(private val context: Context) {
         }
     }
 
+    /** 获取终端会话当前屏幕内容（不包含历史滚动缓冲） */
+    fun getSessionScreen(tool: AITool): ToolResult {
+        return runBlocking {
+            val sessionId = tool.parameters.find { it.name == "session_id" }?.value
+            try {
+                if (sessionId.isNullOrBlank()) {
+                    return@runBlocking ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = context.getString(R.string.terminal_error_missing_session_id)
+                    )
+                }
+
+                val terminal = Terminal.getInstance(context)
+                val session = terminal.terminalState.value.sessions.find { it.id == sessionId }
+                if (session == null) {
+                    sessionNameToIdMap.entries.removeIf { it.value == sessionId }
+                    return@runBlocking ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = context.getString(R.string.terminal_error_session_not_exist, sessionId)
+                    )
+                }
+
+                val screen = session.ansiParser.getScreenContent()
+                val content = renderSingleScreen(screen)
+                val rows = screen.size
+                val cols = if (rows > 0) screen[0].size else 0
+
+                ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = TerminalSessionScreenResultData(
+                        sessionId = sessionId,
+                        rows = rows,
+                        cols = cols,
+                        content = content
+                    )
+                )
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "获取终端会话屏幕内容时出错", e)
+                ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = context.getString(R.string.terminal_error_get_screen, e.message ?: "")
+                )
+            }
+        }
+    }
+
+    private fun renderSingleScreen(screen: Array<Array<TerminalChar>>): String {
+        val lines = screen.map { row ->
+            buildString {
+                row.forEach { cell -> append(cell.char) }
+            }.trimEnd()
+        }.toMutableList()
+
+        while (lines.isNotEmpty() && lines.last().isEmpty()) {
+            lines.removeAt(lines.lastIndex)
+        }
+
+        return lines.joinToString("\n")
+    }
+
     private fun normalizeControl(rawControl: String?): String? {
         val value = rawControl?.trim()?.lowercase()
         if (value.isNullOrEmpty()) return null
@@ -405,7 +487,7 @@ class StandardTerminalCommandExecutor(private val context: Context) {
 
     private fun controlToSequence(control: String): String? {
         return when (control) {
-            "enter" -> "\n"
+            "enter" -> "\r"
             "tab" -> "\t"
             "esc" -> "\u001b"
             "up" -> "\u001b[A"
