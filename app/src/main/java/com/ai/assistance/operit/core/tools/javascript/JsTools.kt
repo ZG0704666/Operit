@@ -513,6 +513,15 @@ fun getJsToolsDefinition(): String {
                 },
                 // 删除记忆
                 deleteMemory: (title) => toolCall("delete_memory", { title }),
+                // 批量移动记忆（按标题列表和/或来源文件夹筛选）
+                move: (targetFolderPath, titles, sourceFolderPath) => {
+                    const params = { target_folder_path: targetFolderPath };
+                    if (titles) {
+                        params.titles = Array.isArray(titles) ? titles.join(",") : String(titles);
+                    }
+                    if (sourceFolderPath !== undefined && sourceFolderPath !== null) params.source_folder_path = String(sourceFolderPath);
+                    return toolCall("move_memory", params);
+                },
                 // 链接记忆
                 link: (sourceTitle, targetTitle, linkType, weight, description) => {
                     const params = { source_title: sourceTitle, target_title: targetTitle };

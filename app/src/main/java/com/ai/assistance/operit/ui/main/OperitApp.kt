@@ -127,6 +127,11 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             currentScreen = previousScreen
             // Update the selected NavItem if the previous screen has one.
             previousScreen.navItem?.let { navItem -> selectedItem = navItem }
+        } else if (currentScreen !is Screen.AiChat) {
+            // 一级页面（如设置）在无返回栈时，返回到聊天首页而不是直接退出应用
+            isNavigatingBack = true
+            currentScreen = Screen.AiChat
+            selectedItem = NavItem.AiChat
         }
     }
 
@@ -136,8 +141,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     }
 
     // Register system back handler to use our custom back stack.
-    // 只在返回栈不为空且当前屏幕不是AI对话时启用返回处理
-    BackHandler(enabled = backStack.isNotEmpty() && currentScreen !is Screen.AiChat, onBack = { goBack() })
+    // 只要不在AI对话页，统一由应用内处理返回逻辑
+    BackHandler(enabled = currentScreen !is Screen.AiChat, onBack = { goBack() })
 
     // 修改canGoBack的判断逻辑，只有当前屏幕是二级屏幕时才显示返回键
     val canGoBack = currentScreen.isSecondaryScreen

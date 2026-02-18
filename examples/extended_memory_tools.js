@@ -46,6 +46,15 @@
             ]
         },
         {
+            "name": "move_memory",
+            "description": { "zh": "批量移动记忆到新文件夹。可按标题列表和/或来源文件夹筛选。", "en": "Move memories to another folder in batch. Filter by titles and/or source folder." },
+            "parameters": [
+                { "name": "target_folder_path", "description": { "zh": "目标文件夹路径（空字符串表示未分类）", "en": "Target folder path (empty string means uncategorized)" }, "type": "string", "required": true },
+                { "name": "titles", "description": { "zh": "可选：标题列表（逗号或换行分隔）", "en": "Optional: title list (comma/newline separated)" }, "type": "string", "required": false },
+                { "name": "source_folder_path", "description": { "zh": "可选：来源文件夹路径（空字符串表示未分类）", "en": "Optional: source folder path (empty string means uncategorized)" }, "type": "string", "required": false }
+            ]
+        },
+        {
             "name": "link_memories",
             "description": { "zh": "创建两条记忆之间的语义链接。", "en": "Create a semantic link between two memories." },
             "parameters": [
@@ -116,6 +125,13 @@ const ExtendedMemoryTools = (function () {
         const result = await Tools.Memory.deleteMemory(params.title);
         return { success: typeof result === 'string' && result.length > 0, message: '记忆删除完成', data: result };
     }
+    async function move_memory(params) {
+        const titles = params.titles
+            ? params.titles.split(/[,\n|]/).map(s => s.trim()).filter(Boolean)
+            : undefined;
+        const result = await Tools.Memory.move(params.target_folder_path, titles, params.source_folder_path);
+        return { success: typeof result === 'string' && result.length > 0, message: '记忆移动完成', data: result };
+    }
     async function link_memories(params) {
         const result = await Tools.Memory.link(params.source_title, params.target_title, params.link_type, params.weight, params.description);
         return { success: !!result, message: '记忆链接创建完成', data: result };
@@ -165,6 +181,7 @@ const ExtendedMemoryTools = (function () {
         results.push({ tool: 'create_memory', result: { success: null, message: '未测试（会写入记忆库）' } });
         results.push({ tool: 'update_memory', result: { success: null, message: '未测试（会修改记忆库）' } });
         results.push({ tool: 'delete_memory', result: { success: null, message: '未测试（会删除记忆库数据）' } });
+        results.push({ tool: 'move_memory', result: { success: null, message: '未测试（会批量修改记忆文件夹）' } });
         results.push({ tool: 'link_memories', result: { success: null, message: '未测试（会修改记忆库链接）' } });
         results.push({ tool: 'update_memory_link', result: { success: null, message: '未测试（会修改记忆库链接）' } });
         results.push({ tool: 'delete_memory_link', result: { success: null, message: '未测试（会删除记忆库链接）' } });
@@ -179,6 +196,7 @@ const ExtendedMemoryTools = (function () {
         create_memory: (params) => wrapToolExecution(create_memory, params),
         update_memory: (params) => wrapToolExecution(update_memory, params),
         delete_memory: (params) => wrapToolExecution(delete_memory, params),
+        move_memory: (params) => wrapToolExecution(move_memory, params),
         link_memories: (params) => wrapToolExecution(link_memories, params),
         update_memory_link: (params) => wrapToolExecution(update_memory_link, params),
         delete_memory_link: (params) => wrapToolExecution(delete_memory_link, params),
@@ -189,6 +207,7 @@ const ExtendedMemoryTools = (function () {
 exports.create_memory = ExtendedMemoryTools.create_memory;
 exports.update_memory = ExtendedMemoryTools.update_memory;
 exports.delete_memory = ExtendedMemoryTools.delete_memory;
+exports.move_memory = ExtendedMemoryTools.move_memory;
 exports.link_memories = ExtendedMemoryTools.link_memories;
 exports.update_memory_link = ExtendedMemoryTools.update_memory_link;
 exports.delete_memory_link = ExtendedMemoryTools.delete_memory_link;

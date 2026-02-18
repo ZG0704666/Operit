@@ -48,6 +48,7 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
             "create_memory" -> executeCreateMemory(tool)
             "update_memory" -> executeUpdateMemory(tool)
             "delete_memory" -> executeDeleteMemory(tool)
+            "move_memory" -> executeMoveMemory(tool)
             "update_user_preferences" -> executeUpdateUserPreferences(tool)
             "link_memories" -> executeLinkMemories(tool)
             "update_memory_link" -> executeUpdateMemoryLink(tool)
@@ -633,6 +634,106 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
         }
     }
 
+    private suspend fun executeMoveMemory(tool: AITool): ToolResult {
+        val targetFolderPath = tool.parameters.find { it.name == "target_folder_path" }?.value
+        val sourceFolderPath = tool.parameters.find { it.name == "source_folder_path" }?.value
+        val hasSourceFolderParam = tool.parameters.any { it.name == "source_folder_path" }
+        val titlesRaw = tool.parameters.find { it.name == "titles" }?.value
+        val titles = parseTitlesParam(titlesRaw)
+
+        if (targetFolderPath == null) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "target_folder_path parameter is required"
+            )
+        }
+
+        if (titles.isEmpty() && !hasSourceFolderParam) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Provide titles and/or source_folder_path to select memories to move"
+            )
+        }
+
+        AppLogger.d(
+            TAG,
+            "Moving memories. target_folder_path='$targetFolderPath', source_folder_path='${sourceFolderPath ?: ""}', has_source_folder_param=$hasSourceFolderParam, titles_count=${titles.size}"
+        )
+
+        return try {
+            val selectedByTitle = if (titles.isNotEmpty()) {
+                titles.flatMap { title -> memoryRepository.findMemoriesByTitle(title) }
+            } else {
+                emptyList()
+            }
+            val selectedByFolder = if (hasSourceFolderParam) {
+                memoryRepository.getMemoriesByFolderPath(sourceFolderPath ?: "")
+            } else {
+                emptyList()
+            }
+
+            val selected = when {
+                titles.isNotEmpty() && hasSourceFolderParam -> {
+                    val folderIds = selectedByFolder.map { it.id }.toHashSet()
+                    selectedByTitle.filter { folderIds.contains(it.id) }
+                }
+                titles.isNotEmpty() -> selectedByTitle
+                else -> selectedByFolder
+            }
+
+            val uniqueMemories = LinkedHashMap<Long, Memory>()
+            selected.forEach { uniqueMemories[it.id] = it }
+            val memoryIds = uniqueMemories.keys.toList()
+
+            if (memoryIds.isEmpty()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "No matching memories found to move"
+                )
+            }
+
+            val moved = memoryRepository.moveMemoriesToFolder(memoryIds, targetFolderPath)
+            if (!moved) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Failed to move selected memories"
+                )
+            }
+
+            val destination = if (targetFolderPath.isBlank()) "uncategorized" else targetFolderPath
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = StringResultData("Successfully moved ${memoryIds.size} memories to '$destination'")
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to move memories", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Failed to move memories: ${e.message}"
+            )
+        }
+    }
+
+    private fun parseTitlesParam(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw
+            .split(',', '\n', '|')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+    }
+
     private suspend fun executeUpdateMemoryLink(tool: AITool): ToolResult {
         val linkId = tool.parameters.find { it.name == "link_id" }?.value?.toLongOrNull()
         val sourceTitle = tool.parameters.find { it.name == "source_title" }?.value
@@ -916,10 +1017,12 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
 
 
     override fun validateParameters(tool: AITool): ToolValidationResult {
-        val query = tool.parameters.find { it.name == "query" }?.value
-        if (query.isNullOrBlank()) {
-            return ToolValidationResult(valid = false, errorMessage = "Missing or empty required parameter: query")
+        if (tool.name == "query_memory") {
+            val query = tool.parameters.find { it.name == "query" }?.value
+            if (query.isNullOrBlank()) {
+                return ToolValidationResult(valid = false, errorMessage = "Missing or empty required parameter: query")
+            }
         }
         return ToolValidationResult(valid = true)
     }
-} 
+}

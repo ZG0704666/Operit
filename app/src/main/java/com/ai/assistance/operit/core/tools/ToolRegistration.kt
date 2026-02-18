@@ -279,6 +279,30 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    // 注册批量移动记忆工具
+    handler.registerTool(
+            name = "move_memory",
+            dangerCheck = null,
+            descriptionGenerator = { tool ->
+                val sourceFolder = tool.parameters.find { it.name == "source_folder_path" }?.value
+                val targetFolder = tool.parameters.find { it.name == "target_folder_path" }?.value ?: ""
+                val titles = tool.parameters.find { it.name == "titles" }?.value
+                when {
+                    !titles.isNullOrBlank() && !sourceFolder.isNullOrBlank() ->
+                        "Move selected memories from '$sourceFolder' to '$targetFolder'"
+                    !titles.isNullOrBlank() ->
+                        "Move selected memories to '$targetFolder'"
+                    !sourceFolder.isNullOrBlank() ->
+                        "Move memories from '$sourceFolder' to '$targetFolder'"
+                    else -> "Move memories to '$targetFolder'"
+                }
+            },
+            executor = { tool ->
+                val memoryTool = ToolGetter.getMemoryQueryToolExecutor(context)
+                memoryTool.invoke(tool)
+            }
+    )
+
     // 注册链接记忆工具
     handler.registerTool(
             name = "link_memories",

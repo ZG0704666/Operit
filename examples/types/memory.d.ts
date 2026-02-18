@@ -70,6 +70,15 @@ export namespace Memory {
     function deleteMemory(title: string): Promise<string>;
 
     /**
+     * Move memories to another folder in batch
+     * @param targetFolderPath - Target folder path (empty string means uncategorized)
+     * @param titles - Optional memory titles (string array or comma-separated string)
+     * @param sourceFolderPath - Optional source folder path (empty string means uncategorized)
+     * @returns Move result as a string
+     */
+    function move(targetFolderPath: string, titles?: string[] | string, sourceFolderPath?: string): Promise<string>;
+
+    /**
      * Create a link between two memories
      * @param sourceTitle - The title of the source memory
      * @param targetTitle - The title of the target memory
