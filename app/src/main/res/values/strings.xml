@@ -6266,7 +6266,7 @@
     <string name="enhanced_receiving_response">正在接收AI响应...</string>
     <string name="enhanced_error_with_message">错误: %1$s</string>
     <string name="enhanced_tool_warning">警告：工具调用和等待用户响应不能同时存在。工具调用被处理了，但这是极具危险性的。</string>
-    <string name="enhanced_pure_thinking_only_warning">警告：检测到纯思考输出（移除思考内容后正文为空）。请输出可展示的正文内容，禁止仅输出思考内容。</string>
+    <string name="enhanced_pure_thinking_only_warning">警告：请输出正文内容，禁止仅输出思考内容。</string>
     <string name="enhanced_receiving_tool_result">正在接收工具执行后的AI响应...</string>
     <string name="enhanced_process_tool_result_failed">处理工具执行结果失败: %1$s</string>
     <string name="enhanced_memory_tools_category">记忆与记忆库工具</string>

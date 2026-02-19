@@ -523,7 +523,11 @@ const dailyLife = (function () {
         const description = resolvedLang?.toLowerCase()?.startsWith("zh")
             ? `一次性定时任务，触发时间 ${params.trigger_time}`
             : `One-time scheduled task at ${params.trigger_time}`;
-        const messageContent = params.message || `[自动任务] 时间到了，开始执行一次性定时任务。现在是 ${params.trigger_time}`;
+        const timedTriggerTag = `[定时触发:${params.trigger_time}]\n[Scheduled Trigger:${params.trigger_time}]`;
+        const defaultMessage = `[自动任务] 时间到了，开始执行一次性定时任务。现在是 ${params.trigger_time}\n[Automated Task] Time reached, start executing the one-time scheduled task. Current time is ${params.trigger_time}`;
+        const messageContent = params.message
+            ? `${params.message}\n${timedTriggerTag}`
+            : `${defaultMessage}\n${timedTriggerTag}`;
 
         const created = await Tools.Workflow.create(workflowName, description, null, null, true);
         const workflowId = created?.id;

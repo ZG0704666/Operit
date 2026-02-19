@@ -165,6 +165,8 @@ class MCPLocalServer private constructor(private val context: Context) {
         val endpoint: String? = null,
         @SerializedName("connectionType")
         val connectionType: String? = "httpStream",
+        @SerializedName("disabled")
+        val disabled: Boolean = false,
         // 认证相关字段（用于远程服务）
         @SerializedName("bearerToken")
         val bearerToken: String? = null,
@@ -629,28 +631,49 @@ class MCPLocalServer private constructor(private val context: Context) {
 
     /**
      * 检查服务器是否启用
-     * 从MCP配置的disabled字段读取，默认为启用（disabled=false或不存在）
+     * 本地插件从 mcpServers.disabled 读取；远程插件从 pluginMetadata.disabled 读取
      */
     fun isServerEnabled(serverId: String): Boolean {
         val serverConfig = getMCPServer(serverId)
-        return serverConfig?.disabled != true // disabled为true表示禁用，其他情况均为启用
+        if (serverConfig != null) {
+            return serverConfig.disabled != true // disabled=true 表示禁用
+        }
+
+        val metadata = getPluginMetadata(serverId)
+        if (metadata?.type == "remote") {
+            return metadata.disabled != true // disabled=true 表示禁用
+        }
+
+        return true
     }
 
     /**
      * 设置服务器启用状态
-     * 修改MCP配置的disabled字段
+     * 本地插件写入 mcpServers.disabled；远程插件写入 pluginMetadata.disabled
      */
     suspend fun setServerEnabled(serverId: String, enabled: Boolean) {
-        val serverConfig = getMCPServer(serverId) ?: return
-        addOrUpdateMCPServer(
-            serverId = serverId,
-            command = serverConfig.command,
-            args = serverConfig.args ?: emptyList(),
-            env = serverConfig.env ?: emptyMap(),
-            disabled = !enabled,
-            autoApprove = serverConfig.autoApprove ?: emptyList()
-        )
-        AppLogger.d(TAG, "服务器启用状态已更新: $serverId, enabled=$enabled")
+        val serverConfig = getMCPServer(serverId)
+        if (serverConfig != null) {
+            addOrUpdateMCPServer(
+                serverId = serverId,
+                command = serverConfig.command,
+                args = serverConfig.args ?: emptyList(),
+                env = serverConfig.env ?: emptyMap(),
+                disabled = !enabled,
+                autoApprove = serverConfig.autoApprove ?: emptyList()
+            )
+            AppLogger.d(TAG, "服务器启用状态已更新(本地): $serverId, enabled=$enabled")
+            return
+        }
+
+        val metadata = getPluginMetadata(serverId)
+        if (metadata?.type == "remote") {
+            addOrUpdatePluginMetadata(metadata.copy(disabled = !enabled))
+            AppLogger.d(TAG, "服务器启用状态已更新(远程): $serverId, enabled=$enabled")
+            return
+        }
+
+        AppLogger.w(TAG, "设置启用状态失败，未找到服务器配置或远程元数据: $serverId")
     }
 
     /**

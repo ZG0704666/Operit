@@ -44,7 +44,7 @@ object SystemToolPrompts {
                 name = "sleep",
                 description = "Demonstration tool that pauses briefly.",
                 parametersStructured = listOf(
-                    ToolParameterSchema(name = "duration_ms", type = "integer", description = "milliseconds, default 1000, max 10000", required = false, default = "1000")
+                    ToolParameterSchema(name = "duration_ms", type = "integer", description = "milliseconds, default 1000, >= 0", required = false, default = "1000")
                 )
             ),
             ToolPrompt(
@@ -69,7 +69,7 @@ object SystemToolPrompts {
                 name = "sleep",
                 description = "演示工具，短暂暂停。",
                 parametersStructured = listOf(
-                    ToolParameterSchema(name = "duration_ms", type = "integer", description = "毫秒，默认1000，最大10000", required = false, default = "1000")
+                    ToolParameterSchema(name = "duration_ms", type = "integer", description = "毫秒，默认1000，>= 0", required = false, default = "1000")
                 )
             ),
             ToolPrompt(

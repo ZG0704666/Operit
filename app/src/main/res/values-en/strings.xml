@@ -6275,7 +6275,7 @@
     <string name="enhanced_receiving_response">Receiving AI response...</string>
     <string name="enhanced_error_with_message">Error: %1$s</string>
     <string name="enhanced_tool_warning">Warning: Tool calls and waiting for user response cannot exist at the same time. Tool calls were processed, but this is extremely dangerous.</string>
-    <string name="enhanced_pure_thinking_only_warning">Warning: Pure thinking output detected (main content is empty after removing thinking). Please provide visible main content and do not output thinking-only responses.</string>
+    <string name="enhanced_pure_thinking_only_warning">Warning: Please output main content and do not output thinking-only responses.</string>
     <string name="enhanced_receiving_tool_result">Receiving AI response after tool execution...</string>
     <string name="enhanced_process_tool_result_failed">Failed to process tool execution result: %1$s</string>
     <string name="enhanced_memory_tools_category">Memory and Memory Library Tools</string>

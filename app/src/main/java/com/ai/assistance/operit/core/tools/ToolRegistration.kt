@@ -679,17 +679,17 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                         tool.parameters.find { it.name == "duration_ms" }?.value?.toIntOrNull()
                                 ?: 1000
 
-                val limitedDuration = durationMs.coerceIn(0, 10000) // Limit to max 10 seconds
+                val safeDuration = durationMs.coerceAtLeast(0)
 
                 // Use runBlocking with Dispatchers.IO to ensure sleep happens on background thread
                 runBlocking(Dispatchers.IO) {
-                    delay(limitedDuration.toLong())
+                    delay(safeDuration.toLong())
                 }
 
                 ToolResult(
                         toolName = tool.name,
                         success = true,
-                        result = StringResultData("Slept for ${limitedDuration}ms")
+                        result = StringResultData("Slept for ${safeDuration}ms")
                 )
             }
     )

@@ -1353,8 +1353,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun captureScreenContent() {
         viewModelScope.launch {
             try {
-                messageProcessingDelegate.updateUserMessage(TextFieldValue(""))
-                
                 // 获取当前会话ID并绑定
                 val currentChatId = chatHistoryDelegate.currentChatId.value
                 if (currentChatId == null) return@launch
@@ -1386,8 +1384,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun captureNotifications() {
         viewModelScope.launch {
             try {
-                messageProcessingDelegate.updateUserMessage(TextFieldValue(""))
-                
                 // 获取当前会话ID并绑定
                 val currentChatId = chatHistoryDelegate.currentChatId.value
                 if (currentChatId == null) return@launch
@@ -1419,8 +1415,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun captureLocation() {
         viewModelScope.launch {
             try {
-                messageProcessingDelegate.updateUserMessage(TextFieldValue(""))
-                
                 // 获取当前会话ID并绑定
                 val currentChatId = chatHistoryDelegate.currentChatId.value
                 if (currentChatId == null) return@launch
@@ -1454,7 +1448,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun captureMemoryFolders(folderPaths: List<String>) {
         viewModelScope.launch {
             try {
-                messageProcessingDelegate.updateUserMessage(TextFieldValue(""))
                 val currentChatId = chatHistoryDelegate.currentChatId.value
                 if (currentChatId == null) return@launch
                 // 显示记忆文件夹附着进度

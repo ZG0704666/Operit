@@ -12,7 +12,7 @@ METADATA
     "tools": [
         {
             "name": "terminal",
-            "description": { "zh": "在Ubuntu环境中执行命令并收集输出结果。运行环境：完整的Ubuntu系统，已正确挂载sdcard和storage目录，可访问Android存储空间。会自动保留目录上下文。注意：不支持交互式命令，执行需要交互的命令（如apt install/ssh）时，请使用非交互参数。强烈建议每次都显式传 timeoutMs，避免命令卡住。若未传，前台默认15秒超时；background=true 时不使用该默认超时。命令超时时不会被自动取消，不需要重新执行命令，请继续通过 terminal_getscreen 跟踪当前屏幕内容。", "en": "Execute commands in an Ubuntu environment and collect output. Environment: full Ubuntu system with sdcard/storage mounted, allowing access to Android storage. Automatically preserves working-directory context. Note: interactive commands are not supported; for commands that may prompt (e.g. apt install/ssh), use non-interactive flags. Strongly recommend explicitly passing timeoutMs every time to avoid hangs. If omitted, foreground mode defaults to 15s timeout; background=true does not use this default timeout. When a command times out, it is not automatically cancelled. Do not rerun the command; continue tracking the current screen via terminal_getscreen." },
+            "description": { "zh": "在Ubuntu环境中执行命令并收集输出结果。运行环境：完整的Ubuntu系统，已正确挂载sdcard和storage目录，可访问Android存储空间。所有命令将会在相同的会话执行且上下文连贯，若使用ssh连接，则后续命令将会执行在ssh上，且可继续直接使用terminal工具执行命令，无需改用terminal_input。强烈建议每次都显式传 timeoutMs，避免命令卡住。若未传，前台默认15秒超时；background=true 时不使用该默认超时。命令超时时不会被自动取消，不需要重新执行命令，请继续通过 terminal_getscreen 跟踪当前屏幕内容。", "en": "Execute commands in an Ubuntu environment and collect output. Environment: full Ubuntu system with sdcard/storage mounted, allowing access to Android storage. Automatically preserves working-directory context. Strongly recommend explicitly passing timeoutMs every time to avoid hangs. If omitted, foreground mode defaults to 15s timeout; background=true does not use this default timeout. When a command times out, it is not automatically cancelled. Do not rerun the command; continue tracking the current screen via terminal_getscreen." },
             "parameters": [
                 {
                     "name": "command",
@@ -29,6 +29,24 @@ METADATA
                 {
                     "name": "timeoutMs",
                     "description": { "zh": "可选超时（毫秒，最低3000ms）。强烈建议显式传入；未传时前台默认15000ms，background=true时不使用默认超时。", "en": "Optional timeout (ms, minimum 3000ms). Strongly recommended to pass explicitly; if omitted, foreground defaults to 15000ms, and background=true does not use the default timeout." },
+                    "type": "string",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "terminal_wait",
+            "description": { "zh": "等待同一终端会话中的上一条命令执行完成。适用于安装/编译等长命令在 timeout 后继续后台执行的场景。与 sleep 不同，本工具会在命令实际完成时提前返回，而不是固定睡眠。", "en": "Wait until the previous command in the same terminal session finishes. Useful when long install/build commands continue running after a timeout. Unlike sleep, this tool can return early as soon as the command actually completes." },
+            "parameters": [
+                {
+                    "name": "sessionId",
+                    "description": { "zh": "可选目标会话ID。不传则使用默认会话 super_admin_default_session。", "en": "Optional target session ID. If omitted, uses default session super_admin_default_session." },
+                    "type": "string",
+                    "required": false
+                },
+                {
+                    "name": "timeoutMs",
+                    "description": { "zh": "可选超时（毫秒，最低3000ms）。未传时默认300000ms（5分钟）。", "en": "Optional timeout (ms, minimum 3000ms). Defaults to 300000ms (5 minutes) if omitted." },
                     "type": "string",
                     "required": false
                 }
@@ -76,6 +94,7 @@ METADATA
 const superAdmin = (function () {
     const MAX_INLINE_TERMINAL_OUTPUT_CHARS = 12_000;
     const DEFAULT_FOREGROUND_TIMEOUT_MS = 15_000;
+    const DEFAULT_WAIT_TIMEOUT_MS = 300_000;
     const MIN_TIMEOUT_MS = 3_000;
 
     async function persistTerminalOutputIfTooLong(command: string, result: any): Promise<any | null> {
@@ -210,6 +229,71 @@ const superAdmin = (function () {
     }
 
     /**
+     * 等待同一终端会话中的上一条命令执行完成
+     * 原理：向同会话追加一个内部 marker 命令。由于会话按序执行，marker 开始执行即代表前序命令已完成。
+     * @param sessionId - 可选会话ID；不传时使用 super_admin_default_session
+     * @param timeoutMs - 可选超时（毫秒，最低 3000ms）；未传默认 300000ms
+     */
+    async function terminal_wait(params: { sessionId?: string, timeoutMs?: string } = {}): Promise<any> {
+        try {
+            const timeoutMs = params.timeoutMs;
+            let timeout = DEFAULT_WAIT_TIMEOUT_MS;
+            if (timeoutMs !== undefined) {
+                const parsedTimeout = parseInt(timeoutMs, 10);
+                if (!Number.isFinite(parsedTimeout) || parsedTimeout < MIN_TIMEOUT_MS) {
+                    throw new Error(`timeoutMs必须是整数且不少于${MIN_TIMEOUT_MS}毫秒`);
+                }
+                timeout = parsedTimeout;
+            }
+
+            const session =
+                params.sessionId
+                    ? { sessionId: params.sessionId }
+                    : await Tools.System.terminal.create("super_admin_default_session");
+            const sessionId = session.sessionId;
+
+            const marker = `__OPERIT_TERMINAL_WAIT_DONE_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}__`;
+            const waitCommand = `printf '${marker}\\n'`;
+            const startedAt = Date.now();
+            const result = await Tools.System.terminal.exec(sessionId, waitCommand, timeout);
+            const elapsedMs = Date.now() - startedAt;
+            const timedOut = result?.timedOut === true;
+
+            let timeoutScreen: { sessionId: string, rows: number, cols: number, content: string } | null = null;
+            if (timedOut) {
+                const screenResult = await Tools.System.terminal.screen(sessionId);
+                timeoutScreen = {
+                    sessionId: screenResult.sessionId ?? sessionId,
+                    rows: screenResult.rows,
+                    cols: screenResult.cols,
+                    content: screenResult.content
+                };
+            }
+
+            const outputStr = typeof result?.output === "string"
+                ? result.output
+                : String(result?.output ?? "");
+            const markerSeen = outputStr.includes(marker);
+
+            return {
+                sessionId,
+                timedOut,
+                timeoutMsUsed: timeout,
+                elapsedMs,
+                waitCompleted: !timedOut && markerSeen,
+                markerSeen,
+                exitCode: result?.exitCode,
+                timeoutScreen,
+                context_preserved: true
+            };
+        } catch (error) {
+            console.error(`[terminal_wait] 错误: ${error.message}`);
+            console.error(error.stack);
+            throw error;
+        }
+    }
+
+    /**
      * 通过Shizuku/Root权限在Android系统中执行Shell命令
      * 运行环境：直接访问Android系统，具有系统级权限
      * @param command - 要执行的Shell命令
@@ -293,6 +377,7 @@ const superAdmin = (function () {
 
     return {
         terminal,
+        terminal_wait,
         terminal_getscreen,
         terminal_input,
         shell
@@ -301,6 +386,7 @@ const superAdmin = (function () {
 
 // 逐个导出
 exports.terminal = superAdmin.terminal;
+exports.terminal_wait = superAdmin.terminal_wait;
 exports.terminal_getscreen = superAdmin.terminal_getscreen;
 exports.terminal_input = superAdmin.terminal_input;
 exports.shell = superAdmin.shell; 

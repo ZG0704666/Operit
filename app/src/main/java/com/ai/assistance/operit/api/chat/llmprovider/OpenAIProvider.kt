@@ -533,6 +533,8 @@ open class OpenAIProvider(
         // 当工具为空时，将enableToolCall视为false
         val effectiveEnableToolCall =
             enableToolCall && availableTools != null && availableTools.isNotEmpty()
+        val strictToolCallProxyMode =
+            effectiveEnableToolCall && availableTools!!.any { it.name == "package_proxy" }
 
         // 如果启用Tool Call且传入了工具列表，添加tools定义
         var toolsJson: String? = null
@@ -553,7 +555,8 @@ open class OpenAIProvider(
             chatHistory,
             effectiveEnableToolCall,
             toolsJson,
-            preserveThinkInHistory
+            preserveThinkInHistory,
+            strictToolCallProxyMode
         )
         jsonObject.put("messages", messagesArray)
 
@@ -699,7 +702,8 @@ open class OpenAIProvider(
         chatHistory: List<Pair<String, String>>,
         useToolCall: Boolean = false,
         toolsJson: String? = null,
-        preserveThinkInHistory: Boolean = false
+        preserveThinkInHistory: Boolean = false,
+        strictToolCallProxyMode: Boolean = false
     ): Pair<JSONArray, Int> {
         val messagesArray = JSONArray()
 
@@ -743,7 +747,13 @@ open class OpenAIProvider(
                 if (useToolCall) {
                     if (role == "assistant") {
                         // 解析assistant消息中的XML tool calls
-                        val (textContent, toolCalls) = parseXmlToolCalls(content)
+                        val (textContent, parsedToolCalls) = parseXmlToolCalls(content)
+                        val toolCalls =
+                            if (strictToolCallProxyMode && parsedToolCalls != null) {
+                                wrapColonToolCallsWithProxy(parsedToolCalls)
+                            } else {
+                                parsedToolCalls
+                            }
                         val historyMessage = JSONObject()
                         historyMessage.put("role", role)
 
@@ -1172,6 +1182,49 @@ open class OpenAIProvider(
         delay(1000L * (1 shl (newRetryCount - 1)))
 
         return newRetryCount
+    }
+
+    private fun wrapColonToolCallsWithProxy(toolCalls: JSONArray): JSONArray {
+        val wrappedToolCalls = JSONArray()
+        var wrappedCount = 0
+
+        for (i in 0 until toolCalls.length()) {
+            val toolCall = toolCalls.optJSONObject(i) ?: continue
+            val function = toolCall.optJSONObject("function")
+            if (function == null) {
+                wrappedToolCalls.put(toolCall)
+                continue
+            }
+
+            val toolName = function.optString("name", "")
+            if (!toolName.contains(":") || toolName == "package_proxy") {
+                wrappedToolCalls.put(toolCall)
+                continue
+            }
+
+            val rawArguments = function.optString("arguments", "{}")
+            val originalArguments = JSONObject(if (rawArguments.isBlank()) "{}" else rawArguments)
+            val proxyArguments = JSONObject().apply {
+                put("tool_name", toolName)
+                put("params", originalArguments)
+            }
+
+            val wrappedFunction = JSONObject(function.toString()).apply {
+                put("name", "package_proxy")
+                put("arguments", proxyArguments.toString())
+            }
+
+            val wrappedToolCall = JSONObject(toolCall.toString()).apply {
+                put("function", wrappedFunction)
+            }
+            wrappedToolCalls.put(wrappedToolCall)
+            wrappedCount++
+        }
+
+        if (wrappedCount > 0) {
+            AppLogger.d("AIService", "严格Tool Call模式下已代理封装 $wrappedCount 个带冒号工具调用")
+        }
+        return wrappedToolCalls
     }
 
     /**
