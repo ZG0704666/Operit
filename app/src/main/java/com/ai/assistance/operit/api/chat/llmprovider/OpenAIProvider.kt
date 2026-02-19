@@ -1055,7 +1055,8 @@ open class OpenAIProvider(
         val emitted: MutableMap<Int, Boolean> = mutableMapOf(),
         val nameEmitted: MutableMap<Int, Boolean> = mutableMapOf(),
         val parser: MutableMap<Int, StreamingJsonXmlConverter> = mutableMapOf(),
-        val closed: MutableMap<Int, Boolean> = mutableMapOf()
+        val closed: MutableMap<Int, Boolean> = mutableMapOf(),
+        val fedLength: MutableMap<Int, Int> = mutableMapOf()
     ) {
         fun getParser(index: Int) = parser.getOrPut(index) { StreamingJsonXmlConverter() }
 
@@ -1064,6 +1065,7 @@ open class OpenAIProvider(
             nameEmitted.clear()
             parser.clear()
             closed.clear()
+            fedLength.clear()
         }
     }
 
@@ -1304,10 +1306,7 @@ open class OpenAIProvider(
     ) {
         if (state.toolCallState.closed[prevIndex] != true && 
             state.toolCallState.nameEmitted[prevIndex] == true) {
-            val events = state.toolCallState.getParser(prevIndex).flush()
-            emitter.handleJsonEvents(events)
-            emitter.emitTag("\n</tool>")
-            state.toolCallState.closed[prevIndex] = true
+            closeToolCallIfOpen(prevIndex, state, emitter)
             AppLogger.d("AIService", "检测到工具切换，关闭前一个工具 index=$prevIndex")
         }
     }
@@ -1354,6 +1353,12 @@ open class OpenAIProvider(
                     emitter.emitTag(toolStartTag)
                 }
                 state.toolCallState.nameEmitted[index] = true
+
+                // 如果参数先到，工具名后到，在此处一次性补喂已累计参数
+                val canonicalArgs = accFunction.optString("arguments", "")
+                if (canonicalArgs.isNotEmpty()) {
+                    feedParserFromCanonical(index, canonicalArgs, state, emitter)
+                }
             }
         }
         
@@ -1361,46 +1366,58 @@ open class OpenAIProvider(
         val args = deltaFunction.optString("arguments", "")
         if (args.isNotEmpty()) {
             val currentArgs = accFunction.optString("arguments", "")
-            val argsToAppend = resolveToolArgumentsDelta(currentArgs, args)
-            if (argsToAppend.isNotEmpty()) {
-                accFunction.put("arguments", currentArgs + argsToAppend)
-                // 流式输出参数
-                val events = state.toolCallState.getParser(index).feed(argsToAppend)
-                emitter.handleJsonEvents(events)
+            val mergedArgs = mergeCanonicalArgs(currentArgs, args)
+            val changed = mergedArgs != currentArgs
+            if (changed) {
+                accFunction.put("arguments", mergedArgs)
+                if (state.toolCallState.nameEmitted[index] == true) {
+                    feedParserFromCanonical(index, mergedArgs, state, emitter)
+                }
             }
         }
     }
 
     /**
-     * 兼容不同供应商的 tool arguments 增量格式：
-     * - 标准增量：每次只返回新增片段
-     * - 累积快照：每次返回从头到当前的完整参数字符串
-     * - 重叠片段：返回与已接收内容有部分重叠的片段
+     * 合并 tool arguments（单一路径）：
+     * - 默认将 incoming 视为增量追加；
+     * - 若 incoming 为前缀扩展快照（incoming startsWith existing），则直接替换为快照。
      */
-    private fun resolveToolArgumentsDelta(existing: String, incoming: String): String {
-        if (incoming.isEmpty()) return ""
+    private fun mergeCanonicalArgs(existing: String, incoming: String): String {
+        if (incoming.isEmpty()) return existing
         if (existing.isEmpty()) return incoming
 
-        // 累积快照（包含已有前缀）
-        if (incoming.startsWith(existing)) {
-            return incoming.removePrefix(existing)
+        // 增量通道：默认直接追加；若供应商偶发回传完整快照，则直接切换为快照值。
+        return if (incoming.startsWith(existing)) incoming else existing + incoming
+    }
+
+    /**
+     * 基于 canonical arguments 与 fedLength 游标，向解析器仅喂入新增部分。
+     */
+    private suspend fun feedParserFromCanonical(
+        index: Int,
+        canonicalArgs: String,
+        state: StreamingState,
+        emitter: StreamEmitter
+    ): Int {
+        val previousFedLength = (state.toolCallState.fedLength[index] ?: 0).coerceAtLeast(0)
+        val safeFedLength = previousFedLength.coerceAtMost(canonicalArgs.length)
+        if (safeFedLength == canonicalArgs.length) {
+            state.toolCallState.fedLength[index] = safeFedLength
+            return 0
         }
 
-        // 重复发送（incoming 已完全包含于 existing 尾部）
-        if (existing.endsWith(incoming)) {
-            return ""
-        }
+        val deltaToFeed = canonicalArgs.substring(safeFedLength)
+        val events = state.toolCallState.getParser(index).feed(deltaToFeed)
+        emitter.handleJsonEvents(events)
+        state.toolCallState.fedLength[index] = canonicalArgs.length
+        return deltaToFeed.length
+    }
 
-        // 处理部分重叠（existing 后缀 == incoming 前缀）
-        val maxOverlap = minOf(existing.length, incoming.length)
-        for (overlap in maxOverlap downTo 1) {
-            if (existing.endsWith(incoming.substring(0, overlap))) {
-                return incoming.substring(overlap)
-            }
-        }
-
-        // 无法判定时按增量处理，宁可保留，不直接丢弃
-        return incoming
+    private fun getAccumulatedToolArguments(state: StreamingState, index: Int): String {
+        return state.accumulatedToolCalls[index]
+            ?.optJSONObject("function")
+            ?.optString("arguments", "")
+            ?: ""
     }
 
     /**
@@ -1429,7 +1446,7 @@ open class OpenAIProvider(
             }
             state.lastProcessedToolIndex = index
 
-            // 处理当前工具调用
+            // Chat Completions 的 tool_calls.arguments 为增量片段。
             processToolCallChunk(index, deltaCall, state, emitter)
         }
     }
@@ -1443,12 +1460,29 @@ open class OpenAIProvider(
             return
         }
 
+        val accumulatedArgsBeforeFlush = getAccumulatedToolArguments(state, index)
+
         val parser = state.toolCallState.getParser(index)
         val events = parser.flush()
         emitter.handleJsonEvents(events)
 
         if (parser.hasUnfinishedParam()) {
-            AppLogger.w("AIService", "检测到未完成的 tool 参数，跳过自动补 </tool>，index=$index")
+            val parsedAsJson = runCatching { JSONObject(accumulatedArgsBeforeFlush) }.isSuccess
+            if (parsedAsJson) {
+                AppLogger.w(
+                    "AIService",
+                    "Tool 参数解析器状态未闭合，但累计 arguments 已是合法 JSON，强制补全标签收尾，index=$index"
+                )
+                emitter.emitTag("</param>")
+                emitter.emitTag("\n</tool>")
+                state.toolCallState.closed[index] = true
+                return
+            }
+
+            AppLogger.w(
+                "AIService",
+                "检测到未完成的 tool 参数，跳过自动补 </tool>，index=$index, argsLen=${accumulatedArgsBeforeFlush.length}"
+            )
             return
         }
 
@@ -1521,22 +1555,6 @@ open class OpenAIProvider(
                     if (name.isNotEmpty()) {
                         put("name", name)
                     }
-
-                    val rawArguments = item.optString("arguments", "")
-                    if (rawArguments.isNotEmpty()) {
-                        val existingArguments =
-                            state.accumulatedToolCalls[outputIndex]
-                                ?.optJSONObject("function")
-                                ?.optString("arguments", "")
-                                ?: ""
-
-                        val argumentsToAppend =
-                            resolveToolArgumentsDelta(existingArguments, rawArguments)
-
-                        if (argumentsToAppend.isNotEmpty()) {
-                            put("arguments", argumentsToAppend)
-                        }
-                    }
                 }
 
                 val deltaCall = JSONObject().apply {
@@ -1549,6 +1567,8 @@ open class OpenAIProvider(
                     put("function", functionObj)
                 }
 
+                // 对于 output_item 事件，仅更新工具元信息（name/id）。
+                // 参数统一由 response.function_call_arguments.delta 通道累积，避免快照+增量混拼导致 JSON 破坏。
                 processToolCallChunk(outputIndex, deltaCall, state, emitter)
                 state.lastProcessedToolIndex = outputIndex
                 // 某些供应商会先发送 output_item.done，随后才发送 function_call_arguments.delta。

@@ -58,6 +58,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.system.exitProcess
 import java.io.FileInputStream
 import java.io.InputStream
 
@@ -484,6 +485,14 @@ class AIForegroundService : Service() {
         }
     }
 
+    private fun isAlwaysListeningEnabledNow(): Boolean {
+        return try {
+            runBlocking { wakePrefs.alwaysListeningEnabledFlow.first() }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private suspend fun tryPromoteToMicrophoneForeground(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
@@ -568,6 +577,8 @@ class AIForegroundService : Service() {
             }
 
             stopSelf()
+            Process.killProcess(Process.myPid())
+            exitProcess(0)
             return START_NOT_STICKY
         }
 
@@ -667,6 +678,19 @@ class AIForegroundService : Service() {
             val state = it.getStringExtra(EXTRA_STATE)
             if (state != null) {
                 isAiBusy = state == STATE_RUNNING
+                val alwaysListeningEnabled = isAlwaysListeningEnabledNow()
+                if (!isAiBusy && !alwaysListeningEnabled && ActivityLifecycleManager.getCurrentActivity() == null) {
+                    AppLogger.d(TAG, "服务进入空闲且应用不在前台，停止前台服务并移除通知")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        @Suppress("DEPRECATION")
+                        stopForeground(Service.STOP_FOREGROUND_REMOVE)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        stopForeground(true)
+                    }
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIFICATION_ID, createNotification())
                 if (!isAiBusy) {

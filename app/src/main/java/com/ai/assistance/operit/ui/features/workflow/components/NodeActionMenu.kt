@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.workflow.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
@@ -21,6 +22,7 @@ import com.ai.assistance.operit.R
 fun NodeActionMenuDialog(
     nodeName: String,
     onEdit: () -> Unit,
+    onViewLogs: () -> Unit,
     onConnect: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
@@ -56,6 +58,22 @@ fun NodeActionMenuDialog(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.workflow_action_edit_node))
+                }
+
+                TextButton(
+                    onClick = {
+                        onDismiss()
+                        onViewLogs()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.workflow_view_logs))
                 }
                 
                 // 连接按钮

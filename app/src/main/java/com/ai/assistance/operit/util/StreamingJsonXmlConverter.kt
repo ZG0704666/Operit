@@ -34,6 +34,7 @@ class StreamingJsonXmlConverter {
     private var primitiveNestingDepth = 0
     private var primitiveInString = false
     private var primitiveEscape = false
+    private var keyEscape = false
     private var readingComplexValue = false
     private var hasOpenParam = false
 
@@ -76,18 +77,27 @@ class StreamingJsonXmlConverter {
                 State.WAIT_KEY_QUOTE -> {
                     if (c == '"') {
                         state = State.READ_KEY
+                        keyEscape = false
                         buffer.setLength(0)
                     } else if (c == '}') {
                         // 对象结束
+                        state = State.WAIT_BRACE
                     }
                 }
                 State.READ_KEY -> {
-                    if (c == '"') {
-                        events.add(Event.Tag("\n  <param name=\"${buffer}\">"))
-                        hasOpenParam = true
-                        state = State.WAIT_COLON
+                    if (keyEscape) {
+                        buffer.append(c)
+                        keyEscape = false
                     } else {
-                        if (c != '\\') buffer.append(c)
+                        when (c) {
+                            '\\' -> keyEscape = true
+                            '"' -> {
+                                events.add(Event.Tag("\n  <param name=\"${buffer}\">"))
+                                hasOpenParam = true
+                                state = State.WAIT_COLON
+                            }
+                            else -> buffer.append(c)
+                        }
                     }
                 }
                 State.WAIT_COLON -> if (c == ':') state = State.WAIT_VALUE

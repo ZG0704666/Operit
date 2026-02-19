@@ -871,7 +871,8 @@ object SystemToolPromptsInternal {
                                         name = "wake_launched",
                                         type = "boolean",
                                         description = "optional, true if launched by wake word so UI can adjust behavior",
-                                        required = false
+                                        required = false,
+                                        default = "false"
                                     ),
                                     ToolParameterSchema(
                                         name = "timeout_ms",
@@ -2599,7 +2600,8 @@ object SystemToolPromptsInternal {
                                         name = "wake_launched",
                                         type = "boolean",
                                         description = "可选，若由唤醒词启动则为 true，以便 UI 调整行为",
-                                        required = false
+                                        required = false,
+                                        default = "false"
                                     ),
                                     ToolParameterSchema(
                                         name = "timeout_ms",

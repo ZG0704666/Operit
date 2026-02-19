@@ -32,6 +32,7 @@ import com.ai.assistance.operit.data.backup.RoomDatabaseBackupScheduler
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.data.preferences.WakeWordPreferences
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
@@ -118,9 +119,8 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
         // Initialize AIMessageManager
         AIMessageManager.initialize(this)
         AppLogger.d(TAG, "【启动计时】AIMessageManager初始化完成 - ${System.currentTimeMillis() - startTime}ms")
-
-        startGlobalAIForegroundService()
-        AppLogger.d(TAG, "【启动计时】AIForegroundService 启动完成 - ${System.currentTimeMillis() - startTime}ms")
+        startGlobalAIForegroundServiceIfAlwaysListening()
+        AppLogger.d(TAG, "【启动计时】AIForegroundService 始终监听检查完成 - ${System.currentTimeMillis() - startTime}ms")
 
         // Initialize ANR monitor
         // AnrMonitor.start()
@@ -324,20 +324,24 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
         }
     }
 
-    private fun startGlobalAIForegroundService() {
+    private fun startGlobalAIForegroundServiceIfAlwaysListening() {
         try {
-            if (!AIForegroundService.isRunning.get()) {
-                val intent = Intent(this, AIForegroundService::class.java).apply {
-                    putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_IDLE)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(intent)
-                } else {
-                    startService(intent)
-                }
+            val alwaysListeningEnabled = runBlocking {
+                WakeWordPreferences(applicationContext).alwaysListeningEnabledFlow.first()
+            }
+            if (!alwaysListeningEnabled || AIForegroundService.isRunning.get()) {
+                return
+            }
+            val intent = Intent(this, AIForegroundService::class.java).apply {
+                putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_IDLE)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "启动 AIForegroundService 失败: ${e.message}", e)
+            AppLogger.e(TAG, "按始终监听状态启动 AIForegroundService 失败: ${e.message}", e)
         }
     }
 

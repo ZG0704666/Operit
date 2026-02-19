@@ -12,7 +12,7 @@ METADATA
     "tools": [
         {
             "name": "terminal",
-            "description": { "zh": "在Ubuntu环境中执行命令并收集输出结果。运行环境：完整的Ubuntu系统，已正确挂载sdcard和storage目录，可访问Android存储空间。会自动保留目录上下文。注意：不支持交互式命令，执行需要交互的命令（如apt install/ssh）时，请使用非交互参数。强烈建议每次都显式传 timeoutMs，避免命令卡住。若未传，前台默认15秒超时；background=true 时不使用该默认超时。", "en": "Execute commands in an Ubuntu environment and collect output. Environment: full Ubuntu system with sdcard/storage mounted, allowing access to Android storage. Automatically preserves working-directory context. Note: interactive commands are not supported; for commands that may prompt (e.g. apt install/ssh), use non-interactive flags. Strongly recommend explicitly passing timeoutMs every time to avoid hangs. If omitted, foreground mode defaults to 15s timeout; background=true does not use this default timeout." },
+            "description": { "zh": "在Ubuntu环境中执行命令并收集输出结果。运行环境：完整的Ubuntu系统，已正确挂载sdcard和storage目录，可访问Android存储空间。会自动保留目录上下文。注意：不支持交互式命令，执行需要交互的命令（如apt install/ssh）时，请使用非交互参数。强烈建议每次都显式传 timeoutMs，避免命令卡住。若未传，前台默认15秒超时；background=true 时不使用该默认超时。命令超时时不会被自动取消，不需要重新执行命令，请继续通过 terminal_getscreen 跟踪当前屏幕内容。", "en": "Execute commands in an Ubuntu environment and collect output. Environment: full Ubuntu system with sdcard/storage mounted, allowing access to Android storage. Automatically preserves working-directory context. Note: interactive commands are not supported; for commands that may prompt (e.g. apt install/ssh), use non-interactive flags. Strongly recommend explicitly passing timeoutMs every time to avoid hangs. If omitted, foreground mode defaults to 15s timeout; background=true does not use this default timeout. When a command times out, it is not automatically cancelled. Do not rerun the command; continue tracking the current screen via terminal_getscreen." },
             "parameters": [
                 {
                     "name": "command",
@@ -28,7 +28,7 @@ METADATA
                 },
                 {
                     "name": "timeoutMs",
-                    "description": { "zh": "可选超时（毫秒）。强烈建议显式传入；未传时前台默认15000ms，background=true时不使用默认超时。", "en": "Optional timeout (ms). Strongly recommended to pass explicitly; if omitted, foreground defaults to 15000ms, and background=true does not use the default timeout." },
+                    "description": { "zh": "可选超时（毫秒，最低3000ms）。强烈建议显式传入；未传时前台默认15000ms，background=true时不使用默认超时。", "en": "Optional timeout (ms, minimum 3000ms). Strongly recommended to pass explicitly; if omitted, foreground defaults to 15000ms, and background=true does not use the default timeout." },
                     "type": "string",
                     "required": false
                 }
@@ -36,26 +36,13 @@ METADATA
         },
         {
             "name": "terminal_getscreen",
-            "description": { "zh": "获取指定终端会话当前可见屏幕内容（仅一屏，不包含历史滚动缓冲）。", "en": "Get the current visible screen content for a terminal session (single screen only, no scrollback history)." },
-            "parameters": [
-                {
-                    "name": "sessionId",
-                    "description": { "zh": "终端会话ID", "en": "Terminal session ID." },
-                    "type": "string",
-                    "required": true
-                }
-            ]
+            "description": { "zh": "获取当前终端会话可见屏幕内容（仅一屏，不包含历史滚动缓冲）。", "en": "Get the current visible screen content for the active terminal session (single screen only, no scrollback history)." },
+            "parameters": []
         },
         {
             "name": "terminal_input",
-            "description": { "zh": "向指定终端会话写入输入。input 与 control 至少传一个。常见用法：先写 input，再写 control=enter 提交；control=ctrl 且 input=c 可发送 Ctrl+C。", "en": "Write input to a terminal session. Provide at least one of input or control. Typical usage: send input first, then control=enter to submit; use control=ctrl with input=c for Ctrl+C." },
+            "description": { "zh": "向当前终端会话写入输入。input 与 control 至少传一个。常见用法：先写 input，再写 control=enter 提交；control=ctrl 且 input=c 可发送 Ctrl+C。", "en": "Write input to the active terminal session. Provide at least one of input or control. Typical usage: send input first, then control=enter to submit; use control=ctrl with input=c for Ctrl+C." },
             "parameters": [
-                {
-                    "name": "sessionId",
-                    "description": { "zh": "终端会话ID", "en": "Terminal session ID." },
-                    "type": "string",
-                    "required": true
-                },
                 {
                     "name": "input",
                     "description": { "zh": "写入终端的文本", "en": "Text to write to terminal." },
@@ -89,6 +76,7 @@ METADATA
 const superAdmin = (function () {
     const MAX_INLINE_TERMINAL_OUTPUT_CHARS = 12_000;
     const DEFAULT_FOREGROUND_TIMEOUT_MS = 15_000;
+    const MIN_TIMEOUT_MS = 3_000;
 
     async function persistTerminalOutputIfTooLong(command: string, result: any): Promise<any | null> {
         const outputStr = typeof result?.output === "string"
@@ -125,7 +113,7 @@ const superAdmin = (function () {
      * 运行环境：完整的Ubuntu系统，已正确挂载sdcard和storage目录
      * @param command - 要执行的命令
      * @param background - 是否后台运行（"true" 为后台执行并立即返回，适合启动服务器等长时间运行任务，AI 不会收到该命令的输出结果）
-     * @param timeoutMs - 可选的超时时间（毫秒）。强烈建议显式传入；前台未传时默认 15000ms，后台模式不应用该默认值。
+     * @param timeoutMs - 可选的超时时间（毫秒，最低 3000ms）。强烈建议显式传入；前台未传时默认 15000ms，后台模式不应用该默认值。
      */
     async function terminal(params: { command: string, background?: string, timeoutMs?: string }): Promise<any> {
         try {
@@ -144,8 +132,8 @@ const superAdmin = (function () {
             if (!isBackground) {
                 if (timeoutMs !== undefined) {
                     const parsedTimeout = parseInt(timeoutMs, 10);
-                    if (!Number.isFinite(parsedTimeout) || parsedTimeout <= 0) {
-                        throw new Error("timeoutMs必须是正整数（毫秒）");
+                    if (!Number.isFinite(parsedTimeout) || parsedTimeout < MIN_TIMEOUT_MS) {
+                        throw new Error(`timeoutMs必须是整数且不少于${MIN_TIMEOUT_MS}毫秒`);
                     }
                     timeout = parsedTimeout;
                 } else {
@@ -181,10 +169,25 @@ const superAdmin = (function () {
 
             // 调用系统工具执行终端命令
             const result = await Tools.System.terminal.exec(sessionId, command, timeout);
+            const timedOut = result.timedOut === true;
+
+            let timeoutScreen: { sessionId: string, rows: number, cols: number, content: string } | null = null;
+            if (timedOut) {
+                const screenResult = await Tools.System.terminal.screen(sessionId);
+                timeoutScreen = {
+                    sessionId: screenResult.sessionId ?? sessionId,
+                    rows: screenResult.rows,
+                    cols: screenResult.cols,
+                    content: screenResult.content
+                };
+            }
 
             const persistedResult = await persistTerminalOutputIfTooLong(command, result);
             if (persistedResult) {
                 persistedResult.timeoutMsUsed = timeout;
+                if (timeoutScreen) {
+                    persistedResult.timeoutScreen = timeoutScreen;
+                }
                 return persistedResult;
             }
 
@@ -193,8 +196,9 @@ const superAdmin = (function () {
                 output: result.output,
                 exitCode: result.exitCode,
                 sessionId: result.sessionId,
-                timedOut: result.timedOut === true,
+                timedOut: timedOut,
                 timeoutMsUsed: timeout,
+                timeoutScreen: timeoutScreen,
                 context_preserved: true // 标记此命令保留了目录上下文
             };
         } catch (error) {
@@ -236,18 +240,15 @@ const superAdmin = (function () {
     }
 
     /**
-     * 获取终端会话当前可见屏幕内容（仅一屏，不包含历史）
-     * @param sessionId - 终端会话 ID
+     * 获取当前终端会话可见屏幕内容（仅一屏，不包含历史）
      */
-    async function terminal_getscreen(params: { sessionId: string }): Promise<any> {
+    async function terminal_getscreen(_params: {} = {}): Promise<any> {
         try {
-            if (!params.sessionId) {
-                throw new Error("sessionId不能为空");
-            }
-
-            const result = await Tools.System.terminal.screen(params.sessionId);
+            const session = await Tools.System.terminal.create("super_admin_default_session");
+            const sessionId = session.sessionId;
+            const result = await Tools.System.terminal.screen(sessionId);
             return {
-                sessionId: result.sessionId,
+                sessionId: result.sessionId ?? sessionId,
                 rows: result.rows,
                 cols: result.cols,
                 content: result.content
@@ -260,27 +261,25 @@ const superAdmin = (function () {
     }
 
     /**
-     * 向终端会话写入输入
-     * @param sessionId - 终端会话 ID
+     * 向当前终端会话写入输入
      * @param input - 文本输入
      * @param control - 控制键
      */
-    async function terminal_input(params: { sessionId: string, input?: string, control?: string }): Promise<any> {
+    async function terminal_input(params: { input?: string, control?: string } = {}): Promise<any> {
         try {
-            if (!params.sessionId) {
-                throw new Error("sessionId不能为空");
-            }
             if (params.input === undefined && params.control === undefined) {
                 throw new Error("input和control至少需要提供一个");
             }
 
-            const result = await Tools.System.terminal.input(params.sessionId, {
+            const session = await Tools.System.terminal.create("super_admin_default_session");
+            const sessionId = session.sessionId;
+            const result = await Tools.System.terminal.input(sessionId, {
                 input: params.input,
                 control: params.control
             });
 
             return {
-                sessionId: params.sessionId,
+                sessionId: sessionId,
                 input: params.input,
                 control: params.control,
                 result: result?.value ?? String(result ?? "")

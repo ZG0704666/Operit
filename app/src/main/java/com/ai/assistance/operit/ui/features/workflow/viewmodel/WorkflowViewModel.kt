@@ -20,6 +20,7 @@ import com.ai.assistance.operit.data.model.ParameterValue
 import com.ai.assistance.operit.data.model.TriggerNode
 import com.ai.assistance.operit.data.model.WorkflowNodeConnection
 import com.ai.assistance.operit.data.model.Workflow
+import com.ai.assistance.operit.data.model.WorkflowExecutionRecord
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.repository.WorkflowRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +52,9 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
         private set
     
     var currentWorkflow by mutableStateOf<Workflow?>(null)
+        private set
+
+    var latestExecutionRecord by mutableStateOf<WorkflowExecutionRecord?>(null)
         private set
     
     // 节点执行状态 Map
@@ -463,6 +467,10 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             id = startId,
             name = context.getString(R.string.workflow_action_start_chat),
             actionType = "start_chat_service",
+            actionConfig = mapOf(
+                "keep_if_exists" to ParameterValue.StaticValue("true"),
+                "initial_mode" to ParameterValue.StaticValue("WINDOW")
+            ),
             position = templateNodePosition(1)
         )
 
@@ -950,13 +958,34 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
             error = null
             
             repository.getWorkflowById(id).fold(
-                onSuccess = { currentWorkflow = it },
-                onFailure = { error = it.message ?: app.getString(R.string.workflow_load_failed) }
+                onSuccess = {
+                    currentWorkflow = it
+                    loadLatestExecutionRecordInternal(id)
+                },
+                onFailure = {
+                    latestExecutionRecord = null
+                    error = it.message ?: app.getString(R.string.workflow_load_failed)
+                }
             )
             
             if (showLoading) {
                 isLoading = false
             }
+        }
+    }
+
+    private suspend fun loadLatestExecutionRecordInternal(workflowId: String) {
+        repository.getLatestExecutionRecord(workflowId).fold(
+            onSuccess = { latestExecutionRecord = it },
+            onFailure = {
+                latestExecutionRecord = null
+            }
+        )
+    }
+
+    fun loadLatestExecutionRecord(workflowId: String) {
+        viewModelScope.launch {
+            loadLatestExecutionRecordInternal(workflowId)
         }
     }
     
@@ -1010,22 +1039,50 @@ class WorkflowViewModel(application: Application) : AndroidViewModel(application
      * 删除工作流
      */
     fun deleteWorkflow(id: String, onSuccess: () -> Unit = {}) {
+        deleteWorkflows(listOf(id), onSuccess)
+    }
+
+    /**
+     * 批量删除工作流
+     */
+    fun deleteWorkflows(ids: List<String>, onSuccess: () -> Unit = {}) {
+        if (ids.isEmpty()) {
+            onSuccess()
+            return
+        }
+
         viewModelScope.launch {
             isLoading = true
             error = null
-            
-            repository.deleteWorkflow(id).fold(
-                onSuccess = { 
-                    if (it) {
-                        loadWorkflows()
-                        onSuccess()
-                    } else {
-                        error = app.getString(R.string.workflow_error_delete_failed)
+
+            var hasFailure = false
+            var failureMessage: String? = null
+            ids.forEach { id ->
+                repository.deleteWorkflow(id).fold(
+                    onSuccess = { deleted ->
+                        if (!deleted) {
+                            hasFailure = true
+                            if (failureMessage == null) {
+                                failureMessage = app.getString(R.string.workflow_error_delete_failed)
+                            }
+                        }
+                    },
+                    onFailure = {
+                        hasFailure = true
+                        if (failureMessage == null) {
+                            failureMessage = it.message
+                        }
                     }
-                },
-                onFailure = { error = it.message ?: app.getString(R.string.workflow_error_delete_failed) }
-            )
-            
+                )
+            }
+
+            loadWorkflows(showLoading = false)
+            if (hasFailure) {
+                error = failureMessage ?: app.getString(R.string.workflow_error_delete_failed)
+            } else {
+                onSuccess()
+            }
+
             isLoading = false
         }
     }

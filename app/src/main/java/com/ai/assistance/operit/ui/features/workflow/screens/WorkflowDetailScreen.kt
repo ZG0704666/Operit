@@ -46,6 +46,7 @@ import com.ai.assistance.operit.data.model.ExtractNode
 import com.ai.assistance.operit.data.model.ExtractMode
 import com.ai.assistance.operit.data.model.ParameterValue
 import com.ai.assistance.operit.data.model.ToolParameterSchema
+import com.ai.assistance.operit.data.model.WorkflowExecutionRecord
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import com.ai.assistance.operit.ui.features.workflow.viewmodel.WorkflowViewModel
 import com.ai.assistance.operit.ui.features.workflow.components.GridWorkflowCanvas
@@ -54,6 +55,8 @@ import com.ai.assistance.operit.ui.features.workflow.components.NodeActionMenuDi
 import com.ai.assistance.operit.ui.features.workflow.components.ScheduleConfigDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -108,6 +111,8 @@ fun WorkflowDetailScreen(
     var showConnectionMenu by remember { mutableStateOf<String?>(null) }
     var showEditNodeDialog by remember { mutableStateOf<WorkflowNode?>(null) }
     var isFabMenuExpanded by remember { mutableStateOf(false) }
+    var showExecutionLogDialog by remember { mutableStateOf(false) }
+    var showExecutionLogsForNodeId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(workflowId) {
         viewModel.loadWorkflow(workflowId)
@@ -115,6 +120,7 @@ fun WorkflowDetailScreen(
 
     val workflow = viewModel.currentWorkflow
     val nodeExecutionStates by viewModel.nodeExecutionStates.collectAsState()
+    val latestExecutionRecord = viewModel.latestExecutionRecord
 
     CustomScaffold(
         floatingActionButton = {
@@ -143,6 +149,16 @@ fun WorkflowDetailScreen(
                                     }
                                 )
                             }
+                            SpeedDialAction(
+                                text = stringResource(R.string.workflow_view_logs),
+                                icon = Icons.Default.Call,
+                                onClick = {
+                                    viewModel.loadLatestExecutionRecord(workflowId)
+                                    showExecutionLogsForNodeId = null
+                                    showExecutionLogDialog = true
+                                    isFabMenuExpanded = false
+                                }
+                            )
                             SpeedDialAction(
                                 text = stringResource(R.string.workflow_action_add_node),
                                 icon = Icons.Default.Add,
@@ -337,6 +353,21 @@ fun WorkflowDetailScreen(
                 )
             }
 
+            if (showExecutionLogDialog) {
+                val targetNode = showExecutionLogsForNodeId?.let { targetNodeId ->
+                    workflow?.nodes?.find { it.id == targetNodeId }
+                }
+                WorkflowExecutionLogDialog(
+                    record = latestExecutionRecord,
+                    nodeId = targetNode?.id,
+                    nodeName = targetNode?.name,
+                    onDismiss = {
+                        showExecutionLogDialog = false
+                        showExecutionLogsForNodeId = null
+                    }
+                )
+            }
+
             // 错误提示
             viewModel.error?.let { error ->
                 AlertDialog(
@@ -409,6 +440,12 @@ fun WorkflowDetailScreen(
                         nodeName = node.name,
                         onEdit = {
                             showEditNodeDialog = node
+                            showNodeActionMenu = null
+                        },
+                        onViewLogs = {
+                            viewModel.loadLatestExecutionRecord(workflowId)
+                            showExecutionLogsForNodeId = nodeId
+                            showExecutionLogDialog = true
                             showNodeActionMenu = null
                         },
                         onConnect = {
@@ -504,6 +541,82 @@ private fun SpeedDialAction(
             Icon(icon, contentDescription = text)
         }
     }
+}
+
+@Composable
+private fun WorkflowExecutionLogDialog(
+    record: WorkflowExecutionRecord?,
+    nodeId: String? = null,
+    nodeName: String? = null,
+    onDismiss: () -> Unit
+) {
+    val dateTimeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
+    val timeFormatter = remember { SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()) }
+    val filteredLogs = remember(record, nodeId) {
+        val allLogs = record?.logs.orEmpty()
+        if (nodeId.isNullOrBlank()) {
+            allLogs
+        } else {
+            allLogs.filter { it.nodeId == nodeId }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (nodeName.isNullOrBlank()) {
+                    stringResource(R.string.workflow_execution_log_title)
+                } else {
+                    stringResource(R.string.workflow_execution_log_node_title, nodeName)
+                }
+            )
+        },
+        text = {
+            if (record == null) {
+                Text(stringResource(R.string.workflow_execution_log_empty))
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "${dateTimeFormatter.format(Date(record.startedAt))} - ${if (record.success) stringResource(R.string.operation_success) else stringResource(R.string.operation_failed)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (filteredLogs.isEmpty()) {
+                        Text(
+                            text = if (nodeName.isNullOrBlank()) {
+                                stringResource(R.string.workflow_execution_log_empty)
+                            } else {
+                                stringResource(R.string.workflow_execution_log_empty_for_node, nodeName)
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(filteredLogs) { item ->
+                                Text(
+                                    text = "${timeFormatter.format(Date(item.timestamp))} [${item.level}] ${item.message}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.confirm))
+            }
+        }
+    )
 }
 
 /**

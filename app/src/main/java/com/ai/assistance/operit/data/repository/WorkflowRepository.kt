@@ -9,6 +9,7 @@ import com.ai.assistance.operit.core.workflow.WorkflowExecutor
 import com.ai.assistance.operit.core.workflow.WorkflowScheduler
 import com.ai.assistance.operit.data.model.ExecutionStatus
 import com.ai.assistance.operit.data.model.Workflow
+import com.ai.assistance.operit.data.model.WorkflowExecutionRecord
 import com.ai.assistance.operit.data.model.TriggerNode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,6 +40,8 @@ class WorkflowRepository(private val context: Context) {
     companion object {
         private const val TAG = "WorkflowRepository"
         private const val WORKFLOW_DIR = "Operit/workflow"
+        private const val EXECUTION_LOG_SUB_DIR = "_execution_logs"
+        private const val MAX_EXECUTION_LOG_FILES_PER_WORKFLOW = 30
 
         private const val SPEECH_TRIGGER_CACHE_TTL_MS = 2000L
         private val speechTriggerLastFireAtMs = ConcurrentHashMap<String, Long>()
@@ -75,6 +78,34 @@ class WorkflowRepository(private val context: Context) {
      */
     private fun getWorkflowFile(workflowId: String): File {
         return File(getWorkflowDirectory(), "$workflowId.json")
+    }
+
+    private fun getExecutionLogDirectory(workflowId: String, createIfMissing: Boolean = true): File {
+        val dir = File(getWorkflowDirectory(), "$EXECUTION_LOG_SUB_DIR/$workflowId")
+        if (createIfMissing && !dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
+    }
+
+    private fun saveExecutionRecord(record: WorkflowExecutionRecord) {
+        try {
+            val dir = getExecutionLogDirectory(record.workflowId)
+            val safeRunId = record.runId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val file = File(dir, "${record.startedAt}_$safeRunId.json")
+            file.writeText(json.encodeToString(record))
+
+            val allFiles = dir.listFiles { f -> f.isFile && f.extension == "json" }?.toList().orEmpty()
+            if (allFiles.size > MAX_EXECUTION_LOG_FILES_PER_WORKFLOW) {
+                allFiles.sortedBy { it.lastModified() }
+                    .take(allFiles.size - MAX_EXECUTION_LOG_FILES_PER_WORKFLOW)
+                    .forEach { oldFile ->
+                        runCatching { oldFile.delete() }
+                    }
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to save workflow execution record: ${record.workflowId}", e)
+        }
     }
 
     private fun hasScheduleTrigger(workflow: Workflow): Boolean {
@@ -121,6 +152,26 @@ class WorkflowRepository(private val context: Context) {
             Result.success(workflow)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to get workflow by id: $id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getLatestExecutionRecord(workflowId: String): Result<WorkflowExecutionRecord?> = withContext(Dispatchers.IO) {
+        try {
+            val dir = getExecutionLogDirectory(workflowId, createIfMissing = false)
+            if (!dir.exists()) {
+                return@withContext Result.success(null)
+            }
+            val latestFile =
+                dir.listFiles { f -> f.isFile && f.extension == "json" }
+                    ?.maxByOrNull { it.lastModified() }
+                    ?: return@withContext Result.success(null)
+
+            val content = latestFile.readText()
+            val record = json.decodeFromString<WorkflowExecutionRecord>(content)
+            Result.success(record)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to get latest execution record for workflow: $workflowId", e)
             Result.failure(e)
         }
     }
@@ -190,6 +241,13 @@ class WorkflowRepository(private val context: Context) {
             } else {
                 false
             }
+
+            runCatching {
+                val logDir = getExecutionLogDirectory(id, createIfMissing = false)
+                if (logDir.exists()) {
+                    logDir.deleteRecursively()
+                }
+            }
             
             AppLogger.d(TAG, "Workflow deleted: $id, success: $deleted")
             if (deleted) {
@@ -238,6 +296,7 @@ class WorkflowRepository(private val context: Context) {
                 // 这里可以通过 Flow 或其他机制传递状态更新到 UI
                 AppLogger.d(TAG, "Node $nodeId state: $state")
             }
+            result.executionRecord?.let { saveExecutionRecord(it) }
             
             // 更新执行统计
             val executionStatus = if (result.success) ExecutionStatus.SUCCESS else ExecutionStatus.FAILED
@@ -291,6 +350,7 @@ class WorkflowRepository(private val context: Context) {
             // 创建执行器并执行工作流
             val executor = WorkflowExecutor(context)
             val result = executor.executeWorkflow(workflow, triggerNodeId, triggerExtras, onNodeStateChange)
+            result.executionRecord?.let { saveExecutionRecord(it) }
             
             // 更新执行统计
             val executionStatus = if (result.success) ExecutionStatus.SUCCESS else ExecutionStatus.FAILED

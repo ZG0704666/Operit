@@ -24,6 +24,7 @@ import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.WakeWordPreferences
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.sync.Mutex
@@ -1631,6 +1633,14 @@ class EnhancedAIService private constructor(private val context: Context) {
     /** 启动或更新前台服务为“AI 正在运行”状态，以保持应用活跃 */
     private fun startAiService(characterName: String? = null, avatarUri: String? = null) {
         val refCount = FOREGROUND_REF_COUNT.incrementAndGet()
+        val appInForeground = ActivityLifecycleManager.getCurrentActivity() != null
+        val alwaysListeningEnabled = runCatching {
+            runBlocking { WakeWordPreferences(context).alwaysListeningEnabledFlow.first() }
+        }.getOrDefault(false)
+        if (!appInForeground && !AIForegroundService.isRunning.get() && !alwaysListeningEnabled) {
+            AppLogger.d(TAG, "应用不在前台，跳过启动 AIForegroundService")
+            return
+        }
         try {
             val updateIntent = Intent(context, AIForegroundService::class.java).apply {
                 putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_RUNNING)

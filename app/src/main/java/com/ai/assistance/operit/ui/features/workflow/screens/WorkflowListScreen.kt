@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material3.*
@@ -52,8 +53,22 @@ fun WorkflowListScreen(
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showTemplateDialog by remember { mutableStateOf(false) }
+    var showDeleteSelectedDialog by remember { mutableStateOf(false) }
     var isFabMenuExpanded by remember { mutableStateOf(false) }
-    
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedWorkflowIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    LaunchedEffect(viewModel.workflows, isSelectionMode) {
+        if (!isSelectionMode) return@LaunchedEffect
+        val existingIds = viewModel.workflows.map { it.id }.toSet()
+        selectedWorkflowIds = selectedWorkflowIds.intersect(existingIds)
+        if (viewModel.workflows.isEmpty()) {
+            isSelectionMode = false
+        }
+    }
+
+    val selectedCount = selectedWorkflowIds.size
+
     CustomScaffold(
         floatingActionButton = {
             Column(
@@ -69,22 +84,55 @@ fun WorkflowListScreen(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        SpeedDialAction(
-                            text = stringResource(R.string.workflow_create_blank),
-                            icon = Icons.Default.Add,
-                            onClick = {
-                                showCreateDialog = true
-                                isFabMenuExpanded = false
+                        if (isSelectionMode) {
+                            if (selectedCount > 0) {
+                                SpeedDialAction(
+                                    text = stringResource(R.string.workflow_delete_selected_with_count, selectedCount),
+                                    icon = Icons.Default.Delete,
+                                    onClick = {
+                                        showDeleteSelectedDialog = true
+                                        isFabMenuExpanded = false
+                                    },
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
                             }
-                        )
-                        SpeedDialAction(
-                            text = stringResource(R.string.workflow_create_from_template),
-                            icon = Icons.Outlined.PlayCircle,
-                            onClick = {
-                                showTemplateDialog = true
-                                isFabMenuExpanded = false
-                            }
-                        )
+                            SpeedDialAction(
+                                text = stringResource(R.string.exit_multi_select),
+                                icon = Icons.Default.CheckCircle,
+                                onClick = {
+                                    selectedWorkflowIds = emptySet()
+                                    isSelectionMode = false
+                                    isFabMenuExpanded = false
+                                }
+                            )
+                        } else {
+                            SpeedDialAction(
+                                text = stringResource(R.string.workflow_create_blank),
+                                icon = Icons.Default.Add,
+                                onClick = {
+                                    showCreateDialog = true
+                                    isFabMenuExpanded = false
+                                }
+                            )
+                            SpeedDialAction(
+                                text = stringResource(R.string.workflow_create_from_template),
+                                icon = Icons.Outlined.PlayCircle,
+                                onClick = {
+                                    showTemplateDialog = true
+                                    isFabMenuExpanded = false
+                                }
+                            )
+                            SpeedDialAction(
+                                text = stringResource(R.string.multi_select),
+                                icon = Icons.Default.CheckCircle,
+                                onClick = {
+                                    selectedWorkflowIds = emptySet()
+                                    isSelectionMode = true
+                                    isFabMenuExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -176,12 +224,49 @@ fun WorkflowListScreen(
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        
+                        if (isSelectionMode) {
+                            item {
+                                WorkflowSelectionBar(
+                                    selectedCount = selectedCount,
+                                    totalCount = viewModel.workflows.size,
+                                    onSelectAll = {
+                                        selectedWorkflowIds = viewModel.workflows.map { it.id }.toSet()
+                                    },
+                                    onClearSelection = {
+                                        selectedWorkflowIds = emptySet()
+                                    }
+                                )
+                            }
+                        }
+
                         // 工作流列表
-                        items(viewModel.workflows) { workflow ->
+                        items(
+                            items = viewModel.workflows,
+                            key = { it.id }
+                        ) { workflow ->
+                            val isSelected = selectedWorkflowIds.contains(workflow.id)
                             WorkflowCard(
                                 workflow = workflow,
-                                onClick = { onNavigateToDetail(workflow.id) }
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedWorkflowIds = if (isSelected) {
+                                            selectedWorkflowIds - workflow.id
+                                        } else {
+                                            selectedWorkflowIds + workflow.id
+                                        }
+                                    } else {
+                                        onNavigateToDetail(workflow.id)
+                                    }
+                                },
+                                isSelectionMode = isSelectionMode,
+                                isSelected = isSelected,
+                                onSelectionChange = { selected ->
+                                    selectedWorkflowIds = if (selected) {
+                                        selectedWorkflowIds + workflow.id
+                                    } else {
+                                        selectedWorkflowIds - workflow.id
+                                    }
+                                }
                             )
                         }
                     }
@@ -261,6 +346,77 @@ fun WorkflowListScreen(
                         }
                     }
                 )
+            }
+
+            if (showDeleteSelectedDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteSelectedDialog = false },
+                    title = { Text(stringResource(R.string.workflow_confirm_delete_title)) },
+                    text = {
+                        Text(
+                            stringResource(
+                                R.string.workflow_confirm_delete_selected_workflows_message,
+                                selectedCount
+                            )
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val idsToDelete = selectedWorkflowIds.toList()
+                                showDeleteSelectedDialog = false
+                                isFabMenuExpanded = false
+                                viewModel.deleteWorkflows(idsToDelete) {
+                                    selectedWorkflowIds = emptySet()
+                                    isSelectionMode = false
+                                }
+                            },
+                            enabled = selectedCount > 0
+                        ) {
+                            Text(stringResource(R.string.workflow_delete))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteSelectedDialog = false }) {
+                            Text(stringResource(R.string.workflow_close))
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkflowSelectionBar(
+    selectedCount: Int,
+    totalCount: Int,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.workflow_selected_count, selectedCount),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f)
+            )
+            if (selectedCount < totalCount) {
+                TextButton(onClick = onSelectAll) {
+                    Text(stringResource(R.string.select_all_current_list))
+                }
+            }
+            if (selectedCount > 0) {
+                TextButton(onClick = onClearSelection) {
+                    Text(stringResource(R.string.clear_selection))
+                }
             }
         }
     }
@@ -410,7 +566,10 @@ private fun SpeedDialAction(
 @Composable
 fun WorkflowCard(
     workflow: Workflow,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onSelectionChange: (Boolean) -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -418,7 +577,11 @@ fun WorkflowCard(
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
         ),
         border = CardDefaults.outlinedCardBorder()
     ) {
@@ -431,7 +594,7 @@ fun WorkflowCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = workflow.name,
@@ -442,20 +605,32 @@ fun WorkflowCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                
-                if (!workflow.enabled) {
-                    Box(
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .clip(MaterialTheme.shapes.extraSmall)
-                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.workflow_disabled),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 10.sp
+
+                Row(
+                    modifier = Modifier.padding(start = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!workflow.enabled) {
+                        Box(
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.extraSmall)
+                                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.workflow_disabled),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onSelectionChange(it) }
                         )
                     }
                 }

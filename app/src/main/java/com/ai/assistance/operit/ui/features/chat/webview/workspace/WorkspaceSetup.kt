@@ -389,13 +389,6 @@ fun WorkspaceSetup(chatId: String, onBindWorkspace: (String, String?) -> Unit) {
                     description = context.getString(R.string.select_folder_from_device),
                     onClick = { showFileBrowser = true }
                 )
-
-                WorkspaceOption(
-                    icon = Icons.Default.Folder,
-                    title = context.getString(R.string.attach_local_storage_repo),
-                    description = context.getString(R.string.select_folder_from_device),
-                    onClick = { bindSafLauncher.launch(null) }
-                )
             }
         }
     }

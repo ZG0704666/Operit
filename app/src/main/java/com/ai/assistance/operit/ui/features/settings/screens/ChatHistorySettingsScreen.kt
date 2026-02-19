@@ -181,6 +181,10 @@ fun ChatHistorySettingsScreen() {
     var pendingAssignStat by remember { mutableStateOf<CharacterCardChatStats?>(null) }
     var selectedCharacterCardId by remember { mutableStateOf<String?>(null) }
     var assignInProgress by remember { mutableStateOf(false) }
+    var pendingMissingStat by remember { mutableStateOf<CharacterCardChatStats?>(null) }
+    var showMissingActionDialog by remember { mutableStateOf(false) }
+    var showDeleteMissingDialog by remember { mutableStateOf(false) }
+    var deleteMissingInProgress by remember { mutableStateOf(false) }
 
     val isScreenLoading = isCharacterCardStatsLoading || characterCardsLoading
 
@@ -202,13 +206,8 @@ fun ChatHistorySettingsScreen() {
                     characterCards = availableCharacterCards,
                     isLoading = isCharacterCardStatsLoading || characterCardsLoading,
                     onAssignMissing = { stat ->
-                        if (availableCharacterCards.isEmpty()) {
-                            Toast.makeText(context, context.getString(R.string.no_available_character_cards_toast), Toast.LENGTH_SHORT).show()
-                            return@CharacterCardStatsCard
-                        }
-                        pendingAssignStat = stat
-                        selectedCharacterCardId = availableCharacterCards.firstOrNull()?.id
-                        showAssignCharacterDialog = true
+                        pendingMissingStat = stat
+                        showMissingActionDialog = true
                     }
                 )
             }
@@ -320,6 +319,149 @@ fun ChatHistorySettingsScreen() {
                 }
             }
         }
+    }
+
+    if (showMissingActionDialog && pendingMissingStat != null) {
+        val stat = pendingMissingStat!!
+        val displayName = stat.characterCardName ?: context.getString(R.string.unbound_character_card)
+        AlertDialog(
+            onDismissRequest = {
+                showMissingActionDialog = false
+                pendingMissingStat = null
+            },
+            title = {
+                Text(text = context.getString(R.string.missing_card_entry_action_title))
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = context.getString(
+                            R.string.missing_card_entry_action_message,
+                            displayName,
+                            stat.chatCount
+                        )
+                    )
+                    if (availableCharacterCards.isEmpty()) {
+                        Text(
+                            text = context.getString(R.string.no_available_character_cards_toast),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingAssignStat = stat
+                        selectedCharacterCardId = availableCharacterCards.firstOrNull()?.id
+                        showMissingActionDialog = false
+                        pendingMissingStat = null
+                        showAssignCharacterDialog = true
+                    },
+                    enabled = availableCharacterCards.isNotEmpty()
+                ) {
+                    Text(context.getString(R.string.action_assign_to_card))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showMissingActionDialog = false
+                        showDeleteMissingDialog = true
+                    }
+                ) {
+                    Text(
+                        text = context.getString(R.string.action_delete_residual_chats),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        )
+    }
+
+    if (showDeleteMissingDialog && pendingMissingStat != null) {
+        val stat = pendingMissingStat!!
+        val displayName = stat.characterCardName ?: context.getString(R.string.unbound_character_card)
+        AlertDialog(
+            onDismissRequest = {
+                if (!deleteMissingInProgress) {
+                    showDeleteMissingDialog = false
+                    pendingMissingStat = null
+                }
+            },
+            title = {
+                Text(text = context.getString(R.string.confirm_delete))
+            },
+            text = {
+                Text(
+                    text = context.getString(
+                        R.string.delete_residual_chats_confirmation,
+                        displayName,
+                        stat.chatCount
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (deleteMissingInProgress) {
+                            return@TextButton
+                        }
+                        deleteMissingInProgress = true
+                        scope.launch {
+                            try {
+                                val deletedCount = chatHistoryManager.deleteChatsByCharacterCardBinding(stat.characterCardName)
+                                val skippedCount = (stat.chatCount - deletedCount).coerceAtLeast(0)
+                                val toastText = if (skippedCount > 0) {
+                                    context.getString(
+                                        R.string.deleted_residual_chats_with_skipped_locked,
+                                        deletedCount,
+                                        skippedCount
+                                    )
+                                } else {
+                                    context.getString(R.string.deleted_residual_chats_count, deletedCount)
+                                }
+                                Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+                                showDeleteMissingDialog = false
+                                pendingMissingStat = null
+                            } catch (e: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.delete_failed, e.localizedMessage ?: e.toString()),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } finally {
+                                deleteMissingInProgress = false
+                            }
+                        }
+                    },
+                    enabled = !deleteMissingInProgress
+                ) {
+                    if (deleteMissingInProgress) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(context.getString(R.string.delete_action))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        if (!deleteMissingInProgress) {
+                            showDeleteMissingDialog = false
+                            pendingMissingStat = null
+                        }
+                    },
+                    enabled = !deleteMissingInProgress
+                ) {
+                    Text(context.getString(R.string.cancel))
+                }
+            }
+        )
     }
 
     if (showAssignCharacterDialog && pendingAssignStat != null) {
@@ -621,7 +763,7 @@ private fun CharacterCardStatRow(
             )
             if (needsAttention && onAssignMissing != null) {
                 Text(
-                    text = context.getString(R.string.click_to_assign_to_card),
+                    text = context.getString(R.string.click_to_manage_missing_card),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error
                 )

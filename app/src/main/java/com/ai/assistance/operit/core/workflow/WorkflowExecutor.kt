@@ -16,6 +16,9 @@ import com.ai.assistance.operit.data.model.ParameterValue
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.TriggerNode
 import com.ai.assistance.operit.data.model.Workflow
+import com.ai.assistance.operit.data.model.WorkflowExecutionLogEntry
+import com.ai.assistance.operit.data.model.WorkflowExecutionRecord
+import com.ai.assistance.operit.data.model.WorkflowLogLevel
 import com.ai.assistance.operit.data.model.WorkflowNode
 import com.ai.assistance.operit.data.model.WorkflowNodeConnection
 import com.ai.assistance.operit.core.tools.MessageSendResultData
@@ -23,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.LinkedList
 import java.util.Queue
+import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
@@ -54,7 +58,8 @@ data class WorkflowExecutionResult(
     val success: Boolean,
     val nodeResults: Map<String, NodeExecutionState>,
     val message: String,
-    val executionTime: Long = System.currentTimeMillis()
+    val executionTime: Long = System.currentTimeMillis(),
+    val executionRecord: WorkflowExecutionRecord? = null
 )
 
 /**
@@ -67,6 +72,55 @@ class WorkflowExecutor(private val context: Context) {
     
     companion object {
         private const val TAG = "WorkflowExecutor"
+    }
+
+    private class WorkflowRunLogger(
+        private val tag: String
+    ) {
+        private val _entries = mutableListOf<WorkflowExecutionLogEntry>()
+
+        val entries: List<WorkflowExecutionLogEntry>
+            get() = _entries.toList()
+
+        fun d(message: String, nodeId: String? = null, nodeName: String? = null) {
+            append(WorkflowLogLevel.DEBUG, message, nodeId, nodeName)
+            AppLogger.d(tag, message)
+        }
+
+        fun w(message: String, nodeId: String? = null, nodeName: String? = null) {
+            append(WorkflowLogLevel.WARN, message, nodeId, nodeName)
+            AppLogger.w(tag, message)
+        }
+
+        fun e(
+            message: String,
+            nodeId: String? = null,
+            nodeName: String? = null,
+            throwable: Throwable? = null
+        ) {
+            append(WorkflowLogLevel.ERROR, message, nodeId, nodeName)
+            if (throwable != null) {
+                AppLogger.e(tag, message, throwable)
+            } else {
+                AppLogger.e(tag, message)
+            }
+        }
+
+        private fun append(
+            level: WorkflowLogLevel,
+            message: String,
+            nodeId: String?,
+            nodeName: String?
+        ) {
+            _entries.add(
+                WorkflowExecutionLogEntry(
+                    level = level,
+                    message = message,
+                    nodeId = nodeId,
+                    nodeName = nodeName
+                )
+            )
+        }
     }
 
     private fun isSkippedState(state: NodeExecutionState?): Boolean {
@@ -435,20 +489,48 @@ class WorkflowExecutor(private val context: Context) {
         triggerExtras: Map<String, String> = emptyMap(),
         onNodeStateChange: (nodeId: String, state: NodeExecutionState) -> Unit
     ): WorkflowExecutionResult = withContext(Dispatchers.IO) {
-        AppLogger.d(TAG, context.getString(R.string.workflow_log_start_execution, workflow.name, workflow.id))
-        
+        val startedAt = System.currentTimeMillis()
+        val runId = UUID.randomUUID().toString()
+        val runLogger = WorkflowRunLogger(TAG)
         val nodeResults = mutableMapOf<String, NodeExecutionState>()
-        
+
+        fun buildResult(success: Boolean, message: String): WorkflowExecutionResult {
+            val finishedAt = System.currentTimeMillis()
+            val executionRecord =
+                WorkflowExecutionRecord(
+                    runId = runId,
+                    workflowId = workflow.id,
+                    workflowName = workflow.name,
+                    triggerNodeId = triggerNodeId,
+                    startedAt = startedAt,
+                    finishedAt = finishedAt,
+                    success = success,
+                    message = message,
+                    logs = runLogger.entries
+                )
+            return WorkflowExecutionResult(
+                workflowId = workflow.id,
+                success = success,
+                nodeResults = nodeResults,
+                message = message,
+                executionTime = finishedAt,
+                executionRecord = executionRecord
+            )
+        }
+
+        runLogger.d(
+            context.getString(R.string.workflow_log_start_execution, workflow.name, workflow.id) +
+                " [runId=$runId]"
+        )
+
         try {
             // 1. 找到所有触发节点作为入口
             val allTriggerNodes = workflow.nodes.filterIsInstance<TriggerNode>()
             
             if (allTriggerNodes.isEmpty()) {
-                AppLogger.w(TAG, context.getString(R.string.workflow_log_no_trigger_node))
-                return@withContext WorkflowExecutionResult(
-                    workflowId = workflow.id,
+                runLogger.w(context.getString(R.string.workflow_log_no_trigger_node))
+                return@withContext buildResult(
                     success = false,
-                    nodeResults = nodeResults,
                     message = "Workflow has no trigger node, cannot execute"
                 )
             }
@@ -458,51 +540,59 @@ class WorkflowExecutor(private val context: Context) {
                 // 如果指定了触发节点ID（通常是定时任务），只执行该触发节点
                 val specificNode = allTriggerNodes.find { it.id == triggerNodeId }
                 if (specificNode == null) {
-                    AppLogger.w(TAG, context.getString(R.string.workflow_log_trigger_node_not_exist, triggerNodeId))
-                    return@withContext WorkflowExecutionResult(
-                        workflowId = workflow.id,
+                    runLogger.w(context.getString(R.string.workflow_log_trigger_node_not_exist, triggerNodeId))
+                    return@withContext buildResult(
                         success = false,
-                        nodeResults = nodeResults,
                         message = "Specified trigger node does not exist: $triggerNodeId"
                     )
                 }
-                AppLogger.d(TAG, context.getString(R.string.workflow_log_scheduled_trigger, specificNode.name))
+                runLogger.d(
+                    message = context.getString(R.string.workflow_log_scheduled_trigger, specificNode.name),
+                    nodeId = specificNode.id,
+                    nodeName = specificNode.name
+                )
                 listOf(specificNode)
             } else {
                 // 如果没有指定触发节点ID（通常是手动触发），执行所有手动触发类型的节点
                 val manualTriggers = allTriggerNodes.filter { it.triggerType == "manual" }
                 if (manualTriggers.isEmpty()) {
-                    AppLogger.w(TAG, "没有手动触发类型的触发节点")
-                    return@withContext WorkflowExecutionResult(
-                        workflowId = workflow.id,
+                    runLogger.w("没有手动触发类型的触发节点")
+                    return@withContext buildResult(
                         success = false,
-                        nodeResults = nodeResults,
                         message = "No manual trigger type trigger node"
                     )
                 }
-                AppLogger.d(TAG, context.getString(R.string.workflow_log_manual_trigger))
+                runLogger.d(context.getString(R.string.workflow_log_manual_trigger))
                 manualTriggers
             }
             
-            AppLogger.d(TAG, context.getString(R.string.workflow_log_will_execute_trigger_nodes, triggerNodes.size, triggerNodes.joinToString { it.name }))
+            runLogger.d(
+                context.getString(
+                    R.string.workflow_log_will_execute_trigger_nodes,
+                    triggerNodes.size,
+                    triggerNodes.joinToString { it.name }
+                )
+            )
             
             // 3. 构建依赖图
             val dependencyGraph = buildDependencyGraph(workflow)
             
             // 4. 检测环
             if (detectCycle(dependencyGraph.adjacencyList, workflow.nodes)) {
-                AppLogger.e(TAG, context.getString(R.string.workflow_log_circular_dependency))
-                return@withContext WorkflowExecutionResult(
-                    workflowId = workflow.id,
+                runLogger.e(context.getString(R.string.workflow_log_circular_dependency))
+                return@withContext buildResult(
                     success = false,
-                    nodeResults = nodeResults,
                     message = "Workflow has circular dependencies, cannot execute"
                 )
             }
             
             // 5. 标记所有触发节点为成功（触发节点本身不需要执行）
             for (triggerNode in triggerNodes) {
-                AppLogger.d(TAG, context.getString(R.string.workflow_log_mark_trigger_node, triggerNode.name, triggerNode.id))
+                runLogger.d(
+                    message = context.getString(R.string.workflow_log_mark_trigger_node, triggerNode.name, triggerNode.id),
+                    nodeId = triggerNode.id,
+                    nodeName = triggerNode.name
+                )
                 val triggerPayload = org.json.JSONObject(triggerExtras).toString()
                 nodeResults[triggerNode.id] = NodeExecutionState.Success(triggerPayload)
                 onNodeStateChange(triggerNode.id, NodeExecutionState.Success(triggerPayload))
@@ -515,34 +605,29 @@ class WorkflowExecutor(private val context: Context) {
                 dependencyGraph = dependencyGraph,
                 nodeResults = nodeResults,
                 triggerExtras = triggerExtras,
-                onNodeStateChange = onNodeStateChange
+                onNodeStateChange = onNodeStateChange,
+                runLogger = runLogger
             )
             
             // 如果执行失败，停止整个流程
             if (!executionResult) {
-                return@withContext WorkflowExecutionResult(
-                    workflowId = workflow.id,
+                return@withContext buildResult(
                     success = false,
-                    nodeResults = nodeResults,
                     message = "Workflow execution failed"
                 )
             }
             
-            AppLogger.d(TAG, context.getString(R.string.workflow_log_execution_complete, workflow.name))
-            
-            return@withContext WorkflowExecutionResult(
-                workflowId = workflow.id,
+            runLogger.d(context.getString(R.string.workflow_log_execution_complete, workflow.name))
+
+            return@withContext buildResult(
                 success = true,
-                nodeResults = nodeResults,
                 message = "Workflow executed successfully"
             )
             
         } catch (e: Exception) {
-            AppLogger.e(TAG, "工作流执行异常", e)
-            return@withContext WorkflowExecutionResult(
-                workflowId = workflow.id,
+            runLogger.e("工作流执行异常", throwable = e)
+            return@withContext buildResult(
                 success = false,
-                nodeResults = nodeResults,
                 message = "Workflow execution exception: ${e.message}"
             )
         }
@@ -646,7 +731,8 @@ class WorkflowExecutor(private val context: Context) {
         dependencyGraph: DependencyGraph,
         nodeResults: MutableMap<String, NodeExecutionState>,
         triggerExtras: Map<String, String>,
-        onNodeStateChange: (nodeId: String, state: NodeExecutionState) -> Unit
+        onNodeStateChange: (nodeId: String, state: NodeExecutionState) -> Unit,
+        runLogger: WorkflowRunLogger
     ): Boolean {
         val reachableNodeIds = getReachableNodeIds(startNodeIds, dependencyGraph.adjacencyList)
         val nodeById = workflow.nodes.associateBy { it.id }
@@ -694,14 +780,14 @@ class WorkflowExecutor(private val context: Context) {
             
             // 检查节点是否已经被执行过
             if (nodeResults.containsKey(currentNodeId)) {
-                AppLogger.d(TAG, context.getString(R.string.workflow_log_node_already_executed, currentNodeId))
+                runLogger.d(context.getString(R.string.workflow_log_node_already_executed, currentNodeId), nodeId = currentNodeId)
                 continue
             }
             
             // 查找节点
             val node = nodeById[currentNodeId]
             if (node == null) {
-                AppLogger.w(TAG, context.getString(R.string.workflow_log_node_not_exist, currentNodeId))
+                runLogger.w(context.getString(R.string.workflow_log_node_not_exist, currentNodeId), nodeId = currentNodeId)
                 continue
             }
 
@@ -767,7 +853,11 @@ class WorkflowExecutor(private val context: Context) {
             }
 
             if (!shouldExecute) {
-                AppLogger.d(TAG, context.getString(R.string.workflow_log_condition_not_met_skip, node.name, node.id))
+                runLogger.d(
+                    context.getString(R.string.workflow_log_condition_not_met_skip, node.name, node.id),
+                    nodeId = node.id,
+                    nodeName = node.name
+                )
                 val skipReason = context.getString(R.string.workflow_condition_not_met)
                 nodeResults[node.id] = NodeExecutionState.Skipped(skipReason)
                 onNodeStateChange(node.id, NodeExecutionState.Skipped(skipReason))
@@ -784,7 +874,11 @@ class WorkflowExecutor(private val context: Context) {
                 continue
             }
             
-            AppLogger.d(TAG, context.getString(R.string.workflow_log_execute_node, node.name, node.id))
+            runLogger.d(
+                context.getString(R.string.workflow_log_execute_node, node.name, node.id),
+                nodeId = node.id,
+                nodeName = node.name
+            )
             
             // 执行节点
             val executionSuccess =
@@ -795,12 +889,17 @@ class WorkflowExecutor(private val context: Context) {
                     nodeById,
                     nodeResults,
                     triggerExtras,
-                    onNodeStateChange
+                    onNodeStateChange,
+                    runLogger
                 )
             
             // 如果执行失败，停止整个流程
             if (!executionSuccess) {
-                AppLogger.e(TAG, context.getString(R.string.workflow_log_node_failed, node.name))
+                runLogger.e(
+                    context.getString(R.string.workflow_log_node_failed, node.name),
+                    nodeId = node.id,
+                    nodeName = node.name
+                )
                 hasFailure = true
             }
             
@@ -862,7 +961,8 @@ class WorkflowExecutor(private val context: Context) {
         nodeById: Map<String, WorkflowNode>,
         nodeResults: MutableMap<String, NodeExecutionState>,
         triggerExtras: Map<String, String>,
-        onNodeStateChange: (nodeId: String, state: NodeExecutionState) -> Unit
+        onNodeStateChange: (nodeId: String, state: NodeExecutionState) -> Unit,
+        runLogger: WorkflowRunLogger
     ): Boolean {
         if (node is TriggerNode) {
             val triggerPayload = org.json.JSONObject(triggerExtras).toString()
@@ -885,6 +985,7 @@ class WorkflowExecutor(private val context: Context) {
                 true
             } catch (e: Exception) {
                 val errorMsg = context.getString(R.string.workflow_node_execution_exception, e.message ?: "")
+                runLogger.e(errorMsg, nodeId = node.id, nodeName = node.name, throwable = e)
                 nodeResults[node.id] = NodeExecutionState.Failed(errorMsg)
                 onNodeStateChange(node.id, NodeExecutionState.Failed(errorMsg))
                 false
@@ -913,6 +1014,7 @@ class WorkflowExecutor(private val context: Context) {
                 true
             } catch (e: Exception) {
                 val errorMsg = context.getString(R.string.workflow_node_execution_exception, e.message ?: "")
+                runLogger.e(errorMsg, nodeId = node.id, nodeName = node.name, throwable = e)
                 nodeResults[node.id] = NodeExecutionState.Failed(errorMsg)
                 onNodeStateChange(node.id, NodeExecutionState.Failed(errorMsg))
                 false
@@ -972,6 +1074,7 @@ class WorkflowExecutor(private val context: Context) {
                 true
             } catch (e: Exception) {
                 val errorMsg = context.getString(R.string.workflow_node_execution_exception, e.message ?: "")
+                runLogger.e(errorMsg, nodeId = node.id, nodeName = node.name, throwable = e)
                 nodeResults[node.id] = NodeExecutionState.Failed(errorMsg)
                 onNodeStateChange(node.id, NodeExecutionState.Failed(errorMsg))
                 false
@@ -979,7 +1082,11 @@ class WorkflowExecutor(private val context: Context) {
         }
 
         if (node !is ExecuteNode) {
-            AppLogger.d(TAG, context.getString(R.string.workflow_log_skip_non_execute_node, node.name))
+            runLogger.d(
+                context.getString(R.string.workflow_log_skip_non_execute_node, node.name),
+                nodeId = node.id,
+                nodeName = node.name
+            )
             val skipReason = context.getString(R.string.workflow_non_execute_node)
             nodeResults[node.id] = NodeExecutionState.Skipped(skipReason)
             onNodeStateChange(node.id, NodeExecutionState.Skipped(skipReason))
@@ -994,7 +1101,7 @@ class WorkflowExecutor(private val context: Context) {
             // 检查是否有 actionType
             if (node.actionType.isBlank()) {
                 val errorMsg = context.getString(R.string.workflow_node_execution_exception, context.getString(R.string.workflow_node_no_action, node.name))
-                AppLogger.w(TAG, errorMsg)
+                runLogger.w(errorMsg, nodeId = node.id, nodeName = node.name)
                 nodeResults[node.id] = NodeExecutionState.Failed(errorMsg)
                 onNodeStateChange(node.id, NodeExecutionState.Failed(errorMsg))
                 return false
@@ -1009,7 +1116,11 @@ class WorkflowExecutor(private val context: Context) {
                 parameters = parameters
             )
             
-            AppLogger.d(TAG, context.getString(R.string.workflow_log_call_tool, tool.name, parameters.size))
+            runLogger.d(
+                context.getString(R.string.workflow_log_call_tool, tool.name, parameters.size),
+                nodeId = node.id,
+                nodeName = node.name
+            )
             
             // 执行工具
             val result = toolHandler.executeTool(tool)
@@ -1022,13 +1133,21 @@ class WorkflowExecutor(private val context: Context) {
                     } else {
                         resultData.toString()
                     }
-                AppLogger.d(TAG, context.getString(R.string.workflow_log_node_success, node.name, resultMessage))
+                runLogger.d(
+                    context.getString(R.string.workflow_log_node_success, node.name, resultMessage),
+                    nodeId = node.id,
+                    nodeName = node.name
+                )
                 nodeResults[node.id] = NodeExecutionState.Success(resultMessage)
                 onNodeStateChange(node.id, NodeExecutionState.Success(resultMessage))
                 return true
             } else {
                 val errorMsg = result.error ?: context.getString(R.string.workflow_node_execution_exception, context.getString(R.string.workflow_unknown_error))
-                AppLogger.e(TAG, context.getString(R.string.workflow_log_node_error, node.name, errorMsg))
+                runLogger.e(
+                    context.getString(R.string.workflow_log_node_error, node.name, errorMsg),
+                    nodeId = node.id,
+                    nodeName = node.name
+                )
                 nodeResults[node.id] = NodeExecutionState.Failed(errorMsg)
                 onNodeStateChange(node.id, NodeExecutionState.Failed(errorMsg))
                 return false
@@ -1036,7 +1155,12 @@ class WorkflowExecutor(private val context: Context) {
             
         } catch (e: Exception) {
             val errorMsg = context.getString(R.string.workflow_node_execution_exception, e.message ?: "")
-            AppLogger.e(TAG, context.getString(R.string.workflow_log_node_exception, node.name), e)
+            runLogger.e(
+                context.getString(R.string.workflow_log_node_exception, node.name),
+                nodeId = node.id,
+                nodeName = node.name,
+                throwable = e
+            )
             nodeResults[node.id] = NodeExecutionState.Failed(errorMsg)
             onNodeStateChange(node.id, NodeExecutionState.Failed(errorMsg))
             return false

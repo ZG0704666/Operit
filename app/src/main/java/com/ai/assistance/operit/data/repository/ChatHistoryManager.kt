@@ -1253,6 +1253,51 @@ class ChatHistoryManager private constructor(private val context: Context) {
     }
 
     /**
+     * 批量删除绑定到缺失角色卡（或未绑定）的未锁定对话
+     * @return 实际删除的对话数量
+     */
+    suspend fun deleteChatsByCharacterCardBinding(sourceCharacterCardName: String?): Int {
+        return withContext(Dispatchers.IO) {
+            try {
+                val currentChatId = currentChatIdFlow.first()
+                val currentChat = currentChatId?.let { chatDao.getChatById(it) }
+
+                val deletedCount = if (sourceCharacterCardName == null) {
+                    chatDao.deleteUnlockedUnboundChats()
+                } else {
+                    chatDao.deleteUnlockedChatsByCharacterCardName(sourceCharacterCardName)
+                }
+
+                val currentChatShouldBeCleared =
+                    currentChat != null &&
+                        !currentChat.locked &&
+                        (
+                            if (sourceCharacterCardName == null) {
+                                currentChat.characterCardName == null
+                            } else {
+                                currentChat.characterCardName == sourceCharacterCardName
+                            }
+                        )
+
+                if (currentChatShouldBeCleared) {
+                    context.currentChatIdDataStore.edit { preferences ->
+                        preferences.remove(PreferencesKeys.CURRENT_CHAT_ID)
+                    }
+                }
+
+                AppLogger.d(
+                    TAG,
+                    "删除缺失角色卡残留对话: ${sourceCharacterCardName ?: "未绑定"}, 删除 $deletedCount 条"
+                )
+                deletedCount
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "删除缺失角色卡残留对话失败: ${sourceCharacterCardName ?: "未绑定"}", e)
+                throw e
+            }
+        }
+    }
+
+    /**
      * 批量为特定聊天更新角色卡绑定
      * @return 受影响的对话数量
      */

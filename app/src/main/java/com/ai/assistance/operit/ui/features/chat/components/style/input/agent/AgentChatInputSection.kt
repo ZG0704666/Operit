@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.DataObject
 import androidx.compose.material.icons.outlined.Hub
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Save
@@ -260,6 +261,8 @@ fun AgentChatInputSection(
 
     val currentWindowSize by actualViewModel.currentWindowSize.collectAsState()
     val maxWindowSizeInK by actualViewModel.maxWindowSizeInK.collectAsState()
+    val baseContextLengthInK by actualViewModel.baseContextLengthInK.collectAsState()
+    val maxContextLengthInK by actualViewModel.maxContextLengthInK.collectAsState()
     val maxTokens = (maxWindowSizeInK * 1024).toInt()
     val userMessageTokens = remember(userMessage.text) { ChatUtils.estimateTokenCount(userMessage.text) }
 
@@ -1054,6 +1057,8 @@ fun AgentChatInputSection(
                 onToggleThinkingGuidance = onToggleThinkingGuidance,
                 enableMaxContextMode = enableMaxContextMode,
                 onToggleEnableMaxContextMode = onToggleEnableMaxContextMode,
+                baseContextLengthInK = baseContextLengthInK,
+                maxContextLengthInK = maxContextLengthInK,
                 onSelectModel = onSelectModel,
                 onManageModels = {
                     showModelSelectorPopup.value = false
@@ -1147,6 +1152,8 @@ private fun AgentModelSelectorPopup(
     onToggleThinkingGuidance: () -> Unit,
     enableMaxContextMode: Boolean,
     onToggleEnableMaxContextMode: () -> Unit,
+    baseContextLengthInK: Float,
+    maxContextLengthInK: Float,
     onSelectModel: (String, Int) -> Unit,
     onManageModels: () -> Unit,
     onDismiss: () -> Unit,
@@ -1154,6 +1161,8 @@ private fun AgentModelSelectorPopup(
     if (!visible) return
 
     var showThinkingDropdown by remember { mutableStateOf(false) }
+    var infoPopupContent by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val context = LocalContext.current
 
     Popup(
         alignment = Alignment.TopStart,
@@ -1209,10 +1218,46 @@ private fun AgentModelSelectorPopup(
                         onToggleThinkingGuidance = onToggleThinkingGuidance,
                         expanded = showThinkingDropdown,
                         onExpandedChange = { showThinkingDropdown = it },
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.thinking_settings) to
+                                    context.getString(R.string.thinking_settings_desc)
+                        },
+                        onThinkingModeInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.thinking_mode) to
+                                    context.getString(R.string.thinking_mode_desc)
+                        },
+                        onThinkingGuidanceInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.thinking_guidance) to
+                                    context.getString(R.string.thinking_guidance_desc)
+                        },
                     )
                     AgentMaxContextSettingItem(
                         enableMaxContextMode = enableMaxContextMode,
                         onToggleEnableMaxContextMode = onToggleEnableMaxContextMode,
+                        onInfoClick = {
+                            val normalLengthText =
+                                if (baseContextLengthInK % 1f == 0f) {
+                                    baseContextLengthInK.toInt().toString()
+                                } else {
+                                    String.format("%.1f", baseContextLengthInK)
+                                }
+                            val maxLengthText =
+                                if (maxContextLengthInK % 1f == 0f) {
+                                    maxContextLengthInK.toInt().toString()
+                                } else {
+                                    String.format("%.1f", maxContextLengthInK)
+                                }
+                            infoPopupContent =
+                                context.getString(R.string.max_mode_title) to
+                                    context.getString(
+                                        R.string.max_mode_info,
+                                        normalLengthText,
+                                        maxLengthText,
+                                    )
+                        },
                     )
                     AgentModelSelectorItem(
                         popupContainerColor = popupContainerColor,
@@ -1223,8 +1268,20 @@ private fun AgentModelSelectorPopup(
                         onExpandedChange = {},
                         allowCollapse = false,
                         onManageClick = onManageModels,
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.model_config) to
+                                    context.getString(R.string.model_config_desc)
+                        },
                     )
                 }
+            }
+            infoPopupContent?.let { content ->
+                AgentInfoPopup(
+                    popupContainerColor = popupContainerColor,
+                    infoPopupContent = content,
+                    onDismiss = { infoPopupContent = null },
+                )
             }
         }
     }
@@ -1239,6 +1296,9 @@ private fun AgentThinkingSettingsItem(
     onToggleThinkingGuidance: () -> Unit,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
+    onInfoClick: () -> Unit,
+    onThinkingModeInfoClick: () -> Unit,
+    onThinkingGuidanceInfoClick: () -> Unit,
 ) {
     val thinkingTypeText =
         when {
@@ -1262,6 +1322,14 @@ private fun AgentThinkingSettingsItem(
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.size(16.dp),
         )
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.details),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = stringResource(R.string.thinking_settings) + ":",
@@ -1303,6 +1371,7 @@ private fun AgentThinkingSettingsItem(
                     },
                 isChecked = enableThinkingMode,
                 onToggle = onToggleThinkingMode,
+                onInfoClick = onThinkingModeInfoClick,
             )
             AgentThinkingSubSettingItem(
                 title = stringResource(R.string.thinking_guidance),
@@ -1320,6 +1389,7 @@ private fun AgentThinkingSettingsItem(
                     },
                 isChecked = enableThinkingGuidance,
                 onToggle = onToggleThinkingGuidance,
+                onInfoClick = onThinkingGuidanceInfoClick,
             )
         }
     }
@@ -1332,6 +1402,7 @@ private fun AgentThinkingSubSettingItem(
     iconTint: Color,
     isChecked: Boolean,
     onToggle: () -> Unit,
+    onInfoClick: () -> Unit,
 ) {
     Box(
         modifier =
@@ -1363,6 +1434,14 @@ private fun AgentThinkingSubSettingItem(
                 tint = iconTint,
                 modifier = Modifier.size(16.dp),
             )
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = stringResource(R.string.details),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
             Text(
                 text = title,
                 fontSize = 13.sp,
@@ -1395,6 +1474,7 @@ private fun AgentThinkingSubSettingItem(
 private fun AgentMaxContextSettingItem(
     enableMaxContextMode: Boolean,
     onToggleEnableMaxContextMode: () -> Unit,
+    onInfoClick: () -> Unit,
 ) {
     Row(
         modifier =
@@ -1420,6 +1500,14 @@ private fun AgentMaxContextSettingItem(
                 },
             modifier = Modifier.size(16.dp),
         )
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.details),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = stringResource(R.string.max_mode_title),
@@ -1452,6 +1540,7 @@ private fun AgentModelSelectorItem(
     onExpandedChange: (Boolean) -> Unit,
     allowCollapse: Boolean = true,
     onManageClick: () -> Unit,
+    onInfoClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val showAutoGlmError: () -> Unit = {
@@ -1491,6 +1580,14 @@ private fun AgentModelSelectorItem(
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.size(16.dp),
         )
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.details),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = stringResource(R.string.model) + ":",
@@ -1733,6 +1830,8 @@ private fun AgentExtraSettingsPopup(
 
     var showMemoryDropdown by remember { mutableStateOf(false) }
     var showDisableSettingsDropdown by remember { mutableStateOf(false) }
+    var infoPopupContent by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val context = LocalContext.current
 
     Popup(
         alignment = Alignment.TopStart,
@@ -1787,6 +1886,11 @@ private fun AgentExtraSettingsPopup(
                         expanded = showMemoryDropdown,
                         onExpandedChange = { showMemoryDropdown = it },
                         onManageClick = onManageMemory,
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.memory) to
+                                    context.getString(R.string.memory_desc)
+                        },
                     )
 
                     AgentSimpleToggleSettingItem(
@@ -1794,6 +1898,11 @@ private fun AgentExtraSettingsPopup(
                         icon = if (enableMemoryQuery) Icons.Rounded.Link else Icons.Outlined.LinkOff,
                         isChecked = enableMemoryQuery,
                         onToggle = onToggleMemoryQuery,
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.memory_attachment) to
+                                    context.getString(R.string.memory_attachment_desc)
+                        },
                     )
 
                     AgentActionSettingItem(
@@ -1803,6 +1912,11 @@ private fun AgentExtraSettingsPopup(
                             onManualMemoryUpdate()
                             onDismiss()
                         },
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.manual_memory_update) to
+                                    context.getString(R.string.manual_memory_update_desc)
+                        },
                     )
 
                     AgentSimpleToggleSettingItem(
@@ -1810,6 +1924,11 @@ private fun AgentExtraSettingsPopup(
                         icon = Icons.Outlined.Hub,
                         isChecked = enableAiPlanning,
                         onToggle = onToggleAiPlanning,
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.ai_planning_mode) to
+                                    context.getString(R.string.ai_planning_desc)
+                        },
                     )
 
                     AgentSimpleToggleSettingItem(
@@ -1822,6 +1941,11 @@ private fun AgentExtraSettingsPopup(
                             },
                         isChecked = isAutoReadEnabled,
                         onToggle = onToggleAutoRead,
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.auto_read_message) to
+                                    context.getString(R.string.auto_read_desc)
+                        },
                     )
 
                     AgentSimpleToggleSettingItem(
@@ -1834,6 +1958,11 @@ private fun AgentExtraSettingsPopup(
                             },
                         isChecked = permissionLevel == PermissionLevel.ALLOW,
                         onToggle = onTogglePermission,
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.auto_approve) to
+                                    context.getString(R.string.auto_approve_desc)
+                        },
                     )
 
                     AgentDisableSettingsGroupItem(
@@ -1848,8 +1977,40 @@ private fun AgentExtraSettingsPopup(
                         expanded = showDisableSettingsDropdown,
                         onExpandedChange = { showDisableSettingsDropdown = it },
                         onManageTools = onManageTools,
+                        onInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.disable_settings_group) to
+                                    context.getString(R.string.disable_settings_group_desc)
+                        },
+                        onDisableStreamOutputInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.disable_stream_output) to
+                                    context.getString(R.string.disable_stream_output_desc)
+                        },
+                        onDisableToolsInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.disable_tools) to
+                                    context.getString(R.string.disable_tools_desc)
+                        },
+                        onDisableUserPreferenceDescriptionInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.disable_user_preference_description) to
+                                    context.getString(R.string.disable_user_preference_description_desc)
+                        },
+                        onDisableLatexDescriptionInfoClick = {
+                            infoPopupContent =
+                                context.getString(R.string.disable_latex_description) to
+                                    context.getString(R.string.disable_latex_description_desc)
+                        },
                     )
                 }
+            }
+            infoPopupContent?.let { content ->
+                AgentInfoPopup(
+                    popupContainerColor = popupContainerColor,
+                    infoPopupContent = content,
+                    onDismiss = { infoPopupContent = null },
+                )
             }
         }
     }
@@ -1863,6 +2024,7 @@ private fun AgentMemorySelectorItem(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onManageClick: () -> Unit,
+    onInfoClick: () -> Unit,
 ) {
     val currentProfileName =
         preferenceProfiles.find { it.id == currentProfileId }?.name ?: stringResource(R.string.not_selected)
@@ -1882,6 +2044,14 @@ private fun AgentMemorySelectorItem(
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.size(16.dp),
         )
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.details),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = stringResource(R.string.memory) + ":",
@@ -1980,6 +2150,11 @@ private fun AgentDisableSettingsGroupItem(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onManageTools: () -> Unit,
+    onInfoClick: () -> Unit,
+    onDisableStreamOutputInfoClick: () -> Unit,
+    onDisableToolsInfoClick: () -> Unit,
+    onDisableUserPreferenceDescriptionInfoClick: () -> Unit,
+    onDisableLatexDescriptionInfoClick: () -> Unit,
 ) {
     val disabledCount =
         listOf(
@@ -2005,6 +2180,14 @@ private fun AgentDisableSettingsGroupItem(
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.size(16.dp),
         )
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.details),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = stringResource(R.string.disable_settings_group) + ":",
@@ -2040,24 +2223,28 @@ private fun AgentDisableSettingsGroupItem(
                 icon = if (disableStreamOutput) Icons.Outlined.Block else Icons.Outlined.Speed,
                 isChecked = disableStreamOutput,
                 onToggle = onToggleDisableStreamOutput,
+                onInfoClick = onDisableStreamOutputInfoClick,
             )
             AgentSimpleToggleSettingItem(
                 title = stringResource(R.string.disable_tools),
                 icon = Icons.Outlined.Block,
                 isChecked = !enableTools,
                 onToggle = onToggleTools,
+                onInfoClick = onDisableToolsInfoClick,
             )
             AgentSimpleToggleSettingItem(
                 title = stringResource(R.string.disable_user_preference_description),
                 icon = Icons.Outlined.Block,
                 isChecked = disableUserPreferenceDescription,
                 onToggle = onToggleDisableUserPreferenceDescription,
+                onInfoClick = onDisableUserPreferenceDescriptionInfoClick,
             )
             AgentSimpleToggleSettingItem(
                 title = stringResource(R.string.disable_latex_description),
                 icon = Icons.Outlined.Block,
                 isChecked = disableLatexDescription,
                 onToggle = onToggleDisableLatexDescription,
+                onInfoClick = onDisableLatexDescriptionInfoClick,
             )
 
             Box(
@@ -2084,6 +2271,7 @@ private fun AgentSimpleToggleSettingItem(
     icon: ImageVector,
     isChecked: Boolean,
     onToggle: () -> Unit,
+    onInfoClick: () -> Unit,
 ) {
     Row(
         modifier =
@@ -2109,6 +2297,14 @@ private fun AgentSimpleToggleSettingItem(
                 },
             modifier = Modifier.size(16.dp),
         )
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.details),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = title,
@@ -2136,6 +2332,7 @@ private fun AgentActionSettingItem(
     title: String,
     icon: ImageVector,
     onClick: () -> Unit,
+    onInfoClick: () -> Unit,
 ) {
     Row(
         modifier =
@@ -2152,6 +2349,14 @@ private fun AgentActionSettingItem(
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.size(16.dp),
         )
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.details),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = title,
@@ -2159,6 +2364,72 @@ private fun AgentActionSettingItem(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
+    }
+}
+
+@Composable
+private fun AgentInfoPopup(
+    popupContainerColor: Color,
+    infoPopupContent: Pair<String, String>,
+    onDismiss: () -> Unit,
+) {
+    Popup(
+        alignment = Alignment.TopStart,
+        onDismissRequest = onDismiss,
+        properties =
+            PopupProperties(
+                focusable = true,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+            ),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
+                    ),
+            contentAlignment = Alignment.BottomEnd,
+        ) {
+            Card(
+                modifier =
+                    Modifier
+                        .padding(bottom = 52.dp, end = 12.dp)
+                        .width(220.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {},
+                        ),
+                shape = RoundedCornerShape(8.dp),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = popupContainerColor,
+                    ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                ) {
+                    Text(
+                        text = infoPopupContent.first,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = infoPopupContent.second,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp,
+                    )
+                }
+            }
+        }
     }
 }
 

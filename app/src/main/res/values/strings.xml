@@ -201,6 +201,11 @@
     <string name="workflow_confirm_delete_workflow_message">确定要删除工作流 "%1$s" 吗？此操作不可恢复。</string>
     <string name="workflow_confirm_delete_node_message">确定要删除节点 "%1$s" 吗？</string>
     <string name="workflow_execution_result_title">执行结果</string>
+    <string name="workflow_view_logs">查看日志</string>
+    <string name="workflow_execution_log_title">最近一次执行日志</string>
+    <string name="workflow_execution_log_node_title">节点日志：%1$s</string>
+    <string name="workflow_execution_log_empty">暂无执行日志</string>
+    <string name="workflow_execution_log_empty_for_node">该节点暂无执行日志：%1$s</string>
     <string name="workflow_edit_dialog_title">编辑工作流</string>
     <string name="workflow_enabled_label">启用工作流</string>
     <string name="workflow_disabled">已禁用</string>
@@ -4116,6 +4121,9 @@
     <string name="workflow_node_failed">失败</string>
     <string name="workflow_create_blank">新建空白</string>
     <string name="workflow_create_from_template">从模板新建</string>
+    <string name="workflow_delete_selected_with_count">删除选中 (%1$d)</string>
+    <string name="workflow_selected_count">已选择 %1$d 个工作流</string>
+    <string name="workflow_confirm_delete_selected_workflows_message">确定要删除选中的 %1$d 个工作流吗？此操作不可恢复。</string>
     <string name="workflow_start_creation">开始创建工作流</string>
     <string name="workflow_automation_desc">自动化你的任务流程</string>
     <string name="workflow_new">新建工作流</string>
@@ -4464,6 +4472,14 @@
     <string name="delete_failed">删除失败: %1$s</string>
     <string name="character_card_statistics">角色卡统计</string>
     <string name="character_card_statistics_subtitle">查看每个角色卡下的对话与消息数量</string>
+    <string name="missing_card_entry_action_title">缺失角色卡条目</string>
+    <string name="missing_card_entry_action_message">「%1$s」下共有 %2$d 条对话，请选择操作：</string>
+    <string name="action_assign_to_card">归类到角色卡</string>
+    <string name="action_delete_residual_chats">删除残留对话</string>
+    <string name="delete_residual_chats_confirmation">确定要删除「%1$s」下的 %2$d 条残留对话吗？\n\n已锁定的对话会被跳过，此操作不可撤销。</string>
+    <string name="deleted_residual_chats_count">已删除 %1$d 条残留对话</string>
+    <string name="deleted_residual_chats_with_skipped_locked">已删除 %1$d 条残留对话，跳过 %2$d 条锁定对话</string>
+    <string name="click_to_manage_missing_card">点击处理缺失角色卡条目</string>
     <string name="character_fallback">角</string>
     <string name="selected_chats_count">已选择 %1$d / %2$d 条</string>
     <string name="apply_changes">应用更改</string>
