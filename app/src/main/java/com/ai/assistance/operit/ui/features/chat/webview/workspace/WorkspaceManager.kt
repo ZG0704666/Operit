@@ -304,7 +304,6 @@ fun WorkspaceManager(
             Modifier
                 .fillMaxSize()
                 .imePadding()
-                .navigationBarsPadding()
     ) {
         val isBrowserPreviewVisible = isVisible && currentFileIndex == -1 && workspaceConfig.preview.type == "browser"
 
