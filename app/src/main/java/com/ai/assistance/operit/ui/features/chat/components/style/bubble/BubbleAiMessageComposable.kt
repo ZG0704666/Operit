@@ -35,6 +35,7 @@ import com.ai.assistance.operit.util.markdown.toCharStream
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.ToolCollapseMode
 import androidx.compose.foundation.Image
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
@@ -67,6 +68,7 @@ fun BubbleAiMessageComposable(
     val showModelProvider by displayPreferencesManager.showModelProvider.collectAsState(initial = false)
     val showModelName by displayPreferencesManager.showModelName.collectAsState(initial = false)
     val showRoleName by displayPreferencesManager.showRoleName.collectAsState(initial = false)
+    val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.READ_ONLY)
     
     // 根据角色名获取头像
     val aiAvatarUri by remember(message.roleName) {
@@ -111,8 +113,11 @@ fun BubbleAiMessageComposable(
         )
     }
 
-    val nodeGrouper = remember(showThinkingProcess) {
-        ThinkToolsXmlNodeGrouper(showThinkingProcess = showThinkingProcess)
+    val nodeGrouper = remember(showThinkingProcess, toolCollapseMode) {
+        ThinkToolsXmlNodeGrouper(
+            showThinkingProcess = showThinkingProcess,
+            toolCollapseMode = toolCollapseMode
+        )
     }
     val rememberedOnLinkClick = remember(context, onLinkClick, enableDialogs) {
         if (!enableDialogs) {

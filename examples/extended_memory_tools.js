@@ -7,8 +7,8 @@
         "en": "Extended Memory Tools"
     },
     "description": {
-        "zh": "拓展记忆工具包：提供创建/更新/删除/链接记忆，以及更新用户偏好的能力（默认工具中仅保留 query/get）。",
-        "en": "Extended memory tools: create/update/delete/link memories and update user preferences (default tools only keep query/get)."
+        "zh": "拓展记忆工具包：提供创建/更新/删除/查询/链接记忆，以及更新用户偏好的能力（默认工具中仅保留 query/get/query_links）。",
+        "en": "Extended memory tools: create/update/delete/query/link memories and update user preferences (default tools only keep query/get/query_links)."
     },
     "enabledByDefault": true,
     "tools": [
@@ -63,6 +63,17 @@
                 { "name": "link_type", "description": { "zh": "可选：关系类型，默认 related", "en": "Optional: link type (default: related)" }, "type": "string", "required": false },
                 { "name": "weight", "description": { "zh": "可选：强度 0-1，默认 0.7", "en": "Optional: weight 0-1 (default: 0.7)" }, "type": "number", "required": false },
                 { "name": "description", "description": { "zh": "可选：关系描述", "en": "Optional: relationship description" }, "type": "string", "required": false }
+            ]
+        },
+        {
+            "name": "query_memory_links",
+            "description": { "zh": "查询记忆链接（可按 ID/源标题/目标标题/关系类型过滤）。", "en": "Query memory links (filter by id/source/target/type)." },
+            "parameters": [
+                { "name": "link_id", "description": { "zh": "可选：链接ID", "en": "Optional: link id" }, "type": "number", "required": false },
+                { "name": "source_title", "description": { "zh": "可选：源记忆标题", "en": "Optional: source memory title" }, "type": "string", "required": false },
+                { "name": "target_title", "description": { "zh": "可选：目标记忆标题", "en": "Optional: target memory title" }, "type": "string", "required": false },
+                { "name": "link_type", "description": { "zh": "可选：关系类型", "en": "Optional: link type" }, "type": "string", "required": false },
+                { "name": "limit", "description": { "zh": "可选：返回上限 1-200，默认20", "en": "Optional: limit 1-200, default 20" }, "type": "number", "required": false }
             ]
         },
         {
@@ -136,6 +147,10 @@ const ExtendedMemoryTools = (function () {
         const result = await Tools.Memory.link(params.source_title, params.target_title, params.link_type, params.weight, params.description);
         return { success: !!result, message: '记忆链接创建完成', data: result };
     }
+    async function query_memory_links(params) {
+        const result = await Tools.Memory.queryLinks(params.link_id, params.source_title, params.target_title, params.link_type, params.limit);
+        return { success: !!result, message: '记忆链接查询完成', data: result };
+    }
     async function update_memory_link(params) {
         const result = await Tools.Memory.updateLink(params.link_id, params.source_title, params.target_title, params.link_type, params.new_link_type, params.weight, params.description);
         return { success: !!result, message: '记忆链接更新完成', data: result };
@@ -183,6 +198,7 @@ const ExtendedMemoryTools = (function () {
         results.push({ tool: 'delete_memory', result: { success: null, message: '未测试（会删除记忆库数据）' } });
         results.push({ tool: 'move_memory', result: { success: null, message: '未测试（会批量修改记忆文件夹）' } });
         results.push({ tool: 'link_memories', result: { success: null, message: '未测试（会修改记忆库链接）' } });
+        results.push({ tool: 'query_memory_links', result: { success: null, message: '未测试（只读查询）' } });
         results.push({ tool: 'update_memory_link', result: { success: null, message: '未测试（会修改记忆库链接）' } });
         results.push({ tool: 'delete_memory_link', result: { success: null, message: '未测试（会删除记忆库链接）' } });
         results.push({ tool: 'update_user_preferences', result: { success: null, message: '未测试（会修改用户偏好）' } });
@@ -198,6 +214,7 @@ const ExtendedMemoryTools = (function () {
         delete_memory: (params) => wrapToolExecution(delete_memory, params),
         move_memory: (params) => wrapToolExecution(move_memory, params),
         link_memories: (params) => wrapToolExecution(link_memories, params),
+        query_memory_links: (params) => wrapToolExecution(query_memory_links, params),
         update_memory_link: (params) => wrapToolExecution(update_memory_link, params),
         delete_memory_link: (params) => wrapToolExecution(delete_memory_link, params),
         update_user_preferences: (params) => wrapToolExecution(update_user_preferences, params),
@@ -209,6 +226,7 @@ exports.update_memory = ExtendedMemoryTools.update_memory;
 exports.delete_memory = ExtendedMemoryTools.delete_memory;
 exports.move_memory = ExtendedMemoryTools.move_memory;
 exports.link_memories = ExtendedMemoryTools.link_memories;
+exports.query_memory_links = ExtendedMemoryTools.query_memory_links;
 exports.update_memory_link = ExtendedMemoryTools.update_memory_link;
 exports.delete_memory_link = ExtendedMemoryTools.delete_memory_link;
 exports.update_user_preferences = ExtendedMemoryTools.update_user_preferences;

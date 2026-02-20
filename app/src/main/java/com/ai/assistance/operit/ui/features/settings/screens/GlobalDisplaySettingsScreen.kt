@@ -22,6 +22,7 @@ import com.ai.assistance.operit.data.preferences.AndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
 import com.ai.assistance.operit.data.preferences.RootCommandExecutionMode
+import com.ai.assistance.operit.data.preferences.ToolCollapseMode
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.ai.assistance.operit.services.floating.StatusIndicatorStyle
@@ -46,6 +47,7 @@ fun GlobalDisplaySettingsScreen(
     val showModelName by displayPreferencesManager.showModelName.collectAsState(initial = false)
     val showRoleName by displayPreferencesManager.showRoleName.collectAsState(initial = false)
     val showUserName by displayPreferencesManager.showUserName.collectAsState(initial = false)
+    val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.READ_ONLY)
     val showFpsCounter by displayPreferencesManager.showFpsCounter.collectAsState(initial = false)
     val enableReplyNotification by displayPreferencesManager.enableReplyNotification.collectAsState(initial = true)
     val enableExperimentalVirtualDisplay by displayPreferencesManager.enableExperimentalVirtualDisplay.collectAsState(initial = true)
@@ -165,6 +167,53 @@ fun GlobalDisplaySettingsScreen(
                 },
                 backgroundColor = componentBackgroundColor
             )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(componentBackgroundColor)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.tool_collapse_mode_title),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(id = R.string.tool_collapse_mode_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = toolCollapseMode == ToolCollapseMode.READ_ONLY,
+                        onClick = {
+                            scope.launch {
+                                displayPreferencesManager.saveDisplaySettings(toolCollapseMode = ToolCollapseMode.READ_ONLY)
+                                showSaveSuccessMessage = true
+                            }
+                        },
+                        label = { Text(stringResource(R.string.tool_collapse_mode_read_only)) }
+                    )
+                    FilterChip(
+                        selected = toolCollapseMode == ToolCollapseMode.ALL,
+                        onClick = {
+                            scope.launch {
+                                displayPreferencesManager.saveDisplaySettings(toolCollapseMode = ToolCollapseMode.ALL)
+                                showSaveSuccessMessage = true
+                            }
+                        },
+                        label = { Text(stringResource(R.string.tool_collapse_mode_all)) }
+                    )
+                }
+            }
 
             // 用户名字输入框
             if (showUserName) {

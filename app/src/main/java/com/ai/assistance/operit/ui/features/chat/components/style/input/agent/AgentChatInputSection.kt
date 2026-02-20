@@ -122,6 +122,7 @@ import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentSelectorPopupPanel
 import com.ai.assistance.operit.ui.features.chat.components.FullscreenInputDialog
+import com.ai.assistance.operit.ui.features.chat.components.style.input.common.ToolPromptManagerDialog
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
@@ -181,6 +182,8 @@ fun AgentChatInputSection(
     onToggleDisableLatexDescription: () -> Unit = {},
     onNavigateToUserPreferences: () -> Unit = {},
     onNavigateToPackageManager: () -> Unit = {},
+    toolPromptVisibility: Map<String, Boolean> = emptyMap(),
+    onSaveToolPromptVisibilityMap: (Map<String, Boolean>) -> Unit = {},
     onManualMemoryUpdate: () -> Unit = {},
     onNavigateToModelConfig: () -> Unit = {},
 ) {
@@ -315,10 +318,10 @@ fun AgentChatInputSection(
             else -> MaterialTheme.colorScheme.surface
         }
     val popupContainerColor =
-        if (isDarkTheme) {
-            inputContainerColor
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        when {
+            isDarkTheme && chatInputTransparent -> darkModeInputColor
+            isDarkTheme -> inputContainerColor
+            else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
         }
     val modelLabel =
         if (displayModelName.isBlank()) {
@@ -1093,10 +1096,9 @@ fun AgentChatInputSection(
                 onToggleDisableUserPreferenceDescription = onToggleDisableUserPreferenceDescription,
                 disableLatexDescription = disableLatexDescription,
                 onToggleDisableLatexDescription = onToggleDisableLatexDescription,
-                onManageTools = {
-                    showExtraSettingsPopup.value = false
-                    onNavigateToPackageManager()
-                },
+                toolPromptVisibility = toolPromptVisibility,
+                onSaveToolPromptVisibilityMap = onSaveToolPromptVisibilityMap,
+                onNavigateToPackageManager = onNavigateToPackageManager,
                 onManualMemoryUpdate = onManualMemoryUpdate,
                 onDismiss = { showExtraSettingsPopup.value = false },
             )
@@ -1822,7 +1824,9 @@ private fun AgentExtraSettingsPopup(
     onToggleDisableUserPreferenceDescription: () -> Unit,
     disableLatexDescription: Boolean,
     onToggleDisableLatexDescription: () -> Unit,
-    onManageTools: () -> Unit,
+    toolPromptVisibility: Map<String, Boolean>,
+    onSaveToolPromptVisibilityMap: (Map<String, Boolean>) -> Unit,
+    onNavigateToPackageManager: () -> Unit,
     onManualMemoryUpdate: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1830,6 +1834,7 @@ private fun AgentExtraSettingsPopup(
 
     var showMemoryDropdown by remember { mutableStateOf(false) }
     var showDisableSettingsDropdown by remember { mutableStateOf(false) }
+    var showToolPromptManagerDialog by remember { mutableStateOf(false) }
     var infoPopupContent by remember { mutableStateOf<Pair<String, String>?>(null) }
     val context = LocalContext.current
 
@@ -1976,7 +1981,7 @@ private fun AgentExtraSettingsPopup(
                         onToggleDisableLatexDescription = onToggleDisableLatexDescription,
                         expanded = showDisableSettingsDropdown,
                         onExpandedChange = { showDisableSettingsDropdown = it },
-                        onManageTools = onManageTools,
+                        onManageTools = { showToolPromptManagerDialog = true },
                         onInfoClick = {
                             infoPopupContent =
                                 context.getString(R.string.disable_settings_group) to
@@ -2005,6 +2010,17 @@ private fun AgentExtraSettingsPopup(
                     )
                 }
             }
+            ToolPromptManagerDialog(
+                visible = showToolPromptManagerDialog,
+                toolPromptVisibility = toolPromptVisibility,
+                onSaveToolPromptVisibilityMap = onSaveToolPromptVisibilityMap,
+                onDismissRequest = { showToolPromptManagerDialog = false },
+                onManagePackagesClick = {
+                    showToolPromptManagerDialog = false
+                    onDismiss()
+                    onNavigateToPackageManager()
+                },
+            )
             infoPopupContent?.let { content ->
                 AgentInfoPopup(
                     popupContainerColor = popupContainerColor,
@@ -2256,7 +2272,7 @@ private fun AgentDisableSettingsGroupItem(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = stringResource(R.string.manage_packages),
+                    text = stringResource(R.string.manage_tools),
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 13.sp,
                 )

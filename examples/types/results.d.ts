@@ -1191,6 +1191,35 @@ export interface MemoryLinkResultData {
     toString(): string;
 }
 
+/**
+ * Memory link query result data
+ */
+export interface MemoryLinkQueryResultData {
+    /** Number of links returned */
+    totalCount: number;
+    /** Queried links */
+    links: Array<{
+        /** Link ID */
+        linkId: number;
+        /** Source memory title */
+        sourceTitle: string;
+        /** Target memory title */
+        targetTitle: string;
+        /** Link type */
+        linkType: string;
+        /** Link weight (0.0-1.0) */
+        weight: number;
+        /** Optional relationship description */
+        description: string;
+    }>;
+    /** Returns a formatted string representation */
+    toString(): string;
+}
+
 export interface MemoryLinkResult extends BaseResult {
     data: MemoryLinkResultData;
-} 
+}
+
+export interface MemoryLinkQueryResult extends BaseResult {
+    data: MemoryLinkQueryResultData;
+}

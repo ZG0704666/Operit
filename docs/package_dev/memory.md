@@ -281,6 +281,47 @@ async function linkMemories() {
 }
 ```
 
+### `queryLinks(linkId?: number, sourceTitle?: string, targetTitle?: string, linkType?: string, limit?: number): Promise<MemoryLinkQueryResultData>`
+
+查询记忆之间已有的链接关系（只读）。
+
+-   **`linkId`**: **可选**。按精确链接 ID 查询单条链接。
+-   **`sourceTitle`**: **可选**。按源记忆标题过滤。
+-   **`targetTitle`**: **可选**。按目标记忆标题过滤。
+-   **`linkType`**: **可选**。按关系类型过滤（如 `"related"` / `"causes"` / `"explains"`）。
+-   **`limit`**: **可选**（默认 20，范围 1-200）。返回链接数量上限。
+
+-   **返回值**: 一个 `Promise`，成功时解析为 `MemoryLinkQueryResultData`，包含 `totalCount` 和 `links` 列表。
+
+**示例:**
+
+```typescript
+async function inspectMemoryLinks() {
+    try {
+        // 查询指定两条记忆之间的链接
+        const links1 = await Tools.Memory.queryLinks(
+            undefined,
+            "数据库连接失败",
+            "应用启动错误",
+            "causes"
+        );
+        console.log(links1);
+
+        // 按 linkId 查询
+        const links2 = await Tools.Memory.queryLinks(12345);
+        console.log(links2);
+
+        // 查询最近 50 条链接
+        const links3 = await Tools.Memory.queryLinks(undefined, undefined, undefined, undefined, 50);
+        console.log(links3);
+
+        complete({ success: true, message: "记忆链接查询成功" });
+    } catch (error) {
+        complete({ success: false, message: `查询失败: ${error.message}` });
+    }
+}
+```
+
 ---
 
 ## 使用场景

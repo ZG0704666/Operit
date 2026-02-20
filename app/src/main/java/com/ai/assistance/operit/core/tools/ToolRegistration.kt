@@ -319,6 +319,28 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    // 注册查询记忆链接工具
+    handler.registerTool(
+            name = "query_memory_links",
+            dangerCheck = null,
+            descriptionGenerator = { tool ->
+                val linkId = tool.parameters.find { it.name == "link_id" }?.value
+                val sourceTitle = tool.parameters.find { it.name == "source_title" }?.value
+                val targetTitle = tool.parameters.find { it.name == "target_title" }?.value
+                val linkType = tool.parameters.find { it.name == "link_type" }?.value
+                val locator = when {
+                    !linkId.isNullOrBlank() -> "link_id=$linkId"
+                    !sourceTitle.isNullOrBlank() || !targetTitle.isNullOrBlank() -> "${sourceTitle ?: "*"} -> ${targetTitle ?: "*"}"
+                    else -> "all links"
+                }
+                "Query memory links: $locator${if (!linkType.isNullOrBlank()) ", type=$linkType" else ""}"
+            },
+            executor = { tool ->
+                val memoryTool = ToolGetter.getMemoryQueryToolExecutor(context)
+                memoryTool.invoke(tool)
+            }
+    )
+
     // 注册更新记忆链接工具
     handler.registerTool(
             name = "update_memory_link",

@@ -643,6 +643,10 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                         },
                                         onNavigateToUserPreferences = onNavigateToUserPreferences,
                                         onNavigateToPackageManager = onNavigateToPackageManager,
+                                        toolPromptVisibility = toolPromptVisibility,
+                                        onSaveToolPromptVisibilityMap = { visibilityMap ->
+                                            actualViewModel.saveToolPromptVisibilityMap(visibilityMap)
+                                        },
                                         onManualMemoryUpdate = {
                                             actualViewModel.manuallyUpdateMemory()
                                         },

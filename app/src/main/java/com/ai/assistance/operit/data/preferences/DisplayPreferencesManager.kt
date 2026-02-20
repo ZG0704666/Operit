@@ -62,6 +62,9 @@ class DisplayPreferencesManager private constructor(private val context: Context
 
         // 虚拟屏幕相关设置的 Key
         private val KEY_VIRTUAL_DISPLAY_BITRATE_KBPS = intPreferencesKey("virtual_display_bitrate_kbps")
+
+        // 工具折叠设置（只读工具 / 全部工具）
+        private val KEY_TOOL_COLLAPSE_MODE = stringPreferencesKey("tool_collapse_mode")
     }
 
     /**
@@ -159,6 +162,11 @@ class DisplayPreferencesManager private constructor(private val context: Context
             preferences[KEY_VIRTUAL_DISPLAY_BITRATE_KBPS] ?: 3000
         }
 
+    val toolCollapseMode: Flow<ToolCollapseMode> =
+        context.displayPreferencesDataStore.data.map { preferences ->
+            ToolCollapseMode.fromValue(preferences[KEY_TOOL_COLLAPSE_MODE])
+        }
+
     /**
      * 保存显示设置
      */
@@ -175,7 +183,8 @@ class DisplayPreferencesManager private constructor(private val context: Context
         screenshotFormat: String? = null,
         screenshotQuality: Int? = null,
         screenshotScalePercent: Int? = null,
-        virtualDisplayBitrateKbps: Int? = null
+        virtualDisplayBitrateKbps: Int? = null,
+        toolCollapseMode: ToolCollapseMode? = null
     ) {
         context.displayPreferencesDataStore.edit { preferences ->
             showModelProvider?.let { preferences[KEY_SHOW_MODEL_PROVIDER] = it }
@@ -193,6 +202,7 @@ class DisplayPreferencesManager private constructor(private val context: Context
             screenshotQuality?.let { preferences[KEY_SCREENSHOT_QUALITY] = it }
             screenshotScalePercent?.let { preferences[KEY_SCREENSHOT_SCALE_PERCENT] = it }
             virtualDisplayBitrateKbps?.let { preferences[KEY_VIRTUAL_DISPLAY_BITRATE_KBPS] = it }
+            toolCollapseMode?.let { preferences[KEY_TOOL_COLLAPSE_MODE] = it.value }
         }
     }
 
@@ -244,6 +254,7 @@ class DisplayPreferencesManager private constructor(private val context: Context
             preferences.remove(KEY_SCREENSHOT_QUALITY)
             preferences.remove(KEY_SCREENSHOT_SCALE_PERCENT)
             preferences.remove(KEY_VIRTUAL_DISPLAY_BITRATE_KBPS)
+            preferences.remove(KEY_TOOL_COLLAPSE_MODE)
         }
     }
 }

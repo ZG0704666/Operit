@@ -58,6 +58,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
         /** Represents a weak link, e.g., "A is sometimes associated with B". */
         const val WEAK_LINK = 0.3f
+        private const val DANGLING_LINK_CLEANUP_INTERVAL_MS = 30_000L
 
         fun normalizeFolderPath(folderPath: String?): String? {
             val raw = folderPath?.trim() ?: return null
@@ -80,6 +81,8 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
     private val searchSettingsPreferences = MemorySearchSettingsPreferences(context, profileId)
     private val cloudEmbeddingService = CloudEmbeddingService()
+    @Volatile
+    private var lastDanglingCleanupAtMs: Long = 0L
 
     private suspend fun generateEmbedding(text: String, config: CloudEmbeddingConfig): Embedding? {
         return cloudEmbeddingService.generateEmbedding(config, text)
@@ -265,14 +268,61 @@ class MemoryRepository(private val context: Context, profileId: String) {
             }
         }
 
-        // Before deleting the memory, we must clean up its links.
-        // This prevents dangling references.
-        memory.links.forEach { linkBox.remove(it) }
-        memory.backlinks.forEach { linkBox.remove(it) }
+        val linkIdsToDelete = collectLinkIdsForDeletion(setOf(memoryId), includeDangling = false)
+        if (linkIdsToDelete.isNotEmpty()) {
+            linkBox.removeByIds(linkIdsToDelete)
+            com.ai.assistance.operit.util.AppLogger.d(
+                "MemoryRepo",
+                "Deleted ${linkIdsToDelete.size} links while deleting memory id=$memoryId."
+            )
+        }
         memoryBox.remove(memory)
     }
 
     // --- Link CRUD Operations ---
+    private fun collectLinkIdsForDeletion(
+        memoryIdsToDelete: Set<Long>,
+        includeDangling: Boolean = true
+    ): Set<Long> {
+        val existingMemoryIds =
+            if (includeDangling) memoryBox.all.map { it.id }.toHashSet() else emptySet()
+        return linkBox.all
+            .asSequence()
+            .filter { link ->
+                val sourceId = link.source.targetId
+                val targetId = link.target.targetId
+                val linkedToDeletingMemories =
+                    sourceId in memoryIdsToDelete || targetId in memoryIdsToDelete
+                val danglingLink = if (includeDangling) {
+                    sourceId <= 0L ||
+                        targetId <= 0L ||
+                        sourceId !in existingMemoryIds ||
+                        targetId !in existingMemoryIds
+                } else {
+                    false
+                }
+                linkedToDeletingMemories || danglingLink
+            }
+            .map { it.id }
+            .toSet()
+    }
+
+    private fun cleanupDanglingLinksIfNeeded(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastDanglingCleanupAtMs < DANGLING_LINK_CLEANUP_INTERVAL_MS) {
+            return
+        }
+        val danglingLinkIds = collectLinkIdsForDeletion(emptySet())
+        if (danglingLinkIds.isNotEmpty()) {
+            linkBox.removeByIds(danglingLinkIds)
+            com.ai.assistance.operit.util.AppLogger.w(
+                "MemoryRepo",
+                "Cleaned ${danglingLinkIds.size} dangling memory links."
+            )
+        }
+        lastDanglingCleanupAtMs = now
+    }
+
     suspend fun findLinkById(linkId: Long): MemoryLink? = withContext(Dispatchers.IO) {
         linkBox.get(linkId)
     }
@@ -380,13 +430,55 @@ class MemoryRepository(private val context: Context, profileId: String) {
     /** Gets all outgoing links from a memory. */
     suspend fun getOutgoingLinks(memoryId: Long): List<MemoryLink> = withContext(Dispatchers.IO) {
         val memory = findMemoryById(memoryId)
+        memory?.links?.reset()
         memory?.links ?: emptyList()
     }
 
     /** Gets all incoming links to a memory. */
     suspend fun getIncomingLinks(memoryId: Long): List<MemoryLink> = withContext(Dispatchers.IO) {
         val memory = findMemoryById(memoryId)
+        memory?.backlinks?.reset()
         memory?.backlinks ?: emptyList()
+    }
+
+    /**
+     * Query memory links with optional filters.
+     * If no filter is provided, returns recent links up to limit.
+     */
+    suspend fun queryMemoryLinks(
+        linkId: Long? = null,
+        sourceMemoryId: Long? = null,
+        targetMemoryId: Long? = null,
+        linkType: String? = null,
+        limit: Int = 20
+    ): List<MemoryLink> = withContext(Dispatchers.IO) {
+        cleanupDanglingLinksIfNeeded()
+
+        val normalizedType = linkType?.trim()?.takeIf { it.isNotEmpty() }
+        val validLimit = limit.coerceIn(1, 200)
+
+        val candidates = when {
+            linkId != null -> listOfNotNull(linkBox.get(linkId))
+            sourceMemoryId != null && targetMemoryId != null ->
+                getOutgoingLinks(sourceMemoryId).filter { it.target.targetId == targetMemoryId }
+            sourceMemoryId != null -> getOutgoingLinks(sourceMemoryId)
+            targetMemoryId != null -> getIncomingLinks(targetMemoryId)
+            else -> linkBox.all
+        }
+
+        candidates
+            .asSequence()
+            .filter { link ->
+                val sourceId = link.source.targetId
+                val targetId = link.target.targetId
+
+                (sourceMemoryId == null || sourceId == sourceMemoryId) &&
+                    (targetMemoryId == null || targetId == targetMemoryId) &&
+                    (normalizedType == null || link.type == normalizedType)
+            }
+            .sortedByDescending { it.id }
+            .take(validLimit)
+            .toList()
     }
 
     // --- Complex Queries ---
@@ -1299,14 +1391,12 @@ class MemoryRepository(private val context: Context, profileId: String) {
         try {
             store.runInTx {
                 // 1. 收集所有相关链接和区块的ID
-                val linkIdsToDelete = mutableSetOf<Long>()
+                val memoryIdsToDelete = memoriesToDelete.map { it.id }.toSet()
+                val linkIdsToDelete =
+                    collectLinkIdsForDeletion(memoryIdsToDelete, includeDangling = false)
+                        .toMutableSet()
                 val chunkIdsToDelete = mutableSetOf<Long>()
                 for (memory in memoriesToDelete) {
-                    memory.links.reset()
-                    memory.backlinks.reset()
-                    memory.links.forEach { link -> linkIdsToDelete.add(link.id) }
-                    memory.backlinks.forEach { link -> linkIdsToDelete.add(link.id) }
-
                     if (memory.isDocumentNode) {
                         memory.documentChunks.reset()
                         memory.documentChunks.forEach { chunk -> chunkIdsToDelete.add(chunk.id) }
@@ -1325,8 +1415,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
                 }
 
                 // 3. 批量删除记忆本身
-                val memoryIdsToDelete = memoriesToDelete.map { it.id }
-                memoryBox.removeByIds(memoryIdsToDelete)
+                memoryBox.removeByIds(memoryIdsToDelete.toList())
                 com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Bulk-deleted ${memoriesToDelete.size} memories.")
             }
             com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Transaction completed successfully.")
@@ -1359,6 +1448,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
     /** Fetches all memories and their links, and converts them into a Graph data structure. */
     suspend fun getMemoryGraph(): Graph = withContext(Dispatchers.IO) {
+        cleanupDanglingLinksIfNeeded()
         buildGraphFromMemories(memoryBox.all, null)
     }
 

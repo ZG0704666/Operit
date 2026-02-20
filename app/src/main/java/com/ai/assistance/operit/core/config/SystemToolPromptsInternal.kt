@@ -539,6 +539,17 @@ object SystemToolPromptsInternal {
                             )
                         ),
                         ToolPrompt(
+                            name = "query_memory_links",
+                            description = "Queries links in the memory graph. Supports filtering by link_id, source_title, target_title, and link_type. Use this before updating/deleting links to precisely identify targets.",
+                            parametersStructured = listOf(
+                                ToolParameterSchema(name = "link_id", type = "integer", description = "optional, exact link id", required = false),
+                                ToolParameterSchema(name = "source_title", type = "string", description = "optional, exact source memory title", required = false),
+                                ToolParameterSchema(name = "target_title", type = "string", description = "optional, exact target memory title", required = false),
+                                ToolParameterSchema(name = "link_type", type = "string", description = "optional, relation type filter", required = false),
+                                ToolParameterSchema(name = "limit", type = "integer", description = "optional, int 1-200, maximum links to return", required = false, default = "20")
+                            )
+                        ),
+                        ToolPrompt(
                             name = "update_user_preferences",
                             description = "Updates user preference information directly. Use this when you learn new information about the user that should be remembered (e.g., their birthday, gender, personality traits, identity, occupation, or preferred AI interaction style). This allows immediate updates without waiting for the automatic system.",
                             parametersStructured = listOf(
@@ -2265,6 +2276,17 @@ object SystemToolPromptsInternal {
                                 ToolParameterSchema(name = "link_type", type = "string", description = "可选, 字符串, 关系类型，如\"related\"（相关）、\"causes\"（导致）、\"explains\"（解释）、\"part_of\"（部分）、\"contradicts\"（矛盾）等", required = false, default = "\"related\""),
                                 ToolParameterSchema(name = "weight", type = "number", description = "可选, 浮点数 0.0-1.0, 链接强度，1.0表示最强", required = false, default = "0.7"),
                                 ToolParameterSchema(name = "description", type = "string", description = "可选, 字符串, 关于关系的额外上下文", required = false, default = "\"\"")
+                            )
+                        ),
+                        ToolPrompt(
+                            name = "query_memory_links",
+                            description = "查询记忆图谱中的链接。支持按 link_id、source_title、target_title、link_type 过滤。适合在更新/删除链接前先精确定位目标。",
+                            parametersStructured = listOf(
+                                ToolParameterSchema(name = "link_id", type = "integer", description = "可选, 精确链接ID", required = false),
+                                ToolParameterSchema(name = "source_title", type = "string", description = "可选, 源记忆精确标题", required = false),
+                                ToolParameterSchema(name = "target_title", type = "string", description = "可选, 目标记忆精确标题", required = false),
+                                ToolParameterSchema(name = "link_type", type = "string", description = "可选, 关系类型过滤", required = false),
+                                ToolParameterSchema(name = "limit", type = "integer", description = "可选, 整数 1-200, 返回链接数量上限", required = false, default = "20")
                             )
                         ),
                         ToolPrompt(

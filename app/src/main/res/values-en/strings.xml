@@ -5972,6 +5972,10 @@
     <string name="global_display_image_format">Image Format</string>
     <string name="global_display_image_quality">Quality (JPG only)</string>
     <string name="global_display_resolution_scale">Resolution Scale (downscale before sending)</string>
+    <string name="tool_collapse_mode_title">Tool Collapse</string>
+    <string name="tool_collapse_mode_desc">Set the default collapse scope for tool-call groups in messages</string>
+    <string name="tool_collapse_mode_read_only">Collapse Read-only Tools</string>
+    <string name="tool_collapse_mode_all">Collapse All Tools</string>
 
     <!-- ANR Monitor -->
     <string name="anr_main_thread_not_responding">Main thread not responding: %1$dms</string>

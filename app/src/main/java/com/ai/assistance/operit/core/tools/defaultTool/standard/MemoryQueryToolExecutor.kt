@@ -4,6 +4,7 @@ import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.core.tools.MemoryQueryResultData
 import com.ai.assistance.operit.core.tools.MemoryLinkResultData
+import com.ai.assistance.operit.core.tools.MemoryLinkQueryResultData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.model.AITool
@@ -51,6 +52,7 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
             "move_memory" -> executeMoveMemory(tool)
             "update_user_preferences" -> executeUpdateUserPreferences(tool)
             "link_memories" -> executeLinkMemories(tool)
+            "query_memory_links" -> executeQueryMemoryLinks(tool)
             "update_memory_link" -> executeUpdateMemoryLink(tool)
             "delete_memory_link" -> executeDeleteMemoryLink(tool)
             else -> ToolResult(
@@ -630,6 +632,100 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
                 success = false,
                 result = StringResultData(""),
                 error = "Failed to link memories: ${e.message}"
+            )
+        }
+    }
+
+    private suspend fun executeQueryMemoryLinks(tool: AITool): ToolResult {
+        val linkIdRaw = tool.parameters.find { it.name == "link_id" }?.value
+        val linkId = linkIdRaw?.toLongOrNull()
+        if (!linkIdRaw.isNullOrBlank() && linkId == null) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Invalid link_id. Expected integer."
+            )
+        }
+
+        val sourceTitle = tool.parameters.find { it.name == "source_title" }?.value?.trim()
+        val targetTitle = tool.parameters.find { it.name == "target_title" }?.value?.trim()
+        val linkType = tool.parameters.find { it.name == "link_type" }?.value?.trim()?.takeIf { it.isNotEmpty() }
+        val limitRaw = tool.parameters.find { it.name == "limit" }?.value
+        val parsedLimit = limitRaw?.toIntOrNull()
+        if (!limitRaw.isNullOrBlank() && parsedLimit == null) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Invalid limit. Expected integer."
+            )
+        }
+        val limit = (parsedLimit ?: 20).coerceIn(1, 200)
+
+        return try {
+            val sourceMemoryId = if (!sourceTitle.isNullOrBlank()) {
+                memoryRepository.findMemoryByTitle(sourceTitle)?.id ?: return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Source memory not found with title: $sourceTitle"
+                )
+            } else {
+                null
+            }
+
+            val targetMemoryId = if (!targetTitle.isNullOrBlank()) {
+                memoryRepository.findMemoryByTitle(targetTitle)?.id ?: return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Target memory not found with title: $targetTitle"
+                )
+            } else {
+                null
+            }
+
+            val links = memoryRepository.queryMemoryLinks(
+                linkId = linkId,
+                sourceMemoryId = sourceMemoryId,
+                targetMemoryId = targetMemoryId,
+                linkType = linkType,
+                limit = limit
+            )
+
+            val linkInfos = links.mapNotNull { link ->
+                val source = link.source.target
+                val target = link.target.target
+                if (source == null || target == null) {
+                    null
+                } else {
+                    MemoryLinkQueryResultData.LinkInfo(
+                        linkId = link.id,
+                        sourceTitle = source.title,
+                        targetTitle = target.title,
+                        linkType = link.type,
+                        weight = link.weight,
+                        description = link.description
+                    )
+                }
+            }
+
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = MemoryLinkQueryResultData(
+                    totalCount = linkInfos.size,
+                    links = linkInfos
+                )
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to query memory links", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Failed to query memory links: ${e.message}"
             )
         }
     }

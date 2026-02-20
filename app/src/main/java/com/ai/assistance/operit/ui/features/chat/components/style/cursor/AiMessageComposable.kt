@@ -27,6 +27,7 @@ import com.ai.assistance.operit.util.markdown.toCharStream
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
+import com.ai.assistance.operit.data.preferences.ToolCollapseMode
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import java.util.concurrent.atomic.AtomicInteger
@@ -56,6 +57,7 @@ fun AiMessageComposable(
     val showModelProvider by displayPreferencesManager.showModelProvider.collectAsState(initial = false)
     val showModelName by displayPreferencesManager.showModelName.collectAsState(initial = false)
     val showRoleName by displayPreferencesManager.showRoleName.collectAsState(initial = false)
+    val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.READ_ONLY)
 
     // 链接预览弹窗状态
     var showLinkDialog by remember { mutableStateOf(false) }
@@ -73,8 +75,11 @@ fun AiMessageComposable(
         )
     }
 
-    val nodeGrouper = remember(showThinkingProcess) {
-        ThinkToolsXmlNodeGrouper(showThinkingProcess = showThinkingProcess)
+    val nodeGrouper = remember(showThinkingProcess, toolCollapseMode) {
+        ThinkToolsXmlNodeGrouper(
+            showThinkingProcess = showThinkingProcess,
+            toolCollapseMode = toolCollapseMode
+        )
     }
 
     // val recompositionCounter = remember(message.timestamp) { AtomicInteger(0) }

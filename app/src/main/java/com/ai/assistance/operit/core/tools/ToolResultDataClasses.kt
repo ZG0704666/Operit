@@ -1624,3 +1624,35 @@ data class MemoryLinkResultData(
         return "Successfully linked memory: '$sourceTitle' -> '$targetTitle' (Type: $linkType, Strength: $weight)"
     }
 }
+
+/** 记忆链接查询结果数据 */
+@Serializable
+data class MemoryLinkQueryResultData(
+    val totalCount: Int,
+    val links: List<LinkInfo>
+) : ToolResultData() {
+    @Serializable
+    data class LinkInfo(
+        val linkId: Long,
+        val sourceTitle: String,
+        val targetTitle: String,
+        val linkType: String,
+        val weight: Float,
+        val description: String
+    )
+
+    override fun toString(): String {
+        if (links.isEmpty()) {
+            return "No memory links found."
+        }
+        val sb = StringBuilder()
+        sb.appendLine("Memory Links ($totalCount):")
+        links.forEach { link ->
+            sb.appendLine("- #${link.linkId}: '${link.sourceTitle}' -> '${link.targetTitle}' (Type: ${link.linkType}, Weight: ${link.weight})")
+            if (link.description.isNotBlank()) {
+                sb.appendLine("  Description: ${link.description}")
+            }
+        }
+        return sb.toString().trim()
+    }
+}

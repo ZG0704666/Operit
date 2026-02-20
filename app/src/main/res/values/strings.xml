@@ -5964,6 +5964,10 @@
     <string name="global_display_image_format">图片格式</string>
     <string name="global_display_image_quality">画质（仅对 JPG 生效）</string>
     <string name="global_display_resolution_scale">分辨率缩放（发送前缩小截图）</string>
+    <string name="tool_collapse_mode_title">工具折叠</string>
+    <string name="tool_collapse_mode_desc">设置消息中工具调用分组的默认折叠范围</string>
+    <string name="tool_collapse_mode_read_only">折叠只读工具</string>
+    <string name="tool_collapse_mode_all">折叠全部工具</string>
 
     <!-- ANR Monitor -->
     <string name="anr_main_thread_not_responding">主线程未响应: %1$dms</string>

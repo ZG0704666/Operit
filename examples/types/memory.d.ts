@@ -90,6 +90,23 @@ export namespace Memory {
     function link(sourceTitle: string, targetTitle: string, linkType?: string, weight?: number, description?: string): Promise<import('./results').MemoryLinkResultData>;
 
     /**
+     * Query memory links with optional filters
+     * @param linkId - Optional link ID (exact match)
+     * @param sourceTitle - Optional source memory title filter
+     * @param targetTitle - Optional target memory title filter
+     * @param linkType - Optional link type filter
+     * @param limit - Optional maximum number of links to return (1-200, default 20)
+     * @returns Link query result
+     */
+    function queryLinks(
+        linkId?: number,
+        sourceTitle?: string,
+        targetTitle?: string,
+        linkType?: string,
+        limit?: number
+    ): Promise<import('./results').MemoryLinkQueryResultData>;
+
+    /**
      * Update an existing memory link
      * @param linkId - Optional link ID (preferred locator)
      * @param sourceTitle - Optional source memory title (used when linkId is not provided)

@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.data.preferences.ToolCollapseMode
 import com.ai.assistance.operit.ui.common.markdown.MarkdownGroupedItem
 import com.ai.assistance.operit.ui.common.markdown.MarkdownNodeGrouper
 import com.ai.assistance.operit.ui.common.markdown.XmlContentRenderer
@@ -42,7 +43,8 @@ import com.ai.assistance.operit.util.markdown.MarkdownNodeStable
 import com.ai.assistance.operit.util.markdown.MarkdownProcessorType
 
 class ThinkToolsXmlNodeGrouper(
-    private val showThinkingProcess: Boolean
+    private val showThinkingProcess: Boolean,
+    private val toolCollapseMode: ToolCollapseMode = ToolCollapseMode.READ_ONLY
 ) : MarkdownNodeGrouper {
 
     override fun group(nodes: List<MarkdownNodeStable>, rendererId: String): List<MarkdownGroupedItem> {
@@ -78,7 +80,7 @@ class ThinkToolsXmlNodeGrouper(
 
                     if (isToolRelated) {
                         val toolName = extractToolNameFromToolOrResult(next.content)
-                        if (!shouldGroupToolByName(toolName)) break
+                        if (!shouldGroupToolByName(toolName, toolCollapseMode)) break
                         if (nextTag == "tool") toolCount++
                     }
 
@@ -104,7 +106,7 @@ class ThinkToolsXmlNodeGrouper(
 
             if (tag == "tool" || tag == "tool_result") {
                 val firstToolName = extractToolNameFromToolOrResult(node.content)
-                if (!shouldGroupToolByName(firstToolName)) {
+                if (!shouldGroupToolByName(firstToolName, toolCollapseMode)) {
                     out.add(MarkdownGroupedItem.Single(i))
                     i++
                     continue
@@ -127,7 +129,7 @@ class ThinkToolsXmlNodeGrouper(
                     if (!isToolRelated) break
 
                     val toolName = extractToolNameFromToolOrResult(next.content)
-                    if (!shouldGroupToolByName(toolName)) break
+                    if (!shouldGroupToolByName(toolName, toolCollapseMode)) break
 
                     xmlToolRelatedCount++
                     if (nextTag == "tool") toolCount++
@@ -200,10 +202,10 @@ class ThinkToolsXmlNodeGrouper(
                         "think", "thinking" -> true
                         "tool", "tool_result" -> {
                             val toolName = extractToolNameFromToolOrResult(node.content)
-                            if (toolName == null) {
-                                !isXmlFullyClosed(node.content)
+                            if (toolName == null && !isXmlFullyClosed(node.content)) {
+                                true
                             } else {
-                                shouldGroupToolByName(toolName)
+                                shouldGroupToolByName(toolName, toolCollapseMode)
                             }
                         }
                         null -> !isXmlFullyClosed(node.content)
@@ -284,10 +286,12 @@ class ThinkToolsXmlNodeGrouper(
                 enter = fadeIn(animationSpec = tween(200)),
                 exit = fadeOut(animationSpec = tween(200))
             ) {
+                val contentStartPadding =
+                    if (group.stableKey.startsWith("tools-only-")) 0.dp else 24.dp
                 Box(
                     modifier =
                         Modifier.fillMaxWidth()
-                            .padding(top = 4.dp, bottom = 8.dp, start = 24.dp)
+                            .padding(top = 4.dp, bottom = 8.dp, start = contentStartPadding)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         slice.forEachIndexed { idx, node ->
@@ -355,7 +359,14 @@ private fun extractToolNameFromToolOrResult(xml: String): String? {
     }
 }
 
-private fun shouldGroupToolByName(toolName: String?): Boolean {
+private fun shouldGroupToolByName(
+    toolName: String?,
+    toolCollapseMode: ToolCollapseMode
+): Boolean {
+    if (toolCollapseMode == ToolCollapseMode.ALL) {
+        return true
+    }
+
     val n = toolName?.trim()?.lowercase() ?: return false
     if (n.contains("search")) return true
     return n in setOf(

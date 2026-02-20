@@ -530,6 +530,16 @@ fun getJsToolsDefinition(): String {
                     if (description) params.description = description;
                     return toolCall("link_memories", params);
                 },
+                // 查询记忆链接
+                queryLinks: (linkId, sourceTitle, targetTitle, linkType, limit) => {
+                    const params = {};
+                    if (linkId !== undefined && linkId !== null) params.link_id = linkId;
+                    if (sourceTitle) params.source_title = sourceTitle;
+                    if (targetTitle) params.target_title = targetTitle;
+                    if (linkType) params.link_type = linkType;
+                    if (limit !== undefined) params.limit = limit;
+                    return toolCall("query_memory_links", params);
+                },
                 // 更新记忆链接（优先按 linkId）
                 updateLink: (linkId, sourceTitle, targetTitle, linkType, newLinkType, weight, description) => {
                     const params = {};

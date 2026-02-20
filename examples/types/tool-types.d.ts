@@ -14,7 +14,7 @@ import {
     CalculationResultData, FFmpegResultData, ADBResultData, IntentResultData, TerminalCommandResultData, TerminalSessionScreenResultData,
     FilePartContentData, FileApplyResultData, WorkflowListResultData, WorkflowResultData, WorkflowDetailResultData,
     StringResultData, ChatServiceStartResultData, ChatCreationResultData, ChatListResultData, ChatFindResultData, AgentStatusResultData,
-    ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, GrepResultData,
+    ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, MemoryLinkQueryResultData, GrepResultData,
     ChatMessagesResultData, CharacterCardListResultData
 } from './results';
 
@@ -133,4 +133,5 @@ export interface ToolResultMap {
 
     // Memory operations
     'link_memories': MemoryLinkResultData;
+    'query_memory_links': MemoryLinkQueryResultData;
 } 
