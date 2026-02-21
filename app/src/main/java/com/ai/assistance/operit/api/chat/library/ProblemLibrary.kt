@@ -8,6 +8,7 @@ import com.ai.assistance.operit.api.chat.llmprovider.AIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.Memory
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.MemorySearchSettingsPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.util.ChatUtils
@@ -271,7 +272,15 @@ object ProblemLibrary {
             }
 
             // Generate the graph analysis from the conversation
-            val analysis = generateAnalysis(context, aiService, query, prunedContent, processedHistory, memoryRepository)
+            val analysis = generateAnalysis(
+                context = context,
+                aiService = aiService,
+                query = query,
+                solution = prunedContent,
+                conversationHistory = processedHistory,
+                memoryRepository = memoryRepository,
+                profileId = profileId
+            )
 
             // If analysis is empty (trivial conversation), abort early.
             if (analysis.mainProblem == null && analysis.extractedEntities.isEmpty() && analysis.updatedEntities.isEmpty() && analysis.mergedEntities.isEmpty()) {
@@ -463,7 +472,8 @@ object ProblemLibrary {
         query: String,
         solution: String,
         conversationHistory: List<Pair<String, String>>,
-        memoryRepository: MemoryRepository
+        memoryRepository: MemoryRepository,
+        profileId: String
     ): ParsedAnalysis {
         try {
             val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
@@ -476,10 +486,44 @@ object ProblemLibrary {
             }
 
             // --- Hybrid Strategy: Local rough search + LLM final decision ---
-            // 1. Use local embedding search for a "rough" candidate selection.
-            val contextQuery = query + "\n" + solution.take(1000) // Combine query and solution for context
-            // 使用更宽松的阈值(0.5)以让AI看到更多可能相关的记忆，便于判断是否需要合并或更新
-            val candidateMemories = memoryRepository.searchMemories(contextQuery, semanticThreshold = 0.4f).take(15)
+            // 1. Use a compact search query (question-focused) for rough candidate selection.
+            val contextQuery = buildCandidateSearchQuery(query, solution)
+            val searchConfig = MemorySearchSettingsPreferences(context, profileId).load()
+            val candidateMemories = memoryRepository.searchMemories(
+                query = contextQuery,
+                semanticThreshold = searchConfig.semanticThreshold,
+                scoreMode = searchConfig.scoreMode,
+                keywordWeight = searchConfig.keywordWeight,
+                semanticWeight = searchConfig.vectorWeight,
+                edgeWeight = searchConfig.edgeWeight
+            ).take(15)
+
+            AppLogger.d(
+                TAG,
+                "候选记忆检索完成: count=${candidateMemories.size}, " +
+                    "threshold=${searchConfig.semanticThreshold}, mode=${searchConfig.scoreMode}, " +
+                    "keywordWeight=${searchConfig.keywordWeight}, vectorWeight=${searchConfig.vectorWeight}, edgeWeight=${searchConfig.edgeWeight}, " +
+                    "searchQueryLen=${contextQuery.length}"
+            )
+            AppLogger.d(TAG, "候选检索查询（截断）: ${contextQuery.take(220)}")
+            if (candidateMemories.isEmpty()) {
+                AppLogger.d(TAG, "候选记忆列表为空（通过阈值过滤后无结果）。")
+            } else {
+                candidateMemories.forEachIndexed { index, memory ->
+                    val preview = memory.content
+                        .replace("\r\n", " ")
+                        .replace("\n", " ")
+                        .replace(Regex("\\s+"), " ")
+                        .trim()
+                        .take(120)
+                    AppLogger.d(
+                        TAG,
+                        "候选记忆[$index] id=${memory.id}, title='${memory.title}', " +
+                            "folder='${memory.folderPath ?: ""}', importance=${String.format("%.2f", memory.importance)}, " +
+                            "credibility=${String.format("%.2f", memory.credibility)}, preview='$preview'"
+                    )
+                }
+            }
 
             // 2. Proactively find duplicates among candidates and instruct LLM to merge them
             val duplicatesPromptPart = findAndDescribeDuplicates(candidateMemories, memoryRepository, useEnglish)
@@ -530,6 +574,64 @@ object ProblemLibrary {
             AppLogger.e(TAG, "生成分析失败", e)
             return ParsedAnalysis(null)
         }
+    }
+
+    private fun buildCandidateSearchQuery(query: String, solution: String): String {
+        val coreQuestion = extractCoreQuestionText(query)
+        val fallbackQuestion = query
+            .replace(Regex("(?is)<tool_result.*?</tool_result>"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(800)
+
+        val selectedQuestion = if (coreQuestion.isNotBlank()) coreQuestion else fallbackQuestion
+        if (selectedQuestion.isBlank()) return solution.take(300)
+
+        val conciseSolution = solution
+            .replace(Regex("(?is)<tool_result.*?</tool_result>"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(180)
+
+        // 优先问题文本，附带少量解答上下文（避免历史记录噪声）。
+        return if (conciseSolution.isNotBlank()) {
+            "$selectedQuestion\n$conciseSolution"
+        } else {
+            selectedQuestion
+        }
+    }
+
+    private fun extractCoreQuestionText(rawQuery: String): String {
+        val compact = rawQuery.replace("\r\n", "\n")
+
+        val cn = Regex("(?s)问题\\s*[：:]\\s*(.+?)(?:\\n\\s*解决方案\\s*[：:]|\\z)")
+            .find(compact)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+
+        val en = Regex("(?s)Question\\s*:\\s*(.+?)(?:\\n\\s*Solution\\s*:|\\z)")
+            .find(compact)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+
+        val selected = when {
+            !cn.isNullOrBlank() -> cn
+            !en.isNullOrBlank() -> en
+            else -> compact
+        }
+
+        return selected
+            .lineSequence()
+            .filterNot { it.trimStart().startsWith("历史记录:") }
+            .filterNot { it.trimStart().startsWith("History:") }
+            .joinToString("\n")
+            .replace(Regex("(?is)<tool.*?>.*?</tool>"), " ")
+            .replace(Regex("(?is)<tool_result.*?</tool_result>"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(500)
     }
 
     /**

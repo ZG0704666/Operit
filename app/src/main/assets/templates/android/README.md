@@ -42,7 +42,7 @@ android-project/
 ## 🛠️ 快速开始
 
 ### 1. 环境要求
-- ✅ **JDK 8+** (推荐 JDK 17)
+- ✅ **JDK 17+**（必需）
 - ✅ **Gradle** (已包含 Wrapper)
 - ✅ **Android SDK** (可选，用于完整编译)
 

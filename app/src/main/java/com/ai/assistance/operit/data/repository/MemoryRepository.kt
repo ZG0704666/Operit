@@ -31,6 +31,7 @@ import io.objectbox.query.QueryCondition
 import java.io.IOException
 import java.util.UUID
 import java.util.Date
+import java.util.Locale
 import com.ai.assistance.operit.data.model.MemoryExportData
 import com.ai.assistance.operit.data.model.SerializableMemory
 import com.ai.assistance.operit.data.model.SerializableLink
@@ -38,6 +39,7 @@ import com.ai.assistance.operit.data.model.ImportStrategy
 import com.ai.assistance.operit.data.model.MemoryImportResult
 import com.ai.assistance.operit.data.model.MemoryScoreMode
 import com.ai.assistance.operit.util.OperitPaths
+import com.ai.assistance.operit.util.TextSegmenter
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -113,6 +115,81 @@ class MemoryRepository(private val context: Context, profileId: String) {
         }
 
         return (dot / (sqrt(leftNorm) * sqrt(rightNorm))).toFloat()
+    }
+
+    /**
+     * 对关键词做“切碎扩展”：
+     * - 保留原词
+     * - 使用 Jieba 分词补充分片
+     *
+     * 目的：在未开启语义检索时，提高中文长句与标题之间的匹配召回。
+     */
+    private fun expandKeywordToken(token: String): Set<String> {
+        val normalized = token.trim().lowercase(Locale.ROOT)
+        if (normalized.isBlank()) return emptySet()
+
+        val expanded = linkedSetOf<String>()
+        expanded.add(normalized)
+
+        // 优先使用项目内已集成的 Jieba 分词，提升中文检索召回质量。
+        val jiebaTokens = TextSegmenter.segment(normalized)
+            .map { it.trim().lowercase(Locale.ROOT) }
+            .filter { it.length >= 2 }
+        expanded.addAll(jiebaTokens)
+
+        return expanded.filterTo(linkedSetOf()) { it.length >= 2 }
+    }
+
+    private data class TitleMatchCandidate(
+        val memory: Memory,
+        val matchedTokenCount: Int
+    )
+
+    private fun buildLexicalQueryTokens(query: String, keywords: List<String>): List<String> {
+        val merged = linkedSetOf<String>()
+        merged.addAll(expandKeywordToken(query))
+        keywords.forEach { merged.addAll(expandKeywordToken(it)) }
+        return merged
+            .filter { it.length >= 2 }
+            .distinct()
+            .sortedByDescending { it.length }
+            .take(32)
+    }
+
+    private fun queryTitleCandidatesByFragments(
+        fragments: List<String>,
+        scopedMemoryIds: Set<Long>
+    ): List<TitleMatchCandidate> {
+        if (fragments.isEmpty() || scopedMemoryIds.isEmpty()) return emptyList()
+
+        val memoryById = mutableMapOf<Long, Memory>()
+        val hitTokensByMemoryId = mutableMapOf<Long, MutableSet<String>>()
+
+        fragments.forEach { fragment ->
+            val matches = memoryBox.query()
+                .contains(Memory_.title, fragment, QueryBuilder.StringOrder.CASE_INSENSITIVE)
+                .build()
+                .find()
+
+            matches.forEach { memory ->
+                if (!scopedMemoryIds.contains(memory.id)) return@forEach
+                memoryById.putIfAbsent(memory.id, memory)
+                hitTokensByMemoryId.getOrPut(memory.id) { linkedSetOf() }.add(fragment)
+            }
+        }
+
+        return memoryById.values
+            .map { memory ->
+                TitleMatchCandidate(
+                    memory = memory,
+                    matchedTokenCount = hitTokensByMemoryId[memory.id]?.size ?: 0
+                )
+            }
+            .sortedWith(
+                compareByDescending<TitleMatchCandidate> { it.matchedTokenCount }
+                    .thenByDescending { it.memory.importance }
+                    .thenByDescending { it.memory.updatedAt.time }
+            )
     }
     
     /**
@@ -542,6 +619,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
         if (keywords.isEmpty()) {
             return@withContext emptyList()
         }
+        val keywordTokensForLexicalMatch = buildLexicalQueryTokens(query, keywords)
 
         val scores = mutableMapOf<Long, Double>()
         val k = 60.0 // RRF constant for result fusion
@@ -559,11 +637,26 @@ class MemoryRepository(private val context: Context, profileId: String) {
         val effectiveKeywordWeight = normalizedKeywordWeight * modeKeywordMultiplier
         val effectiveSemanticWeight = normalizedSemanticWeight * modeSemanticMultiplier.toFloat()
         val effectiveEdgeWeight = normalizedEdgeWeight * modeEdgeMultiplier
+        val semanticKeywordNormFactor =
+            if (keywords.isNotEmpty()) 1.0 / sqrt(keywords.size.toDouble()) else 1.0
         com.ai.assistance.operit.util.AppLogger.d(
             "MemoryRepo",
             "search settings => mode=$scoreMode, threshold=${String.format("%.2f", normalizedThreshold)}, " +
-                "keyword=${String.format("%.2f", effectiveKeywordWeight)}, semantic=${String.format("%.2f", effectiveSemanticWeight)}, edge=${String.format("%.2f", effectiveEdgeWeight)}"
+                "keyword=${String.format("%.2f", effectiveKeywordWeight)}, semantic=${String.format("%.2f", effectiveSemanticWeight)}, " +
+                "semanticNorm=${String.format("%.4f", semanticKeywordNormFactor)}, edge=${String.format("%.2f", effectiveEdgeWeight)}"
         )
+        com.ai.assistance.operit.util.AppLogger.d(
+            "MemoryRepo",
+            "keyword fragments: raw=${keywords.size}, lexical=${keywordTokensForLexicalMatch.size}"
+        )
+        if (keywordTokensForLexicalMatch.isNotEmpty()) {
+            com.ai.assistance.operit.util.AppLogger.d(
+                "MemoryRepo",
+                "keyword fragments preview: ${
+                    keywordTokensForLexicalMatch.take(12).joinToString(" | ")
+                }"
+            )
+        }
 
         // --- PRE-FILTERING BY FOLDER ---
         // If a folder path is provided, all subsequent searches will be performed on this subset.
@@ -576,20 +669,30 @@ class MemoryRepository(private val context: Context, profileId: String) {
         }
 
 
-        // 1. Keyword-based search (Memory title/content contains query)
-        val keywordResults = memoriesToSearch.filter { memory ->
-            keywords.any { keyword ->
-                memory.title.contains(keyword, ignoreCase = true) || memory.content.contains(keyword, ignoreCase = true)
-            }
-        }
+        // 1. Keyword-based search (DB title contains any fragment from the query)
+        val memoriesToSearchIdSet = memoriesToSearch.map { it.id }.toHashSet()
+        val keywordResults = queryTitleCandidatesByFragments(
+            fragments = keywordTokensForLexicalMatch,
+            scopedMemoryIds = memoriesToSearchIdSet
+        )
 
         if (keywordResults.isNotEmpty()) {
-            com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Keyword search: ${keywordResults.size} matches")
+            com.ai.assistance.operit.util.AppLogger.d(
+                "MemoryRepo",
+                "Keyword search (title fragments): ${keywordResults.size} matches"
+            )
         }
-        keywordResults.forEachIndexed { index, memory ->
+        keywordResults.forEachIndexed { index, candidate ->
+            val memory = candidate.memory
             val rank = index + 1
             val baseScore = 1.0 / (k + rank)
-            val weightedScore = baseScore * memory.importance * effectiveKeywordWeight
+            val coverageRatio = if (keywordTokensForLexicalMatch.isNotEmpty()) {
+                candidate.matchedTokenCount.toDouble() / keywordTokensForLexicalMatch.size.toDouble()
+            } else {
+                0.0
+            }
+            val coverageMultiplier = 1.0 + (0.6 * coverageRatio)
+            val weightedScore = baseScore * memory.importance * effectiveKeywordWeight * coverageMultiplier
             scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
         }
 
@@ -647,7 +750,9 @@ class MemoryRepository(private val context: Context, profileId: String) {
                     val rank = index + 1
                     val rankScore = 1.0 / (k + rank)
                     val similarityScore = similarity * effectiveSemanticWeight
-                    val weightedScore = (rankScore * sqrt(memory.importance.toDouble())) + similarityScore
+                    val weightedScore =
+                        ((rankScore * sqrt(memory.importance.toDouble())) + similarityScore) *
+                            semanticKeywordNormFactor
                     scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
                 }
             }

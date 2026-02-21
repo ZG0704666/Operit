@@ -422,45 +422,25 @@ private class WebSessionOverlayLifecycleOwner :
             ensureSessionAttachedOnMain(session.id)
         }
 
-        val beforeUrl =
-            runCatching {
-                val raw =
-                    evaluateJavascriptSync(
-                        session.webView,
-                        "(function(){ return String(location.href || ''); })();",
-                        2_000L
-                    )
-                decodeJsResult(raw)
-            }.getOrDefault(session.currentUrl)
-
-        val clickProbe = waitForClickableTarget(session.webView, ref, DEFAULT_TIMEOUT_MS)
-            ?: return error(tool.name, "Element not found")
-
-        if (!clickProbe.optBoolean("ok", false)) {
-            val reason = clickProbe.optString("error", "unknown")
-            return error(tool.name, "Element lookup failed: $reason")
-        }
-
-        if (!clickProbe.optBoolean("actionable", false)) {
-            return error(tool.name, "Element is not actionable for click: ${clickProbe}")
-        }
-
-        val cx = clickProbe.optDouble("cx", Double.NaN)
-        val cy = clickProbe.optDouble("cy", Double.NaN)
-
+        val beforeUrl = readCurrentUrl(session.webView, session.currentUrl)
         val jsResult =
-            dispatchSyntheticMouseClickByPoint(
+            dispatchClickByRef(
                 webView = session.webView,
-                cssX = cx,
-                cssY = cy,
+                ref = ref,
                 button = button,
                 modifiers = modifiers,
                 doubleClick = doubleClick
             )
         if (jsResult?.optBoolean("ok", false) != true) {
+            if (jsResult?.optString("error") == "ref_not_found") {
+                return error(
+                    tool.name,
+                    "Ref $ref not found in the current page snapshot. Try capturing new snapshot."
+                )
+            }
             return error(
                 tool.name,
-                "Failed to dispatch click: ${jsResult?.optString("error") ?: "unknown"}"
+                "Click failed: ${jsResult?.optString("error") ?: "unknown"}"
             )
         }
 
@@ -473,7 +453,7 @@ private class WebSessionOverlayLifecycleOwner :
                 .put("ref", ref)
                 .put("button", button)
                 .put("doubleClick", doubleClick)
-                .put("result", clickProbe)
+                .put("result", jsResult)
         if (modifiers.isNotEmpty()) {
             payload.put("modifiers", JSONArray(modifiers.toList()))
         }
@@ -484,106 +464,13 @@ private class WebSessionOverlayLifecycleOwner :
         return ok(tool.name, payload)
     }
 
-    private fun waitForClickableTarget(
+    private fun dispatchClickByRef(
         webView: WebView,
         ref: String,
-        timeoutMs: Long
-    ): JSONObject? {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        val script =
-            """
-            (function() {
-                try {
-                    const refValue = ${quoteJs(ref)};
-
-                    const list = Array.from(document.querySelectorAll('[aria-ref], [data-operit-ref]')).filter((el) => {
-                        const ariaRef = el.getAttribute('aria-ref') || '';
-                        const operitRef = el.getAttribute('data-operit-ref') || '';
-                        return ariaRef === refValue || operitRef === refValue;
-                    });
-
-                    if (!list || list.length === 0) {
-                        return JSON.stringify({
-                            ok: false,
-                            error: "element_not_found",
-                            ref: refValue
-                        });
-                    }
-
-                    const el = list[0];
-                    try { el.scrollIntoView({ block: "center", inline: "center" }); } catch (_) {}
-
-                    const rect = el.getBoundingClientRect();
-                    const style = window.getComputedStyle(el);
-                    const cx = rect.left + rect.width / 2;
-                    const cy = rect.top + rect.height / 2;
-
-                    const visible =
-                        rect.width > 0 &&
-                        rect.height > 0 &&
-                        style.display !== "none" &&
-                        style.visibility !== "hidden" &&
-                        parseFloat(style.opacity || "1") > 0;
-
-                    const disabled =
-                        !!el.disabled ||
-                        el.hasAttribute("disabled") ||
-                        String(el.getAttribute("aria-disabled") || "").toLowerCase() === "true";
-
-                    const top = document.elementFromPoint(cx, cy);
-                    const receivesEvents = !!top && (top === el || el.contains(top));
-
-                    return JSON.stringify({
-                        ok: true,
-                        ref: refValue,
-                        count: list.length,
-                        cx,
-                        cy,
-                        tag: String(el.tagName || "").toLowerCase(),
-                        visible,
-                        disabled,
-                        receivesEvents,
-                        actionable: visible && !disabled && receivesEvents
-                    });
-                } catch (e) {
-                    return JSON.stringify({ ok: false, error: String(e) });
-                }
-            })();
-            """.trimIndent()
-
-        var last: JSONObject? = null
-        while (System.currentTimeMillis() < deadline) {
-            try {
-                val raw = evaluateJavascriptSync(webView, script, 2_000L)
-                val decoded = decodeJsResult(raw)
-                val result = JSONObject(decoded)
-                last = result
-
-                if (result.optBoolean("ok", false) && result.optBoolean("actionable", false)) {
-                    return result
-                }
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "waitForClickableTarget error: ${e.message}")
-            }
-
-            Thread.sleep(120)
-        }
-
-        return last
-    }
-
-    private fun dispatchSyntheticMouseClickByPoint(
-        webView: WebView,
-        cssX: Double,
-        cssY: Double,
         button: String,
         modifiers: Set<String>,
         doubleClick: Boolean
     ): JSONObject? {
-        if (!cssX.isFinite() || !cssY.isFinite()) {
-            return JSONObject().put("ok", false).put("error", "invalid_click_coordinates")
-        }
-
         val buttonValue =
             when (button) {
                 "middle" -> 1
@@ -606,12 +493,18 @@ private class WebSessionOverlayLifecycleOwner :
             """
             (function() {
                 try {
-                    const x = ${cssX};
-                    const y = ${cssY};
-                    const target = document.elementFromPoint(x, y);
-                    if (!target) {
-                        return JSON.stringify({ ok: false, error: "element_not_found_at_point", x, y });
+                    const refValue = ${quoteJs(ref)};
+                    const list = Array.from(document.querySelectorAll('[aria-ref]')).filter((el) => {
+                        return String(el.getAttribute('aria-ref') || '') === refValue;
+                    });
+                    if (!list.length) {
+                        return JSON.stringify({ ok: false, error: "ref_not_found", ref: refValue });
                     }
+                    const target = list[0];
+                    try { target.scrollIntoView({ block: "center", inline: "center" }); } catch (_) {}
+                    const rect = target.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top + rect.height / 2;
 
                     try { target.focus({ preventScroll: true }); } catch (_) {}
 
@@ -660,7 +553,7 @@ private class WebSessionOverlayLifecycleOwner :
 
                     return JSON.stringify({
                         ok: true,
-                        source: "js",
+                        ref: refValue,
                         button: ${quoteJs(button)},
                         doubleClick: ${if (doubleClick) "true" else "false"},
                         tag: String(target.tagName || "").toLowerCase()
@@ -676,7 +569,7 @@ private class WebSessionOverlayLifecycleOwner :
             val decoded = decodeJsResult(raw)
             JSONObject(decoded)
         } catch (e: Exception) {
-            JSONObject().put("ok", false).put("error", e.message ?: "js_click_dispatch_error")
+            JSONObject().put("ok", false).put("error", e.message ?: "click_dispatch_error")
         }
     }
 
@@ -708,8 +601,21 @@ private class WebSessionOverlayLifecycleOwner :
         return parsed to invalid
     }
 
+    private fun readCurrentUrl(webView: WebView, fallback: String): String {
+        return runCatching {
+            val raw =
+                evaluateJavascriptSync(
+                    webView,
+                    "(function(){ return String(location.href || ''); })();",
+                    2_000L
+                )
+            decodeJsResult(raw)
+        }.getOrDefault(fallback)
+    }
+
     private fun waitForClickCompletion(webView: WebView, beforeUrl: String) {
-        val deadline = System.currentTimeMillis() + 5_000L
+        Thread.sleep(500)
+        val deadline = System.currentTimeMillis() + 10_000L
         var urlChanged = false
 
         while (System.currentTimeMillis() < deadline) {
@@ -735,11 +641,9 @@ private class WebSessionOverlayLifecycleOwner :
                 }
 
                 if (!urlChanged && ready == "complete") {
-                    Thread.sleep(120)
                     return
                 }
             } catch (_: Exception) {
-                Thread.sleep(120)
                 return
             }
 
@@ -960,8 +864,8 @@ private class WebSessionOverlayLifecycleOwner :
 
                     const candidates = Array.from(document.querySelectorAll(interactiveSelector));
                     let nextRef = 1;
-                    const existingRefNumbers = Array.from(document.querySelectorAll("[data-operit-ref]")).map((el) => {
-                        const raw = String(el.getAttribute("data-operit-ref") || "");
+                    const existingRefNumbers = Array.from(document.querySelectorAll("[aria-ref]")).map((el) => {
+                        const raw = String(el.getAttribute("aria-ref") || "");
                         const m = /^e(\d+)$/.exec(raw);
                         return m ? parseInt(m[1], 10) : 0;
                     }).filter((n) => Number.isFinite(n) && n > 0);
@@ -971,10 +875,10 @@ private class WebSessionOverlayLifecycleOwner :
 
                     const refs = [];
                     candidates.slice(0, 200).forEach((el) => {
-                        let ref = String(el.getAttribute("data-operit-ref") || "");
+                        let ref = String(el.getAttribute("aria-ref") || "");
                         if (!ref) {
                             ref = "e" + (nextRef++);
-                            try { el.setAttribute("data-operit-ref", ref); } catch (_) {}
+                            try { el.setAttribute("aria-ref", ref); } catch (_) {}
                         }
 
                         const tag = String(el.tagName || "").toLowerCase();

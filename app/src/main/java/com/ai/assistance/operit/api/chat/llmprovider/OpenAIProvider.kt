@@ -1729,8 +1729,11 @@ open class OpenAIProvider(
         state: StreamingState,
         emitter: StreamEmitter
     ) {
+        val hasReasoning = reasoningContent.isNotNullOrEmpty()
+        val hasRegular = regularContent.isNotNullOrEmpty()
+
         // 处理思考内容
-        if (reasoningContent.isNotNullOrEmpty()) {
+        if (hasReasoning) {
             if (!state.isInReasoningMode) {
                 state.isInReasoningMode = true
                 if (!state.hasEmittedThinkStart) {
@@ -1741,7 +1744,7 @@ open class OpenAIProvider(
             emitter.emitContent(reasoningContent)
         }
         // 处理常规内容
-        else if (regularContent.isNotNullOrEmpty()) {
+        if (hasRegular) {
             // 如果之前在思考模式，现在切换到了常规内容，需要关闭思考标签
             if (state.isInReasoningMode) {
                 state.isInReasoningMode = false
@@ -1795,7 +1798,9 @@ open class OpenAIProvider(
             }
 
             // 处理内容
-            val reasoningContent = delta.optString("reasoning_content", "")
+            val reasoningContent = delta.optString("reasoning_content", "").ifBlank {
+                delta.optString("reasoning", "")
+            }
             val regularContent = delta.optString("content", "")
             processContentDelta(reasoningContent, regularContent, state, emitter)
         }
@@ -1803,7 +1808,9 @@ open class OpenAIProvider(
         else {
             val message = choice.optJSONObject("message")
             if (message != null) {
-                val reasoningContent = message.optString("reasoning_content", "")
+                val reasoningContent = message.optString("reasoning_content", "").ifBlank {
+                    message.optString("reasoning", "")
+                }
                 val regularContent = message.optString("content", "")
 
                 // 先处理思考内容（如果有）
