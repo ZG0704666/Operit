@@ -11,6 +11,7 @@ import com.ai.assistance.operit.data.model.CloudEmbeddingConfig
 import com.ai.assistance.operit.data.model.EmbeddingDimensionUsage
 import com.ai.assistance.operit.data.model.EmbeddingRebuildProgress
 import com.ai.assistance.operit.data.model.MemorySearchConfig
+import com.ai.assistance.operit.data.model.MemorySearchDebugInfo
 import com.ai.assistance.operit.data.preferences.MemorySearchSettingsPreferences
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Edge
@@ -68,7 +69,14 @@ data class MemoryUiState(
         val cloudEmbeddingConfig: CloudEmbeddingConfig = CloudEmbeddingConfig(),
         val embeddingDimensionUsage: EmbeddingDimensionUsage = EmbeddingDimensionUsage(),
         val isEmbeddingRebuildRunning: Boolean = false,
-        val embeddingRebuildProgress: EmbeddingRebuildProgress = EmbeddingRebuildProgress()
+        val embeddingRebuildProgress: EmbeddingRebuildProgress = EmbeddingRebuildProgress(),
+
+        // --- 搜索模拟 ---
+        val isSearchSimulationDialogVisible: Boolean = false,
+        val searchSimulationQuery: String = "",
+        val isSearchSimulationRunning: Boolean = false,
+        val searchSimulationResult: MemorySearchDebugInfo? = null,
+        val searchSimulationError: String? = null
 )
 
 /**
@@ -172,6 +180,78 @@ class MemoryViewModel(
         if (visible) {
             loadCloudEmbeddingSettings()
             refreshEmbeddingDimensionUsage()
+        }
+    }
+
+    fun openSearchSimulationDialog() {
+        _uiState.update {
+            it.copy(
+                isSearchSettingsDialogVisible = false,
+                isSearchSimulationDialogVisible = true,
+                searchSimulationQuery = it.searchQuery,
+                searchSimulationResult = null,
+                searchSimulationError = null
+            )
+        }
+    }
+
+    fun showSearchSimulationDialog(visible: Boolean) {
+        _uiState.update {
+            it.copy(
+                isSearchSimulationDialogVisible = visible,
+                searchSimulationResult = if (visible) it.searchSimulationResult else null,
+                searchSimulationError = if (visible) it.searchSimulationError else null,
+                isSearchSimulationRunning = if (visible) it.isSearchSimulationRunning else false
+            )
+        }
+    }
+
+    fun onSearchSimulationQueryChange(newQuery: String) {
+        _uiState.update { it.copy(searchSimulationQuery = newQuery) }
+    }
+
+    fun runSearchSimulation() {
+        viewModelScope.launch {
+            val currentState = _uiState.value
+            val query = currentState.searchSimulationQuery
+            val config = currentState.searchConfig
+            val folderPath = currentState.selectedFolderPath.takeIf { it.isNotBlank() }
+
+            _uiState.update {
+                it.copy(
+                    isSearchSimulationRunning = true,
+                    searchSimulationError = null
+                )
+            }
+
+            try {
+                val debugInfo = repository.searchMemoriesDebug(
+                    query = query,
+                    folderPath = folderPath,
+                    semanticThreshold = config.semanticThreshold,
+                    scoreMode = config.scoreMode,
+                    keywordWeight = config.keywordWeight,
+                    semanticWeight = config.vectorWeight,
+                    edgeWeight = config.edgeWeight
+                )
+                _uiState.update {
+                    it.copy(
+                        isSearchSimulationRunning = false,
+                        searchSimulationResult = debugInfo,
+                        searchSimulationError = null
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSearchSimulationRunning = false,
+                        searchSimulationError = context.getString(
+                            R.string.memory_error_search,
+                            e.message ?: "Unknown error"
+                        )
+                    )
+                }
+            }
         }
     }
 

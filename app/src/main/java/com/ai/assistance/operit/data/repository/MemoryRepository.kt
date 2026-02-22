@@ -37,6 +37,8 @@ import com.ai.assistance.operit.data.model.SerializableMemory
 import com.ai.assistance.operit.data.model.SerializableLink
 import com.ai.assistance.operit.data.model.ImportStrategy
 import com.ai.assistance.operit.data.model.MemoryImportResult
+import com.ai.assistance.operit.data.model.MemorySearchDebugCandidate
+import com.ai.assistance.operit.data.model.MemorySearchDebugInfo
 import com.ai.assistance.operit.data.model.MemoryScoreMode
 import com.ai.assistance.operit.util.OperitPaths
 import com.ai.assistance.operit.util.TextSegmenter
@@ -129,15 +131,17 @@ class MemoryRepository(private val context: Context, profileId: String) {
         if (normalized.isBlank()) return emptySet()
 
         val expanded = linkedSetOf<String>()
-        expanded.add(normalized)
+        if (shouldKeepRawLexicalToken(normalized)) {
+            expanded.add(normalized)
+        }
 
         // 优先使用项目内已集成的 Jieba 分词，提升中文检索召回质量。
         val jiebaTokens = TextSegmenter.segment(normalized)
             .map { it.trim().lowercase(Locale.ROOT) }
-            .filter { it.length >= 2 }
+            .filter { shouldKeepRawLexicalToken(it) }
         expanded.addAll(jiebaTokens)
 
-        return expanded.filterTo(linkedSetOf()) { it.length >= 2 }
+        return expanded.filterTo(linkedSetOf()) { shouldKeepRawLexicalToken(it) }
     }
 
     private data class TitleMatchCandidate(
@@ -145,15 +149,43 @@ class MemoryRepository(private val context: Context, profileId: String) {
         val matchedTokenCount: Int
     )
 
+    private data class SearchScoreParts(
+        var matchedKeywordTokenCount: Int = 0,
+        var keywordScore: Double = 0.0,
+        var reverseContainmentScore: Double = 0.0,
+        var semanticScore: Double = 0.0,
+        var edgeScore: Double = 0.0
+    )
+
+    private data class SearchComputationResult(
+        val memories: List<Memory>,
+        val debug: MemorySearchDebugInfo
+    )
+
     private fun buildLexicalQueryTokens(query: String, keywords: List<String>): List<String> {
         val merged = linkedSetOf<String>()
-        merged.addAll(expandKeywordToken(query))
-        keywords.forEach { merged.addAll(expandKeywordToken(it)) }
+        if (keywords.isNotEmpty()) {
+            keywords.forEach { merged.addAll(expandKeywordToken(it)) }
+        } else {
+            merged.addAll(expandKeywordToken(query))
+        }
         return merged
-            .filter { it.length >= 2 }
+            .filter { shouldKeepRawLexicalToken(it) }
             .distinct()
             .sortedByDescending { it.length }
             .take(32)
+    }
+
+    private fun shouldKeepRawLexicalToken(token: String): Boolean {
+        val t = token.trim()
+        if (t.length !in 2..24) return false
+        if (t.startsWith("http", ignoreCase = true)) return false
+        if (t.contains('<') || t.contains('>')) return false
+        if (t.contains("tool", ignoreCase = true)) return false
+        if (t.contains("param", ignoreCase = true)) return false
+        if (t.contains("visit", ignoreCase = true)) return false
+        if (t.contains("name=", ignoreCase = true)) return false
+        return t.any { ch -> ch.isLetterOrDigit() || ch.code in 0x4E00..0x9FFF }
     }
 
     private fun queryTitleCandidatesByFragments(
@@ -578,7 +610,55 @@ class MemoryRepository(private val context: Context, profileId: String) {
         edgeWeight: Float = 0.4f,
         createdAtStartMs: Long? = null,
         createdAtEndMs: Long? = null
-    ): List<Memory> = withContext(Dispatchers.IO) {
+    ): List<Memory> {
+        return runSearchMemoriesWithDebug(
+            query = query,
+            folderPath = folderPath,
+            semanticThreshold = semanticThreshold,
+            scoreMode = scoreMode,
+            keywordWeight = keywordWeight,
+            semanticWeight = semanticWeight,
+            edgeWeight = edgeWeight,
+            createdAtStartMs = createdAtStartMs,
+            createdAtEndMs = createdAtEndMs
+        ).memories
+    }
+
+    suspend fun searchMemoriesDebug(
+        query: String,
+        folderPath: String? = null,
+        semanticThreshold: Float = 0.6f,
+        scoreMode: MemoryScoreMode = MemoryScoreMode.BALANCED,
+        keywordWeight: Float = 10.0f,
+        semanticWeight: Float = 0.5f,
+        edgeWeight: Float = 0.4f,
+        createdAtStartMs: Long? = null,
+        createdAtEndMs: Long? = null
+    ): MemorySearchDebugInfo {
+        return runSearchMemoriesWithDebug(
+            query = query,
+            folderPath = folderPath,
+            semanticThreshold = semanticThreshold,
+            scoreMode = scoreMode,
+            keywordWeight = keywordWeight,
+            semanticWeight = semanticWeight,
+            edgeWeight = edgeWeight,
+            createdAtStartMs = createdAtStartMs,
+            createdAtEndMs = createdAtEndMs
+        ).debug
+    }
+
+    private suspend fun runSearchMemoriesWithDebug(
+        query: String,
+        folderPath: String? = null,
+        semanticThreshold: Float = 0.6f,
+        scoreMode: MemoryScoreMode = MemoryScoreMode.BALANCED,
+        keywordWeight: Float = 10.0f,
+        semanticWeight: Float = 0.5f,
+        edgeWeight: Float = 0.4f,
+        createdAtStartMs: Long? = null,
+        createdAtEndMs: Long? = null
+    ): SearchComputationResult = withContext(Dispatchers.IO) {
         val normalizedFolderPath = normalizeFolderPath(folderPath)
 
         val memoriesInScope = if (normalizedFolderPath == null) {
@@ -601,13 +681,73 @@ class MemoryRepository(private val context: Context, profileId: String) {
             }
         }
 
+        val normalizedThreshold = semanticThreshold.coerceIn(0.0f, 1.0f)
+        val normalizedKeywordWeight = keywordWeight.coerceAtLeast(0.0f).toDouble()
+        val normalizedSemanticWeight = semanticWeight.coerceAtLeast(0.0f)
+        val normalizedEdgeWeight = edgeWeight.coerceAtLeast(0.0f).toDouble()
+        val (modeKeywordMultiplier, modeSemanticMultiplier, modeEdgeMultiplier) = when (scoreMode) {
+            MemoryScoreMode.BALANCED -> Triple(1.0, 1.0, 1.0)
+            MemoryScoreMode.KEYWORD_FIRST -> Triple(1.3, 0.8, 0.9)
+            MemoryScoreMode.SEMANTIC_FIRST -> Triple(0.8, 1.3, 1.1)
+        }
+        val effectiveKeywordWeight = normalizedKeywordWeight * modeKeywordMultiplier
+        val effectiveSemanticWeight = normalizedSemanticWeight * modeSemanticMultiplier.toFloat()
+        val effectiveEdgeWeight = normalizedEdgeWeight * modeEdgeMultiplier
+        val relevanceThreshold = 0.025
+
+        fun buildDebug(
+            keywords: List<String> = emptyList(),
+            lexicalTokens: List<String> = emptyList(),
+            semanticKeywordNormFactor: Double = if (keywords.isNotEmpty()) {
+                1.0 / sqrt(keywords.size.toDouble())
+            } else {
+                1.0
+            },
+            keywordMatchesCount: Int = 0,
+            reverseContainmentMatchesCount: Int = 0,
+            semanticMatchesCount: Int = 0,
+            graphEdgesTraversed: Int = 0,
+            scoredCount: Int = 0,
+            passedThresholdCount: Int = 0,
+            candidates: List<MemorySearchDebugCandidate> = emptyList(),
+            finalResultIds: List<Long> = emptyList()
+        ): MemorySearchDebugInfo {
+            return MemorySearchDebugInfo(
+                query = query,
+                keywords = keywords,
+                lexicalTokens = lexicalTokens,
+                scoreMode = scoreMode,
+                semanticThreshold = normalizedThreshold,
+                relevanceThreshold = relevanceThreshold,
+                effectiveKeywordWeight = effectiveKeywordWeight,
+                effectiveSemanticWeight = effectiveSemanticWeight,
+                semanticKeywordNormFactor = semanticKeywordNormFactor,
+                effectiveEdgeWeight = effectiveEdgeWeight,
+                memoriesInScopeCount = timeFilteredMemoriesInScope.size,
+                keywordMatchesCount = keywordMatchesCount,
+                reverseContainmentMatchesCount = reverseContainmentMatchesCount,
+                semanticMatchesCount = semanticMatchesCount,
+                graphEdgesTraversed = graphEdgesTraversed,
+                scoredCount = scoredCount,
+                passedThresholdCount = passedThresholdCount,
+                candidates = candidates,
+                finalResultIds = finalResultIds
+            )
+        }
+
         // 支持通配符搜索：如果查询是 "*"，返回所有记忆（在文件夹过滤后）
         if (query.trim() == "*") {
-            return@withContext timeFilteredMemoriesInScope
+            return@withContext SearchComputationResult(
+                memories = timeFilteredMemoriesInScope,
+                debug = buildDebug(finalResultIds = timeFilteredMemoriesInScope.map { it.id })
+            )
         }
-        
+
         if (query.isBlank()) {
-            return@withContext timeFilteredMemoriesInScope
+            return@withContext SearchComputationResult(
+                memories = timeFilteredMemoriesInScope,
+                debug = buildDebug(finalResultIds = timeFilteredMemoriesInScope.map { it.id })
+            )
         }
 
         // 支持两种分隔符：'|' 或空格
@@ -617,26 +757,20 @@ class MemoryRepository(private val context: Context, profileId: String) {
             query.split(Regex("\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
         }
         if (keywords.isEmpty()) {
-            return@withContext emptyList()
+            return@withContext SearchComputationResult(
+                memories = emptyList(),
+                debug = buildDebug(keywords = emptyList())
+            )
         }
         val keywordTokensForLexicalMatch = buildLexicalQueryTokens(query, keywords)
 
         val scores = mutableMapOf<Long, Double>()
+        val scorePartsByMemoryId = mutableMapOf<Long, SearchScoreParts>()
+        fun getScoreParts(memoryId: Long): SearchScoreParts {
+            return scorePartsByMemoryId.getOrPut(memoryId) { SearchScoreParts() }
+        }
         val k = 60.0 // RRF constant for result fusion
 
-        val normalizedThreshold = semanticThreshold.coerceIn(0.0f, 1.0f)
-        val normalizedKeywordWeight = keywordWeight.coerceAtLeast(0.0f).toDouble()
-        val normalizedSemanticWeight = semanticWeight.coerceAtLeast(0.0f)
-        val normalizedEdgeWeight = edgeWeight.coerceAtLeast(0.0f).toDouble()
-
-        val (modeKeywordMultiplier, modeSemanticMultiplier, modeEdgeMultiplier) = when (scoreMode) {
-            MemoryScoreMode.BALANCED -> Triple(1.0, 1.0, 1.0)
-            MemoryScoreMode.KEYWORD_FIRST -> Triple(1.3, 0.8, 0.9)
-            MemoryScoreMode.SEMANTIC_FIRST -> Triple(0.8, 1.3, 1.1)
-        }
-        val effectiveKeywordWeight = normalizedKeywordWeight * modeKeywordMultiplier
-        val effectiveSemanticWeight = normalizedSemanticWeight * modeSemanticMultiplier.toFloat()
-        val effectiveEdgeWeight = normalizedEdgeWeight * modeEdgeMultiplier
         val semanticKeywordNormFactor =
             if (keywords.isNotEmpty()) 1.0 / sqrt(keywords.size.toDouble()) else 1.0
         com.ai.assistance.operit.util.AppLogger.d(
@@ -665,7 +799,14 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
         if (memoriesToSearch.isEmpty()) {
             com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "No memories found in folder '$folderPath' to search.")
-            return@withContext emptyList()
+            return@withContext SearchComputationResult(
+                memories = emptyList(),
+                debug = buildDebug(
+                    keywords = keywords,
+                    lexicalTokens = keywordTokensForLexicalMatch,
+                    semanticKeywordNormFactor = semanticKeywordNormFactor
+                )
+            )
         }
 
 
@@ -694,6 +835,9 @@ class MemoryRepository(private val context: Context, profileId: String) {
             val coverageMultiplier = 1.0 + (0.6 * coverageRatio)
             val weightedScore = baseScore * memory.importance * effectiveKeywordWeight * coverageMultiplier
             scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
+            val parts = getScoreParts(memory.id)
+            parts.keywordScore += weightedScore
+            parts.matchedKeywordTokenCount = maxOf(parts.matchedKeywordTokenCount, candidate.matchedTokenCount)
         }
 
         // 2. Reverse Containment Search (Query contains Memory Title)
@@ -710,12 +854,14 @@ class MemoryRepository(private val context: Context, profileId: String) {
             val baseScore = 1.0 / (k + rank)
             val weightedScore = baseScore * memory.importance * effectiveKeywordWeight
             scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
+            getScoreParts(memory.id).reverseContainmentScore += weightedScore
         }
 
         // 3. Semantic search (for conceptual matches)
         val allMemoriesWithEmbedding = memoriesToSearch.filter { it.embedding != null }
         val minSimilarityThreshold = normalizedThreshold
         val cloudConfig = searchSettingsPreferences.loadCloudEmbedding()
+        val semanticMatchedIds = mutableSetOf<Long>()
 
         if (effectiveSemanticWeight > 0.0f && cloudConfig.isReady()) {
             com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "--- Starting Semantic Search for ${keywords.size} keywords ---")
@@ -754,6 +900,8 @@ class MemoryRepository(private val context: Context, profileId: String) {
                         ((rankScore * sqrt(memory.importance.toDouble())) + similarityScore) *
                             semanticKeywordNormFactor
                     scores[memory.id] = scores.getOrDefault(memory.id, 0.0) + weightedScore
+                    getScoreParts(memory.id).semanticScore += weightedScore
+                    semanticMatchedIds.add(memory.id)
                 }
             }
             com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "--- Semantic Search Completed ---")
@@ -786,6 +934,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
                     // 边权重越高，传播的分数越多
                     val propagatedScore = (sourceScore * link.weight * graphPropagationWeight) + basePropagationScore
                     scores[targetMemory.id] = scores.getOrDefault(targetMemory.id, 0.0) + propagatedScore
+                    getScoreParts(targetMemory.id).edgeScore += propagatedScore
                     edgesTraversed++
                 }
             }
@@ -797,6 +946,7 @@ class MemoryRepository(private val context: Context, profileId: String) {
                     // 边权重越高，传播的分数越多
                     val propagatedScore = (sourceScore * link.weight * graphPropagationWeight) + basePropagationScore
                     scores[targetMemory.id] = scores.getOrDefault(targetMemory.id, 0.0) + propagatedScore
+                    getScoreParts(targetMemory.id).edgeScore += propagatedScore
                     edgesTraversed++
                 }
             }
@@ -807,29 +957,74 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
         // 5. Fuse results using RRF and return sorted list
         if (scores.isEmpty()) {
-            return@withContext emptyList()
+            return@withContext SearchComputationResult(
+                memories = emptyList(),
+                debug = buildDebug(
+                    keywords = keywords,
+                    lexicalTokens = keywordTokensForLexicalMatch,
+                    semanticKeywordNormFactor = semanticKeywordNormFactor,
+                    keywordMatchesCount = keywordResults.size,
+                    reverseContainmentMatchesCount = reverseContainmentResults.size,
+                    semanticMatchesCount = semanticMatchedIds.size,
+                    graphEdgesTraversed = edgesTraversed
+                )
+            )
         }
-        
+
         // 添加相关性阈值过滤，避免返回不相关的记忆
-        val minScoreThreshold = 0.025 // 最低分数阈值，可根据实际效果调整
-        val filteredScores = scores.entries.filter { it.value >= minScoreThreshold }
-        
+        val filteredScores = scores.entries.filter { it.value >= relevanceThreshold }
+
         com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "Final results: ${filteredScores.size}/${scores.size} above threshold")
-        
+
         // 只显示前3个结果的分数
         val sortedScoresForLogging = scores.entries.sortedByDescending { it.value }
+        val scoredMemoryMap = memoryBox.get(scores.keys.toList()).filterNotNull().associateBy { it.id }
         sortedScoresForLogging.take(3).forEach { (id, score) ->
-            val memory = memoriesToSearch.find { it.id == id }
+            val memory = scoredMemoryMap[id] ?: memoriesToSearch.find { it.id == id }
             if (memory != null) {
                 com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "  Top: [${memory.title}] = ${String.format("%.4f", score)}")
             }
         }
 
+        val candidateRows = sortedScoresForLogging.map { (memoryId, totalScore) ->
+            val memory = scoredMemoryMap[memoryId]
+            val parts = scorePartsByMemoryId[memoryId] ?: SearchScoreParts()
+            MemorySearchDebugCandidate(
+                memoryId = memoryId,
+                title = memory?.title ?: "#$memoryId",
+                folderPath = memory?.folderPath,
+                matchedKeywordTokenCount = parts.matchedKeywordTokenCount,
+                keywordScore = parts.keywordScore,
+                reverseContainmentScore = parts.reverseContainmentScore,
+                semanticScore = parts.semanticScore,
+                edgeScore = parts.edgeScore,
+                totalScore = totalScore,
+                passedThreshold = totalScore >= relevanceThreshold
+            )
+        }
+
+        val debugInfo = buildDebug(
+            keywords = keywords,
+            lexicalTokens = keywordTokensForLexicalMatch,
+            semanticKeywordNormFactor = semanticKeywordNormFactor,
+            keywordMatchesCount = keywordResults.size,
+            reverseContainmentMatchesCount = reverseContainmentResults.size,
+            semanticMatchesCount = semanticMatchedIds.size,
+            graphEdgesTraversed = edgesTraversed,
+            scoredCount = scores.size,
+            passedThresholdCount = filteredScores.size,
+            candidates = candidateRows,
+            finalResultIds = filteredScores.sortedByDescending { it.value }.map { it.key }
+        )
+
         if (filteredScores.isEmpty()) {
             com.ai.assistance.operit.util.AppLogger.d("MemoryRepo", "No memories above relevance threshold")
-            return@withContext emptyList()
+            return@withContext SearchComputationResult(
+                memories = emptyList(),
+                debug = debugInfo
+            )
         }
-        
+
         val sortedMemoryIds = filteredScores.sortedByDescending { it.value }.map { it.key }
 
         // Fetch the sorted entities from the database
@@ -837,7 +1032,10 @@ class MemoryRepository(private val context: Context, profileId: String) {
 
         // 7. Semantic Deduplication
         // deduplicateBySemantics(sortedMemories)
-        sortedMemories
+        SearchComputationResult(
+            memories = sortedMemories,
+            debug = debugInfo
+        )
     }
 
     /**

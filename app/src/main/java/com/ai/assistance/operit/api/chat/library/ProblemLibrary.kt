@@ -578,20 +578,12 @@ object ProblemLibrary {
 
     private fun buildCandidateSearchQuery(query: String, solution: String): String {
         val coreQuestion = extractCoreQuestionText(query)
-        val fallbackQuestion = query
-            .replace(Regex("(?is)<tool_result.*?</tool_result>"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .take(800)
+        val fallbackQuestion = normalizeCandidateSearchText(query, maxLen = 800)
 
         val selectedQuestion = if (coreQuestion.isNotBlank()) coreQuestion else fallbackQuestion
-        if (selectedQuestion.isBlank()) return solution.take(300)
+        if (selectedQuestion.isBlank()) return normalizeCandidateSearchText(solution, maxLen = 300)
 
-        val conciseSolution = solution
-            .replace(Regex("(?is)<tool_result.*?</tool_result>"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .take(180)
+        val conciseSolution = normalizeCandidateSearchText(solution, maxLen = 180)
 
         // 优先问题文本，附带少量解答上下文（避免历史记录噪声）。
         return if (conciseSolution.isNotBlank()) {
@@ -622,16 +614,32 @@ object ProblemLibrary {
             else -> compact
         }
 
-        return selected
+        val filtered = selected
             .lineSequence()
             .filterNot { it.trimStart().startsWith("历史记录:") }
             .filterNot { it.trimStart().startsWith("History:") }
             .joinToString("\n")
-            .replace(Regex("(?is)<tool.*?>.*?</tool>"), " ")
-            .replace(Regex("(?is)<tool_result.*?</tool_result>"), " ")
+
+        return normalizeCandidateSearchText(filtered, maxLen = 500)
+    }
+
+    private fun normalizeCandidateSearchText(raw: String, maxLen: Int): String {
+        return raw
+            .replace(ChatMarkupRegex.toolTag, " ")
+            .replace(ChatMarkupRegex.toolSelfClosingTag, " ")
+            .replace(ChatMarkupRegex.toolResultTag, " ")
+            .replace(ChatMarkupRegex.toolResultSelfClosingTag, " ")
+            .replace(ChatMarkupRegex.statusTag, " ")
+            .replace(ChatMarkupRegex.statusSelfClosingTag, " ")
+            .replace(ChatMarkupRegex.thinkTag, " ")
+            .replace(ChatMarkupRegex.thinkSelfClosingTag, " ")
+            .replace(ChatMarkupRegex.searchTag, " ")
+            .replace(ChatMarkupRegex.searchSelfClosingTag, " ")
+            .replace(Regex("https?://\\S+"), " ")
+            .replace(Regex("[`*_#>]+"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
-            .take(500)
+            .take(maxLen)
     }
 
     /**

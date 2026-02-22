@@ -57,7 +57,8 @@ fun MemorySearchSettingsDialog(
     isRebuilding: Boolean,
     onDismiss: () -> Unit,
     onSave: (MemorySearchConfig, CloudEmbeddingConfig) -> Unit,
-    onRebuild: () -> Unit
+    onRebuild: () -> Unit,
+    onSimulateSearch: () -> Unit
 ) {
     var semanticThreshold by remember(currentConfig) { mutableFloatStateOf(currentConfig.semanticThreshold) }
     var keywordWeight by remember(currentConfig) { mutableFloatStateOf(currentConfig.keywordWeight) }
@@ -241,6 +242,15 @@ fun MemorySearchSettingsDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+
+                SettingsSection(title = stringResource(R.string.memory_search_debug_tools)) {
+                    OutlinedButton(
+                        onClick = onSimulateSearch,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.memory_search_simulation_open))
                     }
                 }
             }

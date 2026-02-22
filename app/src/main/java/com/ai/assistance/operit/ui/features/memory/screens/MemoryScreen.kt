@@ -84,6 +84,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.features.memory.screens.dialogs.MemorySearchSettingsDialog
+import com.ai.assistance.operit.ui.features.memory.screens.dialogs.MemorySearchSimulationDialog
 
 @Composable
 fun MemorySearchBar(
@@ -394,7 +395,20 @@ fun MemoryScreen() {
                         viewModel.saveSearchSettings(config, cloudConfig)
                         viewModel.searchMemories()
                     },
-                    onRebuild = { viewModel.rebuildVectorIndex() }
+                    onRebuild = { viewModel.rebuildVectorIndex() },
+                    onSimulateSearch = { viewModel.openSearchSimulationDialog() }
+                )
+            }
+
+            if (uiState.isSearchSimulationDialogVisible) {
+                MemorySearchSimulationDialog(
+                    query = uiState.searchSimulationQuery,
+                    isRunning = uiState.isSearchSimulationRunning,
+                    result = uiState.searchSimulationResult,
+                    error = uiState.searchSimulationError,
+                    onQueryChange = { viewModel.onSearchSimulationQueryChange(it) },
+                    onRun = { viewModel.runSearchSimulation() },
+                    onDismiss = { viewModel.showSearchSimulationDialog(false) }
                 )
             }
 

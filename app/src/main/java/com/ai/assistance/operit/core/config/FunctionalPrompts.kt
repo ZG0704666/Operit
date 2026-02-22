@@ -208,9 +208,18 @@ object FunctionalPrompts {
 
     fun knowledgeGraphDuplicateTitleInstruction(title: String, count: Int, useEnglish: Boolean): String {
         return if (useEnglish) {
-            "Found $count memories with the exact same title: \"$title\". Please use `merge` to combine them into a single, better memory in this analysis."
+            "Found $count memories with the exact same title: \"$title\". You should strongly prefer `merge` in this analysis and avoid creating another parallel `new` memory for the same fact."
         } else {
-            "发现 $count 个标题完全相同的记忆: \"$title\"。请在本次分析中使用 `merge` 功能将它们合并成一个单一、更完善的记忆。"
+            "发现 $count 个标题完全相同的记忆: \"$title\"。本次分析应强烈优先使用 `merge`，不要再为同一事实创建平行 `new` 记忆。"
+        }
+    }
+
+    fun knowledgeGraphSimilarTitleInstruction(titles: List<String>, useEnglish: Boolean): String {
+        val preview = titles.joinToString(" | ")
+        return if (useEnglish) {
+            "Found a similar-title memory cluster: [$preview]. These are likely paraphrases of the same fact. Prefer `merge` or `update`; avoid creating additional `new` memories."
+        } else {
+            "发现一组相似标题记忆: [$preview]。它们很可能是同一事实的不同表述。请优先 `merge` 或 `update`，避免继续创建新的重复记忆。"
         }
     }
 
@@ -860,6 +869,11 @@ $existingFoldersPrompt
 - Use `new` only when concept is truly novel (max 5 items).
 - In long-running fiction, recurring characters/places/factions/rules/timeline constraints are valid memories.
 - If core meaning is "update existing concept", set `main` to null and use `update` only.
+- If a statement is only a rewording of an existing memory (same actor + same action + same outcome), treat it as duplicate and use `update`/`merge`, not `new`.
+- If `main` is semantically the same event as an existing memory, set `main` to `null` and output `update` or `merge` instead.
+- If existing memories already cover most facts in this turn, do not create parallel `new`; prefer one `update` or one `merge`.
+- When evidence supports duplicate/overlap, `new` is considered incorrect.
+- Existing memories provided in context are actionable: you may directly `update` / `merge` / `link` them even when this turn creates no `new` items.
 
 [Style policy]
 - Style can adapt to the conversation domain (technical / daily chat / fiction).
@@ -884,6 +898,8 @@ $existingFoldersPrompt
   - Worldbuilding structure: `PART_OF`, `ALLIED_WITH`, `OPPOSES`
 - Do not create links from weak co-occurrence alone.
 - If uncertain, do not create the link.
+- Do not limit linking to newly created memories. If a provided existing memory has explicit relation with current-turn memory/event, add the link.
+- Before final output, explicitly check pairwise relations across all involved titles: `main`, `new`, `update` targets, and provided existing memories; add links for all relations with clear evidence.
 
 [Examples]
 - Common-knowledge Q&A only (e.g., "What is magnetic declination?"): return `{}`.
@@ -897,6 +913,9 @@ $existingFoldersPrompt
 - Project turn with concrete progress (debug fixed / summary finished / task canceled): store one event `main`.
 - Repeated explanation with no new progress/decision: return `{}`.
 - Worldbuilding update (character relation or place ownership changed): use `update`, and link with `UPDATES`/`PART_OF` when explicit.
+- Current turn is a restatement of an already stored event: prefer `update`/`merge` and avoid `new`.
+- Event mentions a concrete actor/tool/package and relation is explicit: add `INVOLVES` link.
+- Current turn confirms relation between an existing memory and a new/existing event: add a link even if `new` is empty.
 
 [Output schema - strict JSON only]
 - Keys: `main`, `new`, `update`, `merge`, `links`, `user`.
@@ -931,6 +950,11 @@ $existingFoldersPrompt
 - `new` 仅在确实新增概念时使用（最多 5 条）。
 - 长期小说/世界观场景中，反复出现且影响连续性的角色、地点、组织、规则、时间线可以入库。
 - 若核心是“更新旧概念”，`main` 必须为 `null`，只用 `update`。
+- 如果只是对已有记忆的改写（同主体 + 同动作 + 同结果），按重复处理：优先 `update`/`merge`，不要再 `new`。
+- 如果 `main` 与已有记忆在语义上是同一事件，`main` 设为 `null`，改用 `update` 或 `merge`。
+- 如果当前轮的大部分事实已被已有记忆覆盖，不要再创建平行 `new`，优先给出一次 `update` 或一次 `merge`。
+- 在有明确重复证据时继续 `new` 视为不合格输出。
+- 提供给你的已有记忆样本是可操作对象：即使本轮没有 `new`，也可以直接对这些已有记忆做 `update`、`merge`、`links`。
 
 【语气策略】
 - 语气可根据场景变化（技术、日常聊天、小说创作），但只能改变表达方式，不能改变入库标准。
@@ -955,6 +979,8 @@ $existingFoldersPrompt
   - 世界观结构：`PART_OF`、`ALLIED_WITH`、`OPPOSES`
 - 不能仅凭“同段提到过”就连边。
 - 拿不准就不连。
+- 建边范围不应只限于本轮新输出；如果“已有样本记忆”与本轮事件/实体关系明确，也应主动建边。
+- 输出前请在全量对象上做两两关系检查：`main`、`new`、`update` 目标、以及提供的已有记忆；凡有明确证据都应建边。
 
 【示例（必须遵循）】
 - 仅在问答常识（如“磁偏角是什么”）且无用户特异信号：返回 `{}`。
@@ -968,6 +994,9 @@ $existingFoldersPrompt
 - 项目本轮有明确进展（修复完成/摘要完成/任务终止）：写一条事件型 `main`。
 - 反复解释但没有新进展/新决策：返回 `{}`。
 - 世界观设定发生变化（关系/归属变更）：优先 `update`，并在证据明确时连 `UPDATES` / `PART_OF`。
+- 本轮只是重述已存在事件：优先 `update`/`merge`，不要 `new`。
+- 事件里明确出现参与者/工具包且关系清晰：补充 `INVOLVES` 链接。
+- 本轮确认了“已有样本记忆”和其他记忆的明确关系：即使没有 `new`，也应在 `links` 中体现。
 
 【输出格式（严格JSON）】
 - 顶层键：`main`、`new`、`update`、`merge`、`links`、`user`。
