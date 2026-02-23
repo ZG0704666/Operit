@@ -633,7 +633,11 @@ class ChatHistoryDelegate(
 
             // 仅在切换当前会话时阻止写入，后台会话仍允许写入
             if (isCurrentChat && !allowAddMessage.get()) {
-                AppLogger.d(TAG, "当前不允许添加消息（正在切换对话），忽略消息: timestamp=${message.timestamp}")
+                AppLogger.d(
+                    TAG,
+                    "当前会话正在切换，跳过内存刷新但继续持久化消息: timestamp=${message.timestamp}"
+                )
+                chatHistoryManager.updateMessage(targetChatId, message)
                 return@withLock
             }
 

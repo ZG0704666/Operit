@@ -52,6 +52,7 @@ import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.ai.assistance.operit.core.tools.system.shower.OperitShowerShellRunner
 import com.ai.assistance.showerclient.ShowerEnvironment
+import com.ai.assistance.showerclient.ShowerLogSink
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -172,7 +173,33 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
 
         // 初始化 Shower 虚拟屏客户端的 ShellRunner 环境
         ShowerEnvironment.shellRunner = OperitShowerShellRunner
+        ShowerEnvironment.logSink =
+            ShowerLogSink { priority, tag, message, throwable ->
+                when (priority) {
+                    AppLogger.VERBOSE ->
+                        if (throwable != null) AppLogger.v(tag, message, throwable) else AppLogger.v(tag, message)
+                    AppLogger.DEBUG ->
+                        if (throwable != null) AppLogger.d(tag, message, throwable) else AppLogger.d(tag, message)
+                    AppLogger.INFO ->
+                        if (throwable != null) AppLogger.i(tag, message, throwable) else AppLogger.i(tag, message)
+                    AppLogger.WARN ->
+                        if (throwable != null) AppLogger.w(tag, message, throwable) else AppLogger.w(tag, message)
+                    AppLogger.ERROR ->
+                        if (throwable != null) AppLogger.e(tag, message, throwable) else AppLogger.e(tag, message)
+                    AppLogger.ASSERT ->
+                        if (throwable != null) AppLogger.wtf(tag, message, throwable) else AppLogger.wtf(tag, message)
+                    else ->
+                        if (throwable != null) {
+                            AppLogger.println(priority, tag, "$message\n${AppLogger.getStackTraceString(throwable)}")
+                        } else {
+                            AppLogger.println(priority, tag, message)
+                        }
+                }
+            }
+        // Shower logs are already mirrored to AppLogger; avoid duplicate system log entries.
+        ShowerEnvironment.emitToSystemLog = false
         AppLogger.d(TAG, "【启动计时】ShowerEnvironment.shellRunner 已配置 - ${System.currentTimeMillis() - startTime}ms")
+        AppLogger.d(TAG, "【启动计时】ShowerEnvironment.logSink 已配置 - ${System.currentTimeMillis() - startTime}ms")
 
         // 初始化PDFBox资源加载器
         PDFBoxResourceLoader.init(getApplicationContext());

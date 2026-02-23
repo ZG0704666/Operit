@@ -336,22 +336,22 @@ fun MemoryScreen() {
                         .weight(1f)
                         .fillMaxSize()
                 ) {
-                    // 图谱区域（底层，占满整个空间）
+                    // 图谱区域（始终挂载，避免 isLoading 切换时重建 GraphVisualizer）
+                    GraphVisualizer(
+                        graph = uiState.graph,
+                        modifier = Modifier.fillMaxSize(),
+                        selectedNodeId = uiState.selectedNodeId,
+                        boxSelectedNodeIds = uiState.boxSelectedNodeIds, // 传递框选节点
+                        isBoxSelectionMode = uiState.isBoxSelectionMode, // 传递模式状态
+                        linkingNodeIds = uiState.linkingNodeIds,
+                        selectedEdgeId = uiState.selectedEdge?.id,
+                        onNodeClick = { node -> viewModel.selectNode(node) },
+                        onEdgeClick = { edge -> viewModel.selectEdge(edge) },
+                        onNodesSelected = { nodeIds -> viewModel.addNodesToSelection(nodeIds) } // 传递回调
+                    )
+
                     if (uiState.isLoading) {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    } else {
-                        GraphVisualizer(
-                            graph = uiState.graph,
-                            modifier = Modifier.fillMaxSize(),
-                            selectedNodeId = uiState.selectedNodeId,
-                            boxSelectedNodeIds = uiState.boxSelectedNodeIds, // 传递框选节点
-                            isBoxSelectionMode = uiState.isBoxSelectionMode, // 传递模式状态
-                            linkingNodeIds = uiState.linkingNodeIds,
-                            selectedEdgeId = uiState.selectedEdge?.id,
-                            onNodeClick = { node -> viewModel.selectNode(node) },
-                            onEdgeClick = { edge -> viewModel.selectEdge(edge) },
-                            onNodesSelected = { nodeIds -> viewModel.addNodesToSelection(nodeIds) } // 传递回调
-                        )
                     }
                 }
             }

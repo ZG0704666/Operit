@@ -324,7 +324,8 @@ class MessageProcessingDelegate(
                             .createWorkspaceToolHookSession(
                                 workspacePath = workspacePath,
                                 workspaceEnv = workspaceEnv,
-                                messageTimestamp = userMessage.timestamp
+                                messageTimestamp = userMessage.timestamp,
+                                chatId = chatId
                             )
                     workspaceToolHookSession = session
                     toolHandler.addToolHook(session)
@@ -513,81 +514,97 @@ class MessageProcessingDelegate(
                 }
                 
                 // 启动一个独立的协程来收集流内容并持续更新数据库
+                val streamCollectionResult = CompletableDeferred<Throwable?>()
                 chatRuntime.streamCollectionJob =
                     coroutineScope.launch(Dispatchers.IO) {
-                        val contentBuilder = StringBuilder()
-                        val autoReadBuffer = StringBuilder()
-                        var isFirstAutoReadSegment = true
-                        val endChars = ".,!?;:，。！？；：\n"
-                        val autoReadStream = XmlTextProcessor.processStreamToText(sharedCharStream)
+                        try {
+                            val contentBuilder = StringBuilder()
+                            val autoReadBuffer = StringBuilder()
+                            var isFirstAutoReadSegment = true
+                            val endChars = ".,!?;:，。！？；：\n"
+                            val autoReadStream = XmlTextProcessor.processStreamToText(sharedCharStream)
 
-                        fun flushAutoReadSegment(segment: String, interrupt: Boolean) {
-                            val trimmed = segment.trim()
-                            if (trimmed.isNotEmpty()) {
-                                didStreamAutoRead = true
-                                speakMessage(trimmed, interrupt)
-                            }
-                        }
-
-                        fun findFirstEndCharIndex(text: CharSequence): Int {
-                            for (i in 0 until text.length) {
-                                val c = text[i]
-                                if (endChars.indexOf(c) >= 0) return i
-                            }
-                            return -1
-                        }
-
-                        fun tryFlushAutoRead() {
-                            if (!getIsAutoReadEnabled()) return
-                            if (isWaifuModeEnabled) return
-                            while (true) {
-                                val endIdx = findFirstEndCharIndex(autoReadBuffer)
-                                val shouldFlushByLen = endIdx < 0 && autoReadBuffer.length >= 50
-                                if (endIdx < 0 && !shouldFlushByLen) return
-
-                                val cutIdx = if (endIdx >= 0) endIdx + 1 else autoReadBuffer.length
-                                val seg = autoReadBuffer.substring(0, cutIdx)
-                                autoReadBuffer.delete(0, cutIdx)
-
-                                flushAutoReadSegment(seg, interrupt = isFirstAutoReadSegment)
-                                isFirstAutoReadSegment = false
-                            }
-                        }
-
-                        val autoReadJob = launch {
-                            autoReadStream.collect { char ->
-                                autoReadBuffer.append(char)
-                                tryFlushAutoRead()
-                            }
-                        }
-
-                        sharedCharStream.collect { chunk ->
-                            contentBuilder.append(chunk)
-                            val content = contentBuilder.toString()
-                            val updatedMessage = aiMessage.copy(content = content)
-                            // 防止后续读取不到
-                            aiMessage.content = content
-                            
-                            // 只有在非waifu模式下才显示流式更新
-                            if (!isWaifuModeEnabled) {
-                                if (chatId != null) {
-                                    addMessageToChat(chatId, updatedMessage)
+                            fun flushAutoReadSegment(segment: String, interrupt: Boolean) {
+                                val trimmed = segment.trim()
+                                if (trimmed.isNotEmpty()) {
+                                    didStreamAutoRead = true
+                                    speakMessage(trimmed, interrupt)
                                 }
-                                tryEmitScrollToBottomThrottled(chatId)
                             }
-                        }
 
-                        autoReadJob.join()
+                            fun findFirstEndCharIndex(text: CharSequence): Int {
+                                for (i in 0 until text.length) {
+                                    val c = text[i]
+                                    if (endChars.indexOf(c) >= 0) return i
+                                }
+                                return -1
+                            }
 
-                        if (getIsAutoReadEnabled() && !isWaifuModeEnabled) {
-                            val remaining = autoReadBuffer.toString()
-                            autoReadBuffer.clear()
-                            flushAutoReadSegment(remaining, interrupt = isFirstAutoReadSegment)
+                            fun tryFlushAutoRead() {
+                                if (!getIsAutoReadEnabled()) return
+                                if (isWaifuModeEnabled) return
+                                while (true) {
+                                    val endIdx = findFirstEndCharIndex(autoReadBuffer)
+                                    val shouldFlushByLen = endIdx < 0 && autoReadBuffer.length >= 50
+                                    if (endIdx < 0 && !shouldFlushByLen) return
+
+                                    val cutIdx = if (endIdx >= 0) endIdx + 1 else autoReadBuffer.length
+                                    val seg = autoReadBuffer.substring(0, cutIdx)
+                                    autoReadBuffer.delete(0, cutIdx)
+
+                                    flushAutoReadSegment(seg, interrupt = isFirstAutoReadSegment)
+                                    isFirstAutoReadSegment = false
+                                }
+                            }
+
+                            val autoReadJob = launch {
+                                autoReadStream.collect { char ->
+                                    autoReadBuffer.append(char)
+                                    tryFlushAutoRead()
+                                }
+                            }
+
+                            sharedCharStream.collect { chunk ->
+                                contentBuilder.append(chunk)
+                                val content = contentBuilder.toString()
+                                val updatedMessage = aiMessage.copy(content = content)
+                                // 防止后续读取不到
+                                aiMessage.content = content
+                                
+                                // 只有在非waifu模式下才显示流式更新
+                                if (!isWaifuModeEnabled) {
+                                    if (chatId != null) {
+                                        addMessageToChat(chatId, updatedMessage)
+                                    }
+                                    tryEmitScrollToBottomThrottled(chatId)
+                                }
+                            }
+
+                            autoReadJob.join()
+
+                            if (getIsAutoReadEnabled() && !isWaifuModeEnabled) {
+                                val remaining = autoReadBuffer.toString()
+                                autoReadBuffer.clear()
+                                flushAutoReadSegment(remaining, interrupt = isFirstAutoReadSegment)
+                            }
+                        } catch (t: Throwable) {
+                            if (!streamCollectionResult.isCompleted) {
+                                streamCollectionResult.complete(t)
+                            }
+                            throw t
+                        } finally {
+                            if (!streamCollectionResult.isCompleted) {
+                                streamCollectionResult.complete(null)
+                            }
                         }
                     }
 
                 // 等待流完成，以便finally块可以正确执行来更新UI状态
                 deferred.await()
+                val streamCollectionError = streamCollectionResult.await()
+                if (streamCollectionError != null) {
+                    throw streamCollectionError
+                }
 
                 val stateAfterStream =
                     _inputProcessingStateByChatId.value[chatKey(chatId)]
@@ -653,7 +670,16 @@ class MessageProcessingDelegate(
         // 修改为使用 try-catch 来检查变量是否已初始化，而不是使用 ::var.isInitialized
         try {
             val aiMessage = aiMessageProvider()
-            val finalContent = aiMessage.content
+            val sharedStream = aiMessage.contentStream as? SharedStream<String>
+            val replayChunks = sharedStream?.replayCache
+            // 优先使用共享流的全量重放缓存重建最终文本，避免完成信号早于收集协程处理尾部字符时丢字。
+            val finalContent =
+                if (!replayChunks.isNullOrEmpty()) {
+                    replayChunks.joinToString(separator = "")
+                } else {
+                    aiMessage.content
+                }
+            aiMessage.content = finalContent
 
             var deferTurnCompleteToAsyncJob = false
             withContext(Dispatchers.IO) {
@@ -774,6 +800,9 @@ class MessageProcessingDelegate(
             }
         } catch (e: UninitializedPropertyAccessException) {
             AppLogger.d(TAG, "AI消息未初始化，跳过流清理步骤")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            AppLogger.d(TAG, "消息收尾阶段被取消，跳过waifu收尾处理")
+            throw e
         } catch (e: Exception) {
             AppLogger.e(TAG, "处理waifu模式时出错", e)
             try {

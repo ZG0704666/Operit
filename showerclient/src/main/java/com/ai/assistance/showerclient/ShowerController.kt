@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
-import android.util.Log
 import com.ai.assistance.shower.IShowerService
 import com.ai.assistance.shower.IShowerVideoSink
 import kotlinx.coroutines.Dispatchers
@@ -46,33 +45,33 @@ class ShowerController {
                     val cachedService = ShowerBinderRegistry.getService()
                     val binder = cachedService?.asBinder()
                     val alive = binder?.isBinderAlive == true
-                    Log.d(TAG, "getBinder: attempt=$attempt cachedService=$cachedService binder=$binder alive=$alive")
+                    ShowerLog.d(TAG, "getBinder: attempt=$attempt cachedService=$cachedService binder=$binder alive=$alive")
                     if (cachedService != null && alive) {
                         binderService = cachedService
-                        Log.d(TAG, "Connected to Shower Binder service on attempt=$attempt")
+                        ShowerLog.d(TAG, "Connected to Shower Binder service on attempt=$attempt")
                         return@withContext binderService
                     } else {
-                        Log.w(TAG, "No alive Shower Binder cached in ShowerBinderRegistry on attempt=$attempt")
+                        ShowerLog.w(TAG, "No alive Shower Binder cached in ShowerBinderRegistry on attempt=$attempt")
                         clearDeadService()
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to connect to Binder service on attempt=$attempt", e)
+                    ShowerLog.e(TAG, "Failed to connect to Binder service on attempt=$attempt", e)
                     clearDeadService()
                 }
 
                 if (context != null && attempt == 1) {
                     try {
                         val ctx = context.applicationContext
-                        Log.d(TAG, "getBinder: attempting to restart Shower server after connection failure")
+                        ShowerLog.d(TAG, "getBinder: attempting to restart Shower server after connection failure")
                         val ok = ShowerServerManager.ensureServerStarted(ctx)
                         if (!ok) {
-                            Log.e(TAG, "getBinder: failed to restart Shower server")
+                            ShowerLog.e(TAG, "getBinder: failed to restart Shower server")
                             break
                         }
                         // Wait a bit for broadcast to propagate
                         delay(200)
                     } catch (e: Exception) {
-                        Log.e(TAG, "getBinder: exception while restarting Shower server", e)
+                        ShowerLog.e(TAG, "getBinder: exception while restarting Shower server", e)
                         break
                     }
                 }
@@ -105,7 +104,7 @@ class ShowerController {
         val framesToReplay: List<ByteArray>
         synchronized(binaryLock) {
             binaryHandler = handler
-            Log.d(TAG, "setBinaryHandler: id=${virtualDisplayId} handlerSet=${handler != null}, bufferedFrames=${earlyBinaryFrames.size}")
+            ShowerLog.d(TAG, "setBinaryHandler: id=${virtualDisplayId} handlerSet=${handler != null}, bufferedFrames=${earlyBinaryFrames.size}")
             framesToReplay = if (handler != null && earlyBinaryFrames.isNotEmpty()) {
                 val list = earlyBinaryFrames.toList()
                 earlyBinaryFrames.clear()
@@ -115,7 +114,7 @@ class ShowerController {
             }
         }
         if (handler != null && framesToReplay.isNotEmpty()) {
-            Log.d(TAG, "setBinaryHandler: replaying ${framesToReplay.size} buffered frames")
+            ShowerLog.d(TAG, "setBinaryHandler: replaying ${framesToReplay.size} buffered frames")
             framesToReplay.forEach { frame ->
                 try {
                     handler(frame)
@@ -150,7 +149,7 @@ class ShowerController {
                     service.requestScreenshot(id)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "requestScreenshot failed for $id", e)
+                ShowerLog.e(TAG, "requestScreenshot failed for $id", e)
                 null
             }
         }
@@ -194,7 +193,7 @@ class ShowerController {
             videoHeight = 0
             // Probe the input path once. keyCode=0 (KEYCODE_UNKNOWN) should be harmless.
             service.injectKey(0, 0)
-            Log.d(TAG, "prepareMainDisplay complete, displayId=0")
+            ShowerLog.d(TAG, "prepareMainDisplay complete, displayId=0")
             return true
         }
 
@@ -202,7 +201,7 @@ class ShowerController {
         try {
             doPrepare(service)
         } catch (e: Exception) {
-            Log.e(TAG, "prepareMainDisplay failed", e)
+            ShowerLog.e(TAG, "prepareMainDisplay failed", e)
             resetLocalDisplayState()
             if (!isBinderDied(e)) {
                 return@withContext false
@@ -210,17 +209,17 @@ class ShowerController {
 
             clearCachedBinder()
             try {
-                Log.d(TAG, "prepareMainDisplay: binder died, restarting Shower server and retrying")
+                ShowerLog.d(TAG, "prepareMainDisplay: binder died, restarting Shower server and retrying")
                 val ok = ShowerServerManager.ensureServerStarted(context.applicationContext)
                 if (!ok) {
-                    Log.e(TAG, "prepareMainDisplay: failed to restart Shower server")
+                    ShowerLog.e(TAG, "prepareMainDisplay: failed to restart Shower server")
                     return@withContext false
                 }
                 delay(200)
                 val retryService = getBinder(context) ?: return@withContext false
                 doPrepare(retryService)
             } catch (retryError: Exception) {
-                Log.e(TAG, "prepareMainDisplay retry failed", retryError)
+                ShowerLog.e(TAG, "prepareMainDisplay retry failed", retryError)
                 resetLocalDisplayState()
                 clearCachedBinder()
                 false
@@ -261,16 +260,16 @@ class ShowerController {
             val existingId = virtualDisplayId
             if (existingId != null && videoWidth == targetWidth && videoHeight == targetHeight) {
                 service.setVideoSink(existingId, videoSink.asBinder())
-                Log.d(TAG, "ensureDisplay reuse existing displayId=$existingId, size=${videoWidth}x${videoHeight}")
+                ShowerLog.d(TAG, "ensureDisplay reuse existing displayId=$existingId, size=${videoWidth}x${videoHeight}")
                 return true
             }
 
             if (existingId != null) {
                 try {
                     service.destroyDisplay(existingId)
-                    Log.d(TAG, "ensureDisplay: destroyed previous displayId=$existingId before recreate")
+                    ShowerLog.d(TAG, "ensureDisplay: destroyed previous displayId=$existingId before recreate")
                 } catch (e: Exception) {
-                    Log.w(TAG, "ensureDisplay: failed to destroy previous displayId=$existingId before recreate", e)
+                    ShowerLog.w(TAG, "ensureDisplay: failed to destroy previous displayId=$existingId before recreate", e)
                 }
                 resetLocalDisplayState()
             }
@@ -279,7 +278,7 @@ class ShowerController {
             val id = service.ensureDisplay(targetWidth, targetHeight, dpi, bitrate)
             if (id < 0) {
                 resetLocalDisplayState()
-                Log.e(TAG, "ensureDisplay: server reported invalid displayId=$id")
+                ShowerLog.e(TAG, "ensureDisplay: server reported invalid displayId=$id")
                 return false
             }
 
@@ -290,7 +289,7 @@ class ShowerController {
             // Link local sink to this display on the server
             service.setVideoSink(id, videoSink.asBinder())
 
-            Log.d(TAG, "ensureDisplay complete, new displayId=$virtualDisplayId, size=${videoWidth}x${videoHeight}")
+            ShowerLog.d(TAG, "ensureDisplay complete, new displayId=$virtualDisplayId, size=${videoWidth}x${videoHeight}")
             return true
         }
 
@@ -298,7 +297,7 @@ class ShowerController {
         try {
             doEnsure(service)
         } catch (e: Exception) {
-            Log.e(TAG, "ensureDisplay failed", e)
+            ShowerLog.e(TAG, "ensureDisplay failed", e)
             resetLocalDisplayState()
             if (!isBinderDied(e)) {
                 return@withContext false
@@ -306,17 +305,17 @@ class ShowerController {
 
             clearCachedBinder()
             try {
-                Log.d(TAG, "ensureDisplay: binder died, restarting Shower server and retrying")
+                ShowerLog.d(TAG, "ensureDisplay: binder died, restarting Shower server and retrying")
                 val ok = ShowerServerManager.ensureServerStarted(context.applicationContext)
                 if (!ok) {
-                    Log.e(TAG, "ensureDisplay: failed to restart Shower server")
+                    ShowerLog.e(TAG, "ensureDisplay: failed to restart Shower server")
                     return@withContext false
                 }
                 delay(200)
                 val retryService = getBinder(context) ?: return@withContext false
                 doEnsure(retryService)
             } catch (retryError: Exception) {
-                Log.e(TAG, "ensureDisplay retry failed", retryError)
+                ShowerLog.e(TAG, "ensureDisplay retry failed", retryError)
                 resetLocalDisplayState()
                 clearCachedBinder()
                 false
@@ -332,7 +331,7 @@ class ShowerController {
             service.launchApp(packageName, id)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "launchApp failed for $packageName on $id", e)
+            ShowerLog.e(TAG, "launchApp failed for $packageName on $id", e)
             false
         }
     }
@@ -344,7 +343,7 @@ class ShowerController {
             service.tap(id, x.toFloat(), y.toFloat())
             true
         } catch (e: Exception) {
-            Log.e(TAG, "tap($x, $y) failed on $id", e)
+            ShowerLog.e(TAG, "tap($x, $y) failed on $id", e)
             false
         }
     }
@@ -362,7 +361,7 @@ class ShowerController {
             service.swipe(id, startX.toFloat(), startY.toFloat(), endX.toFloat(), endY.toFloat(), durationMs)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "swipe failed on $id", e)
+            ShowerLog.e(TAG, "swipe failed on $id", e)
             false
         }
     }
@@ -374,7 +373,7 @@ class ShowerController {
             service.touchDown(id, x.toFloat(), y.toFloat())
             true
         } catch (e: Exception) {
-            Log.e(TAG, "touchDown($x, $y) failed on $id", e)
+            ShowerLog.e(TAG, "touchDown($x, $y) failed on $id", e)
             false
         }
     }
@@ -386,7 +385,7 @@ class ShowerController {
             service.touchMove(id, x.toFloat(), y.toFloat())
             true
         } catch (e: Exception) {
-            Log.e(TAG, "touchMove($x, $y) failed on $id", e)
+            ShowerLog.e(TAG, "touchMove($x, $y) failed on $id", e)
             false
         }
     }
@@ -398,7 +397,7 @@ class ShowerController {
             service.touchUp(id, x.toFloat(), y.toFloat())
             true
         } catch (e: Exception) {
-            Log.e(TAG, "touchUp($x, $y) failed on $id", e)
+            ShowerLog.e(TAG, "touchUp($x, $y) failed on $id", e)
             false
         }
     }
@@ -437,13 +436,13 @@ class ShowerController {
             )
             true
         } catch (e: Exception) {
-            Log.e(TAG, "injectTouchEvent(action=$action, x=$x, y=$y) failed on $id", e)
+            ShowerLog.e(TAG, "injectTouchEvent(action=$action, x=$x, y=$y) failed on $id", e)
             false
         }
     }
 
     fun shutdown() {
-        Log.d(TAG, "shutdown requested for display $virtualDisplayId")
+        ShowerLog.d(TAG, "shutdown requested for display $virtualDisplayId")
         val service = binderService
         val id = virtualDisplayId
         virtualDisplayId = null
@@ -458,7 +457,7 @@ class ShowerController {
                 service.setVideoSink(id, null)
                 service.destroyDisplay(id)
             } catch (e: Exception) {
-                Log.e(TAG, "shutdown: destroyDisplay failed for $id", e)
+                ShowerLog.e(TAG, "shutdown: destroyDisplay failed for $id", e)
             }
         }
     }
@@ -478,7 +477,7 @@ class ShowerController {
             }
             true
         } catch (e: Exception) {
-            Log.e(TAG, "keyWithMeta(keyCode=$keyCode, metaState=$metaState) failed on $id", e)
+            ShowerLog.e(TAG, "keyWithMeta(keyCode=$keyCode, metaState=$metaState) failed on $id", e)
             false
         }
     }

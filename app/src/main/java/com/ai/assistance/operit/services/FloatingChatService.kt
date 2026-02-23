@@ -303,6 +303,8 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 serviceScope.launch {
                     try {
                         aiService.inputProcessingState.collect { _ -> }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        AppLogger.d(TAG, "输入处理状态监听已取消")
                     } catch (e: Exception) {
                         AppLogger.e(TAG, "监听输入处理状态失败", e)
                     }

@@ -7,7 +7,6 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.PixelCopy
 import android.view.Surface
 import java.io.ByteArrayOutputStream
@@ -92,7 +91,7 @@ class ShowerVideoRenderer {
         synchronized(lock) {
             if (surface == null || width <= 0 || height <= 0) {
                 if (!warnedNoSurface) {
-                    Log.w(TAG, "onFrame: no surface or invalid size; dropping frames")
+                    ShowerLog.w(TAG, "onFrame: no surface or invalid size; dropping frames")
                     warnedNoSurface = true
                 }
                 return
@@ -167,7 +166,7 @@ class ShowerVideoRenderer {
                     outIndex = dec.dequeueOutputBuffer(bufferInfo, 0)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Decoder error on frame", e)
+                ShowerLog.e(TAG, "Decoder error on frame", e)
                 releaseDecoderLocked()
                 pendingFrames.clear()
             }
@@ -259,9 +258,9 @@ class ShowerVideoRenderer {
             dec.configure(format, s, null, 0)
             dec.start()
             decoder = dec
-            Log.d(TAG, "MediaCodec decoder initialized for ${width}x${height}")
+            ShowerLog.d(TAG, "MediaCodec decoder initialized for ${width}x${height}")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to init decoder", e)
+            ShowerLog.e(TAG, "Failed to init decoder", e)
             releaseDecoderLocked()
         }
     }

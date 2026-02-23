@@ -151,6 +151,8 @@ class ApiConfigDelegate(
                             mapping[FunctionType.CHAT] ?: FunctionalConfigManager.DEFAULT_CONFIG_ID
                     _activeConfigId.value = chatConfigId
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                AppLogger.d(TAG, "初始化功能配置映射监听已取消")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "初始化功能配置映射时出错", e)
             }
@@ -169,6 +171,9 @@ class ApiConfigDelegate(
                             updateStateFromConfig(config)
                             _isInitialized.value = true
                         }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                AppLogger.d(TAG, "模型配置收集监听已取消")
+                _isInitialized.value = true
             } catch (e: Exception) {
                 AppLogger.e(TAG, "收集模型配置时出错", e)
                 _isInitialized.value = true

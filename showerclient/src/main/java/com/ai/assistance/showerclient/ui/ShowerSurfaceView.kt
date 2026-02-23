@@ -2,10 +2,10 @@ package com.ai.assistance.showerclient.ui
 
 import android.content.Context
 import android.util.AttributeSet
-import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.ai.assistance.showerclient.ShowerController
+import com.ai.assistance.showerclient.ShowerLog
 import com.ai.assistance.showerclient.ShowerVideoRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,16 +43,16 @@ open class ShowerSurfaceView @JvmOverloads constructor(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Log.d(TAG, "surfaceCreated")
+        ShowerLog.d(TAG, "surfaceCreated")
         val ctrl = controller ?: run {
-            Log.w(TAG, "surfaceCreated: no ShowerController bound")
+            ShowerLog.w(TAG, "surfaceCreated: no ShowerController bound")
             return
         }
 
         // Cancel any previous job
         attachJob?.cancel()
         attachJob = CoroutineScope(Dispatchers.Main).launch {
-            Log.d(TAG, "surfaceCreated: waiting for video size from ShowerController")
+            ShowerLog.d(TAG, "surfaceCreated: waiting for video size from ShowerController")
             var size: Pair<Int, Int>? = null
             // Retry for a short period to wait for the video size to be set by the controller,
             // resolving a potential race condition.
@@ -64,7 +64,7 @@ open class ShowerSurfaceView @JvmOverloads constructor(
 
             if (size != null) {
                 val (w, h) = size
-                Log.d(TAG, "Attaching renderer with size: ${w}x${h}")
+                ShowerLog.d(TAG, "Attaching renderer with size: ${w}x${h}")
                 try {
                     holder.setFixedSize(w, h)
                 } catch (_: Exception) {
@@ -72,12 +72,12 @@ open class ShowerSurfaceView @JvmOverloads constructor(
                 renderer.attach(holder.surface, w, h)
                 // Route binary video frames to the renderer only after the surface and size are ready,
                 // so that any buffered SPS/PPS frames can be consumed correctly by the decoder.
-                Log.d(TAG, "surfaceCreated: setting ShowerController binary handler")
+                ShowerLog.d(TAG, "surfaceCreated: setting ShowerController binary handler")
                 ctrl.setBinaryHandler { data ->
                     renderer.onFrame(data)
                 }
             } else {
-                Log.e(TAG, "Failed to get video size after multiple retries.")
+                ShowerLog.e(TAG, "Failed to get video size after multiple retries.")
             }
         }
     }
@@ -87,12 +87,12 @@ open class ShowerSurfaceView @JvmOverloads constructor(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        Log.d(TAG, "surfaceDestroyed")
+        ShowerLog.d(TAG, "surfaceDestroyed")
         attachJob?.cancel()
         attachJob = null
         val ctrl = controller
         if (ctrl != null) {
-            Log.d(TAG, "surfaceDestroyed: clearing binary handler")
+            ShowerLog.d(TAG, "surfaceDestroyed: clearing binary handler")
             ctrl.setBinaryHandler(null)
         }
         renderer.detach()

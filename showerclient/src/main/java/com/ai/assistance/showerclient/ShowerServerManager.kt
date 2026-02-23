@@ -1,7 +1,6 @@
 package com.ai.assistance.showerclient
 
 import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -33,13 +32,13 @@ object ShowerServerManager {
     suspend fun ensureServerStarted(context: Context): Boolean {
         // 0) If we already have an alive Binder from the handoff broadcast, just reuse it.
         if (ShowerBinderRegistry.hasAliveService()) {
-            Log.d(TAG, "Shower Binder already cached and alive, skipping start")
+            ShowerLog.d(TAG, "Shower Binder already cached and alive, skipping start")
             return true
         }
 
         val runner = ShowerEnvironment.shellRunner
         if (runner == null) {
-            Log.e(TAG, "No ShellRunner configured in ShowerEnvironment; cannot start server")
+            ShowerLog.e(TAG, "No ShellRunner configured in ShowerEnvironment; cannot start server")
             return false
         }
 
@@ -47,23 +46,23 @@ object ShowerServerManager {
         val jarFile = try {
             copyJarToExternalDir(appContext)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy shower-server.jar from assets", e)
+            ShowerLog.e(TAG, "Failed to copy shower-server.jar from assets", e)
             return false
         }
 
         // 1) Kill existing server (ignore errors about missing process).
         val killCmd = "pkill -f com.ai.assistance.shower.Main || true"
-        Log.d(TAG, "Stopping existing Shower server (if any) with command: $killCmd")
+        ShowerLog.d(TAG, "Stopping existing Shower server (if any) with command: $killCmd")
         runner.run(killCmd, ShellIdentity.DEFAULT)
 
         // 2) With highest available identity, remove any stale jar and log under /data/local/tmp.
         val remoteJarPath = "/data/local/tmp/$LOCAL_JAR_NAME"
         val remoteLogPath = "/data/local/tmp/shower.log"
         val cleanupCmd = "rm -f $remoteJarPath $remoteLogPath || true"
-        Log.d(TAG, "Cleaning up previous Shower jar and log with command: $cleanupCmd")
+        ShowerLog.d(TAG, "Cleaning up previous Shower jar and log with command: $cleanupCmd")
         val cleanupResult = runner.run(cleanupCmd, ShellIdentity.DEFAULT)
         if (!cleanupResult.success) {
-            Log.w(
+            ShowerLog.w(
                 TAG,
                 "Cleanup of Shower jar/log may have failed (exitCode=${cleanupResult.exitCode}). stdout='${cleanupResult.stdout}', stderr='${cleanupResult.stderr}'"
             )
@@ -72,10 +71,10 @@ object ShowerServerManager {
         // 3) Copy the jar from /sdcard/Download/Operit to /data/local/tmp using shell identity,
         // so that the resulting file is owned by the shell user.
         val copyCmd = "cp ${jarFile.absolutePath} $remoteJarPath"
-        Log.d(TAG, "Copying Shower jar with shell identity using command: $copyCmd")
+        ShowerLog.d(TAG, "Copying Shower jar with shell identity using command: $copyCmd")
         val copyResult = runner.run(copyCmd, ShellIdentity.SHELL)
         if (!copyResult.success) {
-            Log.e(
+            ShowerLog.e(
                 TAG,
                 "Failed to copy Shower jar to $remoteJarPath (exitCode=${copyResult.exitCode}). stdout='${copyResult.stdout}', stderr='${copyResult.stderr}'"
             )
@@ -85,10 +84,10 @@ object ShowerServerManager {
         // 4) Start app_process with CLASSPATH pointing to /data/local/tmp/shower-server.jar, in background.
         val targetPackagesArg = appContext.packageName
         val startCmd = "CLASSPATH=$remoteJarPath app_process / com.ai.assistance.shower.Main $targetPackagesArg &"
-        Log.d(TAG, "Starting Shower server with command: $startCmd")
+        ShowerLog.d(TAG, "Starting Shower server with command: $startCmd")
         val startResult = runner.run(startCmd, ShellIdentity.SHELL)
         if (!startResult.success) {
-            Log.e(
+            ShowerLog.e(
                 TAG,
                 "Failed to start Shower server (exitCode=${startResult.exitCode}). stdout='${startResult.stdout}', stderr='${startResult.stderr}'"
             )
@@ -99,7 +98,7 @@ object ShowerServerManager {
         for (attempt in 0 until 50) { // 50 * 200ms = 10s
             delay(200)
             if (ShowerBinderRegistry.hasAliveService()) {
-                Log.d(
+                ShowerLog.d(
                     TAG,
                     "Shower Binder cached and alive after ~${(attempt + 1) * 200}ms"
                 )
@@ -107,7 +106,7 @@ object ShowerServerManager {
             }
         }
 
-        Log.e(TAG, "Shower Binder was not received within the expected time")
+        ShowerLog.e(TAG, "Shower Binder was not received within the expected time")
         return false
     }
 
@@ -117,13 +116,13 @@ object ShowerServerManager {
     suspend fun stopServer(): Boolean {
         val runner = ShowerEnvironment.shellRunner
         if (runner == null) {
-            Log.e(TAG, "No ShellRunner configured in ShowerEnvironment; cannot stop server")
+            ShowerLog.e(TAG, "No ShellRunner configured in ShowerEnvironment; cannot stop server")
             return false
         }
         val cmd = "pkill -f com.ai.assistance.shower.Main || true"
         val result = runner.run(cmd, ShellIdentity.DEFAULT)
         if (!result.success) {
-            Log.e(TAG, "Failed to stop Shower server: ${result.stderr}")
+            ShowerLog.e(TAG, "Failed to stop Shower server: ${result.stderr}")
         }
         return result.success
     }
@@ -151,7 +150,7 @@ object ShowerServerManager {
                 output.flush()
             }
         }
-        Log.d(TAG, "Copied $ASSET_JAR_NAME to ${outFile.absolutePath}")
+        ShowerLog.d(TAG, "Copied $ASSET_JAR_NAME to ${outFile.absolutePath}")
         outFile
     }
 }

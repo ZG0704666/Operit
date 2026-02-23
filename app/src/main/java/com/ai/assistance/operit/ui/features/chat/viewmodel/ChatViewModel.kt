@@ -1068,7 +1068,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     AppLogger.d(TAG, "Rewinding workspace to timestamp: $rewindTimestamp")
                     withContext(Dispatchers.IO) {
                         WorkspaceBackupManager.getInstance(context)
-                            .syncState(workspacePath, rewindTimestamp, workspaceEnv)
+                            .syncState(workspacePath, rewindTimestamp, workspaceEnv, chatId)
                     }
                     AppLogger.d(TAG, "Workspace rewind complete.")
                 }
@@ -1121,7 +1121,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         emptyList()
                     } else {
                         WorkspaceBackupManager.getInstance(context)
-                            .previewChangesForRewind(workspacePath, workspaceEnv, rewindTimestamp)
+                            .previewChangesForRewind(workspacePath, workspaceEnv, rewindTimestamp, chatId)
                     }
                 }
             } catch (e: Exception) {
@@ -1164,7 +1164,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     AppLogger.d(TAG, "[Rollback] Rewinding workspace to timestamp: $rewindTimestamp")
                     withContext(Dispatchers.IO) {
                         WorkspaceBackupManager.getInstance(context)
-                            .syncState(workspacePath, rewindTimestamp, workspaceEnv)
+                            .syncState(workspacePath, rewindTimestamp, workspaceEnv, chatId)
                     }
                     AppLogger.d(TAG, "[Rollback] Workspace rewind complete.")
                 }

@@ -794,6 +794,27 @@ class StandardChatManagerTool(private val context: Context) {
             }
 
             if (newChatId != null) {
+                if (setAsCurrentChat) {
+                    val switched = try {
+                        withTimeout(5000L) {
+                            while (core.currentChatId.value != newChatId) {
+                                delay(50)
+                            }
+                            true
+                        }
+                    } catch (_: TimeoutCancellationException) {
+                        false
+                    }
+                    if (!switched) {
+                        return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = ChatCreationResultData(chatId = newChatId),
+                            error = "Chat created but current chat switch did not complete in time"
+                        )
+                    }
+                }
+
                 ToolResult(
                     toolName = tool.name,
                     success = true,
@@ -1246,4 +1267,3 @@ class StandardChatManagerTool(private val context: Context) {
         }
     }
 }
-

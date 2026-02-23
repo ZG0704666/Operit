@@ -1,7 +1,6 @@
 package com.ai.assistance.showerclient
 
 import android.os.IBinder
-import android.util.Log
 import com.ai.assistance.shower.IShowerService
 
 /**
@@ -20,7 +19,7 @@ object ShowerBinderRegistry {
     fun setService(newService: IShowerService?) {
         service = newService
         val alive = newService?.asBinder()?.isBinderAlive == true
-        Log.d(TAG, "setService: service=$newService alive=$alive")
+        ShowerLog.d(TAG, "setService: service=$newService alive=$alive")
     }
 
     fun getService(): IShowerService? = service
@@ -28,7 +27,7 @@ object ShowerBinderRegistry {
     fun hasAliveService(): Boolean {
         val binder: IBinder? = service?.asBinder()
         val alive = binder?.isBinderAlive == true
-        Log.d(TAG, "hasAliveService: binder=$binder alive=$alive")
+        ShowerLog.d(TAG, "hasAliveService: binder=$binder alive=$alive")
         return alive
     }
 }

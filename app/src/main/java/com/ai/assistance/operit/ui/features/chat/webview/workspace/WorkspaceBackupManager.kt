@@ -48,6 +48,7 @@ class WorkspaceBackupManager(private val context: Context) {
         private const val TAG = "WorkspaceBackupManager"
         private const val BACKUP_DIR_NAME = ".backup"
         private const val OBJECTS_DIR_NAME = "objects"
+        private const val CHAT_BACKUPS_DIR_NAME = "chats"
         private const val CURRENT_STATE_FILE_NAME = "current_state.json"
 
         private val WORKSPACE_MUTATING_TOOLS =
@@ -82,8 +83,13 @@ class WorkspaceBackupManager(private val context: Context) {
      * Synchronizes the workspace state based on the message timestamp.
      * It either creates a new backup or restores to a previous state.
      */
-    suspend fun syncState(workspacePath: String, messageTimestamp: Long, workspaceEnv: String? = null) {
-        syncStateProvider(workspacePath, workspaceEnv, messageTimestamp)
+    suspend fun syncState(
+        workspacePath: String,
+        messageTimestamp: Long,
+        workspaceEnv: String? = null,
+        chatId: String? = null
+    ) {
+        syncStateProvider(workspacePath, workspaceEnv, messageTimestamp, chatId)
     }
 
     private data class HookSessionInit(
@@ -96,15 +102,17 @@ class WorkspaceBackupManager(private val context: Context) {
     fun createWorkspaceToolHookSession(
         workspacePath: String,
         workspaceEnv: String?,
-        messageTimestamp: Long
+        messageTimestamp: Long,
+        chatId: String?
     ): WorkspaceToolHookSession {
-        return WorkspaceToolHookSession(workspacePath, workspaceEnv, messageTimestamp)
+        return WorkspaceToolHookSession(workspacePath, workspaceEnv, messageTimestamp, chatId)
     }
 
     inner class WorkspaceToolHookSession(
         private val workspacePath: String,
         private val workspaceEnv: String?,
-        private val messageTimestamp: Long
+        private val messageTimestamp: Long,
+        private val chatScopeId: String?
     ) : AIToolHook {
         private val closed = AtomicBoolean(false)
         private var initialized = false
@@ -123,7 +131,7 @@ class WorkspaceBackupManager(private val context: Context) {
             runBlocking(Dispatchers.IO) {
                 if (initialized) return@runBlocking
 
-                val init = initializeHookSessionProvider(workspacePath, workspaceEnv, messageTimestamp)
+                val init = initializeHookSessionProvider(workspacePath, workspaceEnv, messageTimestamp, chatScopeId)
                 if (init != null) {
                     backupDir = init.backupDir
                     objectsDir = init.objectsDir
@@ -266,7 +274,8 @@ class WorkspaceBackupManager(private val context: Context) {
     private suspend fun initializeHookSessionProvider(
         workspacePath: String,
         workspaceEnv: String?,
-        messageTimestamp: Long
+        messageTimestamp: Long,
+        chatId: String?
     ): HookSessionInit? {
         val workspaceInfo = fileExistsProvider(workspacePath, workspaceEnv)
         if (workspaceInfo == null || !workspaceInfo.exists || !workspaceInfo.isDirectory) {
@@ -274,16 +283,19 @@ class WorkspaceBackupManager(private val context: Context) {
             return null
         }
 
-        val backupDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+        val backupRootDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+        ensureDirectory(backupRootDir, workspaceEnv)
+        val backupDir = resolveChatBackupDir(backupRootDir, chatId)
         ensureDirectory(backupDir, workspaceEnv)
 
-        val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
+        val objectsDir = joinPath(backupRootDir, OBJECTS_DIR_NAME)
         ensureDirectory(objectsDir, workspaceEnv)
 
         val existingBackups = listBackupsInBackupDir(backupDir, workspaceEnv)
         val targetManifestPath = joinPath(backupDir, "$messageTimestamp.json")
         val hasTargetManifest =
             fileExistsProvider(targetManifestPath, workspaceEnv)?.exists == true
+        val gitignoreRules = loadGitignoreRulesProvider(workspacePath, workspaceEnv)
 
         var currentState = loadCurrentStateManifestProvider(backupDir, workspaceEnv)
         if (currentState == null) {
@@ -311,8 +323,6 @@ class WorkspaceBackupManager(private val context: Context) {
         }
 
         saveCurrentStateManifestProvider(backupDir, workspaceEnv, currentState)
-
-        val gitignoreRules = loadGitignoreRulesProvider(workspacePath, workspaceEnv)
         return HookSessionInit(
             backupDir = backupDir,
             objectsDir = objectsDir,
@@ -544,6 +554,17 @@ class WorkspaceBackupManager(private val context: Context) {
         return base + ToolParameter("environment", workspaceEnv)
     }
 
+    private fun normalizeChatScope(chatId: String?): String {
+        val raw = chatId?.trim().orEmpty()
+        if (raw.isBlank()) return "__default__"
+        return raw.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    }
+
+    private fun resolveChatBackupDir(backupRootDir: String, chatId: String?): String {
+        val chatsDir = joinPath(backupRootDir, CHAT_BACKUPS_DIR_NAME)
+        return joinPath(chatsDir, normalizeChatScope(chatId))
+    }
+
     private fun joinPath(parent: String, child: String): String {
         val p = parent.trimEnd('/')
         val c = child.trimStart('/')
@@ -743,7 +764,12 @@ class WorkspaceBackupManager(private val context: Context) {
         return rules
     }
 
-    private suspend fun syncStateProvider(workspacePath: String, workspaceEnv: String?, messageTimestamp: Long) {
+    private suspend fun syncStateProvider(
+        workspacePath: String,
+        workspaceEnv: String?,
+        messageTimestamp: Long,
+        chatId: String?
+    ) {
         withContext(Dispatchers.IO) {
             val exists = fileExistsProvider(workspacePath, workspaceEnv)
             if (exists == null || !exists.exists || !exists.isDirectory) {
@@ -751,9 +777,11 @@ class WorkspaceBackupManager(private val context: Context) {
                 return@withContext
             }
 
-            val backupDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+            val backupRootDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+            ensureDirectory(backupRootDir, workspaceEnv)
+            val backupDir = resolveChatBackupDir(backupRootDir, chatId)
             ensureDirectory(backupDir, workspaceEnv)
-            val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
+            val objectsDir = joinPath(backupRootDir, OBJECTS_DIR_NAME)
             ensureDirectory(objectsDir, workspaceEnv)
 
             val existingBackups = listBackupsInBackupDir(backupDir, workspaceEnv)
@@ -901,17 +929,28 @@ class WorkspaceBackupManager(private val context: Context) {
         }
     }
 
-    suspend fun previewChanges(workspacePath: String, targetTimestamp: Long, workspaceEnv: String? = null): List<WorkspaceFileChange> {
-        return previewChangesProvider(workspacePath, workspaceEnv, targetTimestamp)
+    suspend fun previewChanges(
+        workspacePath: String,
+        targetTimestamp: Long,
+        workspaceEnv: String? = null,
+        chatId: String? = null
+    ): List<WorkspaceFileChange> {
+        return previewChangesProvider(workspacePath, workspaceEnv, targetTimestamp, chatId)
     }
 
-    suspend fun previewChangesForRewind(workspacePath: String, workspaceEnv: String?, rewindTimestamp: Long): List<WorkspaceFileChange> {
-        val backupDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+    suspend fun previewChangesForRewind(
+        workspacePath: String,
+        workspaceEnv: String?,
+        rewindTimestamp: Long,
+        chatId: String?
+    ): List<WorkspaceFileChange> {
+        val backupRootDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+        val backupDir = resolveChatBackupDir(backupRootDir, chatId)
         val existingBackups = listBackupsInBackupDir(backupDir, workspaceEnv)
         val newerBackups = existingBackups.filter { it > rewindTimestamp }
         if (newerBackups.isEmpty()) return emptyList()
         val restoreTimestamp = newerBackups.first()
-        return previewChangesProvider(workspacePath, workspaceEnv, restoreTimestamp)
+        return previewChangesProvider(workspacePath, workspaceEnv, restoreTimestamp, chatId)
     }
 
     private suspend fun loadCurrentStateForDiffProvider(
@@ -971,7 +1010,12 @@ class WorkspaceBackupManager(private val context: Context) {
         return estimateChangedLines(currentText, targetText)
     }
 
-    private suspend fun previewChangesProvider(workspacePath: String, workspaceEnv: String?, targetTimestamp: Long): List<WorkspaceFileChange> {
+    private suspend fun previewChangesProvider(
+        workspacePath: String,
+        workspaceEnv: String?,
+        targetTimestamp: Long,
+        chatId: String?
+    ): List<WorkspaceFileChange> {
         return withContext(Dispatchers.IO) {
             val exists = fileExistsProvider(workspacePath, workspaceEnv)
             if (exists == null || !exists.exists || !exists.isDirectory) {
@@ -979,8 +1023,9 @@ class WorkspaceBackupManager(private val context: Context) {
                 return@withContext emptyList()
             }
 
-            val backupDir = joinPath(workspacePath, BACKUP_DIR_NAME)
-            val objectsDir = joinPath(backupDir, OBJECTS_DIR_NAME)
+            val backupRootDir = joinPath(workspacePath, BACKUP_DIR_NAME)
+            val backupDir = resolveChatBackupDir(backupRootDir, chatId)
+            val objectsDir = joinPath(backupRootDir, OBJECTS_DIR_NAME)
 
             val currentState = loadCurrentStateForDiffProvider(backupDir, workspaceEnv)
             val targetManifest =
