@@ -44,7 +44,7 @@ import com.ai.assistance.operit.util.markdown.MarkdownProcessorType
 
 class ThinkToolsXmlNodeGrouper(
     private val showThinkingProcess: Boolean,
-    private val toolCollapseMode: ToolCollapseMode = ToolCollapseMode.READ_ONLY
+    private val toolCollapseMode: ToolCollapseMode = ToolCollapseMode.ALL
 ) : MarkdownNodeGrouper {
 
     override fun group(nodes: List<MarkdownNodeStable>, rendererId: String): List<MarkdownGroupedItem> {
@@ -286,12 +286,10 @@ class ThinkToolsXmlNodeGrouper(
                 enter = fadeIn(animationSpec = tween(200)),
                 exit = fadeOut(animationSpec = tween(200))
             ) {
-                val contentStartPadding =
-                    if (group.stableKey.startsWith("tools-only-")) 0.dp else 24.dp
                 Box(
                     modifier =
                         Modifier.fillMaxWidth()
-                            .padding(top = 4.dp, bottom = 8.dp, start = contentStartPadding)
+                            .padding(top = 4.dp, bottom = 8.dp, start = 24.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         slice.forEachIndexed { idx, node ->

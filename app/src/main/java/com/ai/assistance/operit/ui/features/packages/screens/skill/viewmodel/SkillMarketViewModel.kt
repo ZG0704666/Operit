@@ -16,6 +16,7 @@ import com.ai.assistance.operit.data.api.GitHubRepository
 import com.ai.assistance.operit.data.preferences.GitHubAuthPreferences
 import com.ai.assistance.operit.data.skill.SkillRepository
 import com.ai.assistance.operit.util.AppLogger
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -51,6 +53,7 @@ class SkillMarketViewModel(
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
 
     private var currentPage: Int = 1
+    private var searchJob: Job? = null
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -59,22 +62,17 @@ class SkillMarketViewModel(
     val isRateLimitError: StateFlow<Boolean> = _isRateLimitError.asStateFlow()
 
     private val _skillIssues = MutableStateFlow<List<GitHubIssue>>(emptyList())
+    private val _searchResultIssues = MutableStateFlow<List<GitHubIssue>>(emptyList())
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     val skillIssues: StateFlow<List<GitHubIssue>> =
-        combine(_skillIssues, _searchQuery) { issues, query ->
+        combine(_skillIssues, _searchQuery, _searchResultIssues) { issues, query, searchIssues ->
             if (query.isBlank()) {
                 issues
             } else {
-                val lower = query.lowercase()
-                issues.filter { issue ->
-                    issue.title.lowercase().contains(lower) ||
-                        (issue.body?.lowercase()?.contains(lower) == true) ||
-                        issue.user.login.lowercase().contains(lower) ||
-                        issue.labels.any { it.name.lowercase().contains(lower) }
-                }
+                searchIssues
             }
         }.stateIn(
             scope = viewModelScope,
@@ -166,6 +164,82 @@ class SkillMarketViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+        searchJob?.cancel()
+
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) {
+            _isLoading.value = false
+            _searchResultIssues.value = emptyList()
+            _errorMessage.value = null
+            _isRateLimitError.value = false
+            return
+        }
+
+        searchJob = viewModelScope.launch {
+            delay(350)
+            searchSkillMarketIssues(trimmedQuery)
+        }
+    }
+
+    private suspend fun searchSkillMarketIssues(rawQuery: String) {
+        _isLoading.value = true
+        _errorMessage.value = null
+        _isRateLimitError.value = false
+
+        val isLoggedIn = try {
+            githubAuth.isLoggedIn()
+        } catch (_: Exception) {
+            false
+        }
+
+        val qualifiedQuery = buildString {
+            append(rawQuery)
+            append(" repo:")
+            append(MARKET_REPO_OWNER)
+            append("/")
+            append(MARKET_REPO_NAME)
+            append(" is:issue is:open label:")
+            append(SKILL_LABEL)
+        }
+
+        try {
+            val result = githubApiService.searchIssues(
+                query = qualifiedQuery,
+                sort = "updated",
+                order = "desc",
+                page = 1,
+                perPage = MARKET_PAGE_SIZE
+            )
+
+            if (rawQuery != _searchQuery.value.trim()) return
+
+            result.fold(
+                onSuccess = { issues ->
+                    _searchResultIssues.value = issues
+                },
+                onFailure = { error ->
+                    val msg = error.message ?: "Unknown error"
+                    _errorMessage.value = context.getString(R.string.skillmarket_load_failed, msg)
+                    _searchResultIssues.value = emptyList()
+
+                    if ((msg.contains("403") || msg.contains("rate") || msg.contains("Rate")) && !isLoggedIn) {
+                        _isRateLimitError.value = true
+                    }
+
+                    AppLogger.e(TAG, "Failed to search skill market data", error)
+                }
+            )
+        } catch (e: Exception) {
+            if (rawQuery == _searchQuery.value.trim()) {
+                _errorMessage.value = context.getString(R.string.skillmarket_network_error, e.message ?: "")
+                _searchResultIssues.value = emptyList()
+                AppLogger.e(TAG, "Exception while searching skill market data", e)
+            }
+        } finally {
+            if (rawQuery == _searchQuery.value.trim()) {
+                _isLoading.value = false
+            }
+        }
     }
 
     fun clearError() {

@@ -1369,7 +1369,7 @@
     
     <!-- Settings Screen Additional Strings -->
     <string name="settings_prompt_section">Prompt Configuration</string>
-    <string name="settings_prompt_title">Prompt Editor</string>
+    <string name="settings_prompt_title">Character Card Editor</string>
     <string name="settings_prompt_desc">Customize AI assistant behavior and personality prompts</string>
     <string name="settings_configure_prompt">Configure Prompts</string>
     <string name="settings_functional_prompt_title">Functional Prompt Configuration</string>
@@ -3602,7 +3602,7 @@
     <string name="screen_title_persona_card_generation">Persona Card Generation</string>
     <string name="screen_title_waifu_mode_settings">Waifu Mode Settings</string>
     <string name="screen_title_tag_market">Tag Market</string>
-    <string name="screen_title_model_prompts_settings">Model Prompts Settings</string>
+    <string name="screen_title_model_prompts_settings">Character Card Editor</string>
     <string name="screen_title_functional_config">Functional Model Configuration</string>
     <string name="screen_title_theme_settings">Theme Settings</string>
     <string name="screen_title_global_display_settings">Display &amp; Behavior</string>

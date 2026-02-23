@@ -36,6 +36,60 @@
       ]
     },
     {
+      name: run_javascript_node
+      description: { zh: "使用 Node.js 运行 JavaScript 脚本。返回 stdout/stderr 输出。", en: "Run JavaScript using Node.js. Returns stdout/stderr output." }
+      parameters: [
+        {
+          name: script
+          description: { zh: "要执行的 JavaScript 脚本内容", en: "JavaScript script content to execute." }
+          type: string
+          required: true
+        },
+        {
+          name: node_flags
+          description: { zh: "Node.js 解释器选项，默认为空。可自定义如 --trace-warnings、--no-warnings 等", en: "Node.js interpreter flags (default: empty). Examples: --trace-warnings, --no-warnings." }
+          type: string
+          required: false
+        }
+      ]
+    },
+    {
+      name: run_javascript_node_file
+      description: { zh: "使用 Node.js 运行 JavaScript 文件。返回 stdout/stderr 输出。", en: "Run a JavaScript file using Node.js. Returns stdout/stderr output." }
+      parameters: [
+        {
+          name: file_path
+          description: { zh: "JavaScript 文件路径", en: "Path to the JavaScript file." }
+          type: string
+          required: true
+        },
+        {
+          name: node_flags
+          description: { zh: "Node.js 解释器选项，默认为空。可自定义如 --trace-warnings、--no-warnings 等", en: "Node.js interpreter flags (default: empty). Examples: --trace-warnings, --no-warnings." }
+          type: string
+          required: false
+        }
+      ]
+    },
+    {
+      name: install_node_packages
+      description: { zh: "在持久 Node 工作目录($HOME/.code_runner/node)中安装 pnpm 包", en: "Install packages with pnpm in the persistent Node workspace ($HOME/.code_runner/node)." }
+      parameters: [
+        {
+          name: packages
+          description: { zh: "要安装的包名（用 | 分隔），例如 axios|lodash|@types/node", en: "Package names to install, separated by | (e.g. axios|lodash|@types/node)." }
+          type: string
+          required: true
+        },
+        {
+          name: save_dev
+          description: { zh: "是否作为开发依赖安装（pnpm add -D）", en: "Whether to install as dev dependency (pnpm add -D)." }
+          type: boolean
+          required: false
+        }
+      ]
+    },
+    {
       name: install_python_packages
       description: { zh: "在持久虚拟环境(~/.code_runner/py)中安装 Python 包（使用 pip）", en: "Install Python packages in the persistent virtual environment (~/.code_runner/py) using pip." }
       parameters: [
@@ -276,6 +330,7 @@
 const codeRunner = (function () {
 
   const CARGO_MIRROR_ENV = 'export CARGO_REGISTRIES_CRATES_IO_REPLACE_WITH="ustc" && export CARGO_REGISTRIES_USTC_INDEX="https://mirrors.ustc.edu.cn/crates.io-index"';
+  const NODE_WORKSPACE_DIR = "$HOME/.code_runner/node";
 
   // Helper function to execute a terminal command using the new session-based API
   async function executeTerminalCommand(command: string, timeoutMs?: number): Promise<import("./types/results").TerminalCommandResultData> {
@@ -320,6 +375,57 @@ const codeRunner = (function () {
       throw new Error(`安装依赖失败：\n${r2.output}`);
     }
     return `Installed with pip:\n${r2.output}`.trim();
+  }
+
+  async function ensureNodeAvailable() {
+    const nodeCheckResult = await executeTerminalCommand("node --version");
+    if (nodeCheckResult.exitCode !== 0 || hasError(nodeCheckResult.output)) {
+      throw new Error("Node.js 不可用，请确保已安装 Node.js");
+    }
+  }
+
+  async function ensurePersistentNodeWorkspace(): Promise<{ workspaceDir: string }> {
+    await ensureNodeAvailable();
+
+    const createDirResult = await executeTerminalCommand(`mkdir -p ${NODE_WORKSPACE_DIR}`);
+    if (createDirResult.exitCode !== 0 || hasError(createDirResult.output)) {
+      throw new Error(`创建 Node 工作目录失败:\n${createDirResult.output}`);
+    }
+
+    const hasPackageJson = await executeTerminalCommand(`[ -f ${NODE_WORKSPACE_DIR}/package.json ] && echo OK || echo NO`);
+    if (!hasPackageJson.output.includes("OK")) {
+      const initResult = await executeTerminalCommand(
+        `cat <<'EOF' > ${NODE_WORKSPACE_DIR}/package.json
+{
+  "name": "code-runner-node-workspace",
+  "private": true
+}
+EOF`
+      );
+      if (initResult.exitCode !== 0 || hasError(initResult.output)) {
+        throw new Error(`初始化 Node 工作目录失败:\n${initResult.output}`);
+      }
+    }
+
+    return { workspaceDir: NODE_WORKSPACE_DIR };
+  }
+
+  async function install_node_packages(params: { packages: string; save_dev?: boolean }) {
+    const raw = (params.packages || "").trim();
+    const pkgs = raw
+      .split("|")
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    if (!pkgs.length) throw new Error("请提供要安装的包列表（用 | 分隔）packages");
+
+    const { workspaceDir } = await ensurePersistentNodeWorkspace();
+    const saveFlag = params.save_dev ? "-D" : "--save";
+    const packageArgs = pkgs.map(p => `'${escapeForShell(p)}'`).join(" ");
+    const result = await executeTerminalCommand(`cd ${workspaceDir} && pnpm add ${saveFlag} ${packageArgs}`);
+    if (result.exitCode !== 0 || hasError(result.output)) {
+      throw new Error(`安装 pnpm 依赖失败:\n${result.output}`);
+    }
+    return `Installed with pnpm in ${workspaceDir}:\n${result.output}`.trim();
   }
 
   // Helper function to safely escape strings for shell commands
@@ -737,6 +843,51 @@ int main() {
     return executeJavaScript(fileResult.content);
   }
 
+  async function run_javascript_node(params: { script: string; node_flags?: string }) {
+    const script = params.script;
+    if (!script || script.trim() === "") {
+      throw new Error("请提供要执行的 JavaScript 脚本内容");
+    }
+
+    const { workspaceDir } = await ensurePersistentNodeWorkspace();
+    const nodeFlags = params.node_flags || "";
+    const tempFileName = `temp_script_node_${Date.now()}.js`;
+    const tempFilePath = `${workspaceDir}/${tempFileName}`;
+    try {
+      await executeTerminalCommand(`cat <<'EOF' > ${tempFilePath}\n${script}\nEOF`);
+      const result = await executeTerminalCommand(`cd ${workspaceDir} && NODE_PATH=${workspaceDir}/node_modules node ${nodeFlags} ${tempFileName}`.trim());
+      if (result.exitCode === 0 && !hasError(result.output)) {
+        return result.output.trim();
+      } else {
+        throw new Error(`JavaScript (Node.js) 脚本执行失败:\n${result.output}`);
+      }
+    } finally {
+      await executeTerminalCommand(`rm -f ${tempFilePath}`).catch(err => console.error(`删除临时文件失败: ${err.message}`));
+    }
+  }
+
+  async function run_javascript_node_file(params: { file_path: string; node_flags?: string }) {
+    const filePath = params.file_path;
+    if (!filePath || filePath.trim() === "") {
+      throw new Error("请提供要执行的 JavaScript 文件路径");
+    }
+
+    const { workspaceDir } = await ensurePersistentNodeWorkspace();
+    const escapedPath = escapeForShell(filePath);
+    const fileExistsResult = await executeTerminalCommand(`test -f '${escapedPath}'`);
+    if (fileExistsResult.exitCode !== 0 || hasError(fileExistsResult.output)) {
+      throw new Error(`JavaScript 文件不存在或路径错误: ${filePath}`);
+    }
+
+    const nodeFlags = params.node_flags || "";
+    const result = await executeTerminalCommand(`cd ${workspaceDir} && NODE_PATH=${workspaceDir}/node_modules node ${nodeFlags} '${escapedPath}'`.trim());
+    if (result.exitCode === 0 && !hasError(result.output)) {
+      return result.output.trim();
+    } else {
+      throw new Error(`JavaScript (Node.js) 文件执行失败:\n${result.output}`);
+    }
+  }
+
   async function run_python(params: { script: string; python_flags?: string }) {
     const script = params.script;
 
@@ -1124,6 +1275,9 @@ edition = "2021"
     main,
     run_javascript_es5,
     run_javascript_file,
+    run_javascript_node,
+    run_javascript_node_file,
+    install_node_packages,
     install_python_packages,
     run_python,
     run_python_file,
@@ -1145,6 +1299,9 @@ edition = "2021"
 exports.main = codeRunner.wrap(codeRunner.main);
 exports.run_javascript_es5 = codeRunner.wrap(codeRunner.run_javascript_es5);
 exports.run_javascript_file = codeRunner.wrap(codeRunner.run_javascript_file);
+exports.run_javascript_node = codeRunner.wrap(codeRunner.run_javascript_node);
+exports.run_javascript_node_file = codeRunner.wrap(codeRunner.run_javascript_node_file);
+exports.install_node_packages = codeRunner.wrap(codeRunner.install_node_packages);
 exports.install_python_packages = codeRunner.wrap(codeRunner.install_python_packages);
 exports.run_python = codeRunner.wrap(codeRunner.run_python);
 exports.run_python_file = codeRunner.wrap(codeRunner.run_python_file);

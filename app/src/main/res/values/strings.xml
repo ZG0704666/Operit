@@ -1340,7 +1340,7 @@
     
     <!-- 设置屏幕新增字符串 -->
     <string name="settings_prompt_section">提示词配置</string>
-    <string name="settings_prompt_title">提示词编辑</string>
+    <string name="settings_prompt_title">角色卡编辑</string>
     <string name="settings_prompt_desc">自定义AI助手的行为和性格的提示词</string>
     <string name="settings_configure_prompt">配置提示词</string>
     <string name="settings_functional_prompt_title">功能提示词配置</string>
@@ -3508,7 +3508,7 @@
     <string name="screen_title_persona_card_generation">人设卡生成</string>
     <string name="screen_title_waifu_mode_settings">Waifu模式设置</string>
     <string name="screen_title_tag_market">标签市场</string>
-    <string name="screen_title_model_prompts_settings">模型提示词设置</string>
+    <string name="screen_title_model_prompts_settings">角色卡编辑</string>
     <string name="screen_title_functional_config">功能模型配置</string>
     <string name="screen_title_theme_settings">主题设置</string>
     <string name="screen_title_global_display_settings">显示与行为</string>

@@ -15,6 +15,8 @@ import com.ai.assistance.operit.data.api.GitHubComment
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
 import com.ai.assistance.operit.data.preferences.GitHubAuthPreferences
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -74,6 +76,7 @@ class MCPMarketViewModel(
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
 
     private var currentPage: Int = 1
+    private var searchJob: Job? = null
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -95,23 +98,18 @@ class MCPMarketViewModel(
 
     // MCP市场数据
     private val _mcpIssues = MutableStateFlow<List<GitHubIssue>>(emptyList())
+    private val _searchResultIssues = MutableStateFlow<List<GitHubIssue>>(emptyList())
 
     // 搜索查询
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     val mcpIssues: StateFlow<List<GitHubIssue>> =
-        combine(_mcpIssues, _searchQuery) { issues, query ->
+        combine(_mcpIssues, _searchQuery, _searchResultIssues) { issues, query, searchIssues ->
             if (query.isBlank()) {
                 issues
             } else {
-                val lowerCaseQuery = query.lowercase()
-                issues.filter { issue ->
-                    issue.title.lowercase().contains(lowerCaseQuery) ||
-                    (issue.body?.lowercase()?.contains(lowerCaseQuery) == true) ||
-                    issue.user.login.lowercase().contains(lowerCaseQuery) ||
-                    issue.labels.any { it.name.lowercase().contains(lowerCaseQuery) }
-                }
+                searchIssues
             }
         }.stateIn(
             scope = viewModelScope,
@@ -209,6 +207,82 @@ class MCPMarketViewModel(
      */
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+        searchJob?.cancel()
+
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) {
+            _isLoading.value = false
+            _searchResultIssues.value = emptyList()
+            _errorMessage.value = null
+            _isRateLimitError.value = false
+            return
+        }
+
+        searchJob = viewModelScope.launch {
+            delay(350)
+            searchMCPMarketIssues(trimmedQuery)
+        }
+    }
+
+    private suspend fun searchMCPMarketIssues(rawQuery: String) {
+        _isLoading.value = true
+        _errorMessage.value = null
+        _isRateLimitError.value = false
+
+        val isLoggedIn = try {
+            githubAuth.isLoggedIn()
+        } catch (_: Exception) {
+            false
+        }
+
+        val qualifiedQuery = buildString {
+            append(rawQuery)
+            append(" repo:")
+            append(MARKET_REPO_OWNER)
+            append("/")
+            append(MARKET_REPO_NAME)
+            append(" is:issue is:open label:")
+            append(MCP_PLUGIN_LABEL)
+        }
+
+        try {
+            val result = githubApiService.searchIssues(
+                query = qualifiedQuery,
+                sort = "updated",
+                order = "desc",
+                page = 1,
+                perPage = MARKET_PAGE_SIZE
+            )
+
+            if (rawQuery != _searchQuery.value.trim()) return
+
+            result.fold(
+                onSuccess = { issues ->
+                    _searchResultIssues.value = issues
+                },
+                onFailure = { error ->
+                    val errorMessage = error.message ?: ""
+                    if (errorMessage.contains("HTTP 403") && !isLoggedIn) {
+                        _errorMessage.value = context.getString(R.string.mcp_market_api_rate_limited_login_required)
+                        _isRateLimitError.value = true
+                    } else {
+                        _errorMessage.value = context.getString(R.string.mcp_market_load_failed_with_error, errorMessage)
+                    }
+                    _searchResultIssues.value = emptyList()
+                    AppLogger.e(TAG, "Failed to search MCP market data", error)
+                }
+            )
+        } catch (e: Exception) {
+            if (rawQuery == _searchQuery.value.trim()) {
+                _errorMessage.value = context.getString(R.string.mcp_market_network_error_with_error, e.message ?: "")
+                _searchResultIssues.value = emptyList()
+                AppLogger.e(TAG, "Network error while searching MCP market data", e)
+            }
+        } finally {
+            if (rawQuery == _searchQuery.value.trim()) {
+                _isLoading.value = false
+            }
+        }
     }
 
     /**

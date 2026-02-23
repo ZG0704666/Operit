@@ -6,7 +6,7 @@ enum class ToolCollapseMode(val value: String) {
 
     companion object {
         fun fromValue(value: String?): ToolCollapseMode {
-            return values().firstOrNull { it.value == value } ?: READ_ONLY
+            return values().firstOrNull { it.value == value } ?: ALL
         }
     }
 }

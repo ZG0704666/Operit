@@ -176,13 +176,15 @@ class SkillManager private constructor(private val context: Context) {
         val sb = StringBuilder()
         sb.appendLine("Using package (Skill): ${skill.name}")
         sb.appendLine("Use Time: ${java.time.LocalDateTime.now()}")
+        sb.appendLine("Execution policy:")
+        sb.appendLine("优先使用skill提供的说明和带的脚本，利用terminal相关工具去完成任务。")
         if (skill.description.isNotBlank()) {
             sb.appendLine("Description: ${skill.description}")
         }
         sb.appendLine("SKILL.md path: ${skill.skillFile.absolutePath}")
         sb.appendLine("Skill directory: ${skill.directory.absolutePath}")
-        sb.appendLine("Subdirectories:")
-        sb.appendLine(buildSubdirectoryTreeText(skill.directory))
+        sb.appendLine("Directory structure:")
+        sb.appendLine(buildDirectoryTreeText(skill.directory))
         sb.appendLine()
         sb.appendLine("SKILL.md:")
         sb.appendLine(content)
@@ -190,50 +192,30 @@ class SkillManager private constructor(private val context: Context) {
         return sb.toString()
     }
 
-    private fun buildSubdirectoryTreeText(
-        rootDir: File,
-        maxDepth: Int = 3,
-        maxEntries: Int = 120
-    ): String {
+    private fun buildDirectoryTreeText(rootDir: File): String {
         val sb = StringBuilder()
-        var count = 0
-        var truncated = false
 
-        fun walk(dir: File, depth: Int, indent: String) {
-            if (depth > maxDepth || count >= maxEntries) {
-                if (count >= maxEntries) truncated = true
-                return
-            }
-
+        fun walk(dir: File, indent: String) {
             val children = dir.listFiles()
-                ?.asSequence()
-                ?.filter { it.isDirectory }
-                ?.sortedBy { it.name.lowercase() }
-                ?.toList()
+                ?.sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase() }))
                 ?: emptyList()
 
             for (child in children) {
-                if (count >= maxEntries) {
-                    truncated = true
-                    break
-                }
-                count++
                 sb.append(indent)
                 sb.append("- ")
                 sb.append(child.name)
-                sb.appendLine("/")
-                walk(child, depth + 1, indent + "  ")
+                if (child.isDirectory) {
+                    sb.appendLine("/")
+                    walk(child, indent + "  ")
+                } else {
+                    sb.appendLine()
+                }
             }
         }
 
-        walk(rootDir, depth = 1, indent = "")
+        walk(rootDir, indent = "")
 
-        if (count == 0) {
-            return "(no subdirectories)"
-        }
-        if (truncated) {
-            sb.appendLine("... (truncated)")
-        }
+        if (sb.length == 0) return "(empty directory)"
         return sb.toString().trimEnd()
     }
 

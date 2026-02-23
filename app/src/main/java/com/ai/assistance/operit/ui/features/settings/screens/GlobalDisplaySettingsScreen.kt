@@ -47,7 +47,7 @@ fun GlobalDisplaySettingsScreen(
     val showModelName by displayPreferencesManager.showModelName.collectAsState(initial = false)
     val showRoleName by displayPreferencesManager.showRoleName.collectAsState(initial = false)
     val showUserName by displayPreferencesManager.showUserName.collectAsState(initial = false)
-    val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.READ_ONLY)
+    val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.ALL)
     val showFpsCounter by displayPreferencesManager.showFpsCounter.collectAsState(initial = false)
     val enableReplyNotification by displayPreferencesManager.enableReplyNotification.collectAsState(initial = true)
     val enableExperimentalVirtualDisplay by displayPreferencesManager.enableExperimentalVirtualDisplay.collectAsState(initial = true)

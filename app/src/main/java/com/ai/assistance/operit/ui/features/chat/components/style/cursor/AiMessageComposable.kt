@@ -57,7 +57,7 @@ fun AiMessageComposable(
     val showModelProvider by displayPreferencesManager.showModelProvider.collectAsState(initial = false)
     val showModelName by displayPreferencesManager.showModelName.collectAsState(initial = false)
     val showRoleName by displayPreferencesManager.showRoleName.collectAsState(initial = false)
-    val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.READ_ONLY)
+    val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.ALL)
 
     // 链接预览弹窗状态
     var showLinkDialog by remember { mutableStateOf(false) }

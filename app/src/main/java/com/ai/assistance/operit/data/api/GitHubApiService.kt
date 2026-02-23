@@ -335,6 +335,64 @@ class GitHubApiService(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    /**
+     * 搜索Issues
+     */
+    suspend fun searchIssues(
+        query: String,
+        sort: String = "updated",
+        order: String = "desc",
+        page: Int = 1,
+        perPage: Int = 30
+    ): Result<List<GitHubIssue>> = withContext(Dispatchers.IO) {
+        try {
+            val url = HttpUrl.Builder()
+                .scheme("https")
+                .host("api.github.com")
+                .addPathSegment("search")
+                .addPathSegment("issues")
+                .addQueryParameter("q", query)
+                .addQueryParameter("sort", sort)
+                .addQueryParameter("order", order)
+                .addQueryParameter("page", page.toString())
+                .addQueryParameter("per_page", perPage.toString())
+                .build()
+
+            val requestBuilder = Request.Builder()
+                .url(url)
+                .addHeader(
+                    "Accept",
+                    "application/vnd.github+json, application/vnd.github.squirrel-girl-preview+json"
+                )
+
+            // 如果用户已登录，添加认证头以提高API配额
+            authPreferences.getAuthorizationHeader()?.let { authHeader ->
+                requestBuilder.addHeader("Authorization", authHeader)
+            }
+
+            val response = client.newCall(requestBuilder.build()).execute()
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                if (responseBody != null) {
+                    val searchResult = json.parseToJsonElement(responseBody).jsonObject
+                    val itemsArray = searchResult["items"]?.jsonArray
+                    val issues = itemsArray?.map { item ->
+                        json.decodeFromJsonElement(GitHubIssue.serializer(), item)
+                    } ?: emptyList()
+                    Result.success(issues)
+                } else {
+                    Result.failure(Exception("Empty response body"))
+                }
+            } else {
+                val errorBody = response.body?.string()
+                Result.failure(Exception("HTTP ${response.code}: ${response.message}\n$errorBody"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     /**
      * 获取仓库的Issues

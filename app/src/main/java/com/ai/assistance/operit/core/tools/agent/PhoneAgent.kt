@@ -819,21 +819,22 @@ class ActionHandler(
         var screenshotLink: String? = null
         var dimensions: Pair<Int, Int>? = null
 
-        if (showerCtx.canUseShowerForInput) {
-            val (link, dims) = captureScreenshotViaShower()
-            screenshotLink = link
-            dimensions = dims
-        }
+        try {
+            // Keep screenshot captures clean: hide overlays first, then restore after capture.
+            floatingService?.setStatusIndicatorVisible(false)
+            progressOverlay.setOverlayVisible(false)
+            delay(200)
 
-        if (screenshotLink == null) {
-            try {
-                floatingService?.setStatusIndicatorVisible(false)
-                progressOverlay.setOverlayVisible(false)
-                delay(200)
+            if (showerCtx.canUseShowerForInput) {
+                val (link, dims) = captureScreenshotViaShower()
+                screenshotLink = link
+                dimensions = dims
+            }
 
+            if (screenshotLink == null) {
                 val screenshotTool = buildScreenshotTool()
                 val (filePath, fallbackDims) = toolImplementations.captureScreenshot(screenshotTool)
-                
+
                 if (filePath != null) {
                     val bitmap = BitmapFactory.decodeFile(filePath)
                     if (bitmap != null) {
@@ -843,18 +844,18 @@ class ActionHandler(
                         bitmap.recycle()
                     }
                 }
-            } finally {
-                val hasShowerDisplayNow = try {
-                    ShowerController.getDisplayId(agentId) != null
-                } catch (e: Exception) {
-                    AppLogger.e("ActionHandler", "[$agentId] Error checking Shower display state in finally", e)
-                    false
-                }
-                if (isMainScreenAgent() || !hasShowerDisplayNow) {
-                    floatingService?.setStatusIndicatorVisible(true)
-                }
-                progressOverlay.setOverlayVisible(true)
             }
+        } finally {
+            val hasShowerDisplayNow = try {
+                ShowerController.getDisplayId(agentId) != null
+            } catch (e: Exception) {
+                AppLogger.e("ActionHandler", "[$agentId] Error checking Shower display state in finally", e)
+                false
+            }
+            if (isMainScreenAgent() || !hasShowerDisplayNow) {
+                floatingService?.setStatusIndicatorVisible(true)
+            }
+            progressOverlay.setOverlayVisible(true)
         }
 
         if (dimensions != null) {
@@ -1149,13 +1150,30 @@ class ActionHandler(
         showerCtx: ShowerUsageContext,
         block: suspend () -> ActionExecResult
     ): ActionExecResult {
-        if (showerCtx.canUseShowerForInput) return block()
+        val shouldHideUiDuringAction = isMainScreenAgent() || !showerCtx.canUseShowerForInput
+        if (!shouldHideUiDuringAction) return block()
+
+        val floatingService = FloatingChatService.getInstance()
         val progressOverlay = UIAutomationProgressOverlay.getInstance(context)
         try {
+            if (isMainScreenAgent()) {
+                floatingService?.setStatusIndicatorVisible(false)
+            }
             progressOverlay.setOverlayVisible(false)
             delay(200)
             return block()
         } finally {
+            if (isMainScreenAgent()) {
+                val hasShowerDisplayNow = try {
+                    ShowerController.getDisplayId(agentId) != null
+                } catch (e: Exception) {
+                    AppLogger.e("ActionHandler", "[$agentId] Error checking Shower display state after action", e)
+                    false
+                }
+                if (isMainScreenAgent() || !hasShowerDisplayNow) {
+                    floatingService?.setStatusIndicatorVisible(true)
+                }
+            }
             progressOverlay.setOverlayVisible(true)
         }
     }
