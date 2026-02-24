@@ -198,7 +198,29 @@ Rich MCP ecosystem
 <tr><th>Version</th><th>Release Date</th><th>Core Updates</th></tr>
 
 <tr>
-<td><b>v1.8.1</b><br><sub>Latest</sub></td>
+<td><b>v1.9.1</b><br><sub>Latest</sub></td>
+<td>2026-02-20</td>
+<td>
+• <b>Stability & Bugfix Release</b>: Focused fixes for multiple regressions from v1.9.0, improving overall usability and smoothness<br>
+• <b>Terminal & Tool Calling</b>: Enhanced terminal tool; fixed terminal freezes caused by interactive UI, strict-tool-call history-triggered request errors, and Windows controller raw command execution issues<br>
+• <b>MCP & Memory Vault</b>: Fixed remote MCP not closing; reworked memory write logic, added external vector model support, and introduced connection-editing tools<br>
+• <b>Feature Additions & UI Fixes</b>: Added deletion of chats not bound to character cards, workflow batch deletion and execution-log viewing; fixed IME/input box/dark mode/theme transparency/toolbox package-management issues
+</td>
+</tr>
+
+<tr>
+<td><b>v1.9.0</b></td>
+<td>2026-02-17</td>
+<td>
+• <b>Mobile Web Automation</b>: Added web operation capabilities, including CORS bypass for web workspace projects to access external websites<br>
+• <b>Windows Terminal Operations</b>: Added Windows command operations for controlling CLI tools like Codex; introduced strict tool-call mode as a compatibility supplement<br>
+• <b>Tooling & System Expansion</b>: Added toolbox SQL viewer, Android workspace template, OpenAI response-compatible provider, direct skill input, and chart enhancements in analytics<br>
+• <b>Fixes & Improvements</b>: Fixed image-reading/context-summary/special-character truncation/ffmpeg-related issues; improved model-connectivity test output and MCP loading prompts
+</td>
+</tr>
+
+<tr>
+<td><b>v1.8.1</b></td>
 <td>2026-02-03</td>
 <td>
 • <b>Local Llama.cpp</b>: GGUF local inference support and related tools<br>
