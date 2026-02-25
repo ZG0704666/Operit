@@ -3563,6 +3563,13 @@
     <string name="tag_management">标签管理</string>
     <string name="create_new_tag">新建标签</string>
     <string name="tag_market">标签市场</string>
+    <string name="tag_export_no_custom_tags">没有可导出的自定义标签</string>
+    <string name="tag_export_select_title">选择要导出的标签</string>
+    <string name="tag_export_select_all">全选</string>
+    <string name="tag_export_clear_all">清空</string>
+    <string name="tag_export_select_at_least_one">请至少选择一个标签</string>
+    <string name="tag_import_invalid_format">标签文件格式无效</string>
+    <string name="tag_import_summary">标签导入完成：新建 %1$d，更新 %2$d，跳过 %3$d</string>
     <string name="system_tags">系统标签</string>
     <string name="custom_tags">自定义标签</string>
     <string name="content_preview">内容：%1$s...</string>
@@ -4457,6 +4464,12 @@
     <string name="enable_reply_notification_description">当AI回复时发送系统通知</string>
     <string name="keep_screen_on">屏幕常亮</string>
     <string name="keep_screen_on_description">保持屏幕常亮，防止在对话时自动锁屏</string>
+    <string name="app_icon_switch_title">软件图标</string>
+    <string name="app_icon_switch_description">切换桌面显示的应用图标（部分桌面可能会延迟刷新）。</string>
+    <string name="app_icon_option_default">默认图标</string>
+    <string name="app_icon_option_simple">简洁图标</string>
+    <string name="app_icon_switch_applied_tip">已切换图标，请返回桌面查看</string>
+    <string name="app_icon_switch_failed">图标切换失败</string>
     <string name="reset_all_display_settings">重置所有显示设置</string>
     <string name="ui_accessibility_mode">无障碍适配模式</string>
     <string name="ui_accessibility_mode_description">为 TalkBack 等无障碍用户优化 UI 自动化行为，优先给出可朗读的操作步骤，谨慎执行自动点击。</string>

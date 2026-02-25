@@ -4505,6 +4505,12 @@
     <string name="enable_reply_notification_description">Send system notification when AI replies</string>
     <string name="keep_screen_on">Keep Screen On</string>
     <string name="keep_screen_on_description">Keep screen awake to prevent auto-lock during conversations</string>
+    <string name="app_icon_switch_title">App Icon</string>
+    <string name="app_icon_switch_description">Switch the launcher icon shown on your home screen (some launchers refresh with delay).</string>
+    <string name="app_icon_option_default">Default Icon</string>
+    <string name="app_icon_option_simple">Simple Icon</string>
+    <string name="app_icon_switch_applied_tip">Icon switched. Check it on your home screen.</string>
+    <string name="app_icon_switch_failed">Failed to switch app icon</string>
     <string name="reset_all_display_settings">Reset All Display Settings</string>
     
     <!-- Chat History Management -->

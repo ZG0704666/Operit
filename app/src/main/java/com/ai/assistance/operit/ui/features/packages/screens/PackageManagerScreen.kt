@@ -53,6 +53,7 @@ import com.ai.assistance.operit.data.preferences.EnvPreferences
 import com.ai.assistance.operit.data.skill.SkillRepository
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPEnvironmentVariablesDialog
 import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.ui.components.ErrorDialog
 import com.ai.assistance.operit.ui.features.packages.components.EmptyState
 import com.ai.assistance.operit.ui.features.packages.components.PackageTab
 import com.ai.assistance.operit.ui.features.packages.dialogs.PackageDetailsDialog
@@ -63,6 +64,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.ai.assistance.operit.R
+
+private data class ExternalPackageImportResult(
+    val message: String,
+    val availablePackages: Map<String, ToolPackage>,
+    val importedPackages: List<String>,
+    val packageLoadErrors: Map<String, String>,
+    val newPackageLoadErrors: Map<String, String>
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -110,6 +119,7 @@ fun PackageManagerScreen(
 
     val packageLoadErrors = remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var showPackageLoadErrorsDialog by remember { mutableStateOf(false) }
+    var importErrorMessage by remember { mutableStateOf<String?>(null) }
 
     val requiredEnvByPackage by remember {
         derivedStateOf {
@@ -180,29 +190,65 @@ fun PackageManagerScreen(
                                     withContext(Dispatchers.IO) {
                                         val inputStream = context.contentResolver.openInputStream(uri)
                                         val tempFile = File(context.cacheDir, fileNameNonNull)
+                                        try {
+                                            inputStream?.use { input ->
+                                                tempFile.outputStream().use { output -> input.copyTo(output) }
+                                            }
 
-                                        inputStream?.use { input ->
-                                            tempFile.outputStream().use { output -> input.copyTo(output) }
+                                            val errorsBeforeImport = packageManager.getPackageLoadErrors()
+                                            val importMessage = packageManager.importPackageFromExternalStorage(tempFile.absolutePath)
+
+                                            val available = packageManager.getTopLevelAvailablePackages(forceRefresh = true)
+                                            val imported = packageManager.getImportedPackages()
+                                            val errors = packageManager.getPackageLoadErrors()
+                                            val newErrors =
+                                                errors.filter { (key, value) -> errorsBeforeImport[key] != value }
+
+                                            ExternalPackageImportResult(
+                                                message = importMessage,
+                                                availablePackages = available,
+                                                importedPackages = imported,
+                                                packageLoadErrors = errors,
+                                                newPackageLoadErrors = newErrors
+                                            )
+                                        } finally {
+                                            if (tempFile.exists()) {
+                                                tempFile.delete()
+                                            }
                                         }
-
-                                        packageManager.importPackageFromExternalStorage(tempFile.absolutePath)
-
-                                        val available = packageManager.getTopLevelAvailablePackages(forceRefresh = true)
-                                        val imported = packageManager.getImportedPackages()
-                                        val errors = packageManager.getPackageLoadErrors()
-
-                                        tempFile.delete()
-
-                                        Triple(available, imported, errors)
                                     }
 
-                                availablePackages.value = loadResult.first
-                                importedPackages.value = loadResult.second
-                                packageLoadErrors.value = loadResult.third
+                                availablePackages.value = loadResult.availablePackages
+                                importedPackages.value = loadResult.importedPackages
+                                packageLoadErrors.value = loadResult.packageLoadErrors
                                 visibleImportedPackages.value = importedPackages.value.toList()
                                 isLoading = false
 
-                                snackbarHostState.showSnackbar(message = context.getString(R.string.external_package_imported))
+                                val importSucceeded =
+                                    loadResult.message.startsWith(
+                                        prefix = "Successfully imported",
+                                        ignoreCase = true
+                                    )
+
+                                if (importSucceeded) {
+                                    snackbarHostState.showSnackbar(message = context.getString(R.string.external_package_imported))
+                                } else {
+                                    importErrorMessage =
+                                        buildString {
+                                            append(loadResult.message)
+                                            if (loadResult.newPackageLoadErrors.isNotEmpty()) {
+                                                append("\n\n")
+                                                append(
+                                                    loadResult.newPackageLoadErrors
+                                                        .toSortedMap()
+                                                        .entries
+                                                        .joinToString(separator = "\n\n") { (packageName, errorText) ->
+                                                            "$packageName:\n$errorText"
+                                                        }
+                                                )
+                                            }
+                                        }
+                                }
                             }
                             else -> {
                                 snackbarHostState.showSnackbar(context.getString(R.string.current_tab_not_support_import))
@@ -211,12 +257,11 @@ fun PackageManagerScreen(
                     } catch (e: Exception) {
                         isLoading = false
                         AppLogger.e("PackageManagerScreen", "Failed to import file", e)
-                        snackbarHostState.showSnackbar(
-                            message = context.getString(
+                        importErrorMessage =
+                            context.getString(
                                 R.string.import_failed,
-                                e.message
-                            )
-                        )
+                                e.message ?: context.getString(R.string.unknown_error)
+                            ) + "\n\n" + e.stackTraceToString()
                     }
                 }
             }
@@ -737,6 +782,13 @@ fun PackageManagerScreen(
                 PackageLoadErrorsDialog(
                     errors = packageLoadErrors.value,
                     onDismiss = { showPackageLoadErrorsDialog = false }
+                )
+            }
+
+            importErrorMessage?.let { errorMessage ->
+                ErrorDialog(
+                    errorMessage = errorMessage,
+                    onDismiss = { importErrorMessage = null }
                 )
             }
         }

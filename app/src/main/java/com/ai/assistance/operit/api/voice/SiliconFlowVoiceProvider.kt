@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import com.ai.assistance.operit.core.audio.MediaPlayerEchoReferenceTap
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
 import com.ai.assistance.operit.util.AppLogger
@@ -67,6 +68,7 @@ class SiliconFlowVoiceProvider(
     // MediaPlayer用于播放音频
     private var mediaPlayer: MediaPlayer? = null
     private var currentPlaybackFile: File? = null
+    private val echoReferenceTap = MediaPlayerEchoReferenceTap()
 
     private val speakScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val speakQueue = Channel<SpeakRequest>(Channel.UNLIMITED)
@@ -337,6 +339,7 @@ class SiliconFlowVoiceProvider(
                 release()
             }
             mediaPlayer = null
+            echoReferenceTap.release()
             _isSpeaking.value = false
             currentPlaybackFile?.delete()
             currentPlaybackFile = null
@@ -372,6 +375,7 @@ class SiliconFlowVoiceProvider(
                         true
                     }
                     prepare()
+                    echoReferenceTap.attachToSession(audioSessionId)
                     start()
                 }
             }
@@ -390,6 +394,7 @@ class SiliconFlowVoiceProvider(
             false
         } finally {
             _isSpeaking.value = false
+            echoReferenceTap.release()
             withContext(Dispatchers.Main) {
                 mediaPlayer?.release()
                 mediaPlayer = null
@@ -432,6 +437,7 @@ class SiliconFlowVoiceProvider(
         clearPendingRequests()
         clearPendingPlayback()
         stopPlaybackOnly()
+        echoReferenceTap.release()
         speakQueue.close()
         playbackQueue.close()
         _isInitialized.value = false

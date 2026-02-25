@@ -43,6 +43,7 @@ import com.ai.assistance.operit.util.GlobalExceptionHandler
 import com.ai.assistance.operit.util.ImagePoolManager
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.MediaPoolManager
+import com.ai.assistance.operit.util.AppIconManager
 import com.ai.assistance.operit.util.SkillRepoZipPoolManager
 import com.ai.assistance.operit.util.SerializationSetup
 import com.ai.assistance.operit.util.TextSegmenter
@@ -104,6 +105,7 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
         instance = this
 
         configureOpenMpEnvironment()
+        AppIconManager.ensureComponentState(this)
 
         // 每次应用冷启动时重置上一轮日志，避免日志无限增长
         AppLogger.resetLogFile()

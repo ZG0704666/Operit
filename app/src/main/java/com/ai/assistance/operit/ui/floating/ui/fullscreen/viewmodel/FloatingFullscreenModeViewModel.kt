@@ -246,27 +246,8 @@ class FloatingFullscreenModeViewModel(
             }
         if (text.isBlank()) return
 
-        // 先朗读问候语，再开始录音；等待 TTS 结束，避免把 TTS 录进去。
+        // 唤醒问候语与录音并行执行（全双工）
         speechManager.speak(text, interrupt = true)
-
-        val voiceService = speechManager.voiceService
-        val estimatedMs = (600L + text.length * 220L).coerceIn(800L, 6000L)
-
-        val started = withTimeoutOrNull(1500L) {
-            voiceService.speakingStateFlow.filter { it }.first()
-        }
-
-        if (started != null) {
-            withTimeoutOrNull(estimatedMs + 2500L) {
-                voiceService.speakingStateFlow.filter { speaking -> !speaking }.first()
-            }
-        } else {
-            // 某些实现可能不会及时发 speaking=true，这里用估时兜底
-            delay(estimatedMs)
-        }
-
-        // 留一点间隔，减少回声/尾音被录入
-        delay(250L)
     }
 
     fun handleRecognitionResult(resultText: String, isFinal: Boolean) {

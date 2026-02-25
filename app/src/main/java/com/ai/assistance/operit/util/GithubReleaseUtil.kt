@@ -30,6 +30,8 @@ class GithubReleaseUtil(private val context: Context) {
     data class ProbeResult(
         val ok: Boolean,
         val latencyMs: Long?,
+        val bytesPerSec: Long? = null,
+        val sampledBytes: Long? = null,
         val error: String? = null
     )
 
@@ -76,51 +78,70 @@ class GithubReleaseUtil(private val context: Context) {
             }
         }
 
+        private const val SPEED_TEST_BYTES = 256 * 1024L
+
         private fun probeOneUrl(url: String, timeoutMs: Int): ProbeResult {
             val startNs = System.nanoTime()
             return try {
-                val code = requestOnce(url, timeoutMs, method = "HEAD")
-                    ?: requestOnce(url, timeoutMs, method = "GET")
-                    ?: -1
+                var conn: HttpURLConnection? = null
+                try {
+                    conn = URL(url).openConnection() as HttpURLConnection
+                    conn.instanceFollowRedirects = true
+                    conn.connectTimeout = timeoutMs
+                    conn.readTimeout = timeoutMs
+                    conn.requestMethod = "GET"
+                    conn.setRequestProperty("User-Agent", "Operit")
+                    conn.setRequestProperty("Range", "bytes=0-${SPEED_TEST_BYTES - 1}")
+                    conn.connect()
 
-                val costMs = (System.nanoTime() - startNs) / 1_000_000
-                val ok = code in 200..399
-                ProbeResult(
-                    ok = ok,
-                    latencyMs = costMs,
-                    error = if (ok) null else "HTTP $code"
-                )
+                    val code = conn.responseCode
+                    if (code !in 200..399) {
+                        return ProbeResult(
+                            ok = false,
+                            latencyMs = null,
+                            bytesPerSec = null,
+                            sampledBytes = null,
+                            error = "HTTP $code"
+                        )
+                    }
+
+                    var sampled = 0L
+                    val buf = ByteArray(16 * 1024)
+                    conn.inputStream.use { ins ->
+                        while (sampled < SPEED_TEST_BYTES) {
+                            val toRead =
+                                minOf(buf.size.toLong(), SPEED_TEST_BYTES - sampled).toInt()
+                            val n = ins.read(buf, 0, toRead)
+                            if (n <= 0) break
+                            sampled += n.toLong()
+                        }
+                    }
+
+                    val costMs = (System.nanoTime() - startNs) / 1_000_000
+                    val safeMs = if (costMs <= 0L) 1L else costMs
+                    val speed = if (sampled > 0L) (sampled * 1000L) / safeMs else null
+
+                    ProbeResult(
+                        ok = sampled > 0L,
+                        latencyMs = costMs,
+                        bytesPerSec = speed,
+                        sampledBytes = sampled,
+                        error = if (sampled > 0L) null else "EMPTY_BODY"
+                    )
+                } finally {
+                    try {
+                        conn?.disconnect()
+                    } catch (_: Exception) {
+                    }
+                }
             } catch (e: Exception) {
                 ProbeResult(
                     ok = false,
                     latencyMs = null,
+                    bytesPerSec = null,
+                    sampledBytes = null,
                     error = e.javaClass.simpleName
                 )
-            }
-        }
-
-        private fun requestOnce(url: String, timeoutMs: Int, method: String): Int? {
-            var conn: HttpURLConnection? = null
-            return try {
-                conn = URL(url).openConnection() as HttpURLConnection
-                conn.instanceFollowRedirects = true
-                conn.connectTimeout = timeoutMs
-                conn.readTimeout = timeoutMs
-                conn.requestMethod = method
-                conn.setRequestProperty("User-Agent", "Operit")
-                if (method == "GET") {
-                    conn.setRequestProperty("Range", "bytes=0-0")
-                }
-                conn.connect()
-                val code = conn.responseCode
-                if (code == HttpURLConnection.HTTP_BAD_METHOD || code == 501) null else code
-            } catch (_: Exception) {
-                null
-            } finally {
-                try {
-                    conn?.disconnect()
-                } catch (_: Exception) {
-                }
             }
         }
     }

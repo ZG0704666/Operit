@@ -42,7 +42,6 @@ import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.updates.PatchUpdateInstaller
 import com.ai.assistance.operit.util.GithubReleaseUtil
 import com.ai.assistance.operit.util.AppLogger
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import com.ai.assistance.operit.ui.components.CustomScaffold
@@ -399,20 +398,6 @@ fun AboutScreen(
 
     // 显示更新对话框
     var showUpdateDialog by remember { mutableStateOf(false) }
-    // 添加下载源选择对话框状态
-    var showDownloadSourceMenu by remember { mutableStateOf(false) }
-
-    // 补丁更新下载源选择
-    var showPatchSourceMenu by remember { mutableStateOf(false) }
-
-    // 保存 patch info
-    var patchUrl by remember { mutableStateOf("") }
-    var metaUrl by remember { mutableStateOf("") }
-    var patchNewVersion by remember { mutableStateOf("") }
-
-    var showPatchInstallConfirm by remember { mutableStateOf(false) }
-    var pendingPatchApkPath by remember { mutableStateOf<String?>(null) }
-    var pendingPatchApkVersion by remember { mutableStateOf("") }
 
     // 添加开源许可对话框状态
     var showLicenseDialog by remember { mutableStateOf(false) }
@@ -442,32 +427,6 @@ fun AboutScreen(
         scope.launch { updateManager.checkForUpdates(appVersion) }
     }
 
-    // 处理下载更新 - 显示下载源选择对话框
-    fun handleDownload() {
-        when (val status = updateStatus) {
-            is UpdateStatus.Available -> {
-                if (status.downloadUrl.isNotEmpty() && status.downloadUrl.endsWith(".apk")) {
-                    showDownloadSourceMenu = true // 显示下载源选择对话框
-                } else {
-                    // 如果没有APK下载链接，则直接打开更新页面
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(status.updateUrl)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
-                    showUpdateDialog = false
-                }
-            }
-            is UpdateStatus.PatchAvailable -> {
-                patchUrl = status.patchUrl
-                metaUrl = status.metaUrl
-                patchNewVersion = status.newVersion
-                showPatchSourceMenu = true
-            }
-            else -> return
-        }
-    }
-
     // 从指定源下载
     fun downloadFromUrl(downloadUrl: String) {
         // 打开浏览器下载
@@ -476,35 +435,115 @@ fun AboutScreen(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
-        showDownloadSourceMenu = false
         showUpdateDialog = false
     }
 
-    fun downloadPatchAndInstallFromMirror(mirrorKey: String) {
-        showPatchSourceMenu = false
+    fun selectMirrorUrl(originalUrl: String, mirrorKey: String): String {
+        if (mirrorKey == "GitHub") return originalUrl
+        return GithubReleaseUtil.getMirroredUrls(originalUrl)[mirrorKey] ?: originalUrl
+    }
+
+    suspend fun pickFastestMirrorKey(primaryUrl: String, secondaryUrl: String? = null): String {
+        val primaryProbeUrls = buildMap {
+            putAll(GithubReleaseUtil.getMirroredUrls(primaryUrl))
+            put("GitHub", primaryUrl)
+        }
+        val secondaryProbeUrls =
+            if (secondaryUrl != null) {
+                buildMap {
+                    putAll(GithubReleaseUtil.getMirroredUrls(secondaryUrl))
+                    put("GitHub", secondaryUrl)
+                }
+            } else {
+                emptyMap()
+            }
+
+        val primaryProbe = withContext(Dispatchers.IO) { GithubReleaseUtil.probeMirrorUrls(primaryProbeUrls) }
+        val secondaryProbe =
+            if (secondaryProbeUrls.isNotEmpty()) {
+                withContext(Dispatchers.IO) { GithubReleaseUtil.probeMirrorUrls(secondaryProbeUrls) }
+            } else {
+                emptyMap()
+            }
+
+        val keys = LinkedHashSet<String>().apply {
+            addAll(primaryProbeUrls.keys)
+            addAll(secondaryProbeUrls.keys)
+        }
+
+        var bestKey: String? = null
+        var bestSpeed = Long.MIN_VALUE
+        var bestLatency = Long.MAX_VALUE
+
+        for (key in keys) {
+            val p = primaryProbe[key] ?: continue
+            if (!p.ok || p.bytesPerSec == null) continue
+
+            if (secondaryUrl != null) {
+                val s = secondaryProbe[key] ?: continue
+                if (!s.ok || s.bytesPerSec == null) continue
+            }
+
+            val speed = p.bytesPerSec
+            val latency = p.latencyMs ?: Long.MAX_VALUE
+            if (speed > bestSpeed || (speed == bestSpeed && latency < bestLatency)) {
+                bestKey = key
+                bestSpeed = speed
+                bestLatency = latency
+            }
+        }
+
+        return bestKey ?: throw IllegalStateException("No available source passed speed test")
+    }
+
+    fun downloadFromFastestSource(downloadUrl: String) {
         showUpdateDialog = false
         scope.launch {
             try {
-                val cached = PatchUpdateInstaller.getPreparedRebuiltApkIfMatchesVersion(context, patchNewVersion)
+                val mirrorKey = pickFastestMirrorKey(downloadUrl)
+                val selectedUrl = selectMirrorUrl(downloadUrl, mirrorKey)
+                withContext(Dispatchers.Main) {
+                    downloadFromUrl(selectedUrl)
+                }
+            } catch (e: Exception) {
+                AppLogger.e("AboutScreen", "auto source select failed", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.download_failed, e.message ?: ""),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    fun downloadPatchAndInstallAuto(patchUrl: String, metaUrl: String, patchVersion: String) {
+        showUpdateDialog = false
+        scope.launch {
+            try {
+                val mirrorKey = pickFastestMirrorKey(primaryUrl = patchUrl, secondaryUrl = metaUrl)
+
+                val cached = PatchUpdateInstaller.getPreparedRebuiltApkIfMatchesVersion(context, patchVersion)
                 val preparedApk: File
-                val preparedVersion: String
                 if (cached != null) {
                     preparedApk = cached
-                    preparedVersion = patchNewVersion
                 } else {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, context.getString(R.string.prepare_patch_update), Toast.LENGTH_SHORT).show()
                     }
-                    val result = PatchUpdateInstaller.downloadAndPreparePatchUpdateAutoResult(context, mirrorKey)
-                    preparedApk = result.apkFile
-                    preparedVersion = result.finalVersion.ifBlank { patchNewVersion }
+                    val selectedPatchUrl = selectMirrorUrl(patchUrl, mirrorKey)
+                    val selectedMetaUrl = selectMirrorUrl(metaUrl, mirrorKey)
+                    preparedApk = PatchUpdateInstaller.downloadAndPreparePatchUpdate(
+                        context = context,
+                        patchUrl = selectedPatchUrl,
+                        metaUrl = selectedMetaUrl
+                    )
                 }
 
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, context.getString(R.string.patch_update_success), Toast.LENGTH_LONG).show()
-                    pendingPatchApkPath = preparedApk.absolutePath
-                    pendingPatchApkVersion = preparedVersion
-                    showPatchInstallConfirm = true
+                    PatchUpdateInstaller.installApk(context, preparedApk)
                 }
             } catch (e: Exception) {
                 AppLogger.e("AboutScreen", "patch update failed", e)
@@ -516,6 +555,33 @@ fun AboutScreen(
                     ).show()
                 }
             }
+        }
+    }
+
+    // 处理下载更新 - 自动测速并选择最快下载源
+    fun handleDownload() {
+        when (val status = updateStatus) {
+            is UpdateStatus.Available -> {
+                if (status.downloadUrl.isNotEmpty() && status.downloadUrl.endsWith(".apk")) {
+                    downloadFromFastestSource(status.downloadUrl)
+                } else {
+                    // 如果没有APK下载链接，则直接打开更新页面
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = Uri.parse(status.updateUrl)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    showUpdateDialog = false
+                }
+            }
+            is UpdateStatus.PatchAvailable -> {
+                downloadPatchAndInstallAuto(
+                    patchUrl = status.patchUrl,
+                    metaUrl = status.metaUrl,
+                    patchVersion = status.newVersion
+                )
+            }
+            else -> return
         }
     }
 
@@ -535,50 +601,6 @@ fun AboutScreen(
                     handleDownload()
                 } else if (updateStatus !is UpdateStatus.Checking) {
                     showUpdateDialog = false
-                }
-            }
-        )
-    }
-
-    // 下载源选择对话框
-    if (showDownloadSourceMenu) {
-        DownloadSourceDialog(
-            updateStatus = updateStatus,
-            onDismiss = { showDownloadSourceMenu = false },
-            onDownload = { downloadFromUrl(it) }
-        )
-    }
-
-    if (showPatchSourceMenu) {
-        PatchDownloadSourceDialog(
-            patchUrl = patchUrl,
-            metaUrl = metaUrl,
-            onDismiss = { showPatchSourceMenu = false },
-            onDownload = { key -> downloadPatchAndInstallFromMirror(key) }
-        )
-    }
-
-    if (showPatchInstallConfirm) {
-        AlertDialog(
-            onDismissRequest = { showPatchInstallConfirm = false },
-            title = { Text(text = stringResource(R.string.patch_update)) },
-            text = { Text(text = pendingPatchApkVersion) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val path = pendingPatchApkPath
-                        if (path != null) {
-                            PatchUpdateInstaller.installApk(context, File(path))
-                        }
-                        showPatchInstallConfirm = false
-                    }
-                ) {
-                    Text(text = stringResource(R.string.confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPatchInstallConfirm = false }) {
-                    Text(text = stringResource(R.string.cancel))
                 }
             }
         )

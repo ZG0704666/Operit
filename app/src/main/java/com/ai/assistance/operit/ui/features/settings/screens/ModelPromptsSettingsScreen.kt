@@ -64,7 +64,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.draw.shadow
 import com.ai.assistance.operit.ui.features.settings.components.CharacterCardDialog
 import com.ai.assistance.operit.ui.common.rememberLocal
 import com.ai.assistance.operit.util.ColorQrCodeUtil
@@ -81,6 +80,8 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlinx.coroutines.flow.first
+import org.json.JSONArray
+import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -369,6 +370,11 @@ fun ModelPromptsSettingsScreen(
         }
     }
 
+    var isTagImporting by remember { mutableStateOf(false) }
+    var isTagExporting by remember { mutableStateOf(false) }
+    var showTagExportSelectionDialog by remember { mutableStateOf(false) }
+    var selectedTagExportIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+
     fun getTmpCameraUri(context: Context): Uri {
         val authority = "${context.applicationContext.packageName}.fileprovider"
         val tmpFile = File.createTempFile("color_qr_", ".jpg", context.cacheDir).apply {
@@ -378,8 +384,101 @@ fun ModelPromptsSettingsScreen(
         return FileProvider.getUriForFile(context, authority, tmpFile)
     }
 
+    val tagImportFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { fileUri ->
+            if (isTagImporting) return@rememberLauncherForActivityResult
+            scope.launch {
+                isTagImporting = true
+                try {
+                    val jsonContent = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(fileUri).use { inputStream ->
+                            requireNotNull(inputStream) { context.getString(R.string.file_read_error_message) }
+                            BufferedReader(InputStreamReader(inputStream)).readText()
+                        }
+                    }
+                    val result = importPromptTagsFromJsonContent(
+                        jsonContent = jsonContent,
+                        promptTagManager = promptTagManager
+                    )
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            R.string.tag_import_summary,
+                            result.createdCount,
+                            result.updatedCount,
+                            result.skippedCount
+                        ),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (e: Exception) {
+                    val errorMessage = when (e.message) {
+                        "invalid format", "missing tags array" -> context.getString(R.string.tag_import_invalid_format)
+                        else -> e.message ?: context.getString(R.string.unknown_error)
+                    }
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.import_failed, errorMessage),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    isTagImporting = false
+                }
+            }
+        }
+    }
+
+    fun exportCustomTagsToJson(selectedIds: Set<String>) {
+        if (isTagExporting) return
+        scope.launch {
+            isTagExporting = true
+            try {
+                val customTags = promptTagManager.getAllTags().filter { !it.isSystemTag }
+                if (customTags.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.tag_export_no_custom_tags), Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val selectedTags = customTags.filter { it.id in selectedIds }
+                if (selectedTags.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.tag_export_select_at_least_one), Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val exportJson = buildPromptTagExportJson(selectedTags)
+                val fileName = "prompt_tags_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.json"
+                val ok = saveBytesToDownloads(
+                    context = context,
+                    bytes = exportJson.toByteArray(Charsets.UTF_8),
+                    fileName = fileName,
+                    mimeType = "application/json"
+                )
+                if (ok) {
+                    exportSavedPath = "${Environment.DIRECTORY_DOWNLOADS}/Operit/exports/$fileName"
+                    showExportSavedDialog = true
+                } else {
+                    Toast.makeText(context, context.getString(R.string.save_failed), Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.export_failed_with_reason, e.message ?: context.getString(R.string.unknown_error)),
+                    Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                isTagExporting = false
+            }
+        }
+    }
+
     // 标签相关状态
     val allTags by promptTagManager.allTagsFlow.collectAsState(initial = emptyList())
+    val customTagsForExport by remember(allTags) {
+        derivedStateOf {
+            allTags.filter { !it.isSystemTag }.sortedBy { it.name.lowercase(Locale.getDefault()) }
+        }
+    }
     var showAddTagDialog by remember { mutableStateOf(false) }
     var showEditTagDialog by remember { mutableStateOf(false) }
     var editingTag by remember { mutableStateOf<PromptTag?>(null) }
@@ -664,6 +763,17 @@ fun ModelPromptsSettingsScreen(
                             showEditTagDialog = true
                         },
                         onDeleteTag = { tag -> showDeleteTagConfirm(tag.id, tag.name) },
+                        onImportTags = { tagImportFilePickerLauncher.launch("*/*") },
+                        onExportTags = {
+                            if (customTagsForExport.isEmpty()) {
+                                Toast.makeText(context, context.getString(R.string.tag_export_no_custom_tags), Toast.LENGTH_SHORT).show()
+                            } else {
+                                selectedTagExportIds = customTagsForExport.map { it.id }.toSet()
+                                showTagExportSelectionDialog = true
+                            }
+                        },
+                        isImporting = isTagImporting,
+                        isExporting = isTagExporting,
                         onNavigateToMarket = onNavigateToMarket
                     )
                 }
@@ -1050,6 +1160,108 @@ fun ModelPromptsSettingsScreen(
                         deletingTagId = ""
                         deletingTagName = ""
                     }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showTagExportSelectionDialog) {
+        AlertDialog(
+            onDismissRequest = { showTagExportSelectionDialog = false },
+            title = { Text(stringResource(R.string.tag_export_select_title)) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                selectedTagExportIds = customTagsForExport.map { it.id }.toSet()
+                            },
+                            enabled = !isTagExporting,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(stringResource(R.string.tag_export_select_all), fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { selectedTagExportIds = emptySet() },
+                            enabled = !isTagExporting,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(stringResource(R.string.tag_export_clear_all), fontSize = 12.sp)
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        customTagsForExport.forEach { tag ->
+                            val checked = selectedTagExportIds.contains(tag.id)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !isTagExporting) {
+                                        selectedTagExportIds =
+                                            if (checked) selectedTagExportIds - tag.id
+                                            else selectedTagExportIds + tag.id
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = { isChecked ->
+                                        selectedTagExportIds =
+                                            if (isChecked) selectedTagExportIds + tag.id
+                                            else selectedTagExportIds - tag.id
+                                    },
+                                    enabled = !isTagExporting
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = tag.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (tag.description.isNotBlank()) {
+                                        Text(
+                                            text = tag.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val ids = selectedTagExportIds
+                        showTagExportSelectionDialog = false
+                        exportCustomTagsToJson(ids)
+                    },
+                    enabled = selectedTagExportIds.isNotEmpty() && !isTagExporting
+                ) {
+                    Text(stringResource(R.string.export))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showTagExportSelectionDialog = false },
+                    enabled = !isTagExporting
                 ) {
                     Text(stringResource(R.string.cancel))
                 }
@@ -1600,8 +1812,7 @@ fun CharacterCardTab(
                             expanded = sortMenuExpanded,
                             onDismissRequest = { sortMenuExpanded = false },
                             modifier = Modifier
-                                .shadow(12.dp, RoundedCornerShape(16.dp))
-                                .background(Color.White, RoundedCornerShape(16.dp))
+                                .background(Color.White, RoundedCornerShape(8.dp))
                         ) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.character_card_sort_default)) },
@@ -1720,7 +1931,9 @@ fun CharacterCardItem(
                 
                 DropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
+                    onDismissRequest = { showMenu = false },
+                    modifier = Modifier
+                        .background(Color.White, RoundedCornerShape(8.dp))
                 ) {
                     if (!isActive) {
                         DropdownMenuItem(
@@ -1898,6 +2111,10 @@ fun TagTab(
     onAddTag: () -> Unit,
     onEditTag: (PromptTag) -> Unit,
     onDeleteTag: (PromptTag) -> Unit,
+    onImportTags: () -> Unit,
+    onExportTags: () -> Unit,
+    isImporting: Boolean,
+    isExporting: Boolean,
     onNavigateToMarket: () -> Unit
 ) {
     LazyColumn(
@@ -1933,14 +2150,58 @@ fun TagTab(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 第二行：标签市场按钮
-                OutlinedButton(
-                    onClick = onNavigateToMarket,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                // 第二行：导入/导出/市场
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Store, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.tag_market), fontSize = 12.sp)
+                    OutlinedButton(
+                        onClick = onImportTags,
+                        enabled = !isImporting && !isExporting,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.import_action), fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = onExportTags,
+                        enabled = !isImporting && !isExporting,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.export), fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = onNavigateToMarket,
+                        enabled = !isImporting && !isExporting,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Store, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.tag_market), fontSize = 12.sp)
+                    }
+                }
+
+                if (isImporting || isExporting) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Text(
+                            text = stringResource(R.string.processing),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -2133,6 +2394,108 @@ fun TagDialog(
                 Text(stringResource(R.string.cancel))
             }
         }
+    )
+}
+
+private data class PromptTagImportSummary(
+    val createdCount: Int,
+    val updatedCount: Int,
+    val skippedCount: Int
+)
+
+private fun buildPromptTagExportJson(tags: List<PromptTag>): String {
+    val tagsArray = JSONArray()
+    tags.forEach { tag ->
+        tagsArray.put(
+            JSONObject().apply {
+                put("name", tag.name)
+                put("description", tag.description)
+                put("promptContent", tag.promptContent)
+                put("tagType", tag.tagType.name)
+            }
+        )
+    }
+
+    return JSONObject().apply {
+        put("format", "operit_prompt_tags")
+        put("version", 1)
+        put("exportedAt", System.currentTimeMillis())
+        put("tags", tagsArray)
+    }.toString(2)
+}
+
+private suspend fun importPromptTagsFromJsonContent(
+    jsonContent: String,
+    promptTagManager: PromptTagManager
+): PromptTagImportSummary {
+    val root = JSONObject(jsonContent)
+    val format = root.optString("format")
+    if (format.isNotBlank() && format != "operit_prompt_tags") {
+        throw IllegalArgumentException("invalid format")
+    }
+
+    val tagsArray = root.optJSONArray("tags")
+        ?: throw IllegalArgumentException("missing tags array")
+
+    val existingCustomTagsByName = promptTagManager.getAllTags()
+        .filter { !it.isSystemTag }
+        .associateBy(
+            keySelector = { it.name.trim().lowercase(Locale.getDefault()) },
+            valueTransform = { it.id }
+        )
+        .toMutableMap()
+
+    var createdCount = 0
+    var updatedCount = 0
+    var skippedCount = 0
+
+    for (i in 0 until tagsArray.length()) {
+        val obj = tagsArray.optJSONObject(i)
+        if (obj == null) {
+            skippedCount++
+            continue
+        }
+
+        val name = obj.optString("name").trim()
+        if (name.isBlank()) {
+            skippedCount++
+            continue
+        }
+
+        val description = obj.optString("description")
+        val promptContent = obj.optString("promptContent")
+        val tagType = runCatching {
+            TagType.valueOf(obj.optString("tagType", TagType.CUSTOM.name))
+        }.getOrDefault(TagType.CUSTOM)
+        val nameKey = name.lowercase(Locale.getDefault())
+        val existingTagId = existingCustomTagsByName[nameKey]
+
+        if (existingTagId != null) {
+            promptTagManager.updatePromptTag(
+                id = existingTagId,
+                name = name,
+                description = description,
+                promptContent = promptContent,
+                tagType = tagType
+            )
+            updatedCount++
+        } else {
+            val newId = promptTagManager.createPromptTag(
+                name = name,
+                description = description,
+                promptContent = promptContent,
+                tagType = tagType,
+                isSystemTag = false
+            )
+            existingCustomTagsByName[nameKey] = newId
+            createdCount++
+        }
+    }
+
+    return PromptTagImportSummary(
+        createdCount = createdCount,
+        updatedCount = updatedCount,
+        skippedCount = skippedCount
     )
 }
 

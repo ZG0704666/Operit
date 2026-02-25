@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import com.ai.assistance.operit.core.audio.MediaPlayerEchoReferenceTap
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
 import com.ai.assistance.operit.util.AppLogger
@@ -79,6 +80,7 @@ class HttpVoiceProvider(
 
     // 媒体播放器实例
     private var mediaPlayer: MediaPlayer? = null
+    private val echoReferenceTap = MediaPlayerEchoReferenceTap()
 
     private val speakScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val speakQueue = Channel<SpeakRequest>(Channel.UNLIMITED)
@@ -266,6 +268,7 @@ class HttpVoiceProvider(
                 }
                 it.reset()
                 _isSpeaking.value = false
+                echoReferenceTap.release()
                 true
             } ?: false
         } catch (e: Exception) {
@@ -334,6 +337,7 @@ class HttpVoiceProvider(
                     AppLogger.e(TAG, "释放MediaPlayer失败", e)
                 } finally {
                     mediaPlayer = null
+                    echoReferenceTap.release()
                     _isInitialized.value = false
                     _isSpeaking.value = false
                 }
@@ -530,6 +534,7 @@ class HttpVoiceProvider(
                         )
                         setDataSource(fis.fd)
                         prepare() // Synchronous preparation
+                        echoReferenceTap.attachToSession(audioSessionId)
                         start()
                     }
 
@@ -549,6 +554,7 @@ class HttpVoiceProvider(
             AppLogger.e(TAG, "播放HTTP TTS音频失败", e)
         } finally {
             _isSpeaking.value = false
+            echoReferenceTap.release()
             this@HttpVoiceProvider.mediaPlayer?.apply {
                 try {
                     if (isPlaying) {

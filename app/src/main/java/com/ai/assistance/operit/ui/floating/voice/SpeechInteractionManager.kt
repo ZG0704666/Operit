@@ -123,8 +123,7 @@ class SpeechInteractionManager(
             return
         }
 
-        // 停止当前 TTS 和超时
-        coroutineScope.launch { voiceService.stop() }
+        // 重置超时
         timeoutJob?.cancel()
         
         // 重置文本状态
@@ -215,9 +214,6 @@ class SpeechInteractionManager(
         val effectiveText = stripWakePhrasePrefixIfNeeded(resultText)
         if (isRecording) {
             if (effectiveText.isNotBlank()) {
-                // Barge-in
-                if (userMessage.isBlank()) coroutineScope.launch { voiceService.stop() }
-
                 // 处理增量
                 if (latestPartialText.isNotEmpty() && !effectiveText.startsWith(latestPartialText)) {
                     accumulatedText += (if (accumulatedText.isNotEmpty()) "。" else "") + latestPartialText
@@ -230,7 +226,7 @@ class SpeechInteractionManager(
                     silenceTimeoutJob = coroutineScope.launch {
                         delay(2000)
                         AppLogger.d(TAG, "Silence timeout, sending...")
-                        finalizeSpeechInput(isTimeout = true)
+                        finalizeSpeechInput()
                     }
                 }
             }
@@ -288,7 +284,7 @@ class SpeechInteractionManager(
         }
     }
 
-    private fun finalizeSpeechInput(isTimeout: Boolean = false) {
+    private fun finalizeSpeechInput() {
         isProcessingSpeech = false
         val text = userMessage.ifBlank { accumulatedText }
         

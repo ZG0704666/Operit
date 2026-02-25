@@ -5,9 +5,8 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.media.audiofx.AcousticEchoCanceler
-import android.media.audiofx.AutomaticGainControl
-import android.media.audiofx.NoiseSuppressor
+import com.ai.assistance.operit.core.audio.AecReferenceAudioBus
+import com.ai.assistance.operit.core.audio.WebRtcAec3Processor
 import com.ai.assistance.operit.util.AppLogger
 import com.k2fsa.sherpa.mnn.*
 import com.ai.assistance.operit.api.speech.SpeechPrerollStore
@@ -43,55 +42,15 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
     private var stream: OnlineStream? = null
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job? = null
+    private var webRtcAec3: WebRtcAec3Processor? = null
     private val scope = CoroutineScope(Dispatchers.Default)
 
-    private var aec: AcousticEchoCanceler? = null
-    private var noiseSuppressor: NoiseSuppressor? = null
-    private var agc: AutomaticGainControl? = null
-
-    private fun setupAudioEffects(audioSessionId: Int) {
-        releaseAudioEffects()
-
-        if (audioSessionId <= 0) return
-
-        if (AcousticEchoCanceler.isAvailable()) {
-            try {
-                aec = AcousticEchoCanceler.create(audioSessionId)?.also { it.enabled = true }
-            } catch (_: Exception) {
-            }
-        }
-        if (NoiseSuppressor.isAvailable()) {
-            try {
-                noiseSuppressor = NoiseSuppressor.create(audioSessionId)?.also { it.enabled = true }
-            } catch (_: Exception) {
-            }
-        }
-        if (AutomaticGainControl.isAvailable()) {
-            try {
-                agc = AutomaticGainControl.create(audioSessionId)?.also { it.enabled = true }
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    private fun releaseAudioEffects() {
+    private fun releaseAec3Processor() {
         try {
-            aec?.release()
+            webRtcAec3?.close()
         } catch (_: Exception) {
         }
-        aec = null
-
-        try {
-            noiseSuppressor?.release()
-        } catch (_: Exception) {
-        }
-        noiseSuppressor = null
-
-        try {
-            agc?.release()
-        } catch (_: Exception) {
-        }
-        agc = null
+        webRtcAec3 = null
     }
 
     private val _recognitionState = MutableStateFlow(SpeechService.RecognitionState.UNINITIALIZED)
@@ -387,6 +346,18 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             return false
         }
 
+        try {
+            AecReferenceAudioBus.clear()
+            webRtcAec3?.close()
+            webRtcAec3 = WebRtcAec3Processor(sampleRateInHz, channels = 1)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to initialize WebRTC AEC3 processor", e)
+            _recognitionState.value = SpeechService.RecognitionState.ERROR
+            _recognitionError.value =
+                SpeechService.RecognitionError(-5, e.message ?: "WebRTC AEC3 init failed")
+            return false
+        }
+
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.VOICE_COMMUNICATION,
             sampleRateInHz,
@@ -403,15 +374,10 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             } catch (_: Exception) {
             }
             audioRecord = null
-            releaseAudioEffects()
+            releaseAec3Processor()
             _recognitionState.value = SpeechService.RecognitionState.ERROR
             _recognitionError.value = SpeechService.RecognitionError(-3, "AudioRecord not initialized")
             return false
-        }
-
-        try {
-            setupAudioEffects(recordInstance.audioSessionId)
-        } catch (_: Exception) {
         }
 
         try {
@@ -423,7 +389,7 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             } catch (_: Exception) {
             }
             audioRecord = null
-            releaseAudioEffects()
+            releaseAec3Processor()
             _recognitionState.value = SpeechService.RecognitionState.ERROR
             _recognitionError.value = SpeechService.RecognitionError(-4, e.message ?: "AudioRecord start failed")
             return false
@@ -449,6 +415,7 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
                     break
                 }
                 if (ret > 0) {
+                    webRtcAec3?.processCaptureInPlace(audioBuffer, ret)
                     SpeechPrerollStore.appendPcm(audioBuffer, ret)
                     // 计算并更新音量级别
                     val volumeLevel = calculateVolumeLevel(audioBuffer, ret)
@@ -620,7 +587,7 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
                 AppLogger.w(TAG, "Error releasing AudioRecord", e)
             }
             audioRecord = null
-            releaseAudioEffects()
+            releaseAec3Processor()
             _recognitionState.value = SpeechService.RecognitionState.IDLE
             _volumeLevelFlow.value = 0f
             return true
@@ -655,7 +622,7 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             AppLogger.w(TAG, "Error releasing AudioRecord", e)
         }
         audioRecord = null
-        releaseAudioEffects()
+        releaseAec3Processor()
         
         // 注意：不要在这里释放 stream，因为它可能被 recordingJob 使用
         // stream 会在下次 startRecognition 时重新创建
@@ -702,7 +669,7 @@ class SherpaMnnSpeechProvider(private val context: Context) : SpeechService {
             _recognitionResult.value = SpeechService.RecognitionResult(text = "", isFinal = false, confidence = 0f)
         }
 
-        releaseAudioEffects()
+        releaseAec3Processor()
     }
 
     override suspend fun getSupportedLanguages(): List<String> =

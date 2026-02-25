@@ -5,10 +5,9 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.media.audiofx.AcousticEchoCanceler
-import android.media.audiofx.AutomaticGainControl
-import android.media.audiofx.NoiseSuppressor
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.core.audio.AecReferenceAudioBus
+import com.ai.assistance.operit.core.audio.WebRtcAec3Processor
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.api.speech.SpeechPrerollStore
 import java.io.File
@@ -71,10 +70,7 @@ class OpenAISttProvider(
     private var pcmBytesWritten: Long = 0
     private var lastLanguageCode: String? = null
     private var vad: OnnxSileroVad? = null
-
-    private var aec: AcousticEchoCanceler? = null
-    private var noiseSuppressor: NoiseSuppressor? = null
-    private var agc: AutomaticGainControl? = null
+    private var webRtcAec3: WebRtcAec3Processor? = null
 
     private val _recognitionState = MutableStateFlow(SpeechService.RecognitionState.UNINITIALIZED)
     override val currentState: SpeechService.RecognitionState
@@ -161,6 +157,14 @@ class OpenAISttProvider(
                     throw IOException("AudioRecord buffer init failed")
                 }
 
+                try {
+                    AecReferenceAudioBus.clear()
+                    webRtcAec3?.close()
+                    webRtcAec3 = WebRtcAec3Processor(SAMPLE_RATE, channels = 1)
+                } catch (e: Exception) {
+                    throw IOException("WebRTC AEC3 init failed: ${e.message}", e)
+                }
+
                 val record = AudioRecord(
                     MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                     SAMPLE_RATE,
@@ -188,11 +192,6 @@ class OpenAISttProvider(
                 audioRecord = record
                 outputFile = file
                 outputStream = stream
-
-                try {
-                    setupAudioEffects(record.audioSessionId)
-                } catch (_: Exception) {
-                }
 
                 record.startRecording()
 
@@ -257,6 +256,7 @@ class OpenAISttProvider(
                             while (isActive && _recognitionState.value == SpeechService.RecognitionState.RECOGNIZING) {
                                 val read = record.read(audioBuffer, 0, audioBuffer.size)
                                 if (read > 0) {
+                                    webRtcAec3?.processCaptureInPlace(audioBuffer, read)
                                     SpeechPrerollStore.appendPcm(audioBuffer, read)
                                     updateVolumeLevel(audioBuffer, read)
 
@@ -326,6 +326,7 @@ class OpenAISttProvider(
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "OpenAI STT startRecognition failed", e)
+            releaseAec3Processor()
             _recognitionState.value = SpeechService.RecognitionState.ERROR
             _recognitionError.value = SpeechService.RecognitionError(-1, e.message ?: "startRecognition failed")
             false
@@ -386,7 +387,7 @@ class OpenAISttProvider(
             scope.cancel()
         } catch (_: Exception) {
         }
-        releaseAudioEffects()
+        releaseAec3Processor()
         runCatching { audioRecord?.release() }
         audioRecord = null
         runCatching { outputStream?.close() }
@@ -466,7 +467,7 @@ class OpenAISttProvider(
             record?.stop()
         } catch (_: Exception) {
         }
-        releaseAudioEffects()
+        releaseAec3Processor()
         try {
             record?.release()
         } catch (_: Exception) {
@@ -502,49 +503,12 @@ class OpenAISttProvider(
         return null
     }
 
-    private fun setupAudioEffects(audioSessionId: Int) {
-        releaseAudioEffects()
-
-        if (audioSessionId <= 0) return
-
-        if (AcousticEchoCanceler.isAvailable()) {
-            try {
-                aec = AcousticEchoCanceler.create(audioSessionId)?.also { it.enabled = true }
-            } catch (_: Exception) {
-            }
-        }
-        if (NoiseSuppressor.isAvailable()) {
-            try {
-                noiseSuppressor = NoiseSuppressor.create(audioSessionId)?.also { it.enabled = true }
-            } catch (_: Exception) {
-            }
-        }
-        if (AutomaticGainControl.isAvailable()) {
-            try {
-                agc = AutomaticGainControl.create(audioSessionId)?.also { it.enabled = true }
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    private fun releaseAudioEffects() {
+    private fun releaseAec3Processor() {
         try {
-            aec?.release()
+            webRtcAec3?.close()
         } catch (_: Exception) {
         }
-        aec = null
-
-        try {
-            noiseSuppressor?.release()
-        } catch (_: Exception) {
-        }
-        noiseSuppressor = null
-
-        try {
-            agc?.release()
-        } catch (_: Exception) {
-        }
-        agc = null
+        webRtcAec3 = null
     }
 
     private fun writePcm16le(stream: FileOutputStream, pcm: ShortArray, length: Int, offset: Int = 0) {

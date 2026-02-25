@@ -13,3 +13,6 @@
 [submodule "mmd/third_party/saba"]
 	path = mmd/third_party/saba
 	url = https://github.com/benikabocha/saba.git
+[submodule "webrtc_aec3"]
+	path = app/src/main/cpp/thirdparty/webrtc_aec3
+	url = https://github.com/khomin/AEC3_cmake.git

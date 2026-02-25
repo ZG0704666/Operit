@@ -517,12 +517,15 @@ object PatchUpdateInstaller {
         val metaRes = GithubReleaseUtil.probeMirrorUrls(metaProbeUrls, timeoutMs = PROBE_TIMEOUT_MS)
 
         var bestKey = "GitHub"
+        var bestSpeed = Long.MIN_VALUE
         var bestLatency = Long.MAX_VALUE
 
         for (k in keys) {
             val p = patchRes[k] ?: continue
             val m = metaRes[k] ?: continue
-            if (!p.ok || !m.ok) continue
+            if (!p.ok || !m.ok || p.bytesPerSec == null || m.bytesPerSec == null) continue
+
+            val speed = minOf(p.bytesPerSec, m.bytesPerSec)
             val latency = when {
                 p.latencyMs != null && m.latencyMs != null -> maxOf(p.latencyMs, m.latencyMs)
                 p.latencyMs != null -> p.latencyMs
@@ -530,7 +533,8 @@ object PatchUpdateInstaller {
                 else -> null
             } ?: continue
 
-            if (latency < bestLatency) {
+            if (speed > bestSpeed || (speed == bestSpeed && latency < bestLatency)) {
+                bestSpeed = speed
                 bestLatency = latency
                 bestKey = k
             }

@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.settings.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,6 +28,7 @@ import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.ai.assistance.operit.services.floating.StatusIndicatorStyle
 import com.ai.assistance.operit.ui.components.CustomScaffold
+import com.ai.assistance.operit.util.AppIconManager
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -58,6 +60,7 @@ fun GlobalDisplaySettingsScreen(
     val screenshotScalePercent by displayPreferencesManager.screenshotScalePercent.collectAsState(initial = 100)
     val virtualDisplayBitrateKbps by displayPreferencesManager.virtualDisplayBitrateKbps.collectAsState(initial = 3000)
     val keepScreenOn by apiPreferences.keepScreenOnFlow.collectAsState(initial = true)
+    var currentAppIconType by remember { mutableStateOf(AppIconManager.getCurrentIconType(context)) }
 
     val hasBackgroundImage by userPreferences.useBackgroundImage.collectAsState(initial = false)
     val uiAccessibilityMode by userPreferences.uiAccessibilityMode.collectAsState(initial = false)
@@ -286,6 +289,65 @@ fun GlobalDisplaySettingsScreen(
                 },
                 backgroundColor = componentBackgroundColor
             )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(componentBackgroundColor)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.app_icon_switch_title),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(id = R.string.app_icon_switch_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = currentAppIconType == AppIconManager.AppIconType.DEFAULT,
+                        onClick = {
+                            if (currentAppIconType != AppIconManager.AppIconType.DEFAULT) {
+                                val switched = AppIconManager.switchIcon(context, AppIconManager.AppIconType.DEFAULT)
+                                if (switched) {
+                                    currentAppIconType = AppIconManager.AppIconType.DEFAULT
+                                    showSaveSuccessMessage = true
+                                    Toast.makeText(context, context.getString(R.string.app_icon_switch_applied_tip), Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, context.getString(R.string.app_icon_switch_failed), Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        label = { Text(stringResource(id = R.string.app_icon_option_default)) }
+                    )
+                    FilterChip(
+                        selected = currentAppIconType == AppIconManager.AppIconType.SIMPLE,
+                        onClick = {
+                            if (currentAppIconType != AppIconManager.AppIconType.SIMPLE) {
+                                val switched = AppIconManager.switchIcon(context, AppIconManager.AppIconType.SIMPLE)
+                                if (switched) {
+                                    currentAppIconType = AppIconManager.AppIconType.SIMPLE
+                                    showSaveSuccessMessage = true
+                                    Toast.makeText(context, context.getString(R.string.app_icon_switch_applied_tip), Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, context.getString(R.string.app_icon_switch_failed), Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        label = { Text(stringResource(id = R.string.app_icon_option_simple)) }
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -663,6 +725,9 @@ fun GlobalDisplaySettingsScreen(
                     scope.launch {
                         displayPreferencesManager.resetDisplaySettings()
                         androidPermissionPreferences.resetRootExecutionSettings()
+                        if (AppIconManager.switchIcon(context, AppIconManager.AppIconType.DEFAULT)) {
+                            currentAppIconType = AppIconManager.AppIconType.DEFAULT
+                        }
                         showSaveSuccessMessage = true
                     }
                 },
