@@ -9,6 +9,7 @@ import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState
+import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.ui.features.chat.viewmodel.UiStateDelegate
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +67,8 @@ class MessageCoordinationDelegate(
 
     // 保存当前的 promptFunctionType，用于自动继续时保持提示词一致性
     private var currentPromptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
+    private var currentChatModelConfigIdOverride: String? = null
+    private var currentChatModelIndexOverride: Int? = null
 
     private var nonFatalErrorCollectorJob: Job? = null
     private val characterCardManager = CharacterCardManager.getInstance(context)
@@ -92,7 +95,9 @@ class MessageCoordinationDelegate(
         roleCardIdOverride: String? = null,
         chatIdOverride: String? = null,
         messageTextOverride: String? = null,
-        proxySenderNameOverride: String? = null
+        proxySenderNameOverride: String? = null,
+        chatModelConfigIdOverride: String? = null,
+        chatModelIndexOverride: Int? = null
     ) {
         // 仅在没有指定 chatId 的情况下，才需要确保有当前对话
         if (chatIdOverride.isNullOrBlank() && chatHistoryDelegate.currentChatId.value == null) {
@@ -127,7 +132,9 @@ class MessageCoordinationDelegate(
                     roleCardIdOverride = roleCardIdOverride,
                     chatIdOverride = chatIdOverride,
                     messageTextOverride = messageTextOverride,
-                    proxySenderNameOverride = proxySenderNameOverride
+                    proxySenderNameOverride = proxySenderNameOverride,
+                    chatModelConfigIdOverride = chatModelConfigIdOverride,
+                    chatModelIndexOverride = chatModelIndexOverride
                 )
             }
         } else {
@@ -137,7 +144,9 @@ class MessageCoordinationDelegate(
                 roleCardIdOverride = roleCardIdOverride,
                 chatIdOverride = chatIdOverride,
                 messageTextOverride = messageTextOverride,
-                proxySenderNameOverride = proxySenderNameOverride
+                proxySenderNameOverride = proxySenderNameOverride,
+                chatModelConfigIdOverride = chatModelConfigIdOverride,
+                chatModelIndexOverride = chatModelIndexOverride
             )
         }
     }
@@ -153,7 +162,9 @@ class MessageCoordinationDelegate(
         roleCardIdOverride: String? = null,
         chatIdOverride: String? = null,
         messageTextOverride: String? = null,
-        proxySenderNameOverride: String? = null
+        proxySenderNameOverride: String? = null,
+        chatModelConfigIdOverride: String? = null,
+        chatModelIndexOverride: Int? = null
     ) {
         // 如果不是自动续写，更新当前的 promptFunctionType
         if (!isAutoContinuation) {
@@ -177,6 +188,34 @@ class MessageCoordinationDelegate(
 
         // 获取当前附件列表
         val currentAttachments = if (isBackgroundSend) emptyList() else attachmentDelegate.attachments.value
+        val roleCardId = roleCardIdOverride?.takeIf { it.isNotBlank() }
+            ?: runBlocking { characterCardManager.activeCharacterCardIdFlow.first() }
+        val (resolvedChatModelConfigIdOverride, resolvedChatModelIndexOverride) = try {
+            if (promptFunctionType == PromptFunctionType.CHAT) {
+                when {
+                    !chatModelConfigIdOverride.isNullOrBlank() -> {
+                        Pair(chatModelConfigIdOverride, (chatModelIndexOverride ?: 0).coerceAtLeast(0))
+                    }
+                    isAutoContinuation -> {
+                        Pair(currentChatModelConfigIdOverride, currentChatModelIndexOverride)
+                    }
+                    else -> {
+                        resolveRoleCardChatModelOverrides(roleCardId)
+                    }
+                }
+            } else {
+                Pair(null, null)
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "解析角色卡对话模型绑定失败", e)
+            uiStateDelegate.showErrorMessage(e.message ?: "角色卡对话模型绑定解析失败")
+            return
+        }
+
+        if (!isAutoContinuation) {
+            currentChatModelConfigIdOverride = resolvedChatModelConfigIdOverride
+            currentChatModelIndexOverride = resolvedChatModelIndexOverride
+        }
 
         // 当前请求使用的Token使用率阈值，默认使用配置值
         var tokenUsageThresholdForSend = apiConfigDelegate.summaryTokenThreshold.value.toDouble()
@@ -202,7 +241,13 @@ class MessageCoordinationDelegate(
                 val insertPosition = chatHistoryDelegate.findProperSummaryPosition(snapshotMessages)
 
                 // 异步生成总结，不阻塞当前消息发送
-                launchAsyncSummaryForSend(snapshotMessages, insertPosition, chatId)
+                launchAsyncSummaryForSend(
+                    snapshotMessages = snapshotMessages,
+                    insertPosition = insertPosition,
+                    originalChatId = chatId,
+                    chatModelConfigIdOverride = resolvedChatModelConfigIdOverride,
+                    chatModelIndexOverride = resolvedChatModelIndexOverride
+                )
 
                 // 本次请求的Token阈值在原基础上增加 0.5
                 tokenUsageThresholdForSend += 0.5
@@ -222,9 +267,6 @@ class MessageCoordinationDelegate(
         } else {
             false
         }
-
-        val roleCardId = roleCardIdOverride?.takeIf { it.isNotBlank() }
-            ?: runBlocking { characterCardManager.activeCharacterCardIdFlow.first() }
 
         // 调用messageProcessingDelegate发送消息，并传递附件信息和工作区路径
         messageProcessingDelegate.sendUserMessage(
@@ -246,7 +288,9 @@ class MessageCoordinationDelegate(
             tokenUsageThreshold = tokenUsageThresholdForSend,
             replyToMessage = if (isBackgroundSend) null else getReplyToMessage(),
             isAutoContinuation = isAutoContinuation,
-            enableSummary = if (isBackgroundSend) false else apiConfigDelegate.enableSummary.value
+            enableSummary = if (isBackgroundSend) false else apiConfigDelegate.enableSummary.value,
+            chatModelConfigIdOverride = resolvedChatModelConfigIdOverride,
+            chatModelIndexOverride = resolvedChatModelIndexOverride
         )
 
         // 只有在非续写（即用户主动发送）时才清空附件和UI状态
@@ -256,6 +300,19 @@ class MessageCoordinationDelegate(
             }
             resetAttachmentPanelState()
             clearReplyToMessage()
+        }
+    }
+
+    private fun resolveRoleCardChatModelOverrides(roleCardId: String): Pair<String?, Int?> {
+        val roleCard = runBlocking { characterCardManager.getCharacterCardFlow(roleCardId).first() }
+        val bindingMode = CharacterCardChatModelBindingMode.normalize(roleCard.chatModelBindingMode)
+        return if (
+            bindingMode == CharacterCardChatModelBindingMode.FIXED_CONFIG &&
+            !roleCard.chatModelConfigId.isNullOrBlank()
+        ) {
+            Pair(roleCard.chatModelConfigId, roleCard.chatModelIndex.coerceAtLeast(0))
+        } else {
+            Pair(null, null)
         }
     }
 
@@ -351,7 +408,9 @@ class MessageCoordinationDelegate(
     private fun launchAsyncSummaryForSend(
         snapshotMessages: List<ChatMessage>,
         insertPosition: Int,
-        originalChatId: String?
+        originalChatId: String?,
+        chatModelConfigIdOverride: String? = null,
+        chatModelIndexOverride: Int? = null
     ) {
         if (snapshotMessages.isEmpty() || originalChatId == null) {
             return
@@ -399,9 +458,12 @@ class MessageCoordinationDelegate(
 
                 val newHistoryForTokens =
                     AIMessageManager.getMemoryFromMessages(chatHistoryDelegate.chatHistory.value)
-                val chatService = service.getAIServiceForFunction(FunctionType.CHAT)
+                val chatService = service.getAIServiceForFunction(
+                    functionType = FunctionType.CHAT,
+                    chatModelConfigIdOverride = chatModelConfigIdOverride,
+                    chatModelIndexOverride = chatModelIndexOverride
+                )
                 val newWindowSize = chatService.calculateInputTokens("", newHistoryForTokens)
-                val chatServiceForStats = service.getAIServiceForFunction(FunctionType.CHAT)
                 val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts(
                     originalChatId
                 )
@@ -454,7 +516,9 @@ class MessageCoordinationDelegate(
     private suspend fun summarizeHistory(
         autoContinue: Boolean = true,
         promptFunctionType: PromptFunctionType? = null,
-        chatIdOverride: String? = null
+        chatIdOverride: String? = null,
+        chatModelConfigIdOverride: String? = null,
+        chatModelIndexOverride: Int? = null
     ): Boolean {
         if (_isSummarizing.value) {
             AppLogger.d(TAG, "已在总结中，忽略本次请求")
@@ -470,6 +534,10 @@ class MessageCoordinationDelegate(
                 InputProcessingState.Summarizing(context.getString(R.string.chat_compressing_history))
             )
         }
+        val effectiveChatModelConfigIdOverride =
+            chatModelConfigIdOverride ?: currentChatModelConfigIdOverride
+        val effectiveChatModelIndexOverride =
+            chatModelIndexOverride ?: currentChatModelIndexOverride
 
         var summarySuccess = false
         try {
@@ -495,7 +563,11 @@ class MessageCoordinationDelegate(
                 // 更新窗口大小
                 val newHistoryForTokens =
                     AIMessageManager.getMemoryFromMessages(chatHistoryDelegate.chatHistory.value)
-                val chatService = service.getAIServiceForFunction(FunctionType.CHAT)
+                val chatService = service.getAIServiceForFunction(
+                    functionType = FunctionType.CHAT,
+                    chatModelConfigIdOverride = effectiveChatModelConfigIdOverride,
+                    chatModelIndexOverride = effectiveChatModelIndexOverride
+                )
                 val newWindowSize = chatService.calculateInputTokens("", newHistoryForTokens)
                 val currentChatIdForStats = currentChatId
                 val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts(
@@ -557,7 +629,9 @@ class MessageCoordinationDelegate(
                     sendMessageInternal(
                         promptFunctionType = continuationPromptType,
                         isContinuation = true,
-                        isAutoContinuation = true
+                        isAutoContinuation = true,
+                        chatModelConfigIdOverride = effectiveChatModelConfigIdOverride,
+                        chatModelIndexOverride = effectiveChatModelIndexOverride
                     )
                 } else if (wasSummarizing) {
                     // 总结成功且不自动续写时，主动恢复到Idle

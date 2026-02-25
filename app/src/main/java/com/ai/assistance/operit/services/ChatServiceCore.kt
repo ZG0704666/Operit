@@ -198,14 +198,18 @@ class ChatServiceCore(
         roleCardIdOverride: String? = null,
         chatIdOverride: String? = null,
         messageTextOverride: String? = null,
-        proxySenderNameOverride: String? = null
+        proxySenderNameOverride: String? = null,
+        chatModelConfigIdOverride: String? = null,
+        chatModelIndexOverride: Int? = null
     ) {
         messageCoordinationDelegate.sendUserMessage(
             promptFunctionType = promptFunctionType,
             roleCardIdOverride = roleCardIdOverride,
             chatIdOverride = chatIdOverride,
             messageTextOverride = messageTextOverride,
-            proxySenderNameOverride = proxySenderNameOverride
+            proxySenderNameOverride = proxySenderNameOverride,
+            chatModelConfigIdOverride = chatModelConfigIdOverride,
+            chatModelIndexOverride = chatModelIndexOverride
         )
     }
 

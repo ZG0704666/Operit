@@ -32,7 +32,17 @@ import {
     FileApplyResultData as _FileApplyResultData,
     GrepResultData as _GrepResultData,
     GrepFileMatch as _GrepFileMatch,
-    GrepLineMatch as _GrepLineMatch
+    GrepLineMatch as _GrepLineMatch,
+    ModelConfigResultItem as _ModelConfigResultItem,
+    FunctionModelMappingResultItem as _FunctionModelMappingResultItem,
+    ModelConfigsResultData as _ModelConfigsResultData,
+    ModelConfigCreateResultData as _ModelConfigCreateResultData,
+    ModelConfigUpdateResultData as _ModelConfigUpdateResultData,
+    ModelConfigDeleteResultData as _ModelConfigDeleteResultData,
+    FunctionModelConfigsResultData as _FunctionModelConfigsResultData,
+    FunctionModelBindingResultData as _FunctionModelBindingResultData,
+    ModelConfigConnectionTestItemResultData as _ModelConfigConnectionTestItemResultData,
+    ModelConfigConnectionTestResultData as _ModelConfigConnectionTestResultData
 } from './results';
 import { Intent as AndroidIntent, IntentFlag as AndroidIntentFlag, IntentAction as AndroidIntentAction, IntentCategory as AndroidIntentCategory } from './android';
 import { UINode as UINodeClass, UI as UINamespace } from './ui';
@@ -58,6 +68,7 @@ export * from './compose-dsl';
 import { Files as FilesType } from './files';
 import { Net as NetType } from './network';
 import { System as SystemType } from './system';
+import { SoftwareSettings as SoftwareSettingsType } from './software_settings';
 import { UI as UIType } from './ui';
 import { FFmpeg as FFmpegType } from './ffmpeg';
 import { Tasker as TaskerType } from './tasker';
@@ -67,6 +78,7 @@ import { Memory as MemoryType } from './memory';
 
 export { Net } from './network';
 export { System } from './system';
+export { SoftwareSettings } from './software_settings';
 export { UI, UINode } from './ui';
 export { FFmpegVideoCodec, FFmpegAudioCodec, FFmpegResolution, FFmpegBitrate } from './ffmpeg';
 export { Tasker } from './tasker';
@@ -133,6 +145,16 @@ declare global {
     type GrepResultData = _GrepResultData;
     type GrepFileMatch = _GrepFileMatch;
     type GrepLineMatch = _GrepLineMatch;
+    type ModelConfigResultItem = _ModelConfigResultItem;
+    type FunctionModelMappingResultItem = _FunctionModelMappingResultItem;
+    type ModelConfigsResultData = _ModelConfigsResultData;
+    type ModelConfigCreateResultData = _ModelConfigCreateResultData;
+    type ModelConfigUpdateResultData = _ModelConfigUpdateResultData;
+    type ModelConfigDeleteResultData = _ModelConfigDeleteResultData;
+    type FunctionModelConfigsResultData = _FunctionModelConfigsResultData;
+    type FunctionModelBindingResultData = _FunctionModelBindingResultData;
+    type ModelConfigConnectionTestItemResultData = _ModelConfigConnectionTestItemResultData;
+    type ModelConfigConnectionTestResultData = _ModelConfigConnectionTestResultData;
 
     namespace Tasker {
         export type TriggerTaskerEventParams = TaskerType.TriggerTaskerEventParams;
@@ -226,6 +248,7 @@ declare global {
         Files: typeof FilesType;
         Net: typeof NetType;
         System: typeof SystemType;
+        SoftwareSettings: typeof SoftwareSettingsType;
         UI: typeof UIType;
         FFmpeg: typeof FFmpegType;
         Tasker: typeof TaskerType;

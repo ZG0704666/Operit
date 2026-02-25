@@ -243,7 +243,9 @@ class MessageProcessingDelegate(
             tokenUsageThreshold: Double,
             replyToMessage: ChatMessage? = null, // 新增回复消息参数
             isAutoContinuation: Boolean = false, // 标识是否为自动续写
-            enableSummary: Boolean = true
+            enableSummary: Boolean = true,
+            chatModelConfigIdOverride: String? = null,
+            chatModelIndexOverride: Int? = null
     ) {
         val rawMessageText = messageTextOverride ?: _userMessage.value.text
         if (rawMessageText.isBlank() && attachments.isEmpty() && !isAutoContinuation) return
@@ -278,8 +280,8 @@ class MessageProcessingDelegate(
             AppLogger.d(TAG, "开始处理用户消息：附件数量=${attachments.size}")
 
             // 获取当前模型配置以检查是否启用直接图片处理
-            // 聊天功能直接使用CHAT类型的配置
-            val configId = functionalConfigManager.getConfigIdForFunction(FunctionType.CHAT)
+            val configId = chatModelConfigIdOverride?.takeIf { it.isNotBlank() }
+                ?: functionalConfigManager.getConfigIdForFunction(FunctionType.CHAT)
             val currentModelConfig = modelConfigManager.getModelConfigFlow(configId).first()
             val enableDirectImageProcessing = currentModelConfig.enableDirectImageProcessing
             val enableDirectAudioProcessing = currentModelConfig.enableDirectAudioProcessing
@@ -449,7 +451,9 @@ class MessageProcessingDelegate(
                     characterName = characterName,
                     avatarUri = avatarUri,
                     roleCardId = effectiveRoleCardId,
-                    proxySenderName = proxySenderNameOverride
+                    proxySenderName = proxySenderNameOverride,
+                    chatModelConfigIdOverride = chatModelConfigIdOverride,
+                    chatModelIndexOverride = chatModelIndexOverride
                 )
 
                 // 将字符串流共享，以便多个收集器可以使用
@@ -481,7 +485,11 @@ class MessageProcessingDelegate(
 
                 // 获取当前使用的provider和model信息
                 val (provider, modelName) = try {
-                    service.getProviderAndModelForFunction(com.ai.assistance.operit.data.model.FunctionType.CHAT)
+                    service.getProviderAndModelForFunction(
+                        functionType = com.ai.assistance.operit.data.model.FunctionType.CHAT,
+                        chatModelConfigIdOverride = chatModelConfigIdOverride,
+                        chatModelIndexOverride = chatModelIndexOverride
+                    )
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "获取provider和model信息失败: ${e.message}", e)
                     Pair("", "")
@@ -643,7 +651,9 @@ class MessageProcessingDelegate(
                     shouldNotifyTurnComplete = shouldNotifyTurnComplete,
                     serviceForTurnComplete = serviceForTurnComplete,
                     skipFinalAutoRead = didStreamAutoRead && !isWaifuModeEnabled,
-                    roleCardId = effectiveRoleCardId
+                    roleCardId = effectiveRoleCardId,
+                    chatModelConfigIdOverride = chatModelConfigIdOverride,
+                    chatModelIndexOverride = chatModelIndexOverride
                 )
 
                 workspaceToolHookSession?.let { session ->
@@ -665,7 +675,9 @@ class MessageProcessingDelegate(
         shouldNotifyTurnComplete: Boolean,
         serviceForTurnComplete: EnhancedAIService?,
         skipFinalAutoRead: Boolean,
-        roleCardId: String
+        roleCardId: String,
+        chatModelConfigIdOverride: String? = null,
+        chatModelIndexOverride: Int? = null
     ) {
         // 修改为使用 try-catch 来检查变量是否已初始化，而不是使用 ::var.isInitialized
         try {
@@ -703,7 +715,11 @@ class MessageProcessingDelegate(
 
                     // 获取当前使用的provider和model信息（在finally块内重新获取）
                     val (provider, modelName) = try {
-                        getEnhancedAiService()?.getProviderAndModelForFunction(com.ai.assistance.operit.data.model.FunctionType.CHAT)
+                        getEnhancedAiService()?.getProviderAndModelForFunction(
+                            functionType = com.ai.assistance.operit.data.model.FunctionType.CHAT,
+                            chatModelConfigIdOverride = chatModelConfigIdOverride,
+                            chatModelIndexOverride = chatModelIndexOverride
+                        )
                             ?: Pair("", "")
                     } catch (e: Exception) {
                         AppLogger.e(TAG, "获取provider和model信息失败: ${e.message}", e)

@@ -176,6 +176,167 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    handler.registerTool(
+            name = "read_environment_variable",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val key = tool.parameters.find { it.name == "key" }?.value ?: ""
+                "Read environment variable: $key"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                softwareSettingsTools.readEnvironmentVariable(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "write_environment_variable",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val key = tool.parameters.find { it.name == "key" }?.value ?: ""
+                val value = tool.parameters.find { it.name == "value" }?.value
+                val mode = if (value.isNullOrBlank()) "clear" else "set"
+                "Write environment variable: $key ($mode)"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                softwareSettingsTools.writeEnvironmentVariable(tool)
+            }
+    )
+
+    handler.registerTool(
+            name = "list_sandbox_packages",
+            dangerCheck = { false },
+            descriptionGenerator = { _ ->
+                "List sandbox packages and their enabled states"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                val packageManager = handler.getOrCreatePackageManager()
+                softwareSettingsTools.listSandboxPackages(tool, packageManager)
+            }
+    )
+
+    handler.registerTool(
+            name = "set_sandbox_package_enabled",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
+                val enabled = tool.parameters.find { it.name == "enabled" }?.value ?: ""
+                "Set sandbox package enabled state: $packageName -> $enabled"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                val packageManager = handler.getOrCreatePackageManager()
+                softwareSettingsTools.setSandboxPackageEnabled(tool, packageManager)
+            }
+    )
+
+    handler.registerTool(
+            name = "restart_mcp_with_logs",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val timeoutMs = tool.parameters.find { it.name == "timeout_ms" }?.value ?: "120000"
+                "Restart MCP startup and return per-plugin logs (timeout=${timeoutMs}ms)"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.restartMcpWithLogs(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "list_model_configs",
+            dangerCheck = { false },
+            descriptionGenerator = { _ ->
+                "List all model configs and current function-to-config mappings"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.listModelConfigs(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "create_model_config",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val name = tool.parameters.find { it.name == "name" }?.value ?: "New Model Config"
+                "Create model config: $name"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.createModelConfig(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "update_model_config",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val configId = tool.parameters.find { it.name == "config_id" }?.value ?: ""
+                "Update model config: $configId"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.updateModelConfig(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "delete_model_config",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val configId = tool.parameters.find { it.name == "config_id" }?.value ?: ""
+                "Delete model config: $configId"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.deleteModelConfig(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "list_function_model_configs",
+            dangerCheck = { false },
+            descriptionGenerator = { _ ->
+                "List function model bindings (function -> config + model index)"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.listFunctionModelConfigs(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "set_function_model_config",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val functionType = tool.parameters.find { it.name == "function_type" }?.value ?: ""
+                val configId = tool.parameters.find { it.name == "config_id" }?.value ?: ""
+                val modelIndex = tool.parameters.find { it.name == "model_index" }?.value ?: "0"
+                "Set function model config: $functionType -> $configId (model_index=$modelIndex)"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.setFunctionModelConfig(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "test_model_config_connection",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val configId = tool.parameters.find { it.name == "config_id" }?.value ?: ""
+                val modelIndex = tool.parameters.find { it.name == "model_index" }?.value ?: "0"
+                "Test model config connection: $configId (model_index=$modelIndex)"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.testModelConfigConnection(tool) }
+            }
+    )
+
     // 注册问题库查询工具
     handler.registerTool(
             name = "query_memory",

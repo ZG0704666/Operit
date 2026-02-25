@@ -207,4 +207,13 @@ object ToolGetter {
     fun getSSHRemoteConnectionTools(context: Context): SSHRemoteConnectionTools {
         return SSHRemoteConnectionTools(context)
     }
+
+    /**
+     * 获取软件设置修改工具
+     * @param context 应用上下文
+     * @return 软件设置修改工具实现（标准版本）
+     */
+    fun getSoftwareSettingsModifyTools(context: Context): StandardSoftwareSettingsModifyTools {
+        return StandardSoftwareSettingsModifyTools(context)
+    }
 }

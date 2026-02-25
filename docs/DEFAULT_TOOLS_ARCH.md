@@ -125,6 +125,11 @@
 - `app/src/main/assets/packages/*.js` 作为 App 运行时加载的包文件
 - 仓库提供 `sync_example_packages.py`：会按 `packages_whitelist.txt` 将 `examples/*.js` 复制到 `app/src/main/assets/packages/*.js`
 
+同步执行约定（重要）：
+
+- 做包同步时，只需要执行这一条命令：`python sync_example_packages.py`
+- 不要额外手动复制 `examples/*.js` 到 `assets/packages/`，避免源/产物不一致
+
 因此：
 
 - 修改脚本包功能时，优先改 `examples/<package>.ts`，然后通过构建/编译生成对应的 `examples/<package>.js`

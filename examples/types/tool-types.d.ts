@@ -15,7 +15,9 @@ import {
     FilePartContentData, FileApplyResultData, WorkflowListResultData, WorkflowResultData, WorkflowDetailResultData,
     StringResultData, ChatServiceStartResultData, ChatCreationResultData, ChatListResultData, ChatFindResultData, AgentStatusResultData,
     ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, MemoryLinkQueryResultData, GrepResultData,
-    ChatMessagesResultData, CharacterCardListResultData
+    ChatMessagesResultData, CharacterCardListResultData,
+    ModelConfigsResultData, ModelConfigCreateResultData, ModelConfigUpdateResultData, ModelConfigDeleteResultData,
+    FunctionModelConfigsResultData, FunctionModelBindingResultData, ModelConfigConnectionTestResultData
 } from './results';
 
 /**
@@ -75,6 +77,18 @@ export interface ToolResultMap {
     'device_info': DeviceInfoResultData;
     'get_notifications': NotificationData;
     'get_device_location': LocationData;
+    'read_environment_variable': StringResultData;
+    'write_environment_variable': StringResultData;
+    'list_sandbox_packages': StringResultData;
+    'set_sandbox_package_enabled': StringResultData;
+    'restart_mcp_with_logs': StringResultData;
+    'list_model_configs': ModelConfigsResultData;
+    'create_model_config': ModelConfigCreateResultData;
+    'update_model_config': ModelConfigUpdateResultData;
+    'delete_model_config': ModelConfigDeleteResultData;
+    'list_function_model_configs': FunctionModelConfigsResultData;
+    'set_function_model_config': FunctionModelBindingResultData;
+    'test_model_config_connection': ModelConfigConnectionTestResultData;
     'trigger_tasker_event': string;
 
     // UI operations

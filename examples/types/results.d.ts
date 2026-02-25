@@ -967,6 +967,114 @@ export interface StringResultData {
 }
 
 // ============================================================================
+// Software Settings Types
+// ============================================================================
+
+export interface ModelConfigResultItem {
+    id: string;
+    name: string;
+    apiProviderType: string;
+    apiEndpoint: string;
+    modelName: string;
+    modelList: string[];
+    apiKeySet: boolean;
+    apiKeyPreview: string;
+    mnnForwardType: number;
+    mnnThreadCount: number;
+    llamaThreadCount: number;
+    llamaContextSize: number;
+    enableDirectImageProcessing: boolean;
+    enableDirectAudioProcessing: boolean;
+    enableDirectVideoProcessing: boolean;
+    enableGoogleSearch: boolean;
+    enableToolCall: boolean;
+    strictToolCall: boolean;
+    requestLimitPerMinute: number;
+    maxConcurrentRequests: number;
+    useMultipleApiKeys: boolean;
+    apiKeyPoolCount: number;
+    toString(): string;
+}
+
+export interface FunctionModelMappingResultItem {
+    functionType: string;
+    configId: string;
+    configName?: string | null;
+    modelIndex: number;
+    actualModelIndex?: number | null;
+    selectedModel?: string | null;
+}
+
+export interface ModelConfigsResultData {
+    totalConfigCount: number;
+    defaultConfigId: string;
+    configs: ModelConfigResultItem[];
+    functionMappings: FunctionModelMappingResultItem[];
+    toString(): string;
+}
+
+export interface ModelConfigCreateResultData {
+    created: boolean;
+    config: ModelConfigResultItem;
+    changedFields: string[];
+    toString(): string;
+}
+
+export interface ModelConfigUpdateResultData {
+    updated: boolean;
+    config: ModelConfigResultItem;
+    changedFields: string[];
+    affectedFunctions: string[];
+    toString(): string;
+}
+
+export interface ModelConfigDeleteResultData {
+    deleted: boolean;
+    configId: string;
+    affectedFunctions: string[];
+    fallbackConfigId: string;
+    toString(): string;
+}
+
+export interface FunctionModelConfigsResultData {
+    defaultConfigId: string;
+    mappings: FunctionModelMappingResultItem[];
+    toString(): string;
+}
+
+export interface FunctionModelBindingResultData {
+    functionType: string;
+    configId: string;
+    configName: string;
+    requestedModelIndex: number;
+    actualModelIndex: number;
+    selectedModel: string;
+    toString(): string;
+}
+
+export interface ModelConfigConnectionTestItemResultData {
+    type: string;
+    success: boolean;
+    error?: string | null;
+}
+
+export interface ModelConfigConnectionTestResultData {
+    configId: string;
+    configName: string;
+    providerType: string;
+    requestedModelIndex: number;
+    actualModelIndex: number;
+    testedModelName: string;
+    strictToolCallFallbackUsed: boolean;
+    success: boolean;
+    totalTests: number;
+    passedTests: number;
+    failedTests: number;
+    tests: ModelConfigConnectionTestItemResultData[];
+    toString(): string;
+}
+
+// ============================================================================
 // Chat Manager Types
 // ============================================================================
 

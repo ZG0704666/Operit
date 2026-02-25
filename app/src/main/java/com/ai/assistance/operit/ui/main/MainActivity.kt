@@ -47,6 +47,7 @@ import com.ai.assistance.operit.ui.features.permission.screens.PermissionGuideSc
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.features.startup.screens.LocalPluginLoadingState
+import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingStateRegistry
 import com.ai.assistance.operit.ui.theme.OperitTheme
 import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
 import com.ai.assistance.operit.util.AnrMonitor
@@ -247,6 +248,7 @@ class MainActivity : ComponentActivity() {
 
         // 设置上下文以便获取插件元数据
         pluginLoadingState.setAppContext(this)
+        PluginLoadingStateRegistry.bind(pluginLoadingState, lifecycleScope)
 
         // 设置跳过加载的回调
         pluginLoadingState.setOnSkipCallback {
@@ -513,6 +515,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         AppLogger.d(TAG, "onDestroy called")
+
+        PluginLoadingStateRegistry.unbind(pluginLoadingState)
 
         // 确保隐藏加载界面
         pluginLoadingState.hide()

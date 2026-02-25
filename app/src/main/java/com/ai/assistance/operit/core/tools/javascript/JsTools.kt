@@ -390,6 +390,61 @@ fun getJsToolsDefinition(): String {
                     return toolCall("send_broadcast", options);
                 }
             },
+            // 软件设置
+            SoftwareSettings: {
+                readEnvironmentVariable: (key) => {
+                    return toolCall("read_environment_variable", { key: String(key ?? "") });
+                },
+                writeEnvironmentVariable: (key, value) => {
+                    const params = { key: String(key ?? "") };
+                    if (value !== undefined && value !== null) params.value = String(value);
+                    else params.value = "";
+                    return toolCall("write_environment_variable", params);
+                },
+                listSandboxPackages: () => {
+                    return toolCall("list_sandbox_packages", {});
+                },
+                setSandboxPackageEnabled: (packageName, enabled) => {
+                    const params = { package_name: String(packageName ?? "") };
+                    params.enabled = !!enabled;
+                    return toolCall("set_sandbox_package_enabled", params);
+                },
+                restartMcpWithLogs: (timeoutMs) => {
+                    const params = {};
+                    if (timeoutMs !== undefined && timeoutMs !== null) params.timeout_ms = String(timeoutMs);
+                    return toolCall("restart_mcp_with_logs", params);
+                },
+                listModelConfigs: () => {
+                    return toolCall("list_model_configs", {});
+                },
+                createModelConfig: (options = {}) => {
+                    const params = { ...(options || {}) };
+                    return toolCall("create_model_config", params);
+                },
+                updateModelConfig: (configId, updates = {}) => {
+                    const params = { ...(updates || {}), config_id: String(configId ?? "") };
+                    return toolCall("update_model_config", params);
+                },
+                deleteModelConfig: (configId) => {
+                    return toolCall("delete_model_config", { config_id: String(configId ?? "") });
+                },
+                listFunctionModelConfigs: () => {
+                    return toolCall("list_function_model_configs", {});
+                },
+                setFunctionModelConfig: (functionType, configId, modelIndex) => {
+                    const params = {
+                        function_type: String(functionType ?? ""),
+                        config_id: String(configId ?? "")
+                    };
+                    if (modelIndex !== undefined && modelIndex !== null) params.model_index = String(modelIndex);
+                    return toolCall("set_function_model_config", params);
+                },
+                testModelConfigConnection: (configId, modelIndex) => {
+                    const params = { config_id: String(configId ?? "") };
+                    if (modelIndex !== undefined && modelIndex !== null) params.model_index = String(modelIndex);
+                    return toolCall("test_model_config_connection", params);
+                }
+            },
             // Tasker event
             Tasker: {
                 triggerEvent: (params) => {

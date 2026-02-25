@@ -195,6 +195,9 @@
     <string name="workflow_confirm_delete_title">Confirm deletion</string>
     <string name="workflow_confirm_delete_workflow_message">Are you sure you want to delete workflow "%1$s"? This action cannot be undone.</string>
     <string name="workflow_confirm_delete_node_message">Are you sure you want to delete node "%1$s"?</string>
+    <string name="workflow_confirm_delete_selected_workflows_message">Are you sure you want to delete the selected %1$d workflows? This action cannot be undone.</string>
+    <string name="workflow_delete_selected_with_count">Delete Selected (%1$d)</string>
+    <string name="workflow_selected_count">Selected %1$d workflows</string>
     <string name="workflow_execution_result_title">Execution Result</string>
     <string name="workflow_view_logs">View logs</string>
     <string name="workflow_execution_log_title">Latest execution logs</string>
@@ -2836,6 +2839,9 @@
     <string name="merge_config">Merge Config</string>
     <string name="character">Char</string>
     <string name="config_bound_to_character_card">Config bound to character card</string>
+    <string name="character_card_model_switch_confirm_title">Change Character Card Bound Model</string>
+    <string name="character_card_model_switch_confirm_message">This character card currently has a bound chat model. Continuing will update the model binding of this character card and will not modify the global chat model configuration.</string>
+    <string name="character_card_model_switch_confirm_action">Confirm Change</string>
     <string name="import_key_suffix">Import key %1$s</string>
     <string name="custom_parameters">Custom Parameters</string>
     <string name="filediff_tool_result">Tool execution result</string>
@@ -3654,6 +3660,13 @@
     <string name="tag_market">Tag Market</string>
     <string name="system_tags">System Tags</string>
     <string name="custom_tags">Custom Tags</string>
+    <string name="tag_export_no_custom_tags">No custom tags available for export</string>
+    <string name="tag_export_select_title">Select tags to export</string>
+    <string name="tag_export_select_all">Select All</string>
+    <string name="tag_export_clear_all">Clear All</string>
+    <string name="tag_export_select_at_least_one">Please select at least one tag</string>
+    <string name="tag_import_invalid_format">Invalid tag file format</string>
+    <string name="tag_import_summary">Tag import completed: created %1$d, updated %2$d, skipped %3$d</string>
     <string name="content_preview">Content: %1$s...</string>
     <string name="old_prompt_config">Legacy Prompt Configuration</string>
     <string name="old_prompt_config_desc">These are prompt configurations from the legacy system. You can view and copy content to the new character card system.</string>
@@ -3741,6 +3754,9 @@
     <string name="character_card_tags">Tags</string>
     <string name="character_card_no_custom_tags">No custom tags available. Please create them in settings.</string>
     <string name="character_card_advanced_options">Advanced Options</string>
+    <string name="character_card_chat_model_binding">Chat Model Binding</string>
+    <string name="character_card_chat_model_follow_global">Follow Global</string>
+    <string name="character_card_chat_model_fixed_config">Fixed Config</string>
     <string name="character_card_custom_prompt">Custom Prompt</string>
     <string name="character_card_custom_prompt_placeholder">Advanced custom prompt...</string>
     <string name="character_card_marks">Notes</string>

@@ -253,7 +253,9 @@ object AIMessageManager {
         characterName: String? = null,
         avatarUri: String? = null,
         roleCardId: String,
-        proxySenderName: String? = null
+        proxySenderName: String? = null,
+        chatModelConfigIdOverride: String? = null,
+        chatModelIndexOverride: Int? = null
     ): SharedStream<String> {
         val chatKey = chatId ?: DEFAULT_CHAT_KEY
         lastActiveChatKey = chatKey
@@ -349,6 +351,8 @@ object AIMessageManager {
                 avatarUri = avatarUri,
                 roleCardId = roleCardId,
                 proxySenderName = proxySenderName,
+                chatModelConfigIdOverride = chatModelConfigIdOverride,
+                chatModelIndexOverride = chatModelIndexOverride,
                 stream = enableStream
             ).share(
                 scope = scope,

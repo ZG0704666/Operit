@@ -30,6 +30,7 @@ class MultiServiceManager(private val context: Context) {
 
     // 服务实例缓存
     private val serviceInstances = mutableMapOf<FunctionType, AIService>()
+    private val customServiceInstances = mutableMapOf<String, AIService>()
     private val serviceMutex = Mutex()
 
     private val initMutex = Mutex()
@@ -78,6 +79,23 @@ class MultiServiceManager(private val context: Context) {
         }
     }
 
+    /** 根据配置ID和模型索引获取AIService（不会修改功能映射） */
+    suspend fun getServiceForConfig(configId: String, modelIndex: Int): AIService {
+        ensureInitialized()
+        return serviceMutex.withLock {
+            val normalizedIndex = modelIndex.coerceAtLeast(0)
+            val cacheKey = "$configId#$normalizedIndex"
+            customServiceInstances[cacheKey]?.let { return@withLock it }
+
+            val config = modelConfigManager.getModelConfigFlow(configId).first()
+            val service = createServiceFromConfig(config, normalizedIndex)
+            customServiceInstances[cacheKey] = service
+
+            AppLogger.d(TAG, "已为自定义配置创建服务实例，配置=$configId，模型索引=$normalizedIndex")
+            service
+        }
+    }
+
     /** 获取默认服务（通常是CHAT功能的服务） */
     suspend fun getDefaultService(): AIService {
         ensureInitialized()
@@ -90,6 +108,7 @@ class MultiServiceManager(private val context: Context) {
         serviceMutex.withLock {
             val services = mutableSetOf<AIService>()
             services.addAll(serviceInstances.values)
+            services.addAll(customServiceInstances.values)
             defaultService?.let { services.add(it) }
 
             services.forEach { service ->
@@ -106,6 +125,7 @@ class MultiServiceManager(private val context: Context) {
         serviceMutex.withLock {
             val services = mutableSetOf<AIService>()
             services.addAll(serviceInstances.values)
+            services.addAll(customServiceInstances.values)
             defaultService?.let { services.add(it) }
 
             services.forEach { service ->
@@ -148,6 +168,15 @@ class MultiServiceManager(private val context: Context) {
             // 如果是默认服务，也清除默认服务缓存
             if (functionType == FunctionType.CHAT) {
                 defaultService = null
+                customServiceInstances.values.forEach { service ->
+                    try {
+                        service.cancelStreaming()
+                        service.release()
+                    } catch (e: Exception) {
+                        AppLogger.e(TAG, "释放自定义CHAT服务资源时出错", e)
+                    }
+                }
+                customServiceInstances.clear()
             }
 
             // 不立即创建新实例，而是等到需要时再创建
@@ -168,8 +197,17 @@ class MultiServiceManager(private val context: Context) {
                     AppLogger.e(TAG, "释放服务资源时出错", e)
                 }
             }
+            customServiceInstances.values.forEach { service ->
+                try {
+                    service.cancelStreaming()
+                    service.release()
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "释放自定义服务资源时出错", e)
+                }
+            }
 
             serviceInstances.clear()
+            customServiceInstances.clear()
             defaultService = null
             AppLogger.d(TAG, "已清除所有服务实例缓存并释放资源")
         }
@@ -261,6 +299,20 @@ class MultiServiceManager(private val context: Context) {
         ensureInitialized()
         val configMapping = functionalConfigManager.getConfigMappingForFunction(functionType)
         return modelConfigManager.getModelConfigFlow(configMapping.configId).first()
+    }
+
+    /** 获取指定配置ID的模型配置 */
+    suspend fun getModelConfigForConfig(configId: String): ModelConfigData {
+        ensureInitialized()
+        return modelConfigManager.getModelConfigFlow(configId).first()
+    }
+
+    /** 获取指定配置ID的模型参数 */
+    suspend fun getModelParametersForConfig(
+        configId: String
+    ): List<com.ai.assistance.operit.data.model.ModelParameter<*>> {
+        ensureInitialized()
+        return modelConfigManager.getModelParametersForConfig(configId)
     }
 
     /**

@@ -107,6 +107,7 @@ import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.tools.ToolProgressBus
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.ModelConfigSummary
@@ -114,6 +115,7 @@ import com.ai.assistance.operit.data.model.PreferenceProfile
 import com.ai.assistance.operit.data.model.getModelByIndex
 import com.ai.assistance.operit.data.model.getModelList
 import com.ai.assistance.operit.data.model.getValidModelIndex
+import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.FunctionConfigMapping
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
@@ -122,6 +124,7 @@ import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentSelectorPopupPanel
 import com.ai.assistance.operit.ui.features.chat.components.FullscreenInputDialog
+import com.ai.assistance.operit.ui.features.chat.components.style.input.common.CharacterCardModelBindingSwitchConfirmDialog
 import com.ai.assistance.operit.ui.features.chat.components.style.input.common.ToolPromptManagerDialog
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
@@ -186,13 +189,18 @@ fun AgentChatInputSection(
     onSaveToolPromptVisibilityMap: (Map<String, Boolean>) -> Unit = {},
     onManualMemoryUpdate: () -> Unit = {},
     onNavigateToModelConfig: () -> Unit = {},
+    characterCardBoundChatModelConfigId: String? = null,
+    characterCardBoundChatModelIndex: Int = 0,
 ) {
     val showTokenLimitDialog = remember { mutableStateOf(false) }
     val showFullscreenInput = remember { mutableStateOf(false) }
     val showModelSelectorPopup = remember { mutableStateOf(false) }
     val showExtraSettingsPopup = remember { mutableStateOf(false) }
+    var showCharacterCardBindingSwitchConfirm by remember { mutableStateOf(false) }
+    var pendingCharacterCardModelSelection by remember { mutableStateOf<Pair<String, Int>?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val characterCardManager = remember(context) { CharacterCardManager.getInstance(context) }
     val functionalConfigManager = remember(context) { FunctionalConfigManager(context) }
     val modelConfigManager = remember(context) { ModelConfigManager(context) }
     val userPreferencesManager = remember(context) { UserPreferencesManager.getInstance(context) }
@@ -218,6 +226,34 @@ fun AgentChatInputSection(
         )
     }
 
+    CharacterCardModelBindingSwitchConfirmDialog(
+        visible = showCharacterCardBindingSwitchConfirm,
+        onConfirm = {
+            val selection = pendingCharacterCardModelSelection
+            if (selection == null) {
+                showCharacterCardBindingSwitchConfirm = false
+                return@CharacterCardModelBindingSwitchConfirmDialog
+            }
+            scope.launch {
+                val activeCard = characterCardManager.activeCharacterCardFlow.first()
+                characterCardManager.updateCharacterCard(
+                    activeCard.copy(
+                        chatModelBindingMode = CharacterCardChatModelBindingMode.FIXED_CONFIG,
+                        chatModelConfigId = selection.first,
+                        chatModelIndex = selection.second.coerceAtLeast(0),
+                    ),
+                )
+                showModelSelectorPopup.value = false
+                showCharacterCardBindingSwitchConfirm = false
+                pendingCharacterCardModelSelection = null
+            }
+        },
+        onDismiss = {
+            showCharacterCardBindingSwitchConfirm = false
+            pendingCharacterCardModelSelection = null
+        },
+    )
+
     val inputTextStyle = TextStyle(fontSize = 14.sp, lineHeight = 20.sp)
     val colorScheme = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
@@ -232,6 +268,16 @@ fun AgentChatInputSection(
     val currentConfigMapping =
         configMappingWithIndex[FunctionType.CHAT]
             ?: FunctionConfigMapping(FunctionalConfigManager.DEFAULT_CONFIG_ID, 0)
+    val isModelSelectionLockedByCharacterCard = !characterCardBoundChatModelConfigId.isNullOrBlank()
+    val effectiveConfigMapping =
+        if (isModelSelectionLockedByCharacterCard) {
+            FunctionConfigMapping(
+                characterCardBoundChatModelConfigId ?: FunctionalConfigManager.DEFAULT_CONFIG_ID,
+                characterCardBoundChatModelIndex.coerceAtLeast(0),
+            )
+        } else {
+            currentConfigMapping
+        }
 
     LaunchedEffect(Unit) {
         configSummaries = modelConfigManager.getAllConfigSummaries()
@@ -247,11 +293,16 @@ fun AgentChatInputSection(
     }
 
     val mappedModelName =
-        configSummaries.find { it.id == currentConfigMapping.configId }?.let { config ->
-            val validIndex = getValidModelIndex(config.modelName, currentConfigMapping.modelIndex)
+        configSummaries.find { it.id == effectiveConfigMapping.configId }?.let { config ->
+            val validIndex = getValidModelIndex(config.modelName, effectiveConfigMapping.modelIndex)
             getModelByIndex(config.modelName, validIndex)
         }
-    val displayModelName = mappedModelName?.takeIf { it.isNotBlank() } ?: currentModelName
+    val displayModelName =
+        if (isModelSelectionLockedByCharacterCard) {
+            mappedModelName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.not_selected)
+        } else {
+            mappedModelName?.takeIf { it.isNotBlank() } ?: currentModelName
+        }
     val isProcessing =
         isLoading ||
             inputState is InputProcessingState.Connecting ||
@@ -335,15 +386,35 @@ fun AgentChatInputSection(
         }
 
     val onSelectModel: (String, Int) -> Unit = { selectedId, modelIndex ->
-        scope.launch {
-            functionalConfigManager.setConfigForFunction(
-                FunctionType.CHAT,
-                selectedId,
-                modelIndex,
-            )
-            EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
-            showModelSelectorPopup.value = false
+        if (isModelSelectionLockedByCharacterCard) {
+            val currentModelIndex = configSummaries.find { it.id == effectiveConfigMapping.configId }?.let { config ->
+                getValidModelIndex(config.modelName, effectiveConfigMapping.modelIndex)
+            } ?: effectiveConfigMapping.modelIndex.coerceAtLeast(0)
+            val isSameSelection =
+                selectedId == effectiveConfigMapping.configId && modelIndex == currentModelIndex
+            if (isSameSelection) {
+                showModelSelectorPopup.value = false
+            } else {
+                pendingCharacterCardModelSelection = selectedId to modelIndex
+                showModelSelectorPopup.value = false
+                showCharacterCardBindingSwitchConfirm = true
+            }
+        } else {
+            scope.launch {
+                functionalConfigManager.setConfigForFunction(
+                    FunctionType.CHAT,
+                    selectedId,
+                    modelIndex,
+                )
+                EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
+                showModelSelectorPopup.value = false
+            }
         }
+    }
+
+    val onModelSelectorClick = {
+        showExtraSettingsPopup.value = false
+        showModelSelectorPopup.value = !showModelSelectorPopup.value
     }
 
     val onSelectMemory: (String) -> Unit = { selectedId ->
@@ -604,10 +675,7 @@ fun AgentChatInputSection(
                                             shape = RoundedCornerShape(12.dp),
                                         )
                                         .clip(RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            showExtraSettingsPopup.value = false
-                                            showModelSelectorPopup.value = !showModelSelectorPopup.value
-                                        },
+                                        .clickable(onClick = onModelSelectorClick),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -867,10 +935,7 @@ fun AgentChatInputSection(
                                                 shape = RoundedCornerShape(12.dp),
                                             )
                                             .clip(RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                showExtraSettingsPopup.value = false
-                                                showModelSelectorPopup.value = !showModelSelectorPopup.value
-                                            },
+                                            .clickable(onClick = onModelSelectorClick),
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1053,7 +1118,7 @@ fun AgentChatInputSection(
                 visible = showModelSelectorPopup.value,
                 popupContainerColor = popupContainerColor,
                 configSummaries = configSummaries,
-                currentConfigMapping = currentConfigMapping,
+                currentConfigMapping = effectiveConfigMapping,
                 enableThinkingMode = enableThinkingMode,
                 onToggleThinkingMode = onToggleThinkingMode,
                 enableThinkingGuidance = enableThinkingGuidance,

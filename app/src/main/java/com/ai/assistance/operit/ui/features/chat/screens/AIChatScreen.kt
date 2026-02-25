@@ -49,6 +49,7 @@ import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.AttachmentInfo
+import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -299,6 +300,17 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val historyListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val activeCharacterCard by characterCardManager.activeCharacterCardFlow.collectAsState(initial = null)
+    val characterCardBoundChatModelConfigId =
+        activeCharacterCard
+            ?.takeIf {
+                CharacterCardChatModelBindingMode.normalize(it.chatModelBindingMode) ==
+                    CharacterCardChatModelBindingMode.FIXED_CONFIG &&
+                    !it.chatModelConfigId.isNullOrBlank()
+            }
+            ?.chatModelConfigId
+    val characterCardBoundChatModelIndex =
+        activeCharacterCard?.chatModelIndex?.coerceAtLeast(0) ?: 0
     
 
 
@@ -651,6 +663,8 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                             actualViewModel.manuallyUpdateMemory()
                                         },
                                         onNavigateToModelConfig = onNavigateToModelConfig,
+                                        characterCardBoundChatModelConfigId = characterCardBoundChatModelConfigId,
+                                        characterCardBoundChatModelIndex = characterCardBoundChatModelIndex,
                                 )
                             } else {
                                 ClassicChatInputSection(
@@ -892,7 +906,9 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                     },
                                     onManualSummarizeConversation = {
                                         actualViewModel.manuallySummarizeConversation()
-                                    }
+                                    },
+                                    characterCardBoundChatModelConfigId = characterCardBoundChatModelConfigId,
+                                    characterCardBoundChatModelIndex = characterCardBoundChatModelIndex
                             )
                         }
                     }

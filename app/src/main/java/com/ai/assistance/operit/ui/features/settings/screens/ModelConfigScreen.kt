@@ -31,13 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.api.chat.llmprovider.AIServiceFactory
-import com.ai.assistance.operit.api.chat.llmprovider.MediaLinkBuilder
+import com.ai.assistance.operit.api.chat.llmprovider.ModelConfigConnectionTester
+import com.ai.assistance.operit.api.chat.llmprovider.ModelConnectionTestType
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigData
-import com.ai.assistance.operit.data.model.getModelByIndex
-import com.ai.assistance.operit.data.model.ToolParameterSchema
-import com.ai.assistance.operit.data.model.ToolPrompt
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
@@ -48,11 +45,7 @@ import com.ai.assistance.operit.ui.features.settings.sections.SettingsInfoBanner
 import com.ai.assistance.operit.ui.features.settings.sections.SettingsSectionHeader
 import com.ai.assistance.operit.ui.features.settings.sections.SettingsSwitchRow
 import com.ai.assistance.operit.ui.features.settings.sections.SettingsTextField
-import com.ai.assistance.operit.util.AssetCopyUtils
-import com.ai.assistance.operit.util.ImagePoolManager
-import com.ai.assistance.operit.util.MediaPoolManager
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -304,205 +297,39 @@ fun ModelConfigScreen(
                                         val results = mutableListOf<ConnectionTestItem>()
                                         try {
                                             selectedConfig.value?.let { config ->
-                                                val modelNameToTest =
-                                                    getModelByIndex(config.modelName, 0)
-                                                val configForTest =
-                                                    config.copy(modelName = modelNameToTest)
                                                 val customHeadersJson =
                                                     apiPreferences.getCustomHeaders()
-                                                val service =
-                                                    AIServiceFactory.createService(
-                                                        config = configForTest,
-                                                        customHeadersJson = customHeadersJson,
+                                                val report =
+                                                    ModelConfigConnectionTester.run(
+                                                        context = context,
                                                         modelConfigManager = configManager,
-                                                        context = context
+                                                        config = config,
+                                                        customHeadersJson = customHeadersJson
                                                     )
-                                                val parameters =
-                                                    configManager.getModelParametersForConfig(configForTest.id)
 
-                                                suspend fun runTest(
-                                                    labelResId: Int,
-                                                    block: suspend () -> Unit
-                                                ) {
-                                                    val result = runCatching { block() }
-                                                    results.add(ConnectionTestItem(labelResId, result))
+                                                if (report.strictToolCallFallbackUsed) {
+                                                    showNotification(
+                                                        context.getString(
+                                                            R.string.strict_tool_call_required
+                                                        )
+                                                    )
                                                 }
 
-                                                runTest(R.string.test_item_chat) {
-                                                    service.sendMessage(
-                                                        context,
-                                                        "Hi",
-                                                        emptyList(),
-                                                        parameters,
-                                                        stream = false
-                                                    ).collect { }
-                                                }
-
-                                                if (configForTest.enableToolCall) {
-                                                    runTest(R.string.test_item_toolcall) {
-                                                        val availableTools =
-                                                            listOf(
-                                                                ToolPrompt(
-                                                                    name = "echo",
-                                                                    description = "Echoes the provided text.",
-                                                                    parametersStructured =
-                                                                        listOf(
-                                                                            ToolParameterSchema(
-                                                                                name = "text",
-                                                                                type = "string",
-                                                                                description = "Text to echo.",
-                                                                                required = true
-                                                                            )
-                                                                        )
-                                                                )
-                                                            )
-
-                                                        suspend fun runToolCallTest(toolName: String) {
-                                                            val testHistory = mutableListOf(
-                                                                "system" to "You are a helpful assistant."
-                                                            )
-                                                            testHistory.add(
-                                                                "assistant" to
-                                                                    "<tool name=\"$toolName\"><param name=\"text\">ping</param></tool>"
-                                                            )
-                                                            testHistory.add(
-                                                                "user" to
-                                                                    "<tool_result name=\"$toolName\" status=\"success\"><content>pong</content></tool_result>"
-                                                            )
-                                                            service.sendMessage(
-                                                                context,
-                                                                "Hi",
-                                                                testHistory,
-                                                                parameters,
-                                                                stream = false,
-                                                                availableTools = availableTools
-                                                            ).collect { }
-                                                        }
-
-                                                        if (configForTest.strictToolCall) {
-                                                            runToolCallTest("echo")
+                                                report.items.forEach { item ->
+                                                    val result =
+                                                        if (item.success) {
+                                                            Result.success(Unit)
                                                         } else {
-                                                            val strictProbeResult = runCatching {
-                                                                runToolCallTest("strict_probe_unlisted_tool")
-                                                            }
-                                                            if (strictProbeResult.isFailure) {
-                                                                showNotification(
-                                                                    context.getString(
-                                                                        R.string.strict_tool_call_required
-                                                                    )
-                                                                )
-                                                                runToolCallTest("echo")
-                                                            }
+                                                            Result.failure(
+                                                                Exception(item.error ?: "Unknown error")
+                                                            )
                                                         }
-                                                    }
-                                                }
-
-                                                if (configForTest.enableDirectImageProcessing) {
-                                                    runTest(R.string.test_item_image) {
-                                                        val imageFile =
-                                                            AssetCopyUtils.copyAssetToCache(context, "test/1.jpg")
-                                                        val imageId =
-                                                            ImagePoolManager.addImage(imageFile.absolutePath)
-                                                        if (imageId == "error") {
-                                                            throw IllegalStateException("Failed to create test image")
-                                                        }
-                                                        try {
-                                                            val prompt =
-                                                                buildString {
-                                                                    append(
-                                                                        MediaLinkBuilder.image(context, imageId)
-                                                                    )
-                                                                    append("\n")
-                                                                    append(
-                                                                        context.getString(
-                                                                            R.string.conversation_analyze_image_prompt
-                                                                        )
-                                                                    )
-                                                                }
-                                                            service.sendMessage(
-                                                                context,
-                                                                prompt,
-                                                                emptyList(),
-                                                                parameters,
-                                                                stream = false
-                                                            ).collect { }
-                                                        } finally {
-                                                            ImagePoolManager.removeImage(imageId)
-                                                            runCatching { imageFile.delete() }
-                                                        }
-                                                    }
-                                                }
-
-                                                if (configForTest.enableDirectAudioProcessing) {
-                                                    runTest(R.string.test_item_audio) {
-                                                        val audioFile =
-                                                            AssetCopyUtils.copyAssetToCache(context, "test/1.mp3")
-                                                        val audioId =
-                                                            MediaPoolManager.addMedia(audioFile.absolutePath, "audio/mpeg")
-                                                        if (audioId == "error") {
-                                                            throw IllegalStateException("Failed to create test audio")
-                                                        }
-                                                        try {
-                                                            val prompt =
-                                                                buildString {
-                                                                    append(
-                                                                        MediaLinkBuilder.audio(context, audioId)
-                                                                    )
-                                                                    append("\n")
-                                                                    append(
-                                                                        context.getString(
-                                                                            R.string.conversation_analyze_audio_prompt
-                                                                        )
-                                                                    )
-                                                                }
-                                                            service.sendMessage(
-                                                                context,
-                                                                prompt,
-                                                                emptyList(),
-                                                                parameters,
-                                                                stream = false
-                                                            ).collect { }
-                                                        } finally {
-                                                            MediaPoolManager.removeMedia(audioId)
-                                                            runCatching { audioFile.delete() }
-                                                        }
-                                                    }
-                                                }
-
-                                                if (configForTest.enableDirectVideoProcessing) {
-                                                    runTest(R.string.test_item_video) {
-                                                        val videoFile =
-                                                            AssetCopyUtils.copyAssetToCache(context, "test/1.mp4")
-                                                        val videoId =
-                                                            MediaPoolManager.addMedia(videoFile.absolutePath, "video/mp4")
-                                                        if (videoId == "error") {
-                                                            throw IllegalStateException("Failed to create test video")
-                                                        }
-                                                        try {
-                                                            val prompt =
-                                                                buildString {
-                                                                    append(
-                                                                        MediaLinkBuilder.video(context, videoId)
-                                                                    )
-                                                                    append("\n")
-                                                                    append(
-                                                                        context.getString(
-                                                                            R.string.conversation_analyze_video_prompt
-                                                                        )
-                                                                    )
-                                                                }
-                                                            service.sendMessage(
-                                                                context,
-                                                                prompt,
-                                                                emptyList(),
-                                                                parameters,
-                                                                stream = false
-                                                            ).collect { }
-                                                        } finally {
-                                                            MediaPoolManager.removeMedia(videoId)
-                                                            runCatching { videoFile.delete() }
-                                                        }
-                                                    }
+                                                    results.add(
+                                                        ConnectionTestItem(
+                                                            labelResId = item.type.toLabelResId(),
+                                                            result = result
+                                                        )
+                                                    )
                                                 }
                                             } ?: run {
                                                 results.add(
@@ -1271,6 +1098,16 @@ private data class ConnectionTestItem(
     val labelResId: Int,
     val result: Result<Unit>
 )
+
+private fun ModelConnectionTestType.toLabelResId(): Int {
+    return when (this) {
+        ModelConnectionTestType.CHAT -> R.string.test_item_chat
+        ModelConnectionTestType.TOOL_CALL -> R.string.test_item_toolcall
+        ModelConnectionTestType.IMAGE -> R.string.test_item_image
+        ModelConnectionTestType.AUDIO -> R.string.test_item_audio
+        ModelConnectionTestType.VIDEO -> R.string.test_item_video
+    }
+}
 
 private fun formatFloatValue(value: Float): String {
     return if (value % 1f == 0f) value.toInt().toString() else String.format("%.2f", value)

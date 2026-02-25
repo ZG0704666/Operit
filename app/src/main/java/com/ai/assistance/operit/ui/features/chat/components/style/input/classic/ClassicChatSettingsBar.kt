@@ -59,10 +59,12 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import android.widget.Toast
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigSummary
 import com.ai.assistance.operit.data.model.PreferenceProfile
 import com.ai.assistance.operit.data.model.PromptProfile
+import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.FunctionConfigMapping
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
@@ -72,6 +74,7 @@ import com.ai.assistance.operit.data.model.getModelList
 import com.ai.assistance.operit.data.model.getValidModelIndex
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.ui.features.chat.components.style.input.common.CharacterCardModelBindingSwitchConfirmDialog
 import com.ai.assistance.operit.ui.features.chat.components.style.input.common.ToolPromptManagerDialog
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import java.text.DecimalFormat
@@ -119,7 +122,9 @@ fun ClassicChatSettingsBar(
     disableLatexDescription: Boolean,
     onToggleDisableLatexDescription: () -> Unit,
     onManualMemoryUpdate: () -> Unit,
-    onManualSummarizeConversation: () -> Unit
+    onManualSummarizeConversation: () -> Unit,
+    characterCardBoundChatModelConfigId: String? = null,
+    characterCardBoundChatModelIndex: Int = 0
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val iconScale by
@@ -133,22 +138,32 @@ fun ClassicChatSettingsBar(
     var showThinkingDropdown by remember { mutableStateOf(false) }
     var showDisableSettingsDropdown by remember { mutableStateOf(false) }
     var showToolPromptManagerDialog by remember { mutableStateOf(false) }
+    var showCharacterCardBindingSwitchConfirm by remember { mutableStateOf(false) }
+    var pendingCharacterCardModelSelection by remember { mutableStateOf<Pair<String, Int>?>(null) }
 
     // 将模型选择逻辑封装到组件内部
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val functionalConfigManager = remember { FunctionalConfigManager(context) }
     val modelConfigManager = remember { ModelConfigManager(context) }
-    val configMapping by
-            functionalConfigManager.functionConfigMappingFlow.collectAsState(initial = emptyMap())
     val configMappingWithIndex by
             functionalConfigManager.functionConfigMappingWithIndexFlow.collectAsState(initial = emptyMap())
     var configSummaries by remember { mutableStateOf<List<ModelConfigSummary>>(emptyList()) }
     LaunchedEffect(Unit) { configSummaries = modelConfigManager.getAllConfigSummaries() }
-    val currentConfigId =
-            configMapping[FunctionType.CHAT] ?: FunctionalConfigManager.DEFAULT_CONFIG_ID
     val currentConfigMapping =
             configMappingWithIndex[FunctionType.CHAT] ?: FunctionConfigMapping(FunctionalConfigManager.DEFAULT_CONFIG_ID, 0)
+    val isModelSelectionLockedByCharacterCard = !characterCardBoundChatModelConfigId.isNullOrBlank()
+    val effectiveCurrentConfigMapping =
+            if (isModelSelectionLockedByCharacterCard) {
+                FunctionConfigMapping(
+                        characterCardBoundChatModelConfigId
+                                ?: FunctionalConfigManager.DEFAULT_CONFIG_ID,
+                        characterCardBoundChatModelIndex.coerceAtLeast(0)
+                )
+            } else {
+                currentConfigMapping
+            }
     
     // 获取上下文长度设置，用于显示在 MaxMode 描述中
     // 新增：用户偏好（记忆）选择逻辑
@@ -167,9 +182,25 @@ fun ClassicChatSettingsBar(
             userPreferencesManager.chatSettingsButtonEndPadding.collectAsState(initial = 2f)
 
     val onSelectModel: (String, Int) -> Unit = { selectedId, modelIndex ->
-        scope.launch {
-            functionalConfigManager.setConfigForFunction(FunctionType.CHAT, selectedId, modelIndex)
-            EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
+        if (isModelSelectionLockedByCharacterCard) {
+            val currentModelIndex =
+                configSummaries.find { it.id == effectiveCurrentConfigMapping.configId }?.let { config ->
+                    getValidModelIndex(config.modelName, effectiveCurrentConfigMapping.modelIndex)
+                } ?: effectiveCurrentConfigMapping.modelIndex.coerceAtLeast(0)
+            val isSameSelection =
+                selectedId == effectiveCurrentConfigMapping.configId && modelIndex == currentModelIndex
+            if (isSameSelection) {
+                showModelDropdown = false
+            } else {
+                pendingCharacterCardModelSelection = selectedId to modelIndex
+                showModelDropdown = false
+                showCharacterCardBindingSwitchConfirm = true
+            }
+        } else {
+            scope.launch {
+                functionalConfigManager.setConfigForFunction(FunctionType.CHAT, selectedId, modelIndex)
+                EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
+            }
         }
     }
 
@@ -180,6 +211,34 @@ fun ClassicChatSettingsBar(
             EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
         }
     }
+
+    CharacterCardModelBindingSwitchConfirmDialog(
+        visible = showCharacterCardBindingSwitchConfirm,
+        onConfirm = {
+            val selection = pendingCharacterCardModelSelection
+            if (selection == null) {
+                showCharacterCardBindingSwitchConfirm = false
+                return@CharacterCardModelBindingSwitchConfirmDialog
+            }
+            scope.launch {
+                val activeCard = characterCardManager.activeCharacterCardFlow.first()
+                characterCardManager.updateCharacterCard(
+                    activeCard.copy(
+                        chatModelBindingMode = CharacterCardChatModelBindingMode.FIXED_CONFIG,
+                        chatModelConfigId = selection.first,
+                        chatModelIndex = selection.second.coerceAtLeast(0),
+                    )
+                )
+                showModelDropdown = false
+                showCharacterCardBindingSwitchConfirm = false
+                pendingCharacterCardModelSelection = null
+            }
+        },
+        onDismiss = {
+            showCharacterCardBindingSwitchConfirm = false
+            pendingCharacterCardModelSelection = null
+        }
+    )
 
     // The passed modifier will align this Box within its parent.
     Box(modifier = modifier.padding(end = chatSettingsBarRightMargin.dp)) {
@@ -334,7 +393,7 @@ fun ClassicChatSettingsBar(
                             // 模型选择器
                             ModelSelectorItem(
                                 configSummaries = configSummaries,
-                                currentConfigMapping = currentConfigMapping,
+                                currentConfigMapping = effectiveCurrentConfigMapping,
                                 onSelectModel = onSelectModel,
                                 expanded = showModelDropdown,
                                     onExpandedChange = { showModelDropdown = it },
@@ -1431,7 +1490,9 @@ private fun ModelSelectorItem(
         val validIndex = getValidModelIndex(config.modelName, currentConfigMapping.modelIndex)
         getModelByIndex(config.modelName, validIndex)
     } ?: stringResource(R.string.not_selected)
-    val expandStateDesc = if (expanded) stringResource(R.string.expanded) else stringResource(R.string.collapsed)
+    val effectiveExpanded = expanded
+    val expandStateDesc =
+            if (effectiveExpanded) stringResource(R.string.expanded) else stringResource(R.string.collapsed)
     val accessibilityDesc = "${stringResource(R.string.model)}: $currentModelName, $expandStateDesc"
     
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1442,7 +1503,9 @@ private fun ModelSelectorItem(
                 .semantics {
                     contentDescription = accessibilityDesc
                 }
-                .clickable { onExpandedChange(!expanded) }
+                .clickable {
+                    onExpandedChange(!expanded)
+                }
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1501,14 +1564,14 @@ private fun ModelSelectorItem(
                 )
             }
             Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                imageVector = if (effectiveExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
 
-        if (expanded) {
+        if (effectiveExpanded) {
             Column(
                     modifier =
                             Modifier.fillMaxWidth()

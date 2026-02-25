@@ -3659,6 +3659,9 @@
     <string name="character_card_tags">标签</string>
     <string name="character_card_no_custom_tags">没有可用的自定义标签。请在设置中创建。</string>
     <string name="character_card_advanced_options">高级选项</string>
+    <string name="character_card_chat_model_binding">对话模型绑定</string>
+    <string name="character_card_chat_model_follow_global">跟随全局</string>
+    <string name="character_card_chat_model_fixed_config">固定配置</string>
     <string name="character_card_custom_prompt">自定义提示词</string>
     <string name="character_card_custom_prompt_placeholder">高级自定义提示词...</string>
     <string name="character_card_marks">备注</string>
@@ -5499,6 +5502,9 @@
     <string name="merge_config">合并配置</string>
     <string name="character">角</string>
     <string name="config_bound_to_character_card">配置已绑定到角色卡</string>
+    <string name="character_card_model_switch_confirm_title">修改角色卡绑定模型</string>
+    <string name="character_card_model_switch_confirm_message">当前角色卡已绑定对话模型。继续后将修改该角色卡的模型绑定，不会修改全局对话模型配置。</string>
+    <string name="character_card_model_switch_confirm_action">确认修改</string>
     <string name="import_key_suffix">导入密钥 %1$s</string>
     <string name="custom_parameters">自定义参数</string>
     <string name="filediff_tool_result">工具执行结果</string>
