@@ -300,7 +300,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         if (viewModel.isWaveActive) {
                             viewModel.exitWaveMode()
                         } else {
-                            viewModel.enterWaveMode()
+                            viewModel.enterWaveMode(enableAutoTimeout = false)
                         }
                     },
                     modifier = Modifier
@@ -390,7 +390,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                 if (viewModel.isWaveActive) {
                     viewModel.exitWaveMode()
                 } else {
-                    viewModel.enterWaveMode()
+                    viewModel.enterWaveMode(enableAutoTimeout = false)
                 }
             },
             onEnterEditMode = { text -> viewModel.enterEditMode(text) },

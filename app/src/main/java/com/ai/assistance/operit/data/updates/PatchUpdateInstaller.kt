@@ -26,6 +26,7 @@ import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.security.DigestOutputStream
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import kotlin.math.min
@@ -355,15 +356,41 @@ object PatchUpdateInstaller {
         fun getMeta(candidate: PatchCandidate): JSONObject {
             return metaCache.getOrPut(candidate.tag) {
                 val metaFile = File(workDir, "meta_${candidate.tag}.json")
-                if (!metaFile.exists() || metaFile.length() == 0L) {
-                    downloadToFile(
-                        context,
-                        selectUrl(candidate.metaUrl, mirrorKey),
-                        metaFile,
-                        title = "Downloading patch meta"
-                    )
+                val selectedMetaUrl = selectUrl(candidate.metaUrl, mirrorKey)
+                var lastError: Throwable? = null
+                var parsed: JSONObject? = null
+
+                for (attempt in 0..1) {
+                    if (attempt > 0 || !metaFile.exists() || metaFile.length() == 0L) {
+                        runCatching { metaFile.delete() }
+                        downloadToFile(
+                            context,
+                            selectedMetaUrl,
+                            metaFile,
+                            title = "Downloading patch meta"
+                        )
+                    }
+
+                    val readResult = runCatching { metaFile.readText() }
+                    if (readResult.isFailure) {
+                        lastError = readResult.exceptionOrNull()
+                        continue
+                    }
+
+                    val parseResult = runCatching { JSONObject(readResult.getOrThrow()) }
+                    if (parseResult.isSuccess) {
+                        parsed = parseResult.getOrNull()
+                        break
+                    }
+
+                    lastError = parseResult.exceptionOrNull()
+                    runCatching { metaFile.delete() }
                 }
-                JSONObject(metaFile.readText())
+
+                parsed ?: throw IllegalStateException(
+                    "Invalid patch meta for ${candidate.tag}",
+                    lastError
+                )
             }
         }
 
@@ -608,6 +635,8 @@ object PatchUpdateInstaller {
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setContentTitle(title)
                 .setContentText(text)
+                .setSubText(text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setOnlyAlertOnce(true)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -674,11 +703,19 @@ object PatchUpdateInstaller {
                 var readTotal = 0L
                 var lastProgress = -1
                 var lastNotifyAt = 0L
+                var lastSpeedSampleAt = 0L
+                var lastSpeedSampleBytes = 0L
+                var speedBytesPerSec = 0L
 
                 notifyDownloadProgress(
                     context = context,
                     title = title,
-                    text = if (total != null) "0%" else "Downloading...",
+                    text =
+                        if (total != null) {
+                            "0% ${formatBytes(0)}/${formatBytes(total)} · ${formatSpeed(speedBytesPerSec)}"
+                        } else {
+                            "${formatBytes(0)} · ${formatSpeed(speedBytesPerSec)}"
+                        },
                     progress = 0,
                     indeterminate = total == null
                 )
@@ -692,6 +729,20 @@ object PatchUpdateInstaller {
                             readTotal += n.toLong()
 
                             val now = System.currentTimeMillis()
+                            if (lastSpeedSampleAt == 0L) {
+                                lastSpeedSampleAt = now
+                                lastSpeedSampleBytes = readTotal
+                            } else {
+                                val elapsed = now - lastSpeedSampleAt
+                                if (elapsed >= 300) {
+                                    val delta = readTotal - lastSpeedSampleBytes
+                                    if (delta >= 0) {
+                                        speedBytesPerSec = (delta * 1000L) / elapsed.coerceAtLeast(1L)
+                                    }
+                                    lastSpeedSampleAt = now
+                                    lastSpeedSampleBytes = readTotal
+                                }
+                            }
                             if (total != null) {
                                 val p = ((readTotal * 100) / total).toInt().coerceIn(0, 100)
                                 if (p != lastProgress && (now - lastNotifyAt >= 300)) {
@@ -700,7 +751,7 @@ object PatchUpdateInstaller {
                                     notifyDownloadProgress(
                                         context = context,
                                         title = title,
-                                        text = "$p%",
+                                        text = "$p% ${formatBytes(readTotal)}/${formatBytes(total)} · ${formatSpeed(speedBytesPerSec)}",
                                         progress = p,
                                         indeterminate = false
                                     )
@@ -711,7 +762,7 @@ object PatchUpdateInstaller {
                                     notifyDownloadProgress(
                                         context = context,
                                         title = title,
-                                        text = "Downloading...",
+                                        text = "${formatBytes(readTotal)} · ${formatSpeed(speedBytesPerSec)}",
                                         progress = null,
                                         indeterminate = true
                                     )
@@ -726,6 +777,26 @@ object PatchUpdateInstaller {
         } catch (e: Exception) {
             notifyDownloadFailed(context, title, e.message ?: "download failed")
             throw e
+        }
+    }
+
+    private fun formatSpeed(bytesPerSec: Long): String {
+        if (bytesPerSec <= 0L) return "--/s"
+        return "${formatBytes(bytesPerSec)}/s"
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 1024L) return "${bytes} B"
+
+        val kb = 1024.0
+        val mb = kb * 1024.0
+        val gb = mb * 1024.0
+        val b = bytes.toDouble()
+
+        return when {
+            b >= gb -> String.format(Locale.US, "%.2f GB", b / gb)
+            b >= mb -> String.format(Locale.US, "%.2f MB", b / mb)
+            else -> String.format(Locale.US, "%.2f KB", b / kb)
         }
     }
 

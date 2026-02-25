@@ -15,6 +15,7 @@ import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -84,6 +85,8 @@ class HttpVoiceProvider(
 
     private val speakScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val speakQueue = Channel<SpeakRequest>(Channel.UNLIMITED)
+    private val playbackQueue = Channel<PreparedRequest>(capacity = 1)
+    private val stopGeneration = AtomicLong(0)
 
     // 缓存的音频文件映射表
     private val audioCache = ConcurrentHashMap<String, File>()
@@ -98,21 +101,41 @@ class HttpVoiceProvider(
 
     private data class SpeakRequest(
         val text: String,
-        val interrupt: Boolean,
         val rate: Float?,
         val pitch: Float?,
         val extraParams: Map<String, String>,
+        val generation: Long,
         val completion: CompletableDeferred<Boolean>
+    )
+
+    private data class PreparedRequest(
+        val request: SpeakRequest,
+        val audioFile: File
     )
 
     init {
         speakScope.launch {
             for (request in speakQueue) {
                 try {
-                    val result = performSpeak(request)
-                    request.completion.complete(result)
+                    val prepared = fetchAudioFile(request)
+                    if (prepared == null) {
+                        request.completion.complete(false)
+                    } else {
+                        playbackQueue.send(prepared)
+                    }
                 } catch (e: Exception) {
                     request.completion.completeExceptionally(e)
+                }
+            }
+        }
+
+        speakScope.launch {
+            for (prepared in playbackQueue) {
+                try {
+                    val result = playPreparedRequest(prepared)
+                    prepared.request.completion.complete(result)
+                } catch (e: Exception) {
+                    prepared.request.completion.completeExceptionally(e)
                 }
             }
         }
@@ -186,31 +209,34 @@ class HttpVoiceProvider(
         pitch: Float?,
         extraParams: Map<String, String>
     ): Boolean = withContext(Dispatchers.IO) {
+        if (interrupt) {
+            clearForInterrupt()
+        }
+
         val completion = CompletableDeferred<Boolean>()
         val request = SpeakRequest(
             text = text,
-            interrupt = interrupt,
             rate = rate,
             pitch = pitch,
             extraParams = extraParams,
+            generation = stopGeneration.get(),
             completion = completion
         )
         speakQueue.send(request)
         completion.await()
     }
 
-    private suspend fun performSpeak(request: SpeakRequest): Boolean {
+    private suspend fun fetchAudioFile(request: SpeakRequest): PreparedRequest? {
         // 检查初始化状态
         if (!isInitialized) {
             val initResult = initialize()
             if (!initResult) {
-                return false
+                return null
             }
         }
 
-        // 如果需要中断当前播放，则停止
-        if (request.interrupt && isSpeaking) {
-            stopPlaybackOnly()
+        if (request.generation != stopGeneration.get()) {
+            return null
         }
 
         val prefs = SpeechServicesPreferences(context.applicationContext)
@@ -240,17 +266,27 @@ class HttpVoiceProvider(
                 if (audioFile != null) {
                     audioCache[cacheKey] = audioFile
                 } else {
-                    return false
+                    return null
                 }
             }
 
-            // 播放音频文件
-            playAudioFile(audioFile)
-            return true
+            if (request.generation != stopGeneration.get()) {
+                return null
+            }
+
+            return PreparedRequest(request, audioFile)
         } catch (e: Exception) {
             AppLogger.e(TAG, "HTTP TTS播放失败", e)
             throw e
         }
+    }
+
+    private suspend fun playPreparedRequest(prepared: PreparedRequest): Boolean {
+        if (prepared.request.generation != stopGeneration.get()) {
+            return false
+        }
+        playAudioFile(prepared.audioFile)
+        return true
     }
 
     private fun clearPendingRequests() {
@@ -258,6 +294,20 @@ class HttpVoiceProvider(
             val request = speakQueue.tryReceive().getOrNull() ?: break
             request.completion.complete(false)
         }
+    }
+
+    private fun clearPendingPlayback() {
+        while (true) {
+            val prepared = playbackQueue.tryReceive().getOrNull() ?: break
+            prepared.request.completion.complete(false)
+        }
+    }
+
+    private fun clearForInterrupt() {
+        stopGeneration.incrementAndGet()
+        clearPendingRequests()
+        clearPendingPlayback()
+        stopPlaybackOnly()
     }
 
     private fun stopPlaybackOnly(): Boolean {
@@ -279,7 +329,9 @@ class HttpVoiceProvider(
 
     /** 停止当前正在播放的语音 */
     override suspend fun stop(): Boolean = withContext(Dispatchers.IO) {
+        stopGeneration.incrementAndGet()
         clearPendingRequests()
+        clearPendingPlayback()
         if (!isInitialized) return@withContext false
         stopPlaybackOnly()
     }
@@ -325,8 +377,12 @@ class HttpVoiceProvider(
     /** 释放TTS引擎资源 */
     override fun shutdown() {
         try {
+            stopGeneration.incrementAndGet()
             speakScope.cancel()
+            clearPendingRequests()
+            clearPendingPlayback()
             speakQueue.close()
+            playbackQueue.close()
             mediaPlayer?.let {
                 try {
                     if (it.isPlaying) {

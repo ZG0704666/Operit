@@ -1386,7 +1386,7 @@
     <string name="update_check">Update Check</string>
     <string name="unknown_value">Unknown</string>
     <string name="current_version">Current version: %1$s</string>
-    <string name="new_version">Current version: %1$s\nNew version: %2$s</string>
+    <string name="new_version">Current version: %1$s -> New version: %2$s</string>
     <string name="update_content">Update Content:</string>
     <string name="already_latest_version">Already on the latest version: %1$s</string>
     <string name="download">Download</string>
