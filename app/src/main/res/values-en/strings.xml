@@ -2543,6 +2543,7 @@
     <string name="function_type_file_binding">File Binding Processing</string>
     <string name="function_type_ui_controller">UI Controller</string>
     <string name="function_type_grep">Grep Retrieval</string>
+    <string name="function_type_role_response_planner">Role Response Planner</string>
 
     <!-- Function Descriptions -->
     <string name="function_desc_chat">Main chat function for daily conversation interaction with users</string>
@@ -2551,6 +2552,7 @@
     <string name="function_desc_file_binding">Process intelligent binding and mixing of file content, providing more precise code processing capabilities. Recommend using fast, inexpensive models like Gemini Flash, not recommended to use DeepSeek R1</string>
     <string name="function_desc_ui_controller">Used for automatic traversal and operation of UI interfaces. The corresponding UI controller model is only activated when the user explicitly requests to use an "agent" for control, for example by choosing dedicated models such as autoglm-phone-9b.</string>
     <string name="function_desc_grep">Used for grep_context planning and result filtering (multi-round grep_code)</string>
+    <string name="function_desc_role_response_planner">Dynamically plans role response order and skip decisions for the current turn</string>
 
     <!-- Functional Prompt Config Screen -->
     <string name="advanced_config_notice">For advanced configurations like modifying system prompt templates, please go to the \"Manage All Prompts\" page.</string>
@@ -3486,6 +3488,7 @@
     <string name="provider_deepseek">Deepseek Models</string>
     <string name="provider_mistral">Mistral AI (Codestral)</string>
     <string name="provider_siliconflow">SiliconFlow</string>
+    <string name="provider_iflow">iFlow</string>
     <string name="provider_openrouter">OpenRouter (Multi-model Hub)</string>
     <string name="provider_infiniai">InfiniAI</string>
     <string name="provider_alipay_bailing">Alipay Bailing Model</string>
@@ -3658,9 +3661,7 @@
     <string name="tag_management">Tag Management</string>
     <string name="create_new_tag">Create Tag</string>
     <string name="tag_market">Tag Market</string>
-    <string name="system_tags">System Tags</string>
-    <string name="custom_tags">Custom Tags</string>
-    <string name="tag_export_no_custom_tags">No custom tags available for export</string>
+    <string name="tag_export_no_custom_tags">No tags available for export</string>
     <string name="tag_export_select_title">Select tags to export</string>
     <string name="tag_export_select_all">Select All</string>
     <string name="tag_export_clear_all">Clear All</string>
@@ -3678,7 +3679,6 @@
     <string name="character_setting_prompt">Character Setting (Prompt)</string>
     <string name="other_content_prompt">Other Content (Prompt)</string>
     <string name="select_tags">Select Tags</string>
-    <string name="system_tags_auto_added">System Tags (Auto-added)</string>
     <string name="notes_info_not_appended">Notes (Not appended to prompts)</string>
     <string name="notes_placeholder">Record character card source, author info, etc.</string>
     <string name="save">Save</string>
@@ -3752,7 +3752,21 @@
     <string name="character_card_other_content">Other Content</string>
     <string name="character_card_other_content_placeholder">Character background, experiences, etc...</string>
     <string name="character_card_tags">Tags</string>
-    <string name="character_card_no_custom_tags">No custom tags available. Please create them in settings.</string>
+    <string name="character_card_no_custom_tags">No tags available. Please create them in settings.</string>
+    <string name="character_groups">Role Response Plans</string>
+    <string name="character_group_tab_placeholder">Configure a role response plan to let the system dynamically decide who responds and in what order per turn.</string>
+    <string name="character_group_empty_state">No role response plans yet</string>
+    <string name="character_group_member_count">Members: %1$d</string>
+    <string name="create_character_group">Create Role Response Plan</string>
+    <string name="edit_character_group">Edit Role Response Plan</string>
+    <string name="delete_character_group">Delete Role Response Plan</string>
+    <string name="delete_character_group_confirm">Delete plan \"%1$s\"?</string>
+    <string name="role_response_planner_planning">Planning response order for this turn…</string>
+    <string name="role_response_planner_member_replying">Generating a reply from \"%1$s\"…</string>
+    <string name="role_response_planner_failed">Role response planning failed</string>
+    <string name="group_members">Members</string>
+    <string name="group_add_member">Add member</string>
+    <string name="group_member_empty_hint">Add at least one character member</string>
     <string name="character_card_advanced_options">Advanced Options</string>
     <string name="character_card_chat_model_binding">Chat Model Binding</string>
     <string name="character_card_chat_model_follow_global">Follow Global</string>
@@ -4419,7 +4433,9 @@
     <string name="font_file_save_failed">Failed to save font file</string>
     <string name="unsupported_font_format">Unsupported file format, please select .ttf, .otf or .ttc font file</string>
     <string name="current_character">Current Character: %1$s</string>
+    <string name="current_character_group">Current Role Group: %1$s</string>
     <string name="theme_auto_bind_character_card">Theme settings will be automatically bound to this character card</string>
+    <string name="theme_auto_bind_character_group">Theme settings will be automatically bound to this role group</string>
     <string name="enable_custom_font">Enable Custom Font</string>
     <string name="use_system_or_custom_font">Use system font or custom font file</string>
     <string name="font_type_label">Font Type</string>
@@ -6613,14 +6629,7 @@
     <string name="default_character_card">Default Character Card</string>
 
     <!-- PromptTagManager -->
-    <string name="prompt_tag_system_chat_prompt"></string>
     <string name="prompt_tag_unnamed">Unnamed Tag</string>
-    <string name="prompt_tag_general_chat">General Chat</string>
-    <string name="prompt_tag_general_chat_desc">General prompt for chat functionality</string>
-    <string name="prompt_tag_general_voice">General Voice</string>
-    <string name="prompt_tag_general_voice_desc">General prompt for voice functionality</string>
-    <string name="prompt_tag_general_desktop_pet">General Desktop Pet</string>
-    <string name="prompt_tag_general_desktop_pet_desc">General prompt for desktop pet functionality</string>
 
     <!-- MessageProcessingDelegate -->
     <string name="message_processing">Processing message...</string>

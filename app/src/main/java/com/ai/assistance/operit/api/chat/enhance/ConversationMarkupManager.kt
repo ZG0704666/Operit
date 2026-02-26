@@ -15,6 +15,9 @@ class ConversationMarkupManager {
 
     companion object {
         private const val TAG = "ConversationMarkupManager"
+        private const val STATUS_COMPLETE = "complete"
+        private const val STATUS_WAIT_FOR_USER_NEED = "wait_for_user_need"
+        private const val STATUS_NO_SPEAK = "no_speak"
 
         /**
          * Creates a 'complete' status markup element.
@@ -22,7 +25,7 @@ class ConversationMarkupManager {
          * @return The formatted status element
          */
         fun createCompleteStatus(): String {
-            return "<status type=\"complete\"></status>"
+            return "<status type=\"$STATUS_COMPLETE\"></status>"
         }
 
         /**
@@ -32,7 +35,16 @@ class ConversationMarkupManager {
          * @return The formatted status element
          */
         fun createWaitForUserNeedStatus(): String {
-            return "<status type=\"wait_for_user_need\"></status>"
+            return "<status type=\"$STATUS_WAIT_FOR_USER_NEED\"></status>"
+        }
+
+        /**
+         * Creates a 'no speak' status markup element for role/group rounds.
+         *
+         * @return The formatted status element
+         */
+        fun createNoSpeakStatus(): String {
+            return "<status type=\"$STATUS_NO_SPEAK\"></status>"
         }
 
         /**
@@ -127,7 +139,7 @@ class ConversationMarkupManager {
          * @return The cleaned content with completion status
          */
         fun createTaskCompletionContent(content: String): String {
-            return content.replace("<status type=\"complete\"></status>", "").trim() +
+            return content.replace("<status type=\"$STATUS_COMPLETE\"></status>", "").trim() +
                     "\n" +
                     createCompleteStatus()
         }
@@ -140,7 +152,7 @@ class ConversationMarkupManager {
          * @return The cleaned content with wait_for_user_need status
          */
         fun createWaitForUserNeedContent(content: String): String {
-            return content.replace("<status type=\"wait_for_user_need\"></status>", "").trim() +
+            return content.replace("<status type=\"$STATUS_WAIT_FOR_USER_NEED\"></status>", "").trim() +
                     "\n" +
                     createWaitForUserNeedStatus()
         }
@@ -152,7 +164,7 @@ class ConversationMarkupManager {
          * @return True if the content contains a task completion marker
          */
         fun containsTaskCompletion(content: String): Boolean {
-            return content.contains("<status type=\"complete\"></status>")
+            return containsStatusType(content, STATUS_COMPLETE)
         }
 
         /**
@@ -162,9 +174,24 @@ class ConversationMarkupManager {
          * @return True if the content contains a wait for user need marker
          */
         fun containsWaitForUserNeed(content: String): Boolean {
-            return content.contains("<status type=\"wait_for_user_need\"></status>")
+            return containsStatusType(content, STATUS_WAIT_FOR_USER_NEED)
         }
 
+        /**
+         * Checks if content contains a no_speak marker.
+         */
+        fun containsNoSpeak(content: String): Boolean {
+            return containsStatusType(content, STATUS_NO_SPEAK)
+        }
+
+        private fun containsStatusType(content: String, statusType: String): Boolean {
+            val escapedType = Regex.escape(statusType)
+            val statusRegex = Regex(
+                "<status\\b[^>]*\\btype\\s*=\\s*\"$escapedType\"[^>]*(?:/>|>[\\s\\S]*?</status>)",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+            )
+            return statusRegex.containsMatchIn(content)
+        }
 
     }
 }

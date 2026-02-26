@@ -11,6 +11,7 @@
         "en": "Google web search and Google Scholar search, with configurable language and result count."
     },
     "enabledByDefault": false,
+    "category": "Search",
     "tools": [
         {
             "name": "search_web",
@@ -44,8 +45,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const googleSearch = (function () {
     const GOOGLE_SEARCH_URL = "https://www.google.com/search";
     const GOOGLE_SCHOLAR_URL = "https://scholar.google.com/scholar";

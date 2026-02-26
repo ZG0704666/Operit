@@ -15,6 +15,7 @@ Compatible with AutoGLM. Provides a high-level UI automation sub-agent based on 
 When the user asks you to complete a UI task (e.g. open an app, search content, or finish a multi-step workflow across pages), you can call this package and let the sub-agent plan and execute the steps.
 '''
     }
+    category: "Automatic"
 
     tools: []
 
@@ -508,8 +509,7 @@ When the user asks you to complete a UI task (e.g. open an app, search content, 
             ]
         }
     ]
- }
-*/
+ }*/
 const UIAutomationSubAgentTools = (function () {
     const CACHE_KEY = '__operit_ui_subagent_cached_agent_id';
     function getCachedAgentId() {

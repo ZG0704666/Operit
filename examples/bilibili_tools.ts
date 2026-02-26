@@ -7,6 +7,7 @@
     },
     "description": { "zh": "提供B站视频信息分析功能，包括获取字幕、弹幕、评论和搜索视频。", "en": "Analyze Bilibili video information, including subtitles, danmaku, comments, and video search." },
     "enabledByDefault": true,
+    "category": "Media",
     "tools": [
         {
             "name": "get_subtitles",
@@ -47,8 +48,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 
 //参考了https://github.com/vruses/bili-api-interceptor/blob/master/dist/bili-api-interceptor.user.js 特此感谢
 

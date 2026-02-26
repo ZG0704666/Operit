@@ -61,7 +61,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.focus.onFocusChanged
@@ -70,7 +69,6 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -93,7 +91,6 @@ fun SpeechServicesSettingsScreen(
     onNavigateToTextToSpeech: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val prefs = remember { SpeechServicesPreferences(context) }
 
@@ -136,75 +133,95 @@ fun SpeechServicesSettingsScreen(
         }
     }
 
-    // 保存状态和消息
-    var isSaving by remember { mutableStateOf(false) }
-    var saveMessage by remember { mutableStateOf<String?>(null) }
-    
-    // 保存函数
-    val saveSettings: () -> Unit = {
-        scope.launch {
+    val hasPendingChanges =
+        ttsServiceTypeInput != ttsServiceType ||
+            ttsUrlTemplateInput != httpConfig.urlTemplate ||
+            ttsApiKeyInput != httpConfig.apiKey ||
+            ttsHeadersInput != Json.encodeToString(httpConfig.headers) ||
+            ttsHttpMethodInput != httpConfig.httpMethod ||
+            ttsRequestBodyInput != httpConfig.requestBody ||
+            ttsContentTypeInput != httpConfig.contentType ||
+            ttsVoiceIdInput != httpConfig.voiceId ||
+            ttsModelNameInput != httpConfig.modelName ||
+            ttsCleanerRegexsState.toList() != ttsCleanerRegexs ||
+            ttsSpeechRateInput != ttsSpeechRate ||
+            ttsPitchInput != ttsPitch ||
+            sttServiceTypeInput != sttServiceType ||
+            sttEndpointUrlInput != sttHttpConfig.endpointUrl ||
+            sttApiKeyInput != sttHttpConfig.apiKey ||
+            sttModelNameInput != sttHttpConfig.modelName
+
+    LaunchedEffect(
+        ttsServiceTypeInput,
+        ttsUrlTemplateInput,
+        ttsApiKeyInput,
+        ttsHeadersInput,
+        ttsHttpMethodInput,
+        ttsRequestBodyInput,
+        ttsContentTypeInput,
+        ttsVoiceIdInput,
+        ttsModelNameInput,
+        ttsSpeechRateInput,
+        ttsPitchInput,
+        ttsCleanerRegexsState.toList(),
+        sttServiceTypeInput,
+        sttEndpointUrlInput,
+        sttApiKeyInput,
+        sttModelNameInput
+    ) {
+        if (!hasPendingChanges) return@LaunchedEffect
+        if (ttsServiceTypeInput == VoiceServiceFactory.VoiceServiceType.HTTP_TTS && ttsJsonError != null) return@LaunchedEffect
+
+        kotlinx.coroutines.delay(500)
+
+        if (!hasPendingChanges) return@LaunchedEffect
+        if (ttsServiceTypeInput == VoiceServiceFactory.VoiceServiceType.HTTP_TTS && ttsJsonError != null) return@LaunchedEffect
+
+        val headers = if (ttsServiceTypeInput == VoiceServiceFactory.VoiceServiceType.HTTP_TTS) {
             try {
-                isSaving = true
-                saveMessage = null
-                
-                // 验证 JSON headers
-                val headers = if (ttsServiceTypeInput == VoiceServiceFactory.VoiceServiceType.HTTP_TTS) {
-                    try {
-                        Json.decodeFromString<Map<String, String>>(ttsHeadersInput)
-                    } catch (e: Exception) {
-                        if (ttsHeadersInput.isNotBlank() && ttsHeadersInput != "{}") {
-                            throw IllegalArgumentException(context.getString(R.string.speech_services_http_headers_error))
-                        }
-                        emptyMap()
-                    }
-                } else {
-                    emptyMap()
-                }
-                
-                val httpConfigData = SpeechServicesPreferences.TtsHttpConfig(
-                    urlTemplate = ttsUrlTemplateInput,
-                    apiKey = ttsApiKeyInput,
-                    headers = headers,
-                    httpMethod = ttsHttpMethodInput,
-                    requestBody = ttsRequestBodyInput,
-                    contentType = ttsContentTypeInput,
-                    voiceId = ttsVoiceIdInput,
-                    modelName = ttsModelNameInput
-                )
-                
-                // 保存 TTS 设置
-                prefs.saveTtsSettings(
-                    serviceType = ttsServiceTypeInput,
-                    httpConfig = httpConfigData,
-                    cleanerRegexs = ttsCleanerRegexsState.toList(),
-                    speechRate = ttsSpeechRateInput,
-                    pitch = ttsPitchInput
-                )
-                
-                // 保存 STT 设置
-                val sttHttpConfigData = SpeechServicesPreferences.SttHttpConfig(
-                    endpointUrl = sttEndpointUrlInput,
-                    apiKey = sttApiKeyInput,
-                    modelName = sttModelNameInput,
-                )
-                prefs.saveSttSettings(
-                    serviceType = sttServiceTypeInput,
-                    httpConfig = sttHttpConfigData,
-                )
-                
-                // 重置服务实例以应用新设置
-                VoiceServiceFactory.resetInstance()
-                SpeechServiceFactory.resetInstance()
-                
-                saveMessage = context.getString(R.string.speech_services_save_success)
-            } catch (e: Exception) {
-                saveMessage = context.getString(R.string.speech_services_save_error, e.message ?: "Unknown error")
-            } finally {
-                isSaving = false
-                // 3秒后清除消息
-                delay(3000)
-                saveMessage = null
+                Json.decodeFromString<Map<String, String>>(ttsHeadersInput)
+            } catch (_: Exception) {
+                return@LaunchedEffect
             }
+        } else {
+            emptyMap()
+        }
+
+        val httpConfigData = SpeechServicesPreferences.TtsHttpConfig(
+            urlTemplate = ttsUrlTemplateInput,
+            apiKey = ttsApiKeyInput,
+            headers = headers,
+            httpMethod = ttsHttpMethodInput,
+            requestBody = ttsRequestBodyInput,
+            contentType = ttsContentTypeInput,
+            voiceId = ttsVoiceIdInput,
+            modelName = ttsModelNameInput
+        )
+
+        val sttHttpConfigData = SpeechServicesPreferences.SttHttpConfig(
+            endpointUrl = sttEndpointUrlInput,
+            apiKey = sttApiKeyInput,
+            modelName = sttModelNameInput,
+        )
+
+        try {
+            prefs.saveTtsSettings(
+                serviceType = ttsServiceTypeInput,
+                httpConfig = httpConfigData,
+                cleanerRegexs = ttsCleanerRegexsState.toList(),
+                speechRate = ttsSpeechRateInput,
+                pitch = ttsPitchInput
+            )
+
+            prefs.saveSttSettings(
+                serviceType = sttServiceTypeInput,
+                httpConfig = sttHttpConfigData,
+            )
+
+            VoiceServiceFactory.resetInstance()
+            SpeechServiceFactory.resetInstance()
+        } catch (_: Exception) {
+            // Keep UI editable; auto-save retries on next change.
         }
     }
 
@@ -1353,7 +1370,7 @@ fun SpeechServicesSettingsScreen(
                     }
                 }
                 
-                // 底部保存按钮区域
+                // 底部区域
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Card(
@@ -1369,20 +1386,6 @@ fun SpeechServicesSettingsScreen(
                             .padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Button(
-                            onClick = saveSettings,
-                            enabled = !isSaving,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (isSaving) {
-                                Text(stringResource(R.string.speech_services_saving))
-                            } else {
-                                Text(stringResource(R.string.speech_services_save_button))
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
                         OutlinedButton(
                             onClick = onNavigateToTextToSpeech,
                             modifier = Modifier.fillMaxWidth()
@@ -1394,21 +1397,6 @@ fun SpeechServicesSettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(stringResource(R.string.speech_services_test_tts))
-                        }
-                        
-                        // 显示保存消息
-                        saveMessage?.let { message ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = message,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (message.contains(context.getString(R.string.speech_services_save_success))) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.error
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
                         }
                     }
                 }

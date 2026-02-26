@@ -1,6 +1,7 @@
 /* METADATA
 {
-    "name": "system_tools",
+    "name": "system_tools",
+
     "display_name": {
         "zh": "系统工具",
         "en": "System Tools"
@@ -10,6 +11,7 @@
         "en": "System-level operations: settings management, app install/uninstall & launch, notification retrieval, location services, device info queries, plus Intent/broadcast execution."
     },
     "enabledByDefault": true,
+    "category": "System",
     "tools": [
         {
             "name": "get_system_setting",
@@ -111,8 +113,7 @@
             "parameters": []
         }
     ]
-}
-*/
+}*/
 
 const SystemTools = (function () {
 

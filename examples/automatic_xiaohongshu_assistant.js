@@ -10,6 +10,7 @@ METADATA
     }description: { zh: "高级小红书智能助手，通过UI自动化技术实现小红书应用交互，支持内容浏览、搜索查看、评论互动、内容发布等功能，为AI赋予小红书社交和内容创作能力。适用于内容营销、社交互动、生活分享等场景。", en: "Advanced Xiaohongshu (RED) assistant powered by UI automation. Supports browsing feeds, searching and viewing content, commenting and interactions, and publishing posts, enabling AI-driven social interaction and content creation. Useful for content marketing and social engagement." },
     
     // Tools in this package
+    category: "Automatic"
     tools: [
         {
             name: "workflow_guide",
@@ -170,8 +171,7 @@ METADATA
             parameters: []
         }
     ]
-}
-*/
+}*/
 var __rest = (this && this.__rest) || function (s, e) {
     var t = {};
     for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)

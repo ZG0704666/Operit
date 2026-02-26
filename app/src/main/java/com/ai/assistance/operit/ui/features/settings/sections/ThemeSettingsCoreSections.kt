@@ -40,6 +40,7 @@ internal typealias SaveThemeSettingsAction = (suspend () -> Unit) -> Unit
 internal fun ThemeSettingsCharacterBindingInfoCard(
     aiAvatarUri: String?,
     activeCharacterName: String,
+    isGroupTarget: Boolean,
     cardColors: CardColors,
 ) {
     Card(
@@ -80,13 +81,23 @@ internal fun ThemeSettingsCharacterBindingInfoCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.current_character, activeCharacterName),
+                    text =
+                        if (isGroupTarget) {
+                            stringResource(R.string.current_character_group, activeCharacterName)
+                        } else {
+                            stringResource(R.string.current_character, activeCharacterName)
+                        },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = stringResource(R.string.theme_auto_bind_character_card),
+                    text =
+                        if (isGroupTarget) {
+                            stringResource(R.string.theme_auto_bind_character_group)
+                        } else {
+                            stringResource(R.string.theme_auto_bind_character_card)
+                        },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -354,6 +365,8 @@ internal fun ThemeSettingsDisplayOptionsSection(
     onShowStatusTagsInputChange: (Boolean) -> Unit,
     showInputProcessingStatusInput: Boolean,
     onShowInputProcessingStatusInputChange: (Boolean) -> Unit,
+    showChatFloatingDotsAnimationInput: Boolean,
+    onShowChatFloatingDotsAnimationInputChange: (Boolean) -> Unit,
     saveThemeSettingsWithCharacterCard: SaveThemeSettingsAction,
     preferencesManager: UserPreferencesManager,
 ) {
@@ -446,6 +459,37 @@ internal fun ThemeSettingsDisplayOptionsSection(
                         saveThemeSettingsWithCharacterCard {
                             preferencesManager.saveThemeSettings(
                                 showInputProcessingStatus = it,
+                            )
+                        }
+                    },
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(id = R.string.show_chat_floating_dots_animation),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = stringResource(id = R.string.show_chat_floating_dots_animation_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = showChatFloatingDotsAnimationInput,
+                    onCheckedChange = {
+                        onShowChatFloatingDotsAnimationInputChange(it)
+                        saveThemeSettingsWithCharacterCard {
+                            preferencesManager.saveThemeSettings(
+                                showChatFloatingDotsAnimation = it,
                             )
                         }
                     },

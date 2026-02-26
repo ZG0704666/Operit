@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
@@ -70,11 +71,32 @@ fun ChatScreenHeader(
     val typography = MaterialTheme.typography
 
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
     val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
     val activeCharacterCard by characterCardManager.activeCharacterCardFlow.collectAsState(initial = null)
-    val activeCharacterAvatarUri by remember(activeCharacterCard?.id) {
-        activeCharacterCard?.id?.let { userPreferencesManager.getAiAvatarForCharacterCardFlow(it) } ?: flowOf(null)
+    val activeCharacterGroup by characterGroupCardManager.activeCharacterGroupCardFlow.collectAsState(initial = null)
+    val activeCardAvatarUri by remember(activeCharacterCard?.id) {
+        activeCharacterCard?.id?.let { userPreferencesManager.getAiAvatarForCharacterCardFlow(it) }
+            ?: flowOf(null)
     }.collectAsState(initial = null)
+    val activeGroupAvatarUri by remember(activeCharacterGroup?.id) {
+        activeCharacterGroup?.id?.let { userPreferencesManager.getAiAvatarForCharacterGroupFlow(it) }
+            ?: flowOf(null)
+    }.collectAsState(initial = null)
+    val activeGroupFallbackMemberCardId = remember(activeCharacterGroup?.members) {
+        val sortedMembers = activeCharacterGroup?.members?.sortedBy { it.orderIndex }.orEmpty()
+        sortedMembers.firstOrNull()?.characterCardId
+    }
+    val activeGroupFallbackMemberAvatarUri by remember(activeGroupFallbackMemberCardId) {
+        activeGroupFallbackMemberCardId?.let { userPreferencesManager.getAiAvatarForCharacterCardFlow(it) }
+            ?: flowOf(null)
+    }.collectAsState(initial = null)
+    val activeCharacterAvatarUri =
+        if (activeCharacterGroup != null) {
+            activeGroupAvatarUri ?: activeGroupFallbackMemberAvatarUri
+        } else {
+            activeCardAvatarUri
+        }
 
     val activeStreamingChatIds by actualViewModel.activeStreamingChatIds.collectAsState()
 
@@ -115,7 +137,7 @@ fun ChatScreenHeader(
                 historyIconColor = chatHeaderHistoryIconColor,
                 pipIconColor = chatHeaderPipIconColor,
                 runningTaskCount = activeStreamingChatIds.size,
-                activeCharacterName = activeCharacterCard?.name ?: "",
+                activeCharacterName = activeCharacterGroup?.name ?: activeCharacterCard?.name ?: "",
                 activeCharacterAvatarUri = activeCharacterAvatarUri,
                 onCharacterClick = onCharacterSwitcherClick
         )

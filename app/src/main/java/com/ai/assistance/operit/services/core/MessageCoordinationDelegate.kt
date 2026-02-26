@@ -5,6 +5,10 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.chat.AIMessageManager
+import com.ai.assistance.operit.api.chat.enhance.MultiServiceManager
+import com.ai.assistance.operit.api.chat.llmprovider.AIService
+import com.ai.assistance.operit.data.model.ModelParameter
+import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ChatMessage
@@ -12,6 +16,9 @@ import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.ui.features.chat.viewmodel.UiStateDelegate
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
+import com.ai.assistance.operit.util.ChatMarkupRegex
+import com.ai.assistance.operit.util.ChatUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,6 +31,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * 消息协调委托类
@@ -72,6 +82,8 @@ class MessageCoordinationDelegate(
 
     private var nonFatalErrorCollectorJob: Job? = null
     private val characterCardManager = CharacterCardManager.getInstance(context)
+    private val characterGroupCardManager = CharacterGroupCardManager.getInstance(context)
+    private val plannerServiceManager = MultiServiceManager(context)
 
     init {
         ensureNonFatalErrorCollectorStarted()
@@ -164,7 +176,11 @@ class MessageCoordinationDelegate(
         messageTextOverride: String? = null,
         proxySenderNameOverride: String? = null,
         chatModelConfigIdOverride: String? = null,
-        chatModelIndexOverride: Int? = null
+        chatModelIndexOverride: Int? = null,
+        suppressUserMessageInHistory: Boolean = false,
+        forceDisableSummary: Boolean = false,
+        enableGroupOrchestration: Boolean = true,
+        isGroupOrchestrationTurn: Boolean = false
     ) {
         // 如果不是自动续写，更新当前的 promptFunctionType
         if (!isAutoContinuation) {
@@ -175,6 +191,46 @@ class MessageCoordinationDelegate(
         val chatId = chatIdOverride ?: chatHistoryDelegate.currentChatId.value
         if (chatId == null) {
             uiStateDelegate.showErrorMessage(context.getString(R.string.chat_no_active_conversation))
+            return
+        }
+        if (
+            enableGroupOrchestration &&
+            shouldRunGroupOrchestration(
+                promptFunctionType = promptFunctionType,
+                isContinuation = isContinuation,
+                isAutoContinuation = isAutoContinuation,
+                skipSummaryCheck = skipSummaryCheck,
+                roleCardIdOverride = roleCardIdOverride,
+                proxySenderNameOverride = proxySenderNameOverride,
+                messageTextOverride = messageTextOverride,
+                chatIdOverride = chatIdOverride
+            )
+        ) {
+            coroutineScope.launch {
+                val handled = runCatching {
+                    orchestrateGroupConversation(chatId = chatId, promptFunctionType = promptFunctionType)
+                }.getOrElse { throwable ->
+                    AppLogger.e(TAG, "群组编排失败，回退普通发送", throwable)
+                    false
+                }
+                if (!handled) {
+                    sendMessageInternal(
+                        promptFunctionType = promptFunctionType,
+                        isContinuation = isContinuation,
+                        skipSummaryCheck = skipSummaryCheck,
+                        isAutoContinuation = isAutoContinuation,
+                        roleCardIdOverride = roleCardIdOverride,
+                        chatIdOverride = chatIdOverride,
+                        messageTextOverride = messageTextOverride,
+                        proxySenderNameOverride = proxySenderNameOverride,
+                        chatModelConfigIdOverride = chatModelConfigIdOverride,
+                        chatModelIndexOverride = chatModelIndexOverride,
+                        suppressUserMessageInHistory = suppressUserMessageInHistory,
+                        forceDisableSummary = forceDisableSummary,
+                        enableGroupOrchestration = false
+                    )
+                }
+            }
             return
         }
         val currentChat = chatHistoryDelegate.chatHistories.value.find { it.id == chatId }
@@ -288,9 +344,11 @@ class MessageCoordinationDelegate(
             tokenUsageThreshold = tokenUsageThresholdForSend,
             replyToMessage = if (isBackgroundSend) null else getReplyToMessage(),
             isAutoContinuation = isAutoContinuation,
-            enableSummary = if (isBackgroundSend) false else apiConfigDelegate.enableSummary.value,
+            enableSummary = !forceDisableSummary && !isBackgroundSend && apiConfigDelegate.enableSummary.value,
             chatModelConfigIdOverride = resolvedChatModelConfigIdOverride,
-            chatModelIndexOverride = resolvedChatModelIndexOverride
+            chatModelIndexOverride = resolvedChatModelIndexOverride,
+            suppressUserMessageInHistory = suppressUserMessageInHistory,
+            isGroupOrchestrationTurn = isGroupOrchestrationTurn
         )
 
         // 只有在非续写（即用户主动发送）时才清空附件和UI状态
@@ -300,6 +358,468 @@ class MessageCoordinationDelegate(
             }
             resetAttachmentPanelState()
             clearReplyToMessage()
+        }
+    }
+
+    private fun shouldRunGroupOrchestration(
+        promptFunctionType: PromptFunctionType,
+        isContinuation: Boolean,
+        isAutoContinuation: Boolean,
+        skipSummaryCheck: Boolean,
+        roleCardIdOverride: String?,
+        proxySenderNameOverride: String?,
+        messageTextOverride: String?,
+        chatIdOverride: String?
+    ): Boolean {
+        if (promptFunctionType != PromptFunctionType.CHAT) return false
+        if (isContinuation || isAutoContinuation || skipSummaryCheck) return false
+        if (!roleCardIdOverride.isNullOrBlank()) return false
+        if (!proxySenderNameOverride.isNullOrBlank()) return false
+        if (!messageTextOverride.isNullOrBlank()) return false
+        if (!chatIdOverride.isNullOrBlank()) return false
+        return true
+    }
+
+    private suspend fun orchestrateGroupConversation(
+        chatId: String,
+        promptFunctionType: PromptFunctionType
+    ): Boolean {
+        val group = resolveTargetGroupForChat(chatId) ?: return false
+
+        val orderedMembers = group.members
+            .sortedBy { it.orderIndex }
+            .filter { it.characterCardId.isNotBlank() }
+        AppLogger.d(
+            TAG,
+            "回答规划: plan=${group.id}, members=${group.members.size}, activeMembers=${orderedMembers.size}"
+        )
+        if (orderedMembers.isEmpty()) {
+            return false
+        }
+
+        val existingBinding = chatHistoryDelegate.chatHistories.value
+            .firstOrNull { it.id == chatId }
+            ?.characterGroupId
+        if (existingBinding != group.id) {
+            chatHistoryDelegate.updateChatCharacterBinding(chatId, null, group.id)
+        }
+
+        val originalUserText = messageProcessingDelegate.userMessage.value.text.trim()
+        val hasAttachments = attachmentDelegate.attachments.value.isNotEmpty()
+        AppLogger.d(
+            TAG,
+            "群组编排输入: chatId=$chatId, userTextLength=${originalUserText.length}, hasAttachments=$hasAttachments"
+        )
+        if (originalUserText.isBlank() && !hasAttachments) {
+            AppLogger.d(TAG, "群组编排终止: 输入为空且无附件")
+            return false
+        }
+        if (originalUserText.isNotBlank()) {
+            messageProcessingDelegate.updateUserMessage("")
+        }
+
+        messageProcessingDelegate.setInputProcessingStateForChat(
+            chatId,
+            InputProcessingState.Processing(context.getString(R.string.role_response_planner_planning))
+        )
+
+        val timeline = mutableListOf<Pair<String, String>>()
+        if (originalUserText.isNotBlank()) {
+            timeline.add("用户" to originalUserText)
+        }
+
+        val currentChat = chatHistoryDelegate.chatHistories.value.firstOrNull { it.id == chatId }
+        val workspacePath = currentChat?.workspace
+        val workspaceEnv = currentChat?.workspaceEnv
+        val attachments = attachmentDelegate.attachments.value
+        val hasMemoryFolder = attachments.any {
+            it.fileName == "memory_context.xml" && it.mimeType == "application/xml"
+        }
+        val shouldEnableMemoryQuery = apiConfigDelegate.enableMemoryQuery.value || hasMemoryFolder
+        val replyToMessage = getReplyToMessage()
+
+        val isFirstMessage = chatHistoryDelegate.chatHistory.value.none { it.sender == "user" }
+        if (isFirstMessage) {
+            val newTitle =
+                when {
+                    originalUserText.isNotBlank() -> originalUserText
+                    attachments.isNotEmpty() -> attachments.first().fileName
+                    else -> context.getString(R.string.new_conversation)
+                }
+            chatHistoryDelegate.updateChatTitle(chatId, newTitle)
+        }
+
+        val finalUserMessageContent =
+            messageProcessingDelegate.buildUserMessageContentForGroupOrchestration(
+                messageText = originalUserText,
+                attachments = attachments,
+                enableMemoryQuery = shouldEnableMemoryQuery,
+                enableWorkspaceAttachment = !workspacePath.isNullOrBlank(),
+                workspacePath = workspacePath,
+                workspaceEnv = workspaceEnv,
+                replyToMessage = replyToMessage
+            )
+        val userMessage = ChatMessage(
+            sender = "user",
+            content = finalUserMessageContent,
+            roleName = context.getString(R.string.message_role_user)
+        )
+        chatHistoryDelegate.addMessageToChat(userMessage, chatId)
+
+        var userMessageInsertedForCurrentUserTurn = true
+        val memberCardsById = orderedMembers
+            .associate { member ->
+                member.characterCardId to runCatching { characterCardManager.getCharacterCard(member.characterCardId) }.getOrNull()
+            }
+            .filterValues { it != null }
+            .mapValues { it.value!! }
+
+        val plannedMembers = planResponseOrder(
+            userText = originalUserText,
+            members = orderedMembers,
+            memberCardsById = memberCardsById
+        ) ?: run {
+            AppLogger.w(TAG, "回答规划失败，终止本轮群组编排")
+            val message = context.getString(R.string.role_response_planner_failed)
+            uiStateDelegate.showErrorMessage(message)
+            messageProcessingDelegate.setInputProcessingStateForChat(
+                chatId,
+                InputProcessingState.Error(message)
+            )
+            attachmentDelegate.clearAttachments()
+            resetAttachmentPanelState()
+            clearReplyToMessage()
+            return true
+        }
+
+        if (plannedMembers.isEmpty() || plannedMembers.none { it.speak }) {
+            AppLogger.d(TAG, "回答规划本轮全部跳过发言")
+            attachmentDelegate.clearAttachments()
+            resetAttachmentPanelState()
+            clearReplyToMessage()
+            messageProcessingDelegate.setInputProcessingStateForChat(
+                chatId,
+                InputProcessingState.Completed
+            )
+            return true
+        }
+
+        val plannedSequence = plannedMembers.mapNotNull { planned ->
+            orderedMembers.firstOrNull { it.characterCardId == planned.id }
+        }
+
+        plannedSequence.forEachIndexed { index, member ->
+            val planned = plannedMembers.firstOrNull { it.id == member.characterCardId }
+            if (planned != null && !planned.speak) {
+                AppLogger.d(TAG, "回答规划跳过成员: member=${member.characterCardId}")
+                return@forEachIndexed
+            }
+            val memberCard = runCatching { characterCardManager.getCharacterCard(member.characterCardId) }.getOrNull()
+                ?: return@forEachIndexed
+            val memberName = memberCard.name
+            messageProcessingDelegate.setInputProcessingStateForChat(
+                chatId,
+                InputProcessingState.Processing(
+                    context.getString(R.string.role_response_planner_member_replying, memberName)
+                )
+            )
+
+            val beforeLastAiTimestamp =
+                chatHistoryDelegate.chatHistory.value.lastOrNull { it.sender == "ai" }?.timestamp ?: Long.MIN_VALUE
+            val targetTurnCounter = messageProcessingDelegate.getTurnCompleteCounter(chatId) + 1L
+            val shouldUseInitialUserText = index == 0
+            val memberMessage = if (shouldUseInitialUserText) {
+                originalUserText.ifBlank { "继续" }
+            } else {
+                buildMemberContinuationPrompt()
+            }
+            AppLogger.d(
+                TAG,
+                "回答规划成员发送: member=$memberName, index=$index, targetTurnCounter=$targetTurnCounter, messageLength=${memberMessage.length}, suppressUserMessageInHistory=$userMessageInsertedForCurrentUserTurn"
+            )
+
+            sendMessageInternal(
+                promptFunctionType = promptFunctionType,
+                isContinuation = !shouldUseInitialUserText,
+                skipSummaryCheck = true,
+                isAutoContinuation = false,
+                roleCardIdOverride = member.characterCardId,
+                chatIdOverride = null,
+                messageTextOverride = memberMessage,
+                proxySenderNameOverride = null,
+                chatModelConfigIdOverride = null,
+                chatModelIndexOverride = null,
+                suppressUserMessageInHistory = userMessageInsertedForCurrentUserTurn,
+                forceDisableSummary = true,
+                enableGroupOrchestration = false,
+                isGroupOrchestrationTurn = true
+            )
+            userMessageInsertedForCurrentUserTurn = true
+
+            val completed = awaitTurnComplete(chatId, targetTurnCounter)
+            if (!completed) {
+                val currentCounter = messageProcessingDelegate.getTurnCompleteCounter(chatId)
+                AppLogger.w(
+                    TAG,
+                    "回答规划成员等待超时: member=$memberName, targetTurnCounter=$targetTurnCounter, currentTurnCounter=$currentCounter"
+                )
+                return@forEachIndexed
+            }
+
+            val newAiMessage = chatHistoryDelegate.chatHistory.value
+                .asReversed()
+                .firstOrNull { it.sender == "ai" && it.timestamp > beforeLastAiTimestamp }
+            if (newAiMessage != null && newAiMessage.content.isNotBlank()) {
+                val rawContent = newAiMessage.content
+                val effectiveSpeech = extractEffectiveSpeechContent(rawContent)
+                if (effectiveSpeech.isNotBlank()) {
+                    timeline.add("AI($memberName)" to shrinkForMemberPrompt(effectiveSpeech))
+                } else {
+                    AppLogger.w(TAG, "回答规划成员完成但消息为空: member=$memberName")
+                }
+            } else {
+                AppLogger.w(TAG, "回答规划成员完成但未捕获到新AI消息: member=$memberName")
+            }
+        }
+
+        AppLogger.d(TAG, "群组编排结束: chatId=$chatId, timelineSize=${timeline.size}")
+        maybeSummarizeAfterGroupRound(chatId, promptFunctionType)
+        return true
+    }
+
+    private data class PlannedMember(
+        val id: String,
+        val speak: Boolean
+    )
+
+    private suspend fun planResponseOrder(
+        userText: String,
+        members: List<com.ai.assistance.operit.data.model.GroupMemberConfig>,
+        memberCardsById: Map<String, CharacterCard>
+    ): List<PlannedMember>? {
+        val service = getEnhancedAiService() ?: return null
+        val plannerService = runCatching {
+            service.getAIServiceForFunction(FunctionType.ROLE_RESPONSE_PLANNER)
+        }.getOrNull() ?: return null
+
+        val modelParameters = runCatching {
+            plannerServiceManager.getModelParametersForFunction(FunctionType.ROLE_RESPONSE_PLANNER)
+        }.getOrElse { emptyList<ModelParameter<*>>() }
+
+        val memberLines = members.mapNotNull { member ->
+            val card = memberCardsById[member.characterCardId] ?: return@mapNotNull null
+            "- id: ${member.characterCardId}, name: ${card.name}"
+        }.joinToString("\n")
+
+        val prompt = buildString {
+            appendLine("You are a role response planner. Return ONLY valid JSON.")
+            appendLine("Task: plan the response order for this turn. You may skip any member.")
+            appendLine("Output schema:")
+            appendLine("{\"order\":[{\"id\":\"<memberId>\",\"speak\":true}]}")
+            appendLine("Rules:")
+            appendLine("- You may omit members to skip them, or set speak=false.")
+            appendLine("- If no one should respond, return {\"order\":[]}.")
+            appendLine("- Use ONLY the provided member ids.")
+            appendLine()
+            appendLine("Members:")
+            appendLine(memberLines.ifBlank { "(none)" })
+            appendLine()
+            appendLine("User message:")
+            appendLine(userText.ifBlank { "(user sent attachments or empty text)" })
+        }
+
+        val contentBuilder = StringBuilder()
+        runCatching {
+            val stream = plannerService.sendMessage(
+                context = context,
+                message = prompt,
+                chatHistory = emptyList(),
+                modelParameters = modelParameters,
+                enableThinking = false,
+                stream = false,
+                preserveThinkInHistory = false
+            )
+            stream.collect { chunk -> contentBuilder.append(chunk) }
+        }.onFailure {
+            AppLogger.e(TAG, "回答规划模型调用失败: ${it.message}", it)
+            return null
+        }
+
+        val rawContent = ChatUtils.removeThinkingContent(contentBuilder.toString()).trim()
+        return parsePlannedMembers(
+            rawContent = rawContent,
+            memberIds = members.map { it.characterCardId }.toSet(),
+            memberNameToId = memberCardsById.values.associate { it.name.trim() to it.id }
+        )
+    }
+
+    private fun parsePlannedMembers(
+        rawContent: String,
+        memberIds: Set<String>,
+        memberNameToId: Map<String, String>
+    ): List<PlannedMember>? {
+        if (rawContent.isBlank()) return null
+        val trimmed = rawContent.trim()
+        val jsonText = when {
+            trimmed.startsWith("{") && trimmed.endsWith("}") -> trimmed
+            trimmed.startsWith("[") && trimmed.endsWith("]") -> trimmed
+            trimmed.contains("{") && trimmed.contains("}") -> {
+                val start = trimmed.indexOf("{")
+                val end = trimmed.lastIndexOf("}")
+                if (start >= 0 && end > start) trimmed.substring(start, end + 1) else trimmed
+            }
+            trimmed.contains("[") && trimmed.contains("]") -> {
+                val start = trimmed.indexOf("[")
+                val end = trimmed.lastIndexOf("]")
+                if (start >= 0 && end > start) trimmed.substring(start, end + 1) else trimmed
+            }
+            else -> trimmed
+        }
+
+        val results = mutableListOf<PlannedMember>()
+        val seen = mutableSetOf<String>()
+
+        fun resolveId(value: String?): String? {
+            val trimmedValue = value?.trim().orEmpty()
+            if (trimmedValue.isBlank()) return null
+            if (memberIds.contains(trimmedValue)) return trimmedValue
+            return memberNameToId[trimmedValue]
+        }
+
+        return runCatching {
+            if (jsonText.startsWith("[")) {
+                val array = JSONArray(jsonText)
+                for (i in 0 until array.length()) {
+                    val item = array.get(i)
+                    when (item) {
+                        is String -> {
+                            val id = resolveId(item) ?: continue
+                            if (seen.add(id)) results.add(PlannedMember(id, true))
+                        }
+                        is JSONObject -> {
+                            val id = resolveId(
+                                item.optString("id")
+                                    .ifBlank { item.optString("memberId") }
+                                    .ifBlank { item.optString("roleId") }
+                                    .ifBlank { item.optString("name") }
+                            ) ?: continue
+                            val skip = item.optBoolean("skip", false)
+                            val speak = item.optBoolean("speak", !skip)
+                            if (seen.add(id)) results.add(PlannedMember(id, speak))
+                        }
+                    }
+                }
+                results
+            } else {
+                val obj = JSONObject(jsonText)
+                if (obj.optBoolean("skip_all", false)) {
+                    return@runCatching emptyList()
+                }
+                val order = obj.optJSONArray("order")
+                    ?: obj.optJSONArray("plan")
+                    ?: obj.optJSONArray("members")
+                if (order != null) {
+                    for (i in 0 until order.length()) {
+                        val item = order.get(i)
+                        when (item) {
+                            is String -> {
+                                val id = resolveId(item) ?: continue
+                                if (seen.add(id)) results.add(PlannedMember(id, true))
+                            }
+                            is JSONObject -> {
+                                val id = resolveId(
+                                    item.optString("id")
+                                        .ifBlank { item.optString("memberId") }
+                                        .ifBlank { item.optString("roleId") }
+                                        .ifBlank { item.optString("name") }
+                                ) ?: continue
+                                val skip = item.optBoolean("skip", false)
+                                val speak = item.optBoolean("speak", !skip)
+                                if (seen.add(id)) results.add(PlannedMember(id, speak))
+                            }
+                        }
+                    }
+                    results
+                } else {
+                    null
+                }
+            }
+        }.getOrNull()
+    }
+
+    private suspend fun resolveTargetGroupForChat(chatId: String): com.ai.assistance.operit.data.model.CharacterGroupCard? {
+        val boundGroupId = chatHistoryDelegate.chatHistories.value
+            .firstOrNull { it.id == chatId }
+            ?.characterGroupId
+            ?.takeIf { it.isNotBlank() }
+        val activeGroupId = characterGroupCardManager.activeCharacterGroupCardIdFlow.first()
+            ?.takeIf { it.isNotBlank() }
+        val targetGroupId = boundGroupId ?: activeGroupId ?: return null
+        return characterGroupCardManager.getCharacterGroupCard(targetGroupId)
+    }
+
+    private fun buildMemberContinuationPrompt(): String {
+        return "继续"
+    }
+
+    private fun extractEffectiveSpeechContent(content: String): String {
+        val withoutThinking = ChatUtils.removeThinkingContent(content)
+        val withoutStatus = ChatMarkupRegex.statusTag.replace(withoutThinking, " ")
+        return ChatMarkupRegex.statusSelfClosingTag.replace(withoutStatus, " ").trim()
+    }
+
+    private fun shrinkForMemberPrompt(content: String, maxLength: Int = 220): String {
+        val normalized = content.replace("\n", " ").trim()
+        return if (normalized.length <= maxLength) normalized else normalized.take(maxLength) + "..."
+    }
+
+    private suspend fun awaitTurnComplete(
+        chatId: String,
+        targetCounter: Long,
+        timeoutMs: Long = 180_000L
+    ): Boolean {
+        val start = System.currentTimeMillis()
+        AppLogger.d(TAG, "等待回合完成: chatId=$chatId, targetCounter=$targetCounter, timeoutMs=$timeoutMs")
+        val completed = withTimeoutOrNull(timeoutMs) {
+            messageProcessingDelegate.turnCompleteCounterByChatId.first { counters ->
+                (counters[chatId] ?: 0L) >= targetCounter
+            }
+            true
+        } ?: false
+        val elapsed = System.currentTimeMillis() - start
+        AppLogger.d(
+            TAG,
+            "等待回合完成结果: chatId=$chatId, targetCounter=$targetCounter, completed=$completed, elapsedMs=$elapsed"
+        )
+        return completed
+    }
+
+    private suspend fun maybeSummarizeAfterGroupRound(
+        chatId: String,
+        promptFunctionType: PromptFunctionType
+    ) {
+        if (!apiConfigDelegate.enableSummary.value) return
+
+        val currentMessages = chatHistoryDelegate.chatHistory.value
+        val currentTokens = tokenStatsDelegate.currentWindowSizeFlow.value
+        val maxTokens = (apiConfigDelegate.contextLength.value * 1024).toInt()
+        val shouldSummarize = AIMessageManager.shouldGenerateSummary(
+            messages = currentMessages,
+            currentTokens = currentTokens,
+            maxTokens = maxTokens,
+            tokenUsageThreshold = apiConfigDelegate.summaryTokenThreshold.value.toDouble(),
+            enableSummary = apiConfigDelegate.enableSummary.value,
+            enableSummaryByMessageCount = apiConfigDelegate.enableSummaryByMessageCount.value,
+            summaryMessageCountThreshold = apiConfigDelegate.summaryMessageCountThreshold.value
+        )
+        if (shouldSummarize) {
+            summarizeHistory(
+                autoContinue = false,
+                promptFunctionType = promptFunctionType,
+                chatIdOverride = chatId,
+                chatModelConfigIdOverride = currentChatModelConfigIdOverride,
+                chatModelIndexOverride = currentChatModelIndexOverride
+            )
         }
     }
 

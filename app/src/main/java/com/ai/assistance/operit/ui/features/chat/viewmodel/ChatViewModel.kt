@@ -49,7 +49,7 @@ import com.ai.assistance.operit.ui.floating.ui.pet.AvatarEmotionManager
 import com.ai.assistance.operit.api.voice.VoiceService
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
-import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.ActiveCharacterSelectionManager
 import com.ai.assistance.operit.util.WaifuMessageProcessor
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.WorkspaceBackupManager
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.CommandConfig
@@ -68,6 +68,7 @@ import com.ai.assistance.operit.services.core.AttachmentDelegate
 import com.ai.assistance.operit.services.core.MessageCoordinationDelegate
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.ui.features.chat.util.MessageImageGenerator
+import com.ai.assistance.operit.ui.features.chat.components.CharacterSelectorTarget
 
 enum class ChatHistoryDisplayMode {
     BY_CHARACTER_CARD,
@@ -84,7 +85,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 添加语音服务
     private var voiceService: VoiceService? = null
     private val speechServicesPreferences = SpeechServicesPreferences(context)
-    private val characterCardManager = CharacterCardManager.getInstance(context)
+    private val activeCharacterSelectionManager = ActiveCharacterSelectionManager.getInstance(context)
 
     // 添加语音播放状态
     private val _isPlaying = MutableStateFlow(false)
@@ -705,8 +706,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     // 聊天历史相关方法
-    fun createNewChat(characterCardName: String? = null) {
-        chatHistoryDelegate.createNewChat(characterCardName)
+    fun createNewChat(characterCardName: String? = null, characterGroupId: String? = null) {
+        chatHistoryDelegate.createNewChat(characterCardName = characterCardName, characterGroupId = characterGroupId)
     }
 
     fun switchChat(chatId: String) {
@@ -723,7 +724,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         if (_autoSwitchCharacterCard.value) {
             viewModelScope.launch {
-                autoSwitchCharacterCardForChat(chatId)
+                autoSwitchCharacterTargetForChat(chatId)
             }
         }
     }
@@ -750,18 +751,28 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         chatHistoryDelegate.showChatHistorySelector(show)
     }
 
-    private suspend fun autoSwitchCharacterCardForChat(chatId: String) {
-        val targetHistory = chatHistories.value.firstOrNull { it.id == chatId } ?: return
-        val targetCardName = targetHistory.characterCardName ?: return
-
-        runCatching {
-            val targetCard = characterCardManager.findCharacterCardByName(targetCardName) ?: return
-            val activeId = characterCardManager.activeCharacterCardIdFlow.first()
-            if (activeId != targetCard.id) {
-                characterCardManager.setActiveCharacterCard(targetCard.id)
+    fun switchActiveCharacterTarget(target: CharacterSelectorTarget) {
+        viewModelScope.launch {
+            when (target) {
+                is CharacterSelectorTarget.CharacterCardTarget -> {
+                    activeCharacterSelectionManager.activateCharacterCard(target.id)
+                }
+                is CharacterSelectorTarget.CharacterGroupTarget -> {
+                    activeCharacterSelectionManager.activateCharacterGroup(target.id)
+                }
             }
+        }
+    }
+
+    private suspend fun autoSwitchCharacterTargetForChat(chatId: String) {
+        val targetHistory = chatHistories.value.firstOrNull { it.id == chatId } ?: return
+        runCatching {
+            activeCharacterSelectionManager.activateForChatBinding(
+                characterCardName = targetHistory.characterCardName,
+                characterGroupId = targetHistory.characterGroupId
+            )
         }.onFailure { throwable ->
-            AppLogger.w(TAG, "Auto switch character card failed: ${throwable.message}")
+            AppLogger.w(TAG, "Auto switch character target failed: ${throwable.message}")
         }
     }
 
@@ -1212,6 +1223,33 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             _showWorkspaceFileSelector.value = false
             _workspaceFileSearchQuery.value = ""
         }
+    }
+
+    fun insertRoleMention(roleName: String) {
+        val trimmedRoleName = roleName.trim()
+        if (trimmedRoleName.isEmpty()) return
+
+        val mentionText = "@$trimmedRoleName"
+        val current = userMessage.value
+        val text = current.text
+        val selectionStart = current.selection.start.coerceIn(0, text.length)
+        val selectionEnd = current.selection.end.coerceIn(0, text.length)
+
+        val before = text.substring(0, selectionStart)
+        val after = text.substring(selectionEnd)
+
+        val needLeadingSpace = before.isNotEmpty() && !before.last().isWhitespace()
+        val insertion = buildString {
+            if (needLeadingSpace) append(' ')
+            append(mentionText)
+            if (after.isEmpty() || !after.first().isWhitespace()) {
+                append(' ')
+            }
+        }
+
+        val newText = before + insertion + after
+        val newCursor = (before.length + insertion.length).coerceAtMost(newText.length)
+        updateUserMessage(TextFieldValue(newText, selection = TextRange(newCursor)))
     }
 
     fun sendUserMessage(promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT) {
@@ -1817,6 +1855,20 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         chatHistoryDelegate.updateChatCharacterCard(chatId, characterCardName)
     }
 
+    /** 更新指定聊天绑定的群组角色卡 */
+    fun updateChatCharacterGroupBinding(chatId: String, characterGroupId: String?) {
+        chatHistoryDelegate.updateChatCharacterGroup(chatId, characterGroupId)
+    }
+
+    /** 同时更新指定聊天绑定的角色卡与群组 */
+    fun updateChatCharacterBinding(
+        chatId: String,
+        characterCardName: String?,
+        characterGroupId: String?
+    ) {
+        chatHistoryDelegate.updateChatCharacterBinding(chatId, characterCardName, characterGroupId)
+    }
+
     /** 更新指定聊天的标题 */
     fun bindChatToWorkspace(chatId: String, workspace: String, workspaceEnv: String? = null) {
         // 1. Persist the change
@@ -1960,8 +2012,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     /** 创建新分组（通过创建新聊天实现） */
-    fun createGroup(groupName: String, characterCardName: String?) {
-        chatHistoryDelegate.createGroup(groupName, characterCardName)
+    fun createGroup(groupName: String, characterCardName: String?, characterGroupId: String? = null) {
+        chatHistoryDelegate.createGroup(groupName, characterCardName, characterGroupId)
     }
 
     /** 重命名分组 */

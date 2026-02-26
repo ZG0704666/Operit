@@ -36,6 +36,7 @@
       "required": false
     }
   ],
+  "category": "Draw",
   "tools": [
     {
       "name": "draw_image",
@@ -58,8 +59,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 /// <reference path="./types/index.d.ts" />
 const qwenDraw = (function () {
     const HTTP_TIMEOUT_MS = 600000;

@@ -118,13 +118,13 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
 
     fun listSandboxPackages(tool: AITool, packageManager: PackageManager): ToolResult {
         return try {
-            val topLevelPackages = packageManager.getTopLevelAvailablePackages()
+            val availablePackages = packageManager.getAvailablePackages(forceRefresh = true)
             val importedSet = packageManager.getImportedPackages().toSet()
             val disabledSet = packageManager.getDisabledPackages().toSet()
             val externalPackagesPath = packageManager.getExternalPackagesPath()
 
             val packagesJson = JSONArray()
-            topLevelPackages.entries
+            availablePackages.entries
                 .sortedBy { it.key.lowercase() }
                 .forEach { (packageName, pkg) ->
                     val imported = importedSet.contains(packageName)
@@ -151,11 +151,11 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
                         "scriptDevGuide",
                         "https://github.com/AAswordman/Operit/blob/main/docs/SCRIPT_DEV_GUIDE.md"
                     )
-                    put("totalCount", topLevelPackages.size)
-                    put("builtInCount", topLevelPackages.values.count { it.isBuiltIn })
-                    put("externalCount", topLevelPackages.values.count { !it.isBuiltIn })
-                    put("enabledCount", topLevelPackages.keys.count { importedSet.contains(it) })
-                    put("disabledCount", topLevelPackages.keys.count { !importedSet.contains(it) })
+                    put("totalCount", availablePackages.size)
+                    put("builtInCount", availablePackages.values.count { it.isBuiltIn })
+                    put("externalCount", availablePackages.values.count { !it.isBuiltIn })
+                    put("enabledCount", availablePackages.keys.count { importedSet.contains(it) })
+                    put("disabledCount", availablePackages.keys.count { !importedSet.contains(it) })
                     put("packages", packagesJson)
                 }
 
@@ -196,8 +196,8 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
             )
         }
 
-        val topLevelPackages = packageManager.getTopLevelAvailablePackages()
-        if (!topLevelPackages.containsKey(packageName)) {
+        val availablePackages = packageManager.getAvailablePackages(forceRefresh = true)
+        if (!availablePackages.containsKey(packageName)) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,

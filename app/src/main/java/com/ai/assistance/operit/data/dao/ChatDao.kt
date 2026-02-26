@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.ai.assistance.operit.data.model.ChatEntity
 import com.ai.assistance.operit.data.model.CharacterCardChatStats
+import com.ai.assistance.operit.data.model.CharacterGroupChatStats
 import kotlinx.coroutines.flow.Flow
 
 /** 聊天DAO接口，定义对聊天表的数据访问方法 */
@@ -60,8 +61,23 @@ interface ChatDao {
     suspend fun updateChatGroup(chatId: String, group: String?, timestamp: Long = System.currentTimeMillis())
 
     /** 更新聊天绑定的角色卡名称 */
-    @Query("UPDATE chats SET characterCardName = :characterCardName, updatedAt = :timestamp WHERE id = :chatId")
+    @Query("UPDATE chats SET characterCardName = :characterCardName, characterGroupId = NULL, updatedAt = :timestamp WHERE id = :chatId")
     suspend fun updateChatCharacterCardName(chatId: String, characterCardName: String?, timestamp: Long = System.currentTimeMillis())
+
+    /** 更新聊天绑定的群组角色卡ID */
+    @Query("UPDATE chats SET characterCardName = NULL, characterGroupId = :characterGroupId, updatedAt = :timestamp WHERE id = :chatId")
+    suspend fun updateChatCharacterGroupId(chatId: String, characterGroupId: String?, timestamp: Long = System.currentTimeMillis())
+
+    /** 同时更新聊天绑定的角色卡名称与群组ID */
+    @Query(
+        "UPDATE chats SET characterCardName = :characterCardName, characterGroupId = :characterGroupId, updatedAt = :timestamp WHERE id = :chatId"
+    )
+    suspend fun updateChatCharacterBinding(
+        chatId: String,
+        characterCardName: String?,
+        characterGroupId: String?,
+        timestamp: Long = System.currentTimeMillis()
+    )
 
     /** 更新聊天锁定状态 */
     @Query("UPDATE chats SET locked = :locked, updatedAt = :timestamp WHERE id = :chatId")
@@ -124,11 +140,15 @@ interface ChatDao {
     fun getMainChatsFlow(): Flow<List<ChatEntity>>
 
     /** 根据角色卡名称过滤聊天（非默认角色卡：只显示该角色卡名称的对话） */
-    @Query("SELECT * FROM chats WHERE characterCardName = :characterCardName ORDER BY displayOrder ASC")
+    @Query("SELECT * FROM chats WHERE characterCardName = :characterCardName AND characterGroupId IS NULL ORDER BY displayOrder ASC")
     fun getChatsByCharacterCard(characterCardName: String): Flow<List<ChatEntity>>
 
+    /** 根据群组ID过滤聊天 */
+    @Query("SELECT * FROM chats WHERE characterGroupId = :characterGroupId ORDER BY displayOrder ASC")
+    fun getChatsByCharacterGroupId(characterGroupId: String): Flow<List<ChatEntity>>
+
     /** 根据角色卡名称过滤聊天（默认角色卡：显示该角色卡名称的对话 + 所有characterCardName为null的对话） */
-    @Query("SELECT * FROM chats WHERE characterCardName = :characterCardName OR characterCardName IS NULL ORDER BY displayOrder ASC")
+    @Query("SELECT * FROM chats WHERE characterCardName = :characterCardName OR (characterCardName IS NULL AND characterGroupId IS NULL) ORDER BY displayOrder ASC")
     fun getChatsByCharacterCardOrNull(characterCardName: String): Flow<List<ChatEntity>>
 
     /** 批量清理绑定特定角色卡名称的对话（将characterCardName设为null） */
@@ -140,7 +160,7 @@ interface ChatDao {
     suspend fun deleteUnlockedChatsByCharacterCardName(characterCardName: String): Int
 
     /** 批量删除未绑定角色卡的未锁定对话 */
-    @Query("DELETE FROM chats WHERE characterCardName IS NULL AND locked = 0")
+    @Query("DELETE FROM chats WHERE characterCardName IS NULL AND characterGroupId IS NULL AND locked = 0")
     suspend fun deleteUnlockedUnboundChats(): Int
 
     /** 批量重命名角色卡绑定 */
@@ -151,18 +171,55 @@ interface ChatDao {
             timestamp: Long = System.currentTimeMillis()
     ): Int
 
+    /** 批量重命名角色群组绑定 */
+    @Query("UPDATE chats SET characterCardName = NULL, characterGroupId = :targetGroupId, updatedAt = :timestamp WHERE characterGroupId = :sourceGroupId")
+    suspend fun renameCharacterGroupBinding(
+        sourceGroupId: String,
+        targetGroupId: String,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
     /** 将所有未绑定角色卡的聊天归类到指定角色卡 */
-    @Query("UPDATE chats SET characterCardName = :newName, updatedAt = :timestamp WHERE characterCardName IS NULL")
+    @Query("UPDATE chats SET characterCardName = :newName, updatedAt = :timestamp WHERE characterCardName IS NULL AND characterGroupId IS NULL")
     suspend fun assignCharacterCardToUnbound(
             newName: String,
             timestamp: Long = System.currentTimeMillis()
     ): Int
 
+    /** 将所有未绑定角色群组的聊天归类到指定角色群组 */
+    @Query("UPDATE chats SET characterCardName = NULL, characterGroupId = :targetGroupId, updatedAt = :timestamp WHERE characterGroupId IS NULL AND characterCardName IS NULL")
+    suspend fun assignCharacterGroupToUnbound(
+        targetGroupId: String,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
     /** 批量为指定聊天更新角色卡绑定 */
-    @Query("UPDATE chats SET characterCardName = :newName, updatedAt = :timestamp WHERE id IN (:chatIds)")
+    @Query("UPDATE chats SET characterCardName = :newName, characterGroupId = NULL, updatedAt = :timestamp WHERE id IN (:chatIds)")
     suspend fun updateCharacterCardForChats(
         chatIds: List<String>,
         newName: String?,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
+    /** 批量为指定聊天更新角色群组绑定 */
+    @Query("UPDATE chats SET characterCardName = NULL, characterGroupId = :characterGroupId, updatedAt = :timestamp WHERE id IN (:chatIds)")
+    suspend fun updateCharacterGroupForChats(
+        chatIds: List<String>,
+        characterGroupId: String?,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
+    /** 批量为指定聊天移除角色群组绑定 */
+    @Query("UPDATE chats SET characterGroupId = NULL, updatedAt = :timestamp WHERE id IN (:chatIds)")
+    suspend fun clearCharacterGroupForChats(
+        chatIds: List<String>,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
+    /** 批量清理绑定特定角色群组ID的对话（将characterGroupId设为null） */
+    @Query("UPDATE chats SET characterGroupId = NULL, updatedAt = :timestamp WHERE characterGroupId = :sourceGroupId")
+    suspend fun clearCharacterGroupBinding(
+        sourceGroupId: String,
         timestamp: Long = System.currentTimeMillis()
     ): Int
 
@@ -187,8 +244,28 @@ interface ChatDao {
             FROM messages
             GROUP BY chatId
         ) mc ON c.id = mc.chatId
+        WHERE c.characterGroupId IS NULL
         GROUP BY c.characterCardName
         """
     )
     fun getCharacterCardChatStats(): Flow<List<CharacterCardChatStats>>
+
+    /** 获取按角色群组分组的聊天与消息统计 */
+    @Query(
+        """
+        SELECT 
+            c.characterGroupId AS characterGroupId,
+            COUNT(c.id) AS chatCount,
+            IFNULL(SUM(mc.messageCount), 0) AS messageCount
+        FROM chats c
+        LEFT JOIN (
+            SELECT chatId, COUNT(*) AS messageCount
+            FROM messages
+            GROUP BY chatId
+        ) mc ON c.id = mc.chatId
+        WHERE c.characterCardName IS NULL
+        GROUP BY c.characterGroupId
+        """
+    )
+    fun getCharacterGroupChatStats(): Flow<List<CharacterGroupChatStats>>
 }

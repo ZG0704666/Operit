@@ -634,6 +634,16 @@ fun FunctionConfigCard(
                                                         .collect { chunk -> buffer.append(chunk) }
                                                     buffer.toString()
                                                 }
+                                                FunctionType.ROLE_RESPONSE_PLANNER -> {
+                                                    val parameters =
+                                                        modelConfigManager.getModelParametersForConfig(configWithSelectedModel.id)
+                                                    val prompt =
+                                                        "Connection test: return {\"order\":[{\"id\":\"test\",\"speak\":true}]} only."
+                                                    val buffer = StringBuilder()
+                                                    service.sendMessage(context, prompt, emptyList(), parameters, stream = false)
+                                                        .collect { chunk -> buffer.append(chunk) }
+                                                    buffer.toString()
+                                                }
                                             }
                                             testResult = Result.success(result)
                                         } catch (e: Exception) {
@@ -872,6 +882,7 @@ fun getFunctionDisplayName(functionType: FunctionType): String {
         FunctionType.UI_CONTROLLER -> stringResource(id = R.string.function_type_ui_controller)
         FunctionType.TRANSLATION -> stringResource(id = R.string.function_type_translation)
         FunctionType.GREP -> stringResource(id = R.string.function_type_grep)
+        FunctionType.ROLE_RESPONSE_PLANNER -> stringResource(id = R.string.function_type_role_response_planner)
         FunctionType.IMAGE_RECOGNITION -> stringResource(id = R.string.function_type_image_recognition)
         FunctionType.AUDIO_RECOGNITION -> stringResource(id = R.string.function_type_audio_recognition)
         FunctionType.VIDEO_RECOGNITION -> stringResource(id = R.string.function_type_video_recognition)
@@ -888,9 +899,9 @@ fun getFunctionDescription(functionType: FunctionType): String {
         FunctionType.UI_CONTROLLER -> stringResource(id = R.string.function_desc_ui_controller)
         FunctionType.TRANSLATION -> stringResource(id = R.string.function_desc_translation)
         FunctionType.GREP -> stringResource(id = R.string.function_desc_grep)
+        FunctionType.ROLE_RESPONSE_PLANNER -> stringResource(id = R.string.function_desc_role_response_planner)
         FunctionType.IMAGE_RECOGNITION -> stringResource(id = R.string.function_desc_image_recognition)
         FunctionType.AUDIO_RECOGNITION -> stringResource(id = R.string.function_desc_audio_recognition)
         FunctionType.VIDEO_RECOGNITION -> stringResource(id = R.string.function_desc_video_recognition)
     }
 }
-

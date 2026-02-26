@@ -11,6 +11,7 @@
     "en": "Call an AI model API to enable interactive conversations between AIs."
   },
   "env": ["AI_API_BASE_URL", "AI_API_KEY", "AI_MODEL_NAME"],
+  "category": "Chat",
   "tools": [{
     "name": "chat_completion",
     "description": {

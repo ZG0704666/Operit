@@ -9,6 +9,7 @@
     zh: "提供图片输出功能"
     en: "Provides guidance for outputting images"
   }
+  category: "Draw"
   enabledByDefault: true
   
   tools: [
@@ -22,8 +23,7 @@
       parameters: []
     }
   ]
-}
-*/
+}*/
 const pollinationsDraw = (function () {
     return {
         main: async () => {

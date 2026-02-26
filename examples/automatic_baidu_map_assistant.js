@@ -9,6 +9,7 @@ METADATA
     }description: { zh: "高级百度地图智能助手，通过UI自动化技术实现地图交互，支持地点搜索、路线规划、周边查询等功能，为AI提供强大的地理位置服务能力。适用于出行规划、信息查询、智能问答等场景。", en: "Advanced Baidu Maps assistant powered by UI automation. Supports place search, navigation/route planning, and nearby discovery, enabling AI-driven location services. Useful for trip planning, information lookup, and Q&A." },
  
     // Tools in this package
+    category: "Automatic"
     tools: [
         {
             name: "workflow_guide",
@@ -111,8 +112,7 @@ METADATA
             parameters: []
         }
     ]
-}
-*/
+}*/
 var __rest = (this && this.__rest) || function (s, e) {
     var t = {};
     for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)

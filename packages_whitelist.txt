@@ -30,3 +30,4 @@ vflow_trigger.js
 web.js
 windows_control
 zhipu_draw.js
+zhipu_search.js

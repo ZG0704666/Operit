@@ -44,13 +44,17 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.CharacterCardChatStats
+import com.ai.assistance.operit.data.model.CharacterGroupCard
+import com.ai.assistance.operit.data.model.CharacterGroupChatStats
 import com.ai.assistance.operit.data.model.ImportStrategy
 import com.ai.assistance.operit.data.model.PreferenceProfile
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.ui.features.settings.components.CharacterCardAssignDialog
+import com.ai.assistance.operit.ui.features.settings.components.CharacterGroupAssignDialog
 import java.util.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -73,6 +77,7 @@ fun ChatHistorySettingsScreen() {
 
     val chatHistoryManager = remember { ChatHistoryManager.getInstance(context) }
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
     val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
     val activeProfileId by userPreferencesManager.activeProfileIdFlow.collectAsState(initial = "default")
 
@@ -81,8 +86,15 @@ fun ChatHistorySettingsScreen() {
     val characterCardStats = characterCardStatsState ?: emptyList()
     val isCharacterCardStatsLoading = characterCardStatsState == null
 
+    val characterGroupStatsState by chatHistoryManager.characterGroupStatsFlow
+        .collectAsState(initial = null as List<CharacterGroupChatStats>?)
+    val characterGroupStats = characterGroupStatsState ?: emptyList()
+    val isCharacterGroupStatsLoading = characterGroupStatsState == null
+
     var availableCharacterCards by remember { mutableStateOf<List<CharacterCard>>(emptyList()) }
     var characterCardsLoading by remember { mutableStateOf(true) }
+    var availableCharacterGroups by remember { mutableStateOf<List<CharacterGroupCard>>(emptyList()) }
+    var characterGroupsLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         characterCardManager.characterCardListFlow.collectLatest { ids ->
@@ -92,6 +104,15 @@ fun ChatHistorySettingsScreen() {
             availableCharacterCards = cards
             if (characterCardsLoading) {
                 characterCardsLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        characterGroupCardManager.allCharacterGroupCardsFlow.collectLatest { groups ->
+            availableCharacterGroups = groups
+            if (characterGroupsLoading) {
+                characterGroupsLoading = false
             }
         }
     }
@@ -186,7 +207,18 @@ fun ChatHistorySettingsScreen() {
     var showDeleteMissingDialog by remember { mutableStateOf(false) }
     var deleteMissingInProgress by remember { mutableStateOf(false) }
 
-    val isScreenLoading = isCharacterCardStatsLoading || characterCardsLoading
+    var showAssignGroupDialog by remember { mutableStateOf(false) }
+    var pendingAssignGroupStat by remember { mutableStateOf<CharacterGroupChatStats?>(null) }
+    var selectedCharacterGroupId by remember { mutableStateOf<String?>(null) }
+    var assignGroupInProgress by remember { mutableStateOf(false) }
+    var pendingMissingGroupStat by remember { mutableStateOf<CharacterGroupChatStats?>(null) }
+    var showMissingGroupActionDialog by remember { mutableStateOf(false) }
+
+    val isScreenLoading =
+        isCharacterCardStatsLoading ||
+            characterCardsLoading ||
+            isCharacterGroupStatsLoading ||
+            characterGroupsLoading
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -212,10 +244,22 @@ fun ChatHistorySettingsScreen() {
                 )
             }
             item {
+                CharacterGroupStatsCard(
+                    stats = characterGroupStats,
+                    characterGroups = availableCharacterGroups,
+                    isLoading = isCharacterGroupStatsLoading || characterGroupsLoading,
+                    onAssignMissing = { stat ->
+                        pendingMissingGroupStat = stat
+                        showMissingGroupActionDialog = true
+                    }
+                )
+            }
+            item {
                 ChatHistoryBatchSelectorCard(
                     chatHistories = chatHistories,
                     characterCards = availableCharacterCards,
-                    onApply = { selectedIds, targetCharacterName, targetGroupName, shouldUnbindCharacterCard ->
+                    characterGroups = availableCharacterGroups,
+                    onApply = { selectedIds, targetCharacterName, targetCharacterGroupId, targetGroupName, shouldUnbindCharacterCard, shouldUnbindCharacterGroup ->
                         if (selectedIds.isEmpty()) {
                             Toast.makeText(context, context.getString(R.string.please_select_chats_first), Toast.LENGTH_SHORT).show()
                             return@ChatHistoryBatchSelectorCard false
@@ -227,7 +271,9 @@ fun ChatHistorySettingsScreen() {
                             // shouldUnbindCharacterCard 为 true 表示移除绑定
                             // targetCharacterName 不为 null 表示设置新的角色卡
                             // 如果两者都为 false/null，且提供了分组，则只更新分组，不更新角色卡
-                            val shouldUpdateCharacterCard = shouldUnbindCharacterCard || targetCharacterName != null
+                            val shouldUpdateCharacterGroup = shouldUnbindCharacterGroup || targetCharacterGroupId != null
+                            val shouldUpdateCharacterCard =
+                                !shouldUpdateCharacterGroup && (shouldUnbindCharacterCard || targetCharacterName != null)
                             
                             if (shouldUpdateCharacterCard) {
                                 chatHistoryManager.assignCharacterCardToChats(
@@ -241,6 +287,27 @@ fun ChatHistorySettingsScreen() {
                                         context.getString(R.string.assigned_chats_to_character_card, selectedIds.size, targetCharacterName)
                                     }
                                 )
+                            }
+
+                            if (shouldUpdateCharacterGroup) {
+                                if (shouldUnbindCharacterGroup) {
+                                    chatHistoryManager.clearCharacterGroupBindingForChats(selectedIds)
+                                    messageParts.add(context.getString(R.string.removed_character_group_binding, selectedIds.size))
+                                } else if (!targetCharacterGroupId.isNullOrBlank()) {
+                                    chatHistoryManager.assignCharacterGroupToChats(
+                                        chatIds = selectedIds,
+                                        targetCharacterGroupId = targetCharacterGroupId
+                                    )
+                                    val targetCharacterGroupName =
+                                        availableCharacterGroups.firstOrNull { it.id == targetCharacterGroupId }?.name
+                                    messageParts.add(
+                                        context.getString(
+                                            R.string.assigned_chats_to_character_group,
+                                            selectedIds.size,
+                                            targetCharacterGroupName ?: targetCharacterGroupId
+                                        )
+                                    )
+                                }
                             }
                             
                             // 更新分组
@@ -373,6 +440,90 @@ fun ChatHistorySettingsScreen() {
                 ) {
                     Text(
                         text = context.getString(R.string.action_delete_residual_chats),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        )
+    }
+
+    if (showMissingGroupActionDialog && pendingMissingGroupStat != null) {
+        val stat = pendingMissingGroupStat!!
+        val missingGroupId = stat.characterGroupId
+        val displayName = missingGroupId?.let { groupId ->
+            availableCharacterGroups.firstOrNull { it.id == groupId }?.name
+        } ?: if (missingGroupId.isNullOrBlank()) {
+            context.getString(R.string.unbound_character_group)
+        } else {
+            context.getString(R.string.missing_character_group_id, missingGroupId)
+        }
+        AlertDialog(
+            onDismissRequest = {
+                showMissingGroupActionDialog = false
+                pendingMissingGroupStat = null
+            },
+            title = {
+                Text(text = context.getString(R.string.missing_group_entry_action_title))
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = context.getString(
+                            R.string.missing_group_entry_action_message,
+                            displayName,
+                            stat.chatCount
+                        )
+                    )
+                    if (availableCharacterGroups.isEmpty()) {
+                        Text(
+                            text = context.getString(R.string.no_available_character_groups_toast),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingAssignGroupStat = stat
+                        selectedCharacterGroupId = availableCharacterGroups.firstOrNull()?.id
+                        showMissingGroupActionDialog = false
+                        pendingMissingGroupStat = null
+                        showAssignGroupDialog = true
+                    },
+                    enabled = availableCharacterGroups.isNotEmpty() && !missingGroupId.isNullOrBlank()
+                ) {
+                    Text(context.getString(R.string.action_assign_to_group))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showMissingGroupActionDialog = false
+                        pendingMissingGroupStat = null
+                        if (!missingGroupId.isNullOrBlank()) {
+                            scope.launch {
+                                try {
+                                    chatHistoryManager.clearCharacterGroupBinding(missingGroupId)
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.removed_character_group_binding, stat.chatCount),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.delete_failed, e.localizedMessage ?: e.toString()),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        text = context.getString(R.string.remove_character_group_binding),
                         color = MaterialTheme.colorScheme.error
                     )
                 }
@@ -670,6 +821,205 @@ private fun CharacterCardStatsCard(
 }
 
 @Composable
+private fun CharacterGroupStatsCard(
+    stats: List<CharacterGroupChatStats>,
+    characterGroups: List<CharacterGroupCard>,
+    isLoading: Boolean,
+    onAssignMissing: (CharacterGroupChatStats) -> Unit
+) {
+    val context = LocalContext.current
+    val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
+    val groupById = remember(characterGroups) {
+        characterGroups.associateBy { it.id }
+    }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SectionHeader(
+                title = context.getString(R.string.character_group_statistics),
+                subtitle = context.getString(R.string.character_group_statistics_subtitle),
+                icon = Icons.Default.Groups
+            )
+
+            if (isLoading) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator()
+                    Text(
+                        text = context.getString(R.string.counting_chat_data),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (stats.isEmpty()) {
+                Text(
+                    text = context.getString(R.string.no_chat_data_available),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                val sortedStats = remember(stats, groupById) {
+                    stats.sortedWith(
+                        compareByDescending<CharacterGroupChatStats> { stat ->
+                            val groupId = stat.characterGroupId
+                            !groupId.isNullOrBlank() && groupById[groupId] == null
+                        }.thenBy { stat ->
+                            stat.characterGroupId.isNullOrBlank()
+                        }.thenBy { stat ->
+                            val groupId = stat.characterGroupId
+                            groupById[groupId]?.name ?: ""
+                        }
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    sortedStats.forEach { stat ->
+                        key(stat.characterGroupId ?: "unbound-${stat.hashCode()}") {
+                            val group = stat.characterGroupId?.let { groupById[it] }
+                            val isMissingGroup = !stat.characterGroupId.isNullOrBlank() && group == null
+                            CharacterGroupStatRow(
+                                stat = stat,
+                                characterGroup = group,
+                                userPreferencesManager = userPreferencesManager,
+                                onAssignMissing = if (isMissingGroup) {
+                                    { onAssignMissing(stat) }
+                                } else {
+                                    null
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CharacterGroupStatRow(
+    stat: CharacterGroupChatStats,
+    characterGroup: CharacterGroupCard?,
+    userPreferencesManager: UserPreferencesManager,
+    onAssignMissing: (() -> Unit)?
+) {
+    val context = LocalContext.current
+    val isMissingGroup = !stat.characterGroupId.isNullOrBlank() && characterGroup == null
+    val iconBackground = if (isMissingGroup) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+    val iconTint = if (isMissingGroup) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
+    val rowModifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(14.dp))
+        .let {
+            if (isMissingGroup && onAssignMissing != null) {
+                it.clickable { onAssignMissing() }
+            } else {
+                it
+            }
+        }
+        .padding(12.dp)
+
+    Row(
+        modifier = rowModifier,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (characterGroup != null) {
+            val avatarUri by userPreferencesManager
+                .getAiAvatarForCharacterGroupFlow(characterGroup.id)
+                .collectAsState(initial = null)
+
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (!avatarUri.isNullOrBlank()) Color.Transparent
+                        else MaterialTheme.colorScheme.secondaryContainer
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!avatarUri.isNullOrBlank()) {
+                    Image(
+                        painter = rememberAsyncImagePainter(model = Uri.parse(avatarUri)),
+                        contentDescription = context.getString(R.string.character_group_avatar),
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = characterGroup.name.firstOrNull()?.toString()
+                            ?: context.getString(R.string.character_group_single_char),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        } else {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = iconBackground.copy(alpha = 0.6f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PriorityHigh,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            val displayName = when {
+                characterGroup != null -> characterGroup.name
+                stat.characterGroupId.isNullOrBlank() ->
+                    context.getString(R.string.unbound_character_group)
+                else ->
+                    context.getString(R.string.missing_character_group_id, stat.characterGroupId)
+            }
+            Text(
+                text = displayName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = context.getString(R.string.chats_and_messages_count, stat.chatCount, stat.messageCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (isMissingGroup && onAssignMissing != null) {
+                Text(
+                    text = context.getString(R.string.click_to_manage_missing_group),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+        if (isMissingGroup && onAssignMissing != null) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun CharacterCardStatRow(
     stat: CharacterCardChatStats,
     characterCard: CharacterCard?,
@@ -784,7 +1134,15 @@ private fun CharacterCardStatRow(
 private fun ChatHistoryBatchSelectorCard(
     chatHistories: List<ChatHistory>,
     characterCards: List<CharacterCard>,
-    onApply: suspend (selectedChatIds: List<String>, targetCharacterCardName: String?, targetGroupName: String?, shouldUnbindCharacterCard: Boolean) -> Boolean
+    characterGroups: List<CharacterGroupCard>,
+    onApply: suspend (
+        selectedChatIds: List<String>,
+        targetCharacterCardName: String?,
+        targetCharacterGroupId: String?,
+        targetGroupName: String?,
+        shouldUnbindCharacterCard: Boolean,
+        shouldUnbindCharacterGroup: Boolean
+    ) -> Boolean
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -793,27 +1151,40 @@ private fun ChatHistoryBatchSelectorCard(
     var dropdownExpanded by remember { mutableStateOf(false) }
     var selectedTargetName by remember { mutableStateOf<String?>(null) }
     var targetIsUnbind by remember { mutableStateOf(false) }
+    var groupDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedTargetGroupId by remember { mutableStateOf<String?>(null) }
+    var targetGroupIsUnbind by remember { mutableStateOf(false) }
     var targetGroupName by remember { mutableStateOf("") }
     var submitting by remember { mutableStateOf(false) }
 
     val normalizedQuery = searchQuery.trim()
-    val filteredHistories = remember(chatHistories, normalizedQuery) {
+    val characterGroupNameById = remember(characterGroups) {
+        characterGroups.associate { it.id to it.name }
+    }
+    val filteredHistories = remember(chatHistories, normalizedQuery, characterGroupNameById) {
         val base = if (normalizedQuery.isBlank()) {
             chatHistories
         } else {
             chatHistories.filter { history ->
+                val groupName = history.characterGroupId?.let { characterGroupNameById[it] }
                 history.title.contains(normalizedQuery, ignoreCase = true) ||
                         (history.group?.contains(normalizedQuery, ignoreCase = true) == true) ||
-                        (history.characterCardName?.contains(normalizedQuery, ignoreCase = true) == true)
+                        (history.characterCardName?.contains(normalizedQuery, ignoreCase = true) == true) ||
+                        (groupName?.contains(normalizedQuery, ignoreCase = true) == true)
             }
         }
         // 先按是否有角色卡、分组分区，再按角色卡名称和分组名称排序，方便成批管理
         base.sortedWith(
             compareBy<ChatHistory> {
-                // 无角色卡的排在后面
-                it.characterCardName.isNullOrBlank()
+                // 无角色群组的排在后面
+                it.characterGroupId.isNullOrBlank()
+            }.thenBy {
+                // 先按角色群组名称排序
+                characterGroupNameById[it.characterGroupId] ?: ""
             }.thenBy {
                 // 再按角色卡名称排序
+                it.characterCardName.isNullOrBlank()
+            }.thenBy {
                 it.characterCardName ?: ""
             }.thenBy {
                 // 然后按分组名称排序（空分组排在后面）
@@ -837,11 +1208,17 @@ private fun ChatHistoryBatchSelectorCard(
             selectedTargetName = null
         }
     }
+    LaunchedEffect(characterGroups) {
+        if (selectedTargetGroupId != null && characterGroups.none { it.id == selectedTargetGroupId }) {
+            selectedTargetGroupId = null
+        }
+    }
 
     val hasSelection = selectedChatIds.isNotEmpty()
     val hasTargetSelection = targetIsUnbind || !selectedTargetName.isNullOrBlank()
+    val hasTargetGroupSelection = targetGroupIsUnbind || !selectedTargetGroupId.isNullOrBlank()
     val hasTargetGroup = targetGroupName.isNotBlank()
-    val canSubmit = hasSelection && (hasTargetSelection || hasTargetGroup) && !submitting
+    val canSubmit = hasSelection && (hasTargetSelection || hasTargetGroupSelection || hasTargetGroup) && !submitting
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -924,8 +1301,10 @@ private fun ChatHistoryBatchSelectorCard(
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                 ) {
                     itemsIndexed(filteredHistories, key = { _, history -> history.id }) { index, history ->
+                        val groupName = history.characterGroupId?.let { characterGroupNameById[it] }
                         ChatHistorySelectableRow(
                             history = history,
+                            characterGroupName = groupName,
                             selected = selectedChatIds.contains(history.id),
                             onSelectionChange = { selected ->
                                 selectedChatIds = if (selected) {
@@ -973,6 +1352,8 @@ private fun ChatHistoryBatchSelectorCard(
                             onClick = {
                                 targetIsUnbind = true
                                 selectedTargetName = null
+                                selectedTargetGroupId = null
+                                targetGroupIsUnbind = false
                                 dropdownExpanded = false
                             }
                         )
@@ -989,7 +1370,67 @@ private fun ChatHistoryBatchSelectorCard(
                                     onClick = {
                                         selectedTargetName = card.name
                                         targetIsUnbind = false
+                                        selectedTargetGroupId = null
+                                        targetGroupIsUnbind = false
                                         dropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                ExposedDropdownMenuBox(
+                    expanded = groupDropdownExpanded,
+                    onExpandedChange = { groupDropdownExpanded = it }
+                ) {
+                    val targetGroupLabel = when {
+                        targetGroupIsUnbind -> context.getString(R.string.remove_character_group_binding)
+                        !selectedTargetGroupId.isNullOrBlank() ->
+                            characterGroupNameById[selectedTargetGroupId] ?: selectedTargetGroupId!!
+                        else -> ""
+                    }
+                    OutlinedTextField(
+                        value = targetGroupLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(context.getString(R.string.target_character_group_optional)) },
+                        placeholder = { Text(context.getString(R.string.select_group_or_unbind)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupDropdownExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        colors = ExposedDropdownMenuDefaults.textFieldColors()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = groupDropdownExpanded,
+                        onDismissRequest = { groupDropdownExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(context.getString(R.string.remove_character_group_binding)) },
+                            onClick = {
+                                targetGroupIsUnbind = true
+                                selectedTargetGroupId = null
+                                targetIsUnbind = false
+                                selectedTargetName = null
+                                groupDropdownExpanded = false
+                            }
+                        )
+                        if (characterGroups.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text(context.getString(R.string.no_available_character_groups_dropdown), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                enabled = false,
+                                onClick = {}
+                            )
+                        } else {
+                            characterGroups.forEach { group ->
+                                DropdownMenuItem(
+                                    text = { Text(group.name) },
+                                    onClick = {
+                                        selectedTargetGroupId = group.id
+                                        targetGroupIsUnbind = false
+                                        targetIsUnbind = false
+                                        selectedTargetName = null
+                                        groupDropdownExpanded = false
                                     }
                                 )
                             }
@@ -1024,12 +1465,18 @@ private fun ChatHistoryBatchSelectorCard(
                                 val success = onApply(
                                     selectedChatIds.toList(),
                                     if (targetIsUnbind) null else selectedTargetName,
+                                    if (targetGroupIsUnbind) null else selectedTargetGroupId,
                                     groupName,
-                                    targetIsUnbind
+                                    targetIsUnbind,
+                                    targetGroupIsUnbind
                                 )
                                 if (success) {
                                     selectedChatIds = emptySet()
                                     targetGroupName = ""
+                                    selectedTargetName = null
+                                    targetIsUnbind = false
+                                    selectedTargetGroupId = null
+                                    targetGroupIsUnbind = false
                                 }
                                 submitting = false
                             }
@@ -1046,8 +1493,11 @@ private fun ChatHistoryBatchSelectorCard(
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         val buttonText = when {
+                            targetGroupIsUnbind && targetGroupName.isNotBlank() -> context.getString(R.string.apply_changes)
+                            targetGroupIsUnbind -> context.getString(R.string.remove_character_group_binding)
                             targetIsUnbind && targetGroupName.isNotBlank() -> context.getString(R.string.apply_changes)
                             targetIsUnbind -> context.getString(R.string.remove_character_card_binding)
+                            !selectedTargetGroupId.isNullOrBlank() -> context.getString(R.string.apply_character_group)
                             targetGroupName.isNotBlank() && selectedTargetName.isNullOrBlank() -> context.getString(R.string.apply_group)
                             else -> context.getString(R.string.apply_character_card)
                         }
@@ -1071,6 +1521,7 @@ private fun ChatHistoryBatchSelectorCard(
 @Composable
 private fun ChatHistorySelectableRow(
     history: ChatHistory,
+    characterGroupName: String?,
     selected: Boolean,
     onSelectionChange: (Boolean) -> Unit
 ) {
@@ -1099,11 +1550,21 @@ private fun ChatHistorySelectableRow(
                     append(context.getString(R.string.group_label, group))
                     append(" · ")
                 }
-                val cardInfo = if (history.characterCardName.isNullOrBlank()) {
-                    context.getString(R.string.unbound_character_card)
-                } else {
-                    context.getString(R.string.character_card_label, history.characterCardName)
+                val groupId = history.characterGroupId?.trim()
+                if (!groupId.isNullOrBlank()) {
+                    val resolvedGroupName =
+                        characterGroupName
+                            ?: context.getString(R.string.missing_character_group_id, groupId)
+                    append(context.getString(R.string.character_group_label, resolvedGroupName))
+                    return@buildString
                 }
+
+                val cardInfo =
+                    if (history.characterCardName.isNullOrBlank()) {
+                        context.getString(R.string.unbound_character_card)
+                    } else {
+                        context.getString(R.string.character_card_label, history.characterCardName)
+                    }
                 append(cardInfo)
             }
             Text(

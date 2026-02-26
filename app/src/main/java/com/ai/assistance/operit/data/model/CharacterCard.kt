@@ -94,8 +94,7 @@ data class OperitAttachedTagPayload(
     val name: String = "",
     val description: String = "",
     val promptContent: String = "",
-    val tagType: String = "CUSTOM",
-    val isSystemTag: Boolean = false
+    val tagType: String = "CUSTOM"
 )
 
 data class TavernChubExtension(

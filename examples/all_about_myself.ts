@@ -12,6 +12,7 @@
 
   enabledByDefault: true
 
+  "category": "Chat",
   tools: [
     {
       name: "all_about_myself"
@@ -31,7 +32,7 @@
 - 该市场内容较少，可在其他可信来源继续搜集 MCP，再按本手册部署。
 1) 配置目录：/sdcard/Download/Operit/mcp_plugins/
 - 主配置：mcp_config.json
-- 状态缓存：server_status.json（内部状态文件，通常不需要手改）
+- 运行状态缓存：server_status.json（非实时快照，仅用于状态记录与工具缓存，不作为排查判定依据）
 2) 两侧路径要严格区分：
 - Android 侧是源目录（用户导入/存放目录），不是最终运行目录
 - Linux 侧是最终运行目录：~/mcp_plugins/<pluginId最后一段>
@@ -43,7 +44,7 @@
 4) 命令型插件判定：
 - 对于 command 为 npx/uvx/uv 的命令型插件，系统按“已部署”处理，仅做最小目录准备。
 5) 系统启动行为（必须理解）：
-- 本地插件：系统会读取 mcp_config.json 中该插件的 command/args/env，使用 cwd=~/mcp_plugins/<shortName> 启动进程，并校验是否 active
+- 本地插件：系统会读取 mcp_config.json 中该插件的 command/args/env，使用 cwd=~/mcp_plugins/<shortName> 启动进程；可用性以“工具可调用/服务可响应”为准
 - 远程插件：系统按 endpoint + connectionType（可选 bearerToken/headers）发起连接并校验连通
 6) command 的实际执行位置（必须按此理解）：
 - 本地插件启动时，系统在 Linux 终端环境中启动进程；执行工作目录固定是 ~/mcp_plugins/<shortName>
@@ -65,6 +66,7 @@
   - env（可选，键值对）
   - autoApprove（可选，数组）
   - disabled（可选，true=禁用）
+- MCP 的环境变量必须写在 mcpServers.<id>.env；`read_environment_variable` / `write_environment_variable` 不会读写这里。
 8) mcp_config.json 路径写法规则：
 - 不要把 Android 绝对路径写进本地插件启动参数（例如 /sdcard/...）
 - 本地插件命令应按 Linux 运行目录编写，优先相对路径（因为 cwd 已固定到 ~/mcp_plugins/<shortName>）
@@ -78,6 +80,7 @@
 - 检查 mcp_config.json 的 command/args/env 字段是否完整
 - 检查 args 是否误写 Android 路径
 - 检查 env 中所需 key/token
+- 不要把 server_status.json 的 active 当作唯一依据；优先看工具是否可拉取、可调用
 - 检查终端依赖（node/pnpm/python/uv）与 MCP 服务状态
 
 【Skill：安装与排查】
@@ -115,6 +118,12 @@
 5) 制作包文档：
 - https://github.com/AAswordman/Operit/blob/main/docs/SCRIPT_DEV_GUIDE.md
 
+【Package 兼容模型（重要）】
+- AI 看到的 package 是统一抽象，底层可能来自 MCP、Skill、Sandbox Package 任意一种。
+- 可用包列表中的条目，不保证同类型；可能是三种类型混合出现。
+- `use_package` 是三兼容入口：对 MCP/Skill/Sandbox Package 都可统一调用。
+- `ping_mcp` 工具是 `use_package` 的直通封装，用于快速探测指定包是否可被加载。
+
 【功能模型与模型配置】
 1) 模型配置（Model Config）：
 - 每个模型配置是一套完整连接参数（provider / endpoint / api key / model_name / 各能力开关）。
@@ -151,12 +160,10 @@
 - 通常只需启用其中一个可用绘图包即可，无需全部开启。
 
 【执行原则】
-- 优先做“配置定位 + 精确修改 + 可执行排查步骤”。
-- 用户问 MCP/Skill 问题时，优先基于上述路径与规则回答，不要泛泛而谈。
-- 用户问沙盒包管理时，优先调用 list_sandbox_packages 与 set_sandbox_package_enabled，不要凭猜测回答包状态。
-- 需要触发一次 MCP 全量重启并采集每个插件日志时，调用 restart_mcp_with_logs 工具（可选 timeout_ms）。
-- 用户问模型配置或功能模型绑定时，优先调用 list/create/update/delete_model_config、list/set_function_model_config、test_model_config_connection。
-- 用户问“怎么制作 skill”时，调用 how_make_skill 工具。'''
+- 严格按用户明确指示执行，不自行定义“问题”或追加未被要求的目标。
+- 任何会改动用户配置的操作（开关、导入/删除、写环境变量、模型配置增删改、重启）都必须先得到用户明确确认。
+- 用户没有明确要求执行某个工具时，不主动调用写入类工具。
+- 回答优先基于本手册的路径与规则，避免泛化推断。'''
         en: '''Configuration troubleshooting guide.
 
 [Trigger conditions]
@@ -172,7 +179,7 @@
 - This market is still small; you can continue collecting MCPs from other trusted sources, then deploy with this guide.
 1) Config directory: /sdcard/Download/Operit/mcp_plugins/
 - Main config: mcp_config.json
-- Status cache: server_status.json (internal state file; usually should not be edited manually)
+- Runtime status cache: server_status.json (non-realtime snapshot for status/tool cache only; not a troubleshooting source of truth)
 2) Keep Android-side and Linux-side paths strictly separated:
 - Android side is the source/import location, not the final runtime location
 - Linux runtime directory is: ~/mcp_plugins/<last-segment-of-pluginId>
@@ -184,7 +191,7 @@
 4) Command-based plugin handling:
 - For command-based plugins using npx/uvx/uv, the system treats them as deployed and only performs minimal directory preparation.
 5) System startup behavior (critical):
-- Local plugins: the app reads command/args/env from mcp_config.json, starts the process with cwd=~/mcp_plugins/<shortName>, and verifies active status
+- Local plugins: the app reads command/args/env from mcp_config.json and starts the process with cwd=~/mcp_plugins/<shortName>; availability should be judged by real tool call/response
 - Remote plugins: the app connects using endpoint + connectionType (optional bearerToken/headers) and verifies connectivity
 6) Actual execution location of command (must be understood this way):
 - For local plugins, the process starts in the Linux terminal environment with fixed working directory: ~/mcp_plugins/<shortName>
@@ -206,6 +213,7 @@
   - env (optional, key-value map)
   - autoApprove (optional, array)
   - disabled (optional, true means disabled)
+- MCP environment variables must be configured in mcpServers.<id>.env; `read_environment_variable` / `write_environment_variable` do not read or write these MCP env entries.
 8) Path-writing rules in mcp_config.json:
 - Do not put Android absolute paths (for example /sdcard/...) in local plugin startup args
 - Write local plugin command/args for Linux runtime; prefer relative paths because cwd is fixed to ~/mcp_plugins/<shortName>
@@ -219,6 +227,7 @@
 - Check whether command/args/env in mcp_config.json are complete
 - Check whether args incorrectly use Android paths
 - Check required key/token in env
+- Do not treat `active` in server_status.json as the single source of truth; prioritize whether tools can be fetched/called successfully
 - Check terminal dependencies (node/pnpm/python/uv) and MCP service status
 
 [Skill: install and troubleshooting]
@@ -256,6 +265,12 @@
 5) Package authoring guide:
 - https://github.com/AAswordman/Operit/blob/main/docs/SCRIPT_DEV_GUIDE.md
 
+[Package compatibility model (important)]
+- The package list seen by AI is a unified abstraction, and each item may come from MCP, Skill, or Sandbox Package.
+- Available package entries are not guaranteed to be a single type; mixed types are expected.
+- `use_package` is tri-compatible and can be called uniformly for MCP/Skill/Sandbox Package.
+- `ping_mcp` is a thin wrapper over `use_package` for quick package availability probing.
+
 [Function model and model config]
 1) Model config:
 - Each model config is one full connection profile (provider / endpoint / api key / model_name / capability switches).
@@ -292,12 +307,10 @@
 - Usually enabling one available drawing package is enough; no need to enable all of them.
 
 [Execution principles]
-- Focus on config diagnosis + precise edits + executable troubleshooting steps.
-- For MCP/Skill issues, answer with concrete paths/rules above instead of generic guidance.
-- For sandbox package management, prefer list_sandbox_packages and set_sandbox_package_enabled instead of guessing state.
-- When a full MCP restart with per-plugin startup logs is required, call restart_mcp_with_logs (optional timeout_ms).
-- For model config and function bindings, prefer list/create/update/delete_model_config, list/set_function_model_config, and test_model_config_connection.
-- If user asks how to create a skill, call how_make_skill.'''
+- Follow the user's explicit instructions strictly; do not define your own "problem" or add unrequested goals.
+- Any configuration-changing action (toggle/import/delete/write env/model config CRUD/restart) requires explicit user confirmation first.
+- If the user did not explicitly ask to execute a specific tool, do not proactively run write-type tools.
+- Answer with concrete paths/rules from this guide and avoid generic assumptions.'''
       }
       parameters: []
       advice: true
@@ -309,7 +322,6 @@
         en: '''Return a bilingual guide for creating a skill.'''
       }
       parameters: []
-      advice: true
     },
     {
       name: "list_sandbox_packages"
@@ -318,7 +330,6 @@
         en: '''Get sandbox package list (built-in + external), current enabled states, and management paths.'''
       }
       parameters: []
-      advice: true
     },
     {
       name: "set_sandbox_package_enabled"
@@ -346,13 +357,12 @@
           required: true
         }
       ]
-      advice: true
     },
     {
       name: "read_environment_variable"
       description: {
-        zh: '''读取指定环境变量当前值（用于配置排查）。'''
-        en: '''Read current value of a specified environment variable (for configuration troubleshooting).'''
+        zh: '''读取指定环境变量当前值（仅用于沙盒包脚本环境变量排查，不用于 MCP 配置）。'''
+        en: '''Read current value of a specified environment variable (sandbox-package script env troubleshooting only, not MCP config env).'''
       }
       parameters: [
         {
@@ -365,13 +375,12 @@
           required: true
         }
       ]
-      advice: true
     },
     {
       name: "write_environment_variable"
       description: {
-        zh: '''写入指定环境变量；value 为空时会清除该变量。'''
-        en: '''Write a specified environment variable; empty value clears the variable.'''
+        zh: '''写入指定环境变量；value 为空时会清除该变量（仅用于沙盒包脚本环境变量，不用于 MCP 配置 env）。'''
+        en: '''Write a specified environment variable; empty value clears it (sandbox-package script env only, not MCP config env).'''
       }
       parameters: [
         {
@@ -393,7 +402,6 @@
           required: false
         }
       ]
-      advice: true
     },
     {
       name: "restart_mcp_with_logs"
@@ -412,7 +420,6 @@
           required: false
         }
       ]
-      advice: true
     },
     {
       name: "list_model_configs"
@@ -421,7 +428,6 @@
         en: '''List all model configs and function-model bindings.'''
       }
       parameters: []
-      advice: true
     },
     {
       name: "create_model_config"
@@ -476,7 +482,6 @@
           required: false
         }
       ]
-      advice: true
     },
     {
       name: "update_model_config"
@@ -558,7 +563,6 @@
           required: false
         }
       ]
-      advice: true
     },
     {
       name: "delete_model_config"
@@ -577,7 +581,6 @@
           required: true
         }
       ]
-      advice: true
     },
     {
       name: "list_function_model_configs"
@@ -586,7 +589,6 @@
         en: '''List function model bindings (function -> config + model index).'''
       }
       parameters: []
-      advice: true
     },
     {
       name: "set_function_model_config"
@@ -623,7 +625,6 @@
           required: false
         }
       ]
-      advice: true
     },
     {
       name: "test_model_config_connection"
@@ -651,11 +652,27 @@
           required: false
         }
       ]
-      advice: true
+    },
+    {
+      name: "ping_mcp"
+      description: {
+        zh: '''直通 use_package 的探测工具：用于快速测试某个 package 是否可被加载（MCP/Skill/Sandbox 三兼容）。'''
+        en: '''A pass-through probe for use_package: quickly test whether a package can be loaded (tri-compatible across MCP/Skill/Sandbox).'''
+      }
+      parameters: [
+        {
+          name: "package_name"
+          description: {
+            zh: "要探测的包名"
+            en: "Package name to probe"
+          }
+          type: string
+          required: true
+        }
+      ]
     }
   ]
-}
-*/
+}*/
 
 async function all_about_myself(params: { query?: string }) {
   try {
@@ -1054,6 +1071,31 @@ async function test_model_config_connection(params?: { config_id?: string; model
   }
 }
 
+async function ping_mcp(params?: { package_name?: string }) {
+  try {
+    const packageName = (params?.package_name ?? "").trim();
+    if (!packageName) {
+      complete({
+        success: false,
+        message: "Missing required parameter: package_name"
+      });
+      return;
+    }
+
+    const result = await toolCall("use_package", { package_name: packageName });
+    complete({
+      success: true,
+      message: `Package probe finished: ${packageName}`,
+      data: result
+    });
+  } catch (error: any) {
+    complete({
+      success: false,
+      message: error?.message ?? "Unknown error"
+    });
+  }
+}
+
 exports.all_about_myself = all_about_myself;
 exports.how_make_skill = how_make_skill;
 exports.list_sandbox_packages = list_sandbox_packages;
@@ -1068,3 +1110,4 @@ exports.delete_model_config = delete_model_config;
 exports.list_function_model_configs = list_function_model_configs;
 exports.set_function_model_config = set_function_model_config;
 exports.test_model_config_connection = test_model_config_connection;
+exports.ping_mcp = ping_mcp;

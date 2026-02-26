@@ -196,6 +196,7 @@ async function simple_greeter_tool(params) {
         "en": "Greeting Tool V2"
     },
     "description": { "zh": "一个提供多种问候方式的教学工具集。", "en": "A tutorial tool package that demonstrates multiple greeting methods." },
+    "category": "Utility",
     "tools": [
         {
             "name": "greet",
@@ -222,8 +223,7 @@ async function simple_greeter_tool(params) {
             ]
         }
     ]
-}
-*/
+}*/
 // --- 3.2 详解 exports ---
 /*
     `exports` 是一个空对象，等待你来填充。

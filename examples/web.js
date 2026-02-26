@@ -11,6 +11,7 @@
         "en": "Enables complex web operations based on a real browser session."
     },
     "enabledByDefault": true,
+    "category": "Automatic",
     "tools": [
         {
             "name": "start",
@@ -114,8 +115,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const MAX_INLINE_WEB_CONTENT_CHARS = 24000;
 const Web = (function () {
     function toPayload(raw) {

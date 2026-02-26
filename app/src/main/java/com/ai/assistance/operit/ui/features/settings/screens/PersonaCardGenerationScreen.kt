@@ -27,6 +27,7 @@ import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PromptTag
 import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.data.preferences.ActiveCharacterSelectionManager
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.PromptTagManager
@@ -181,6 +182,7 @@ fun PersonaCardGenerationScreen(
 
     // 角色卡数据
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val activeCharacterSelectionManager = remember { ActiveCharacterSelectionManager.getInstance(context) }
     val tagManager = remember { PromptTagManager.getInstance(context) }
     val chatHistoryManager = remember { PersonaCardChatHistoryManager.getInstance(context) }
     var allCharacterCards by remember { mutableStateOf(listOf<CharacterCard>()) }
@@ -218,7 +220,7 @@ fun PersonaCardGenerationScreen(
             // 如果记录的活跃ID无效（例如卡被删除），则默认使用第一张卡
             if (characterCardManager.getCharacterCard(currentId) == null && cards.isNotEmpty()) {
                 val firstCardId = cards.first().id
-                characterCardManager.setActiveCharacterCard(firstCardId)
+                activeCharacterSelectionManager.activateCharacterCard(firstCardId)
                 currentId = firstCardId
             }
 
@@ -297,7 +299,7 @@ fun PersonaCardGenerationScreen(
                 // 如果记录的活跃ID无效（例如卡被删除），则默认使用第一张卡
                 if (characterCardManager.getCharacterCard(id) == null && cards.isNotEmpty()) {
                     val firstCardId = cards.first().id
-                    characterCardManager.setActiveCharacterCard(firstCardId)
+                    activeCharacterSelectionManager.activateCharacterCard(firstCardId)
                     id = firstCardId
                 }
 
@@ -580,7 +582,7 @@ fun PersonaCardGenerationScreen(
                                     onClick = {
                                         expanded = false
                                         scope.launch {
-                                            characterCardManager.setActiveCharacterCard(card.id)
+                                            activeCharacterSelectionManager.activateCharacterCard(card.id)
                                             activeCardId = card.id // 更新ID以触发Effect
                                         }
                                     }
@@ -642,7 +644,7 @@ fun PersonaCardGenerationScreen(
                                                 isDefault = false
                                             )
                                             val newId = characterCardManager.createCharacterCard(newCard)
-                                            characterCardManager.setActiveCharacterCard(newId)
+                                            activeCharacterSelectionManager.activateCharacterCard(newId)
                                         }
                                         refreshData()
                                     }

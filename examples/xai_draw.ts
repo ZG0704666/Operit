@@ -1,7 +1,8 @@
 
 /* METADATA
 {
-  "name": "xai_draw",
+  "name": "xai_draw",
+
   "display_name": {
       "zh": "xAI 绘图",
       "en": "xAI Draw"
@@ -13,6 +14,7 @@
   "env": [
     "XAI_API_KEY"
   ],
+  "category": "Draw",
   "tools": [
     {
       "name": "draw_image",
@@ -28,8 +30,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 
 const xaiDraw = (function () {
     const HTTP_TIMEOUT_MS = 600000;

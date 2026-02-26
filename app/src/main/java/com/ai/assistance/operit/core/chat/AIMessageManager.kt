@@ -21,6 +21,7 @@ import com.ai.assistance.operit.util.ImagePoolManager
 import com.ai.assistance.operit.util.MediaPoolManager
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.ChatMarkupRegex
+import com.ai.assistance.operit.api.chat.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.util.stream.SharedStream
 import com.ai.assistance.operit.util.stream.share
@@ -253,6 +254,9 @@ object AIMessageManager {
         characterName: String? = null,
         avatarUri: String? = null,
         roleCardId: String,
+        currentRoleName: String? = null,
+        splitHistoryByRole: Boolean = false,
+        groupOrchestrationMode: Boolean = false,
         proxySenderName: String? = null,
         chatModelConfigIdOverride: String? = null,
         chatModelIndexOverride: Int? = null
@@ -261,7 +265,20 @@ object AIMessageManager {
         lastActiveChatKey = chatKey
         activeEnhancedAiServiceByChatId[chatKey] = enhancedAiService
 
-        val memory = getMemoryFromMessages(chatHistory)
+        val memory = getMemoryFromMessages(
+            messages = chatHistory,
+            splitByRole = splitHistoryByRole,
+            targetRoleName = currentRoleName,
+            groupOrchestrationMode = groupOrchestrationMode
+        )
+        if (splitHistoryByRole && !currentRoleName.isNullOrBlank()) {
+            val assistantCount = memory.count { it.first == "assistant" }
+            val userCount = memory.count { it.first == "user" }
+            AppLogger.d(
+                TAG,
+                "按角色拆解历史: role=$currentRoleName, assistant=$assistantCount, user=$userCount, total=${memory.size}"
+            )
+        }
 
         // 检查是否启用了深度搜索模式（计划模式）
         val isDeepSearchEnabled = apiPreferences.enableAiPlanningFlow.first()
@@ -350,6 +367,8 @@ object AIMessageManager {
                 characterName = characterName,
                 avatarUri = avatarUri,
                 roleCardId = roleCardId,
+                enableRoleScopedHistoryHint = splitHistoryByRole && !currentRoleName.isNullOrBlank(),
+                enableGroupOrchestrationHint = groupOrchestrationMode,
                 proxySenderName = proxySenderName,
                 chatModelConfigIdOverride = chatModelConfigIdOverride,
                 chatModelIndexOverride = chatModelIndexOverride,
@@ -656,7 +675,14 @@ object AIMessageManager {
             if (cleanedContent.isNotBlank()) {
                 val displayContent =
                     if (role == "assistant") condenseAssistantForReview(cleanedContent) else condenseUserForReview(cleanedContent)
-                conversationReviewEntries.add(role to displayContent)
+                val speakerLabel =
+                    if (message.sender == "user") {
+                        context.getString(R.string.ai_message_user_label)
+                    } else {
+                        val roleName = message.roleName?.takeIf { it.isNotBlank() }
+                        if (roleName != null) "AI($roleName)" else "AI"
+                    }
+                conversationReviewEntries.add(speakerLabel to displayContent)
             }
             Pair(role, "#${index + 1}: $cleanedContent")
         }
@@ -676,9 +702,9 @@ object AIMessageManager {
                     append(trimmedSummary)
                     if (conversationReviewEntries.isNotEmpty()) {
                         append(context.getString(R.string.ai_message_dialogue_review))
-                        conversationReviewEntries.forEach { (role, content) ->
+                        conversationReviewEntries.forEach { (speaker, content) ->
                             append("- ")
-                            append(if (role == "user") context.getString(R.string.ai_message_user_label) else "AI")
+                            append(speaker)
                             append(": ")
                             append(content)
                             append("\n")
@@ -766,18 +792,72 @@ object AIMessageManager {
      * @param messages 完整的聊天记录。
      * @return 一个Pair列表，包含角色和内容，用于AI请求。
      */
-    fun getMemoryFromMessages(messages: List<ChatMessage>): List<Pair<String, String>> {
+    fun getMemoryFromMessages(
+        messages: List<ChatMessage>,
+        splitByRole: Boolean = false,
+        targetRoleName: String? = null,
+        groupOrchestrationMode: Boolean = false
+    ): List<Pair<String, String>> {
         val lastSummaryIndex = messages.indexOfLast { it.sender == "summary" }
         val relevantMessages = if (lastSummaryIndex != -1) {
             messages.subList(lastSummaryIndex, messages.size)
         } else {
             messages
         }
+        val roleScopedEnabled = splitByRole && !targetRoleName.isNullOrBlank()
+        val normalizedTargetRoleName = targetRoleName?.trim().orEmpty()
+        fun removeStatusTags(text: String): String {
+            val noStatus = ChatMarkupRegex.statusTag.replace(text, " ")
+            return ChatMarkupRegex.statusSelfClosingTag.replace(noStatus, " ").trim()
+        }
         return relevantMessages
             .filter { it.sender == "user" || it.sender == "ai" || it.sender == "summary" }
-            .map {
-                val role = if (it.sender == "ai") "assistant" else "user" // "summary" is treated as user-side context
-                Pair(role, it.content)
+            .mapNotNull { message ->
+                when (message.sender) {
+                    "ai" -> {
+                        val cleanedWithoutThinking = ChatUtils.removeThinkingContent(message.content).trim()
+                        val contentWithoutStatus = removeStatusTags(cleanedWithoutThinking)
+                        val isNoSpeakOnly =
+                            groupOrchestrationMode &&
+                                ConversationMarkupManager.containsNoSpeak(message.content) &&
+                                contentWithoutStatus.isBlank()
+                        if (isNoSpeakOnly) {
+                            return@mapNotNull null
+                        }
+                        if (!roleScopedEnabled) {
+                            "assistant" to message.content
+                        } else {
+                            val messageRoleName = message.roleName.trim()
+                            if (messageRoleName == normalizedTargetRoleName) {
+                                "assistant" to message.content
+                            } else {
+                                val roleLabel = if (messageRoleName.isNotBlank()) messageRoleName else "unknown"
+                                val bridgedContent = removeStatusTags(cleanedWithoutThinking)
+                                if (bridgedContent.isBlank()) {
+                                    null
+                                } else {
+                                    "user" to "[From role: $roleLabel]\n$bridgedContent"
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        val baseContent = message.content
+                        if (groupOrchestrationMode && roleScopedEnabled && message.sender == "user") {
+                            val trimmed = baseContent.trim()
+                            if (trimmed.isBlank()) {
+                                "user" to baseContent
+                            } else
+                            if (trimmed.startsWith("[From user]")) {
+                                "user" to trimmed
+                            } else {
+                                "user" to "[From user]\n$trimmed"
+                            }
+                        } else {
+                            "user" to baseContent // "summary" is treated as user-side context
+                        }
+                    }
+                }
             }
     }
-} 
+}

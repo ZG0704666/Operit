@@ -8,6 +8,7 @@ METADATA
     },
     "description": { "zh": "百度地图工具集合，提供AOI（兴趣区域）数据获取接口。通过调用百度地图API，支持按地理范围查询AOI边界坐标，基于位置的路线规划，助力地理信息系统应用开发和空间数据分析。", "en": "A Baidu Maps toolkit that provides AOI (Area of Interest) data access. It supports querying AOI boundary coordinates by geographic range and location-based route planning, useful for GIS development and spatial data analysis." },
     "enabledByDefault": true,
+    "category": "Map",
     "tools": [
         {
             "name": "search_aoi",
@@ -46,8 +47,7 @@ METADATA
             ]
         },
     ]
-}
-*/
+}*/
 const baiduMap = (function () {
     // 常用城市编码
     const CITY_CODES = {

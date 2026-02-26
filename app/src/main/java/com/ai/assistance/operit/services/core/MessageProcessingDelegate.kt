@@ -94,6 +94,10 @@ class MessageProcessingDelegate(
     private val _nonFatalErrorEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val nonFatalErrorEvent = _nonFatalErrorEvent.asSharedFlow()
 
+    private val _turnCompleteCounterByChatId = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val turnCompleteCounterByChatId: StateFlow<Map<String, Long>> =
+        _turnCompleteCounterByChatId.asStateFlow()
+
     // 当前活跃的AI响应流
     private data class ChatRuntime(
         var responseStream: SharedStream<String>? = null,
@@ -186,6 +190,35 @@ class MessageProcessingDelegate(
         setChatInputProcessingState(chatId, state)
     }
 
+    suspend fun buildUserMessageContentForGroupOrchestration(
+        messageText: String,
+        attachments: List<AttachmentInfo>,
+        enableMemoryQuery: Boolean,
+        enableWorkspaceAttachment: Boolean,
+        workspacePath: String?,
+        workspaceEnv: String?,
+        replyToMessage: ChatMessage?
+    ): String {
+        val configId = functionalConfigManager.getConfigIdForFunction(FunctionType.CHAT)
+        val currentModelConfig = modelConfigManager.getModelConfigFlow(configId).first()
+        val enableDirectImageProcessing = currentModelConfig.enableDirectImageProcessing
+        val enableDirectAudioProcessing = currentModelConfig.enableDirectAudioProcessing
+        val enableDirectVideoProcessing = currentModelConfig.enableDirectVideoProcessing
+
+        return AIMessageManager.buildUserMessageContent(
+            messageText = messageText,
+            attachments = attachments,
+            enableMemoryQuery = enableMemoryQuery,
+            enableWorkspaceAttachment = enableWorkspaceAttachment,
+            workspacePath = workspacePath,
+            workspaceEnv = workspaceEnv,
+            replyToMessage = replyToMessage,
+            enableDirectImageProcessing = enableDirectImageProcessing,
+            enableDirectAudioProcessing = enableDirectAudioProcessing,
+            enableDirectVideoProcessing = enableDirectVideoProcessing
+        )
+    }
+
     fun getResponseStream(chatId: String): SharedStream<String>? {
         return chatRuntimes[chatKey(chatId)]?.responseStream
     }
@@ -226,6 +259,10 @@ class MessageProcessingDelegate(
         _scrollToBottomEvent.tryEmit(Unit)
     }
 
+    fun getTurnCompleteCounter(chatId: String): Long {
+        return _turnCompleteCounterByChatId.value[chatId] ?: 0L
+    }
+
     fun sendUserMessage(
             attachments: List<AttachmentInfo> = emptyList(),
             chatId: String,
@@ -245,12 +282,24 @@ class MessageProcessingDelegate(
             isAutoContinuation: Boolean = false, // 标识是否为自动续写
             enableSummary: Boolean = true,
             chatModelConfigIdOverride: String? = null,
-            chatModelIndexOverride: Int? = null
+            chatModelIndexOverride: Int? = null,
+            suppressUserMessageInHistory: Boolean = false,
+            isGroupOrchestrationTurn: Boolean = false
     ) {
         val rawMessageText = messageTextOverride ?: _userMessage.value.text
-        if (rawMessageText.isBlank() && attachments.isEmpty() && !isAutoContinuation) return
+        if (rawMessageText.isBlank() && attachments.isEmpty() && !isAutoContinuation) {
+            AppLogger.d(
+                TAG,
+                "sendUserMessage忽略: 空消息且无附件, chatId=$chatId, autoContinuation=$isAutoContinuation"
+            )
+            return
+        }
         val chatRuntime = runtimeFor(chatId)
         if (chatRuntime.isLoading.value) {
+            AppLogger.w(
+                TAG,
+                "sendUserMessage忽略: chat正在处理中, chatId=$chatId, roleCardId=$roleCardId, override=${!messageTextOverride.isNullOrBlank()}, suppressUserMessageInHistory=$suppressUserMessageInHistory"
+            )
             return
         }
 
@@ -305,6 +354,7 @@ class MessageProcessingDelegate(
 
             // 自动继续且原本消息为空时，不添加到聊天历史（虽然会发送"继续"给AI）
             val shouldAddUserMessageToChat =
+                !suppressUserMessageInHistory &&
                 !(isAutoContinuation &&
                         originalMessageText.isBlank() &&
                         attachments.isEmpty())
@@ -414,6 +464,7 @@ class MessageProcessingDelegate(
                     AppLogger.e(TAG, "获取角色信息失败: ${e.message}", e)
                     Pair(null, null)
                 }
+                val currentRoleName = characterName ?: "Operit"
 
                 val chatHistory = getChatHistory(activeChatId)
 
@@ -427,12 +478,22 @@ class MessageProcessingDelegate(
                 }
 
                 // 2. 使用 AIMessageManager 发送消息
+                val requestMessageContent =
+                    if (isGroupOrchestrationTurn &&
+                        finalMessageContent.trimStart().isNotEmpty() &&
+                        !finalMessageContent.trimStart().startsWith("[From user]")
+                    ) {
+                        "[From user]\n$finalMessageContent"
+                    } else {
+                        finalMessageContent
+                    }
+
                 val responseStream = AIMessageManager.sendMessage(
                     enhancedAiService = service,
                     chatId = activeChatId,
-                    messageContent = finalMessageContent,
-                    //现在chatHistory 100%包含最新的用户输入，所以可以截掉
-                    chatHistory = if (userMessageAdded && chatHistory.isNotEmpty()) {
+                    messageContent = requestMessageContent,
+                    // 仅在群组编排中去掉当前用户消息，避免重复拼接。
+                    chatHistory = if (isGroupOrchestrationTurn && userMessageAdded && chatHistory.isNotEmpty()) {
                         chatHistory.subList(0, chatHistory.size - 1)
                     } else {
                         chatHistory
@@ -451,6 +512,9 @@ class MessageProcessingDelegate(
                     characterName = characterName,
                     avatarUri = avatarUri,
                     roleCardId = effectiveRoleCardId,
+                    currentRoleName = currentRoleName,
+                    splitHistoryByRole = true,
+                    groupOrchestrationMode = isGroupOrchestrationTurn,
                     proxySenderName = proxySenderNameOverride,
                     chatModelConfigIdOverride = chatModelConfigIdOverride,
                     chatModelIndexOverride = chatModelIndexOverride
@@ -475,13 +539,6 @@ class MessageProcessingDelegate(
 
                 // 更新当前响应流，使其可以被其他组件（如悬浮窗）访问
                 chatRuntime.responseStream = sharedCharStream
-
-                // 获取当前激活角色卡的名称
-                val currentRoleName = try {
-                    characterCardManager.getCharacterCardFlow(effectiveRoleCardId).first().name
-                } catch (e: Exception) {
-                    "Operit" // 默认角色名
-                }
 
                 // 获取当前使用的provider和model信息
                 val (provider, modelName) = try {
@@ -668,6 +725,19 @@ class MessageProcessingDelegate(
         }
     }
 
+    private fun notifyTurnComplete(
+        chatId: String?,
+        activeChatId: String?,
+        service: EnhancedAIService
+    ) {
+        if (!chatId.isNullOrBlank()) {
+            val updated = _turnCompleteCounterByChatId.value.toMutableMap()
+            updated[chatId] = (updated[chatId] ?: 0L) + 1L
+            _turnCompleteCounterByChatId.value = updated
+        }
+        onTurnComplete(activeChatId, service)
+    }
+
     private suspend fun finalizeMessageAndNotify(
         chatId: String?,
         activeChatId: String?,
@@ -788,7 +858,7 @@ class MessageProcessingDelegate(
                         if (shouldNotifyTurnComplete) {
                             val service = serviceForTurnComplete
                             if (service != null) {
-                                onTurnComplete(activeChatId, service)
+                                notifyTurnComplete(chatId, activeChatId, service)
                             }
                         }
                     }
@@ -811,7 +881,7 @@ class MessageProcessingDelegate(
             if (shouldNotifyTurnComplete && !deferTurnCompleteToAsyncJob) {
                 val service = serviceForTurnComplete
                 if (service != null) {
-                    onTurnComplete(activeChatId, service)
+                    notifyTurnComplete(chatId, activeChatId, service)
                 }
             }
         } catch (e: UninitializedPropertyAccessException) {
@@ -834,7 +904,7 @@ class MessageProcessingDelegate(
                 if (shouldNotifyTurnComplete) {
                     val service = serviceForTurnComplete
                     if (service != null) {
-                        onTurnComplete(activeChatId, service)
+                        notifyTurnComplete(chatId, activeChatId, service)
                     }
                 }
             } catch (ex: Exception) {

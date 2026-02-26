@@ -13,6 +13,7 @@
     "env": [
         "TAVILY_API_KEY"
     ],
+    "category": "Search",
     "tools": [
         {
             "name": "search",
@@ -63,8 +64,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const tavily = (function () {
     const client = OkHttp.newClient();
     const BASE_URLS = {

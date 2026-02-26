@@ -11,6 +11,7 @@
     "en": "Integration for triggering Tasker plugin events. This package lets you send events to Tasker."
   },
   "enabledByDefault": false,
+  "category": "Workflow",
   "tools": [
     {
       "name": "trigger_tasker_event",
@@ -29,8 +30,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 /// <reference path="./types/index.d.ts" />
 const TaskerIntegration = (function () {
     async function trigger_tasker_event(params) {

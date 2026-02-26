@@ -1,6 +1,7 @@
 /* METADATA
 {
-  "name": "qwen_draw",
+  "name": "qwen_draw",
+
   "display_name": {
       "zh": "Qwen 绘图",
       "en": "Qwen Draw"
@@ -35,6 +36,7 @@
       "required": false
     }
   ],
+  "category": "Draw",
   "tools": [
     {
       "name": "draw_image",
@@ -57,8 +59,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 
 /// <reference path="./types/index.d.ts" />
 

@@ -1031,7 +1031,7 @@ fun AgentChatInputSection(
                                         } else {
                                             MaterialTheme.colorScheme.primary
                                         }
-                                    else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                    else -> MaterialTheme.colorScheme.primary
                                 }
 
                             val actionButtonIconTint =
@@ -1043,7 +1043,7 @@ fun AgentChatInputSection(
                                         } else {
                                             MaterialTheme.colorScheme.onPrimary
                                         }
-                                    else -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                                    else -> MaterialTheme.colorScheme.onPrimary
                                 }
 
                             Box(

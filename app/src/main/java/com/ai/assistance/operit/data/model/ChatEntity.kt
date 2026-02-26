@@ -22,6 +22,7 @@ data class ChatEntity(
         val workspaceEnv: String? = null,
         val parentChatId: String? = null,
         val characterCardName: String? = null,
+        val characterGroupId: String? = null,
         val locked: Boolean = false
 ) {
     /** 转换为ChatHistory对象（供UI层使用） */
@@ -49,6 +50,7 @@ data class ChatEntity(
                 workspaceEnv = workspaceEnv,
                 parentChatId = parentChatId,
                 characterCardName = characterCardName,
+                characterGroupId = characterGroupId,
                 locked = locked
         )
     }
@@ -81,6 +83,7 @@ data class ChatEntity(
                     workspaceEnv = chatHistory.workspaceEnv,
                     parentChatId = chatHistory.parentChatId,
                     characterCardName = chatHistory.characterCardName,
+                    characterGroupId = chatHistory.characterGroupId,
                     locked = chatHistory.locked
             )
         }

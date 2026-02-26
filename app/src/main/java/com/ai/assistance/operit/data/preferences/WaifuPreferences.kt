@@ -127,11 +127,13 @@ class WaifuPreferences private constructor(private val context: Context) {
         }
     }
 
-    // ========== Waifu模式角色卡绑定功能 ==========
+    // ========== Waifu模式角色卡/群组绑定功能 ==========
 
-    private fun getCharacterCardWaifuPrefix(characterCardId: String): String {
-        return "character_card_waifu_${characterCardId}_"
-    }
+    private fun getCharacterCardWaifuPrefix(characterCardId: String): String =
+        "character_card_waifu_${characterCardId}_"
+
+    private fun getCharacterGroupWaifuPrefix(characterGroupId: String): String =
+        "character_group_waifu_${characterGroupId}_"
 
     private fun getAllBooleanWaifuKeys(): List<Preferences.Key<Boolean>> {
         return listOf(
@@ -155,13 +157,8 @@ class WaifuPreferences private constructor(private val context: Context) {
         )
     }
 
-    /**
-     * 将当前Waifu模式配置复制到指定角色卡
-     */
-    suspend fun copyCurrentWaifuSettingsToCharacterCard(characterCardId: String) {
+    private suspend fun copyCurrentWaifuSettingsToPrefix(prefix: String) {
         context.waifuDataStore.edit { preferences ->
-            val prefix = getCharacterCardWaifuPrefix(characterCardId)
-
             getAllBooleanWaifuKeys().forEach { key ->
                 preferences[key]?.let { value ->
                     preferences[booleanPreferencesKey("${prefix}${key.name}")] = value
@@ -180,11 +177,8 @@ class WaifuPreferences private constructor(private val context: Context) {
         }
     }
 
-    suspend fun cloneWaifuSettingsBetweenCharacterCards(sourceCharacterCardId: String, targetCharacterCardId: String) {
+    private suspend fun cloneWaifuSettingsBetweenPrefixes(sourcePrefix: String, targetPrefix: String) {
         context.waifuDataStore.edit { preferences ->
-            val sourcePrefix = getCharacterCardWaifuPrefix(sourceCharacterCardId)
-            val targetPrefix = getCharacterCardWaifuPrefix(targetCharacterCardId)
-
             getAllBooleanWaifuKeys().forEach { key ->
                 val sourceKey = booleanPreferencesKey("${sourcePrefix}${key.name}")
                 preferences[sourceKey]?.let { value ->
@@ -211,13 +205,8 @@ class WaifuPreferences private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 切换到指定角色卡的Waifu模式配置
-     */
-    suspend fun switchToCharacterCardWaifuSettings(characterCardId: String) {
+    private suspend fun switchToWaifuSettingsByPrefix(prefix: String) {
         context.waifuDataStore.edit { preferences ->
-            val prefix = getCharacterCardWaifuPrefix(characterCardId)
-
             getAllBooleanWaifuKeys().forEach { key ->
                 val cardKey = booleanPreferencesKey("${prefix}${key.name}")
                 if (preferences.contains(cardKey)) {
@@ -245,20 +234,8 @@ class WaifuPreferences private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 保存当前Waifu配置到指定角色卡
-     */
-    suspend fun saveCurrentWaifuSettingsToCharacterCard(characterCardId: String) {
-        copyCurrentWaifuSettingsToCharacterCard(characterCardId)
-    }
-
-    /**
-     * 删除指定角色卡的Waifu配置
-     */
-    suspend fun deleteCharacterCardWaifuSettings(characterCardId: String) {
+    private suspend fun deleteWaifuSettingsByPrefix(prefix: String) {
         context.waifuDataStore.edit { preferences ->
-            val prefix = getCharacterCardWaifuPrefix(characterCardId)
-
             getAllBooleanWaifuKeys().forEach { key ->
                 preferences.remove(booleanPreferencesKey("${prefix}${key.name}"))
             }
@@ -271,15 +248,70 @@ class WaifuPreferences private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 检查指定角色卡是否有Waifu配置
-     */
-    suspend fun hasCharacterCardWaifuSettings(characterCardId: String): Boolean {
+    private suspend fun hasWaifuSettingsByPrefix(prefix: String): Boolean {
         val preferences = context.waifuDataStore.data.first()
-        val prefix = getCharacterCardWaifuPrefix(characterCardId)
-
         return getAllBooleanWaifuKeys().any { key -> preferences.contains(booleanPreferencesKey("${prefix}${key.name}")) } ||
                 getAllIntWaifuKeys().any { key -> preferences.contains(intPreferencesKey("${prefix}${key.name}")) } ||
                 getAllStringWaifuKeys().any { key -> preferences.contains(stringPreferencesKey("${prefix}${key.name}")) }
+    }
+
+    suspend fun copyCurrentWaifuSettingsToCharacterCard(characterCardId: String) {
+        copyCurrentWaifuSettingsToPrefix(getCharacterCardWaifuPrefix(characterCardId))
+    }
+
+    suspend fun cloneWaifuSettingsBetweenCharacterCards(
+        sourceCharacterCardId: String,
+        targetCharacterCardId: String
+    ) {
+        cloneWaifuSettingsBetweenPrefixes(
+            getCharacterCardWaifuPrefix(sourceCharacterCardId),
+            getCharacterCardWaifuPrefix(targetCharacterCardId)
+        )
+    }
+
+    suspend fun switchToCharacterCardWaifuSettings(characterCardId: String) {
+        switchToWaifuSettingsByPrefix(getCharacterCardWaifuPrefix(characterCardId))
+    }
+
+    suspend fun saveCurrentWaifuSettingsToCharacterCard(characterCardId: String) {
+        copyCurrentWaifuSettingsToCharacterCard(characterCardId)
+    }
+
+    suspend fun deleteCharacterCardWaifuSettings(characterCardId: String) {
+        deleteWaifuSettingsByPrefix(getCharacterCardWaifuPrefix(characterCardId))
+    }
+
+    suspend fun hasCharacterCardWaifuSettings(characterCardId: String): Boolean {
+        return hasWaifuSettingsByPrefix(getCharacterCardWaifuPrefix(characterCardId))
+    }
+
+    suspend fun copyCurrentWaifuSettingsToCharacterGroup(characterGroupId: String) {
+        copyCurrentWaifuSettingsToPrefix(getCharacterGroupWaifuPrefix(characterGroupId))
+    }
+
+    suspend fun cloneWaifuSettingsBetweenCharacterGroups(
+        sourceCharacterGroupId: String,
+        targetCharacterGroupId: String
+    ) {
+        cloneWaifuSettingsBetweenPrefixes(
+            getCharacterGroupWaifuPrefix(sourceCharacterGroupId),
+            getCharacterGroupWaifuPrefix(targetCharacterGroupId)
+        )
+    }
+
+    suspend fun switchToCharacterGroupWaifuSettings(characterGroupId: String) {
+        switchToWaifuSettingsByPrefix(getCharacterGroupWaifuPrefix(characterGroupId))
+    }
+
+    suspend fun saveCurrentWaifuSettingsToCharacterGroup(characterGroupId: String) {
+        copyCurrentWaifuSettingsToCharacterGroup(characterGroupId)
+    }
+
+    suspend fun deleteCharacterGroupWaifuSettings(characterGroupId: String) {
+        deleteWaifuSettingsByPrefix(getCharacterGroupWaifuPrefix(characterGroupId))
+    }
+
+    suspend fun hasCharacterGroupWaifuSettings(characterGroupId: String): Boolean {
+        return hasWaifuSettingsByPrefix(getCharacterGroupWaifuPrefix(characterGroupId))
     }
 }

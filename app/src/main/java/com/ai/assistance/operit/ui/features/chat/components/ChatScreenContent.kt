@@ -39,9 +39,11 @@ import androidx.core.content.FileProvider
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.CharacterCard
+import com.ai.assistance.operit.data.model.CharacterGroupCard
 
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatHistoryDisplayMode
 import com.ai.assistance.operit.ui.common.rememberLocal
@@ -115,8 +117,9 @@ fun ChatScreenContent(
         chatHeaderOverlayMode: Boolean,
         chatStyle: ChatStyle, // Add chatStyle parameter
         historyListState: LazyListState,
-        onSwitchCharacter: (String) -> Unit,
-        chatAreaHorizontalPadding: Float = 16f // 聊天区域水平内边距
+        onSwitchCharacter: (CharacterSelectorTarget) -> Unit,
+        chatAreaHorizontalPadding: Float = 16f, // 聊天区域水平内边距
+        showChatFloatingDotsAnimation: Boolean = true,
 ) {
     val density = LocalDensity.current
     var headerHeight by remember { mutableStateOf(0.dp) }
@@ -176,18 +179,27 @@ fun ChatScreenContent(
     val isPlaying by actualViewModel.isPlaying.collectAsState()
     val isAutoReadEnabled by actualViewModel.isAutoReadEnabled.collectAsState()
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
     val activeCharacterCard by characterCardManager.activeCharacterCardFlow.collectAsState(initial = null)
+    val activeCharacterGroup by characterGroupCardManager.activeCharacterGroupCardFlow.collectAsState(initial = null)
     val displayedChatHistories =
-            remember(chatHistories, activeCharacterCard, historyDisplayMode) {
+            remember(chatHistories, activeCharacterCard, activeCharacterGroup, historyDisplayMode) {
                 when (historyDisplayMode) {
                     ChatHistoryDisplayMode.CURRENT_CHARACTER_ONLY -> {
-                        val activeCard = activeCharacterCard ?: return@remember emptyList()
-                        chatHistories.filter { history ->
-                            val historyCard = history.characterCardName
-                            if (activeCard.isDefault) {
-                                historyCard == null || historyCard == activeCard.name
-                            } else {
-                                historyCard == activeCard.name
+                        val group = activeCharacterGroup
+                        if (group != null) {
+                            chatHistories.filter { history ->
+                                history.characterGroupId == group.id
+                            }
+                        } else {
+                            val activeCard = activeCharacterCard ?: return@remember emptyList()
+                            chatHistories.filter { history ->
+                                val historyCard = history.characterCardName
+                                if (activeCard.isDefault) {
+                                    historyCard == null || historyCard == activeCard.name
+                                } else {
+                                    historyCard == activeCard.name
+                                }
                             }
                         }
                     }
@@ -197,8 +209,20 @@ fun ChatScreenContent(
                     }
                 }
             }
-    LaunchedEffect(activeCharacterCard, displayedChatHistories, currentChatId, chatHistories) {
-        val activeCard = activeCharacterCard ?: return@LaunchedEffect
+    LaunchedEffect(
+        activeCharacterCard,
+        activeCharacterGroup,
+        displayedChatHistories,
+        currentChatId,
+        chatHistories,
+        historyDisplayMode
+    ) {
+        if (historyDisplayMode != ChatHistoryDisplayMode.CURRENT_CHARACTER_ONLY) {
+            return@LaunchedEffect
+        }
+        if (activeCharacterGroup == null && activeCharacterCard == null) {
+            return@LaunchedEffect
+        }
         if (displayedChatHistories.isEmpty()) {
             return@LaunchedEffect
         }
@@ -270,6 +294,7 @@ fun ChatScreenContent(
                         onReplyToMessage = { message -> actualViewModel.setReplyToMessage(message) }, // 添加回复回调
                         onCreateBranch = { timestamp -> actualViewModel.createBranch(timestamp) }, // 添加创建分支回调
                         onInsertSummary = { index, message -> actualViewModel.insertSummary(index, message) }, // 添加插入总结回调
+                        onMentionRoleFromAvatar = { roleName -> actualViewModel.insertRoleMention(roleName) },
                         topPadding = headerHeight,
                         chatStyle = chatStyle, // Pass chat style
                         isMultiSelectMode = isMultiSelectMode,
@@ -290,7 +315,8 @@ fun ChatScreenContent(
                                 selectedMessageIndices + index
                             }
                         },
-                        horizontalPadding = chatAreaHorizontalPadding.dp
+                        horizontalPadding = chatAreaHorizontalPadding.dp,
+                        showChatFloatingDotsAnimation = showChatFloatingDotsAnimation,
                 )
                 ChatScreenHeader(
                         modifier =
@@ -339,6 +365,7 @@ fun ChatScreenContent(
                         onCreateBranch = { timestamp -> actualViewModel.createBranch(timestamp) }, // 添加创建分支回调
                         onInsertSummary = { index, message -> actualViewModel.insertSummary(index, message) }, // 添加插入总结回调
                         onAutoReadMessage = { content -> actualViewModel.enableAutoReadAndSpeak(content) }, // 添加自动朗读回调
+                        onMentionRoleFromAvatar = { roleName -> actualViewModel.insertRoleMention(roleName) },
                         chatStyle = chatStyle, // Pass chat style
                         isMultiSelectMode = isMultiSelectMode,
                         selectedMessageIndices = selectedMessageIndices,
@@ -358,7 +385,8 @@ fun ChatScreenContent(
                             } else {
                                 selectedMessageIndices + index
                             }
-                        }
+                        },
+                        showChatFloatingDotsAnimation = showChatFloatingDotsAnimation,
                 )
             }
         }
@@ -656,6 +684,7 @@ fun ChatScreenContent(
                     searchQuery = chatHistorySearchQuery,
                     onSearchQueryChange = actualViewModel::onChatHistorySearchQueryChange,
                     activeCharacterCard = activeCharacterCard,
+                    activeCharacterGroup = activeCharacterGroup,
                     historyDisplayMode = historyDisplayMode,
                     onDisplayModeChange = { historyDisplayMode = it },
                     autoSwitchCharacterCard = autoSwitchCharacterCard,
@@ -891,6 +920,7 @@ fun ChatHistorySelectorPanel(
         searchQuery: String,
         onSearchQueryChange: (String) -> Unit,
         activeCharacterCard: CharacterCard?,
+        activeCharacterGroup: CharacterGroupCard?,
         historyDisplayMode: ChatHistoryDisplayMode,
         onDisplayModeChange: (ChatHistoryDisplayMode) -> Unit,
         autoSwitchCharacterCard: Boolean,
@@ -921,8 +951,8 @@ fun ChatHistorySelectorPanel(
             // 直接使用ChatHistorySelector
             ChatHistorySelector(
                     modifier = Modifier.fillMaxSize().padding(top = 8.dp),
-                    onNewChat = { characterCardName ->
-                        actualViewModel.createNewChat(characterCardName)
+                    onNewChat = { characterCardName, characterGroupId ->
+                        actualViewModel.createNewChat(characterCardName, characterGroupId)
                         // 创建新对话后自动收起侧边框
                         actualViewModel.showChatHistorySelector(false)
                     },
@@ -935,11 +965,11 @@ fun ChatHistorySelectorPanel(
                     onUpdateChatTitle = { chatId, newTitle ->
                         actualViewModel.updateChatTitle(chatId, newTitle)
                     },
-                    onUpdateChatBinding = { chatId, characterCardName ->
-                        actualViewModel.updateChatCharacterCardBinding(chatId, characterCardName)
+                    onUpdateChatBinding = { chatId, characterCardName, characterGroupId ->
+                        actualViewModel.updateChatCharacterBinding(chatId, characterCardName, characterGroupId)
                     },
-                    onCreateGroup = { groupName, characterCardName -> 
-                        actualViewModel.createGroup(groupName, characterCardName)
+                    onCreateGroup = { groupName, characterCardName, characterGroupId ->
+                        actualViewModel.createGroup(groupName, characterCardName, characterGroupId)
                     },
                     onUpdateChatOrderAndGroup = { reorderedHistories, movedItem, targetGroup ->
                         actualViewModel.updateChatOrderAndGroup(
@@ -965,7 +995,8 @@ fun ChatHistorySelectorPanel(
                     onDisplayModeChange = onDisplayModeChange,
                     autoSwitchCharacterCard = autoSwitchCharacterCard,
                     onAutoSwitchCharacterCardChange = onAutoSwitchCharacterCardChange,
-                    activeCharacterCard = activeCharacterCard
+                    activeCharacterCard = activeCharacterCard,
+                    activeCharacterGroup = activeCharacterGroup
             )
         }
     }

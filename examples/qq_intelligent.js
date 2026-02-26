@@ -10,6 +10,7 @@ METADATA
     }description: { zh: "高级QQ智能助手，通过UI自动化技术实现QQ应用交互，支持消息自动回复、历史记录读取、联系人搜索与通讯等功能，为AI赋予QQ社交能力。适用于智能客服、自动回复、社交辅助等场景。", en: "Advanced QQ assistant powered by UI automation. Supports sending messages, reading chat history, searching contacts/groups, and basic communication workflows, enabling AI-driven social messaging scenarios." }
 
     // Tools in this package
+    category: "Media"
     tools: [
         {
             name: reply
@@ -114,8 +115,7 @@ METADATA
             ]
         }
     ]
-}
-*/
+}*/
 const QQIntelligent = (function () {
     async function close_keyboard() {
         await Tools.UI.pressKey("KEYCODE_BACK");

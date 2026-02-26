@@ -515,45 +515,26 @@ fun PackageManagerScreen(
                                     shape = MaterialTheme.shapes.medium
                                 ) {
                                     val packages = availablePackages.value
+                                    val groupedPackagesRaw = packages.entries.groupBy { it.value.category }
+                                    val categoryOrder = listOf("ToolPkg", "Automatic", "Experimental", "Draw", "Other")
+                                    val sortedCategories =
+                                        groupedPackagesRaw.keys.sortedWith { a, b ->
+                                            val indexA = categoryOrder.indexOf(a)
+                                            val indexB = categoryOrder.indexOf(b)
+                                            when {
+                                                indexA == -1 && indexB == -1 -> a.compareTo(b)
+                                                indexA == -1 -> 1
+                                                indexB == -1 -> -1
+                                                else -> indexA - indexB
+                                            }
+                                        }
 
-                                    fun isDrawPackage(packageName: String): Boolean {
-                                        val normalizedName = packageName.lowercase()
-                                        return normalizedName.endsWith("_draw") || normalizedName.endsWith("draw")
-                                    }
-
-                                    val toolPkgPackages =
-                                        packages.filterKeys { packageManager.isToolPkgContainer(it) }
-                                    val nonToolPkgPackages =
-                                        packages.filterKeys { !packageManager.isToolPkgContainer(it) }
-                                    val drawPackages = nonToolPkgPackages.filterKeys { isDrawPackage(it) }
-                                    val nonDrawPackages = nonToolPkgPackages.filterKeys { !isDrawPackage(it) }
-                                    val automaticPackages = nonDrawPackages.filterKeys {
-                                        it.lowercase().startsWith("automatic")
-                                    }
-                                    val experimentalPackages = nonDrawPackages.filterKeys {
-                                        it.lowercase().startsWith("experimental")
-                                    }
-                                    val otherPackages = nonDrawPackages.filterKeys {
-                                        !it.lowercase().startsWith("automatic") && !it.lowercase()
-                                            .startsWith("experimental")
-                                    }
-
-                                    val groupedPackages =
-                                        linkedMapOf<String, Map<String, ToolPackage>>()
-                                    if (toolPkgPackages.isNotEmpty()) {
-                                        groupedPackages["ToolPkg"] = toolPkgPackages
-                                    }
-                                    if (automaticPackages.isNotEmpty()) {
-                                        groupedPackages["Automatic"] = automaticPackages
-                                    }
-                                    if (experimentalPackages.isNotEmpty()) {
-                                        groupedPackages["Experimental"] = experimentalPackages
-                                    }
-                                    if (drawPackages.isNotEmpty()) {
-                                        groupedPackages["Draw"] = drawPackages
-                                    }
-                                    if (otherPackages.isNotEmpty()) {
-                                        groupedPackages["Other"] = otherPackages
+                                    val groupedPackages = linkedMapOf<String, Map<String, ToolPackage>>()
+                                    sortedCategories.forEach { category ->
+                                        val entries = groupedPackagesRaw[category].orEmpty()
+                                        val sortedEntries = entries.sortedBy { it.key }
+                                        groupedPackages[category] =
+                                            sortedEntries.associate { entry -> entry.key to entry.value }
                                     }
 
                                     // 在Composable上下文中预先获取颜色

@@ -13,6 +13,7 @@
     "env": [
         "BEEIMG_API_KEY"
     ],
+    "category": "Media",
     "tools": [
         {
             "name": "upload_image",
@@ -27,8 +28,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const beeimgUploader = (function () {
     // API配置
     const API_ENDPOINT = "https://beeimg.com/api/upload/file/json/";

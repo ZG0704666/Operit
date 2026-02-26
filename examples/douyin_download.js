@@ -9,6 +9,7 @@ METADATA
     },
     "description": { "zh": "抖音工具包，提供从分享链接或分享口令中提取并下载无水印视频的功能。", "en": "Douyin toolkit for extracting and downloading watermark-free videos from share links or share codes." },
     "enabledByDefault": true,
+    "category": "Media",
     "tools": [
         {
             "name": "get_douyin_download_link",
@@ -35,8 +36,7 @@ METADATA
             ]
         }
     ]
-}
-*/
+}*/
 const douyin = (function () {
     /**
      * 包装函数调用，提供标准化的成功/错误处理

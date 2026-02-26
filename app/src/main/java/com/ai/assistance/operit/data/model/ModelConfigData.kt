@@ -21,6 +21,7 @@ enum class ApiProviderType {
         DEEPSEEK, // Deepseek大模型
         MISTRAL, // Mistral AI (Codestral等)
         SILICONFLOW, // 硅基流动
+        IFLOW, // iFlow
         OPENROUTER, // OpenRouter (多模型聚合)
         INFINIAI, // 无问芯穹
         ALIPAY_BAILING, // 支付宝百灵大模型

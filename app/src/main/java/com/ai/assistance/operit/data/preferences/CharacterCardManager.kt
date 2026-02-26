@@ -53,12 +53,7 @@ class CharacterCardManager private constructor(private val context: Context) {
     companion object {
         private val CHARACTER_CARD_LIST = stringSetPreferencesKey("character_card_list")
         private val ACTIVE_CHARACTER_CARD_ID = stringPreferencesKey("active_character_card_id")
-        
-        // 系统标签的固定ID
-        const val SYSTEM_CHAT_TAG_ID = "system_chat_tag"
-        const val SYSTEM_VOICE_TAG_ID = "system_voice_tag"
-        const val SYSTEM_DESKTOP_PET_TAG_ID = "system_desktop_pet_tag"
-        
+
         // 默认角色卡ID
         const val DEFAULT_CHARACTER_CARD_ID = "default_character"
 
@@ -346,7 +341,7 @@ class CharacterCardManager private constructor(private val context: Context) {
         return combinedPrompt.trim()
     }
     
-    // 初始化默认角色卡和系统标签
+    // 初始化默认角色卡
     suspend fun initializeIfNeeded() {
         var isInitialized = false
         dataStore.edit { preferences ->
@@ -372,9 +367,10 @@ class CharacterCardManager private constructor(private val context: Context) {
             userPreferencesManager.copyCurrentThemeToCharacterCard(DEFAULT_CHARACTER_CARD_ID)
             userPreferencesManager.saveAiAvatarForCharacterCard(DEFAULT_CHARACTER_CARD_ID, "file:///android_asset/operit.png")
         }
-        
-        // 确保系统标签存在
-        tagManager.initializeSystemTags()
+
+        // 清理历史内置功能标签（chat/voice/desktop pet）
+        tagManager.removeLegacyBuiltInTags()
+        removeDeletedTagReferencesFromCharacterCards()
     }
 
     // 重置默认角色卡
@@ -724,8 +720,7 @@ class CharacterCardManager private constructor(private val context: Context) {
                             name = tag.name,
                             description = tag.description,
                             promptContent = tag.promptContent,
-                            tagType = tag.tagType.name,
-                            isSystemTag = tag.isSystemTag
+                            tagType = tag.tagType.name
                         )
                     },
                     advancedCustomPrompt = card.advancedCustomPrompt,
@@ -852,8 +847,7 @@ class CharacterCardManager private constructor(private val context: Context) {
                 name = exportedTag.name,
                 description = exportedTag.description,
                 promptContent = exportedTag.promptContent,
-                tagTypeName = safeTagTypeName,
-                isSystemTag = exportedTag.isSystemTag
+                tagTypeName = safeTagTypeName
             )
             if (localTagId != null && exportedTag.id.isNotBlank()) {
                 idMap[exportedTag.id] = localTagId
@@ -876,8 +870,7 @@ class CharacterCardManager private constructor(private val context: Context) {
                 name = exportedTag.name,
                 description = exportedTag.description,
                 promptContent = exportedTag.promptContent,
-                tagTypeName = exportedTag.tagType,
-                isSystemTag = exportedTag.isSystemTag
+                tagTypeName = exportedTag.tagType
             )
             if (localTagId != null) {
                 importedIds.add(localTagId)
@@ -894,8 +887,7 @@ class CharacterCardManager private constructor(private val context: Context) {
         name: String,
         description: String,
         promptContent: String,
-        tagTypeName: String,
-        isSystemTag: Boolean
+        tagTypeName: String
     ): String? {
         if (name.isBlank() && description.isBlank() && promptContent.isBlank()) {
             return null
@@ -912,13 +904,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             name = name.ifBlank { fallbackName },
             description = description,
             promptContent = promptContent,
-            tagType = safeTagType,
-            // 避免创建伪系统标签，系统标签应由系统初始化流程维护固定ID
-            isSystemTag = isSystemTag && exportedTagId in setOf(
-                SYSTEM_CHAT_TAG_ID,
-                SYSTEM_VOICE_TAG_ID,
-                SYSTEM_DESKTOP_PET_TAG_ID
-            )
+            tagType = safeTagType
         )
     }
 
@@ -1096,6 +1082,21 @@ class CharacterCardManager private constructor(private val context: Context) {
         } catch (e: Exception) {
             AppLogger.e("CharacterCardManager", "检查角色卡主题配置失败", e)
             false
+        }
+    }
+
+    private suspend fun removeDeletedTagReferencesFromCharacterCards() {
+        val validTagIds = tagManager.getAllTags().map { it.id }.toSet()
+        dataStore.edit { preferences ->
+            val cardIds = preferences[CHARACTER_CARD_LIST]?.toSet() ?: setOf(DEFAULT_CHARACTER_CARD_ID)
+            cardIds.forEach { cardId ->
+                val attachedKey = stringSetPreferencesKey("character_card_${cardId}_attached_tag_ids")
+                val attached = preferences[attachedKey] ?: return@forEach
+                val filtered = attached.filterTo(mutableSetOf()) { it in validTagIds }
+                if (filtered.size != attached.size) {
+                    preferences[attachedKey] = filtered
+                }
+            }
         }
     }
 

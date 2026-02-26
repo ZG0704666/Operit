@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,23 +28,32 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.CharacterCard
+import com.ai.assistance.operit.data.model.CharacterGroupCard
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.common.rememberLocal
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.flow.flowOf
 
 private enum class CharacterSelectorSortOption {
     DEFAULT,
     NAME_ASC,
     CREATED_DESC
+}
+
+sealed interface CharacterSelectorTarget {
+    data class CharacterCardTarget(val id: String) : CharacterSelectorTarget
+    data class CharacterGroupTarget(val id: String) : CharacterSelectorTarget
 }
 
 private fun applyCharacterSelectorSort(
@@ -65,12 +75,15 @@ private fun applyCharacterSelectorSort(
 fun CharacterSelectorPanel(
     isVisible: Boolean,
     onDismiss: () -> Unit,
-    onSelectCharacter: (String) -> Unit
+    onSelectCharacter: (CharacterSelectorTarget) -> Unit
 ) {
     val context = LocalContext.current
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
     var allCards by remember { mutableStateOf<List<CharacterCard>>(emptyList()) }
+    var allGroups by remember { mutableStateOf<List<CharacterGroupCard>>(emptyList()) }
     val activeCardId by characterCardManager.activeCharacterCardIdFlow.collectAsState(initial = "")
+    val activeGroupId by characterGroupCardManager.activeCharacterGroupCardIdFlow.collectAsState(initial = null)
     val sortOptionNameState = rememberLocal(
         key = "ModelPromptsSettingsScreen.CharacterCardTab.sortOption",
         defaultValue = CharacterSelectorSortOption.DEFAULT.name
@@ -83,6 +96,7 @@ fun CharacterSelectorPanel(
     LaunchedEffect(isVisible) {
         if (isVisible) {
             allCards = characterCardManager.getAllCharacterCards()
+            allGroups = characterGroupCardManager.getAllCharacterGroupCards()
         }
     }
 
@@ -144,7 +158,7 @@ fun CharacterSelectorPanel(
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Text(
-                                text = context.getString(R.string.character_count, allCards.size),
+                                text = context.getString(R.string.character_count, allCards.size + allGroups.size),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -214,12 +228,41 @@ fun CharacterSelectorPanel(
                             modifier = Modifier.heightIn(max = 320.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            if (allGroups.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        text = stringResource(R.string.character_groups),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 2.dp, bottom = 2.dp)
+                                    )
+                                }
+                                items(allGroups, key = { it.id }) { group ->
+                                    CharacterGroupItem(
+                                        group = group,
+                                        isSelected = group.id == activeGroupId,
+                                        onClick = {
+                                            onSelectCharacter(CharacterSelectorTarget.CharacterGroupTarget(group.id))
+                                            onDismiss()
+                                        }
+                                    )
+                                }
+                                item { Spacer(modifier = Modifier.height(4.dp)) }
+                            }
+                            item {
+                                Text(
+                                    text = stringResource(R.string.character_cards),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 2.dp, bottom = 2.dp)
+                                )
+                            }
                             items(sortedCards, key = { it.id }) { card ->
                                 CharacterItem(
                                     card = card,
-                                    isSelected = card.id == activeCardId,
+                                    isSelected = activeGroupId.isNullOrBlank() && card.id == activeCardId,
                                     onClick = {
-                                        onSelectCharacter(card.id)
+                                        onSelectCharacter(CharacterSelectorTarget.CharacterCardTarget(card.id))
                                         onDismiss()
                                     }
                                 )
@@ -340,4 +383,117 @@ fun CharacterItem(
             }
         }
     }
-} 
+}
+
+@Composable
+fun CharacterGroupItem(
+    group: CharacterGroupCard,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
+    val groupAvatarUri by remember(group.id) {
+        userPreferencesManager.getAiAvatarForCharacterGroupFlow(group.id)
+    }.collectAsState(initial = null)
+    val representativeMemberCardId = remember(group.members) {
+        val sortedMembers = group.members.sortedBy { it.orderIndex }
+        sortedMembers.firstOrNull()?.characterCardId
+    }
+    val fallbackMemberAvatarUri by remember(representativeMemberCardId) {
+        representativeMemberCardId
+            ?.let { userPreferencesManager.getAiAvatarForCharacterCardFlow(it) }
+            ?: flowOf(null)
+    }.collectAsState(initial = null)
+    val displayAvatarUri = groupAvatarUri ?: fallbackMemberAvatarUri
+
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    }
+
+    val borderColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+    } else {
+        Color.Transparent
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = backgroundColor,
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (isSelected) 1.dp else 0.dp,
+            color = borderColor
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (displayAvatarUri != null) Color.Transparent
+                        else MaterialTheme.colorScheme.secondaryContainer
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (displayAvatarUri != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(model = Uri.parse(displayAvatarUri)),
+                        contentDescription = "Group Avatar",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Rounded.Groups,
+                        contentDescription = "Group Avatar",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(
+                modifier = Modifier.weight(1f).padding(end = if (isSelected) 4.dp else 0.dp)
+            ) {
+                Text(
+                    text = group.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(R.string.character_group_member_count, group.members.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (isSelected) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    Icons.Rounded.Check,
+                    contentDescription = "Selected",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}

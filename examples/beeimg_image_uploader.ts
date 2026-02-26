@@ -1,6 +1,7 @@
 /* METADATA
 {
-    "name": "beeimg_image_uploader_v2",
+    "name": "beeimg_image_uploader_v2",
+
     "display_name": {
         "zh": "Beeimg 图片上传器 V2",
         "en": "Beeimg Image Uploader V2"
@@ -12,6 +13,7 @@
     "env": [
         "BEEIMG_API_KEY"
     ],
+    "category": "Media",
     "tools": [
         {
             "name": "upload_image",
@@ -26,8 +28,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 
 const beeimgUploader = (function () {
     // API配置

@@ -149,7 +149,8 @@ data class MCPPackage(
         return ToolPackage(
                 name = serverConfig.name, // 直接使用服务器名称，不添加mcp:前缀
                 description = LocalizedText.of(serverConfig.description),
-                tools = tools
+                tools = tools,
+                category = "MCP"
         )
     }
 

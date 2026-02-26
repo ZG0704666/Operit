@@ -1,14 +1,16 @@
 /* METADATA
 {
-  name: "vflow_trigger"
+  name: "vflow_trigger"
   display_name: {
     zh: "VFlow 触发器"
     en: "VFlow Trigger"
-  }description: {
+  }
+  description: {
     zh: "触发vflow app的工作流。"
     en: "Trigger VFlow app workflows."
   }
   enabledByDefault: false
+  category: "Workflow"
   tools: [
     {
       name: "trigger_vflow_workflow"
@@ -21,8 +23,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 
 /// <reference path="./types/index.d.ts" />
 

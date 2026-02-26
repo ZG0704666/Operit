@@ -1,6 +1,7 @@
 /* METADATA
 {
-  "name": "nanobanana_draw",
+  "name": "nanobanana_draw",
+
   "display_name": {
       "zh": "Nanobanana 绘图",
       "en": "Nanobanana Draw"
@@ -13,6 +14,7 @@
     "NANOBANANA_API_KEY",
     "BEEIMG_API_KEY"
   ],
+  "category": "Draw",
   "tools": [
     {
       "name": "draw_image",
@@ -33,8 +35,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 
 const nanobananaDraw = (function () {
     const HTTP_TIMEOUT_MS = 600000;

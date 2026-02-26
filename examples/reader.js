@@ -9,6 +9,7 @@
   description: { zh: "提供代码匹配抓取功能", en: "Provide code searching and extraction utilities." },
   enabledByDefault: true
   
+  category: "File"
   tools: [
     {
       name: search_code_in_folder
@@ -143,8 +144,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 /**
  * Writer模块 - 提供代码抓取和分析功能
  */

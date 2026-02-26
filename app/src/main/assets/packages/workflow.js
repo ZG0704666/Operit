@@ -5,11 +5,12 @@
   display_name: {
     zh: "工作流管理"
     en: "Workflow Management"
-  }description: {
+  }
+  description: {
     zh: '''工作流管理工具：创建/查询/更新/删除/触发执行；支持 on_success/on_error 分支；支持语音触发（speech）。'''
     en: '''Workflow management tools for creating/querying/updating/deleting workflows, triggering execution, and branching via on_success/on_error. Supports speech trigger (speech).'''
   }
-
+  "category": "Workflow",
   enabledByDefault: true
 
   tools: [
@@ -361,8 +362,7 @@ Notes:
       ]
     }
   ]
-}
-*/
+}*/
 var __rest = (this && this.__rest) || function (s, e) {
     var t = {};
     for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)

@@ -11,6 +11,7 @@
         "en": "Chat toolkit: list/find chats, read messages across chats, bind character cards and send messages."
     },
     "enabledByDefault": true,
+    "category": "Chat",
     "tools": [
         {
             "name": "list_chats",
@@ -86,8 +87,7 @@
             "parameters": []
         }
     ]
-}
-*/
+}*/
 
 const HistoryChat = (function () {
 

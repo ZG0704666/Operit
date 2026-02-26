@@ -85,6 +85,7 @@ object ModelListFetcher {
                     ApiProviderType.OPENROUTER -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.MOONSHOT -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.SILICONFLOW -> "${extractBaseUrl(apiEndpoint)}/v1/models"
+                    ApiProviderType.IFLOW -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.BAICHUAN -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.INFINIAI -> "${extractBaseUrl(apiEndpoint)}/maas/v1/models"
                     ApiProviderType.ALIPAY_BAILING -> "${extractBaseUrl(apiEndpoint)}/llm/v1/models"
@@ -205,7 +206,7 @@ object ModelListFetcher {
                         val errorBody = response.body?.string() ?: context.getString(R.string.model_fetch_no_error_details)
                         val responseCode = response.code
                         response.close()
-                        if ((apiProviderType == ApiProviderType.OPENAI || apiProviderType == ApiProviderType.OPENAI_RESPONSES || apiProviderType == ApiProviderType.OPENAI_GENERIC) &&
+                        if ((apiProviderType == ApiProviderType.OPENAI || apiProviderType == ApiProviderType.OPENAI_RESPONSES || apiProviderType == ApiProviderType.OPENAI_GENERIC || apiProviderType == ApiProviderType.IFLOW) &&
                                         modelsUrl.endsWith("/v1/models")) {
                             val fallbackUrl = modelsUrl.removeSuffix("/v1/models") + "/models"
                             AppLogger.w(TAG, "API请求失败，尝试兼容路径: $fallbackUrl")
@@ -262,6 +263,7 @@ object ModelListFetcher {
                                     ApiProviderType.DEEPSEEK,
                                     ApiProviderType.MOONSHOT,
                                     ApiProviderType.SILICONFLOW,
+                                    ApiProviderType.IFLOW,
                                     ApiProviderType.BAICHUAN,
                                     ApiProviderType.OPENROUTER,
                                     ApiProviderType.INFINIAI,

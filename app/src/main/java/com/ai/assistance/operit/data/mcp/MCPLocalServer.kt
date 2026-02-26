@@ -190,8 +190,6 @@ class MCPLocalServer private constructor(private val context: Context) {
     data class ServerStatus(
         @SerializedName("serverId")
         val serverId: String,
-        @SerializedName("active")
-        val active: Boolean = false,
         @SerializedName("lastStartTime")
         val lastStartTime: Long = 0L,
         @SerializedName("lastStopTime")
@@ -257,9 +255,16 @@ class MCPLocalServer private constructor(private val context: Context) {
             // 加载服务器状态
             if (serverStatusFile.exists()) {
                 val statusJson = serverStatusFile.readText()
+                val hasLegacyActiveField = statusJson.contains("\"active\"")
                 val typeToken = object : TypeToken<Map<String, ServerStatus>>() {}.type
                 val status = gson.fromJson<Map<String, ServerStatus>>(statusJson, typeToken) ?: emptyMap()
                 _serverStatus.value = status
+                if (hasLegacyActiveField) {
+                    coroutineScope.launch {
+                        saveServerStatus()
+                        AppLogger.d(TAG, "已迁移 server_status.json：移除 legacy active 字段")
+                    }
+                }
             }
             
             // 为新配置的服务器初始化状态
@@ -328,7 +333,6 @@ class MCPLocalServer private constructor(private val context: Context) {
             if (!currentStatus.containsKey(serverId)) {
                 currentStatus[serverId] = ServerStatus(
                     serverId = serverId,
-                    active = false,
                     lastStartTime = 0L,
                     lastStopTime = 0L,
                     errorMessage = null
@@ -549,20 +553,20 @@ class MCPLocalServer private constructor(private val context: Context) {
      */
     suspend fun updateServerStatus(
         serverId: String,
-        active: Boolean? = null,
         errorMessage: String? = null,
-        cachedTools: List<CachedToolInfo>? = null
+        cachedTools: List<CachedToolInfo>? = null,
+        lastStartTime: Long? = null,
+        lastStopTime: Long? = null
     ) {
         val currentStatus = _serverStatus.value.toMutableMap()
         val existingStatus = currentStatus[serverId] ?: ServerStatus(serverId)
         
         val updatedStatus = existingStatus.copy(
-            active = active ?: existingStatus.active,
             errorMessage = errorMessage ?: existingStatus.errorMessage,
             cachedTools = cachedTools ?: existingStatus.cachedTools,
             toolsCachedTime = if (cachedTools != null) System.currentTimeMillis() else existingStatus.toolsCachedTime,
-            lastStartTime = if (active == true) System.currentTimeMillis() else existingStatus.lastStartTime,
-            lastStopTime = if (active == false) System.currentTimeMillis() else existingStatus.lastStopTime
+            lastStartTime = lastStartTime ?: existingStatus.lastStartTime,
+            lastStopTime = lastStopTime ?: existingStatus.lastStopTime
         )
         
         currentStatus[serverId] = updatedStatus
@@ -627,6 +631,14 @@ class MCPLocalServer private constructor(private val context: Context) {
      */
     fun getAllServerStatus(): Map<String, ServerStatus> {
         return _serverStatus.value.toMap()
+    }
+
+    /**
+     * 基于时间戳推断服务是否处于运行态（近似状态，不是实时状态）
+     */
+    fun isServerLikelyRunning(serverId: String): Boolean {
+        val status = _serverStatus.value[serverId] ?: return false
+        return status.lastStartTime > 0L && status.lastStartTime >= status.lastStopTime
     }
 
     /**

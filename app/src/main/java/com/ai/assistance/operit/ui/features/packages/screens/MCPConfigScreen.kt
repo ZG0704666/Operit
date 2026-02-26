@@ -168,7 +168,9 @@ fun MCPConfigScreen(
             refreshMcpScreen()
 
             // 只记录服务器状态，不再重复启动服务器(已由 Application 中的 initAndAutoStartPlugins 控制)
-            val anyServerRunning = serverStatusMap.values.any { it.active }
+            val anyServerRunning = visiblePluginIds.any { pluginId ->
+                mcpLocalServer.isServerLikelyRunning(pluginId)
+            }
             if (anyServerRunning) {
                 com.ai.assistance.operit.util.AppLogger.d("MCPConfigScreen", "MCP服务器已在运行")
             } else {
@@ -1155,9 +1157,6 @@ fun MCPConfigScreen(
                             val isRemote = pluginInfo?.type == "remote"
                             val invalidConfigReason: String? = null
 
-                            // 获取插件服务器状态
-                            val pluginServerStatus = mcpLocalServer.getServerStatus(pluginId)
-
                             // 获取插件部署状态（通过检查Linux文件系统）
                             val deploySuccessState = remember(pluginId) {
                                 mutableStateOf(false)
@@ -1170,7 +1169,7 @@ fun MCPConfigScreen(
 
                             // 获取插件运行状态
                             val pluginRunningState = remember(pluginId) {
-                                mutableStateOf(pluginServerStatus?.active == true)
+                                mutableStateOf(mcpLocalServer.isServerLikelyRunning(pluginId))
                             }
                             
                             // 检查部署状态
@@ -1180,9 +1179,8 @@ fun MCPConfigScreen(
                             
                             // 监听服务器状态变化
                             LaunchedEffect(pluginId) {
-                                mcpLocalServer.serverStatus.collect { statusMap ->
-                                    val status = statusMap[pluginId]
-                                    pluginRunningState.value = status?.active == true
+                                mcpLocalServer.serverStatus.collect { _ ->
+                                    pluginRunningState.value = mcpLocalServer.isServerLikelyRunning(pluginId)
                                     // 重新检查部署状态
                                     deploySuccessState.value = mcpLocalServer.isPluginDeployed(pluginId)
                                 }

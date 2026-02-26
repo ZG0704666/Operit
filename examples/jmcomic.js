@@ -8,6 +8,7 @@ METADATA
         "en": "JMComic Downloader"
     },
     "description": { "zh": "提供JMComic漫画下载功能，支持搜索、获取信息和下载，包括对新漫画的图片反爬解码。", "en": "JMComic downloader: search comics, fetch details, and download albums. Includes anti-crawling image decoding for newer comics." },
+    "category": "Media",
     "tools": [
         {
             "name": "main",
@@ -94,8 +95,7 @@ METADATA
         }
     ],
     "enabledByDefault": false
-}
-*/
+}*/
 // endregion
 const jmcomic = (function () {
     // region Polyfill & Utils

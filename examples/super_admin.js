@@ -9,6 +9,7 @@ METADATA
     },
     "description": { "zh": "超级管理员工具集，提供终端命令和Shell操作的高级功能。terminal工具运行在Ubuntu环境中（已正确挂载sdcard和storage），shell工具通过Shizuku/Root直接执行Android系统命令。适合需要进行底层系统管理和命令行操作的场景。", "en": "Super admin toolkit providing advanced terminal and shell capabilities. The terminal tool runs in an Ubuntu environment (with sdcard/storage mounted). The shell tool executes Android system commands directly via Shizuku/Root. Useful for low-level system administration and CLI operations." },
     "enabledByDefault": true,
+    "category": "System",
     "tools": [
         {
             "name": "terminal",
@@ -88,8 +89,7 @@ METADATA
             ]
         }
     ]
-}
-*/
+}*/
 const superAdmin = (function () {
     const MAX_INLINE_TERMINAL_OUTPUT_CHARS = 12000;
     const DEFAULT_FOREGROUND_TIMEOUT_MS = 15000;

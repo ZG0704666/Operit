@@ -11,6 +11,7 @@
         "en": "FFmpeg utilities for processing multimedia content."
     },
     "enabledByDefault": true,
+    "category": "Media",
     "tools": [
         {
             "name": "ffmpeg_execute",
@@ -37,8 +38,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const FFmpegTools = (function () {
     async function ffmpeg_execute(params) {
         const result = await Tools.FFmpeg.execute(params.command);

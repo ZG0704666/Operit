@@ -315,13 +315,13 @@ fun CharacterCardDialog(
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    val customTags = allTags.filter { !it.isSystemTag }
-                    if (customTags.isNotEmpty()) {
+                    val availableTags = allTags
+                    if (availableTags.isNotEmpty()) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            customTags.forEach { tag ->
+                            availableTags.forEach { tag ->
                                 val isSelected = attachedTagIds.contains(tag.id)
                                 FilterChip(
                                     selected = isSelected,
@@ -957,7 +957,7 @@ fun CompactAvatarPicker(
         // 头像
         Box(
             modifier = Modifier
-                .size(60.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable(onClick = onAvatarChange)
@@ -975,7 +975,7 @@ fun CompactAvatarPicker(
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = stringResource(R.string.character_card_default_avatar),
-                    modifier = Modifier.size(30.dp),
+                    modifier = Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

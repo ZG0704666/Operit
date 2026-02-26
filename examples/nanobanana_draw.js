@@ -14,6 +14,7 @@
     "NANOBANANA_API_KEY",
     "BEEIMG_API_KEY"
   ],
+  "category": "Draw",
   "tools": [
     {
       "name": "draw_image",
@@ -34,8 +35,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 const nanobananaDraw = (function () {
     const HTTP_TIMEOUT_MS = 600000;
     const client = OkHttp.newBuilder()

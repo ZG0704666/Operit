@@ -14,6 +14,7 @@ import com.ai.assistance.operit.data.model.ChatEntity
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.CharacterCardChatStats
+import com.ai.assistance.operit.data.model.CharacterGroupChatStats
 import com.ai.assistance.operit.data.model.MessageEntity
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.data.converter.*
@@ -130,6 +131,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
             workspaceEnv = this.workspaceEnv, // 映射workspaceEnv字段
             parentChatId = this.parentChatId, // 映射parentChatId字段
             characterCardName = this.characterCardName, // 映射characterCardName字段
+            characterGroupId = this.characterGroupId, // 映射characterGroupId字段
             locked = this.locked
         )
     }
@@ -176,6 +178,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
     // 角色卡聊天统计
     val characterCardStatsFlow: Flow<List<CharacterCardChatStats>> =
         chatDao.getCharacterCardChatStats()
+    val characterGroupStatsFlow: Flow<List<CharacterGroupChatStats>> =
+        chatDao.getCharacterGroupChatStats()
 
     /**
      * 根据角色卡过滤聊天历史
@@ -652,6 +656,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
         group: String? = null,
         inheritGroupFromChatId: String? = null,
         characterCardName: String? = null,
+        characterGroupId: String? = null,
         setAsCurrentChat: Boolean = true
     ): ChatHistory {
         val dateTime = LocalDateTime.now()
@@ -681,7 +686,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                 inputTokens = 0,
                 outputTokens = 0,
                 group = finalGroup,
-                characterCardName = characterCardName // 使用传入的角色卡名称，如果为null则不绑定
+                characterCardName = characterCardName, // 使用传入的角色卡名称，如果为null则不绑定
+                characterGroupId = characterGroupId // 绑定群组角色卡ID（可选）
             )
 
         // 保存新聊天
@@ -844,7 +850,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                     group = parentChat.group,
                     workspace = parentChat.workspace,
                     parentChatId = parentChatId,
-                    characterCardName = parentChat.characterCardName // 分支继承父对话的角色卡绑定
+                    characterCardName = parentChat.characterCardName, // 分支继承父对话的角色卡绑定
+                    characterGroupId = parentChat.characterGroupId // 分支继承父对话的群组绑定
                 )
 
                 // 保存分支对话
@@ -903,6 +910,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
                         workspace = entity.workspace,
                         parentChatId = entity.parentChatId,
                         characterCardName = entity.characterCardName,
+                        characterGroupId = entity.characterGroupId,
                         locked = entity.locked
                     )
                 }
@@ -942,6 +950,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
                     workspace = entity.workspace,
                     parentChatId = entity.parentChatId,
                     characterCardName = entity.characterCardName,
+                    characterGroupId = entity.characterGroupId,
                     locked = entity.locked
                 )
             }
@@ -1253,6 +1262,82 @@ class ChatHistoryManager private constructor(private val context: Context) {
     }
 
     /**
+     * 将指定角色群组下的对话转移到新的角色群组
+     * @return 受影响的对话数量
+     */
+    suspend fun reassignChatsToCharacterGroup(
+        sourceCharacterGroupId: String?,
+        targetCharacterGroupId: String
+    ): Int {
+        return withContext(Dispatchers.IO) {
+            try {
+                val updated = if (sourceCharacterGroupId == null) {
+                    chatDao.assignCharacterGroupToUnbound(targetCharacterGroupId)
+                } else {
+                    chatDao.renameCharacterGroupBinding(sourceCharacterGroupId, targetCharacterGroupId)
+                }
+                AppLogger.d(
+                    TAG,
+                    "角色群组聊天重分配: ${sourceCharacterGroupId ?: "未绑定"} -> $targetCharacterGroupId, 更新 $updated 条记录"
+                )
+                updated
+            } catch (e: Exception) {
+                AppLogger.e(
+                    TAG,
+                    "重命名角色群组绑定失败: ${sourceCharacterGroupId ?: "未绑定"} -> $targetCharacterGroupId",
+                    e
+                )
+                throw e
+            }
+        }
+    }
+
+    // 更新聊天绑定的群组角色卡
+    suspend fun updateChatCharacterGroupId(chatId: String, characterGroupId: String?) {
+        chatMutex(chatId).withLock {
+            try {
+                chatDao.updateChatCharacterGroupId(chatId, characterGroupId)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to update chat character group for chat $chatId", e)
+                throw e
+            }
+        }
+    }
+
+    // 同时更新聊天绑定的角色卡与群组
+    suspend fun updateChatCharacterBinding(
+        chatId: String,
+        characterCardName: String?,
+        characterGroupId: String?
+    ) {
+        chatMutex(chatId).withLock {
+            try {
+                chatDao.updateChatCharacterBinding(chatId, characterCardName, characterGroupId)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to update chat character binding for chat $chatId", e)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * 清理绑定已删除角色群组的对话（将characterGroupId设为null）
+     * @return 受影响的对话数量
+     */
+    suspend fun clearCharacterGroupBinding(characterGroupId: String): Int {
+        return withContext(Dispatchers.IO) {
+            try {
+                val updated = chatDao.clearCharacterGroupBinding(characterGroupId)
+                AppLogger.d(TAG, "已清理绑定角色群组 '$characterGroupId' 的对话: $updated")
+                updated
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "清理角色群组绑定失败: $characterGroupId", e)
+                throw e
+            }
+        }
+    }
+
+    /**
      * 批量删除绑定到缺失角色卡（或未绑定）的未锁定对话
      * @return 实际删除的对话数量
      */
@@ -1273,7 +1358,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
                         !currentChat.locked &&
                         (
                             if (sourceCharacterCardName == null) {
-                                currentChat.characterCardName == null
+                                currentChat.characterCardName == null && currentChat.characterGroupId == null
                             } else {
                                 currentChat.characterCardName == sourceCharacterCardName
                             }
@@ -1313,6 +1398,47 @@ class ChatHistoryManager private constructor(private val context: Context) {
                 chatDao.updateCharacterCardForChats(chatIds, targetCharacterCardName)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "批量更新聊天角色卡失败: $targetCharacterCardName, chatIds=$chatIds", e)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * 批量为特定聊天更新角色群组绑定
+     * @return 受影响的对话数量
+     */
+    suspend fun assignCharacterGroupToChats(
+        chatIds: List<String>,
+        targetCharacterGroupId: String?
+    ): Int {
+        if (chatIds.isEmpty()) {
+            return 0
+        }
+        return withContext(Dispatchers.IO) {
+            try {
+                chatDao.updateCharacterGroupForChats(chatIds, targetCharacterGroupId)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "批量更新聊天角色群组失败: $targetCharacterGroupId, chatIds=$chatIds", e)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * 批量为特定聊天移除角色群组绑定
+     * @return 受影响的对话数量
+     */
+    suspend fun clearCharacterGroupBindingForChats(
+        chatIds: List<String>
+    ): Int {
+        if (chatIds.isEmpty()) {
+            return 0
+        }
+        return withContext(Dispatchers.IO) {
+            try {
+                chatDao.clearCharacterGroupForChats(chatIds)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "批量清理聊天角色群组失败: chatIds=$chatIds", e)
                 throw e
             }
         }

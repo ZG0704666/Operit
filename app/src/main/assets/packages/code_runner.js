@@ -8,6 +8,7 @@
   description: { zh: "提供多语言代码执行能力，支持JavaScript、Python、Ruby、Go、Rust、C和C++脚本的运行。可直接执行代码字符串或运行外部文件，适用于快速测试、自动化脚本和教学演示。", en: "Multi-language code execution. Supports running JavaScript, Python, Ruby, Go, Rust, C and C++ scripts. You can execute code strings directly or run external files, useful for quick tests, automation, and demos." }
   enabledByDefault: true
   
+  category: "Development"
   // Multiple tools in this package
   tools: [
     {
@@ -324,8 +325,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 const codeRunner = (function () {
     const CARGO_MIRROR_ENV = 'export CARGO_REGISTRIES_CRATES_IO_REPLACE_WITH="ustc" && export CARGO_REGISTRIES_USTC_INDEX="https://mirrors.ustc.edu.cn/crates.io-index"';
     const NODE_WORKSPACE_DIR = "$HOME/.code_runner/node";

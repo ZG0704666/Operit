@@ -208,6 +208,7 @@ fun ChatArea(
     onReplyToMessage: ((ChatMessage) -> Unit)? = null, // 添加回复回调参数
     onCreateBranch: ((Long) -> Unit)? = null, // 添加创建分支回调参数
     onInsertSummary: ((Int, ChatMessage) -> Unit)? = null, // 添加插入总结回调参数
+    onMentionRoleFromAvatar: ((String) -> Unit)? = null, // 长按角色头像提及
     messagesPerPage: Int = 10, // 每页显示的消息数量
     topPadding: Dp = 0.dp,
     chatStyle: ChatStyle = ChatStyle.CURSOR, // 新增参数，默认为CURSOR风格
@@ -215,7 +216,8 @@ fun ChatArea(
     selectedMessageIndices: Set<Int> = emptySet(), // 已选中的消息索引集合
     onToggleMultiSelectMode: ((Int?) -> Unit)? = null, // 切换多选模式的回调，可传入要初始选中的消息索引
     onToggleMessageSelection: ((Int) -> Unit)? = null, // 切换消息选中状态的回调
-    horizontalPadding: Dp = 16.dp // 水平内边距，可自定义
+    horizontalPadding: Dp = 16.dp, // 水平内边距，可自定义
+    showChatFloatingDotsAnimation: Boolean = true,
 ) {
     // 记住当前深度状态，但当chatHistory发生变化时重置为1
     var currentDepth = remember(chatHistory) { mutableStateOf(1) }
@@ -296,6 +298,7 @@ fun ChatArea(
                         onReplyToMessage = onReplyToMessage, // 传递回复回调
                         onCreateBranch = onCreateBranch, // 传递创建分支回调
                         onInsertSummary = onInsertSummary, // 传递插入总结回调
+                        onMentionRoleFromAvatar = onMentionRoleFromAvatar, // 传递角色头像长按提及回调
                         chatStyle = chatStyle, // 传递风格
                         isHidden = shouldHide, // 新增参数控制隐藏
                         isMultiSelectMode = isMultiSelectMode, // 传递多选模式状态
@@ -319,7 +322,9 @@ fun ChatArea(
                             .offset(y = (-24).dp)) {
                             // 加载指示器放在左侧，与标签对齐
                             Box(modifier = Modifier.padding(start = 16.dp)) {
-                                LoadingDotsIndicator(aiTextColor)
+                                if (showChatFloatingDotsAnimation) {
+                                    LoadingDotsIndicator(aiTextColor)
+                                }
                             }
                         }
                     }
@@ -330,7 +335,9 @@ fun ChatArea(
                             .padding(vertical = 0.dp)) {
                             // 加载指示器放在左侧，与标签对齐
                             Box(modifier = Modifier.padding(start = 16.dp)) {
-                                LoadingDotsIndicator(aiTextColor)
+                                if (showChatFloatingDotsAnimation) {
+                                    LoadingDotsIndicator(aiTextColor)
+                                }
                             }
                         }
                     }
@@ -366,6 +373,7 @@ private fun MessageItem(
     onReplyToMessage: ((ChatMessage) -> Unit)? = null, // 添加回复回调
     onCreateBranch: ((Long) -> Unit)? = null, // 添加创建分支回调
     onInsertSummary: ((Int, ChatMessage) -> Unit)? = null, // 添加插入总结回调
+    onMentionRoleFromAvatar: ((String) -> Unit)? = null, // 长按角色头像提及
     chatStyle: ChatStyle, // 新增参数
     isHidden: Boolean = false, // 新增参数控制隐藏
     isMultiSelectMode: Boolean = false, // 是否处于多选模式
@@ -437,7 +445,8 @@ private fun MessageItem(
                     aiTextColor = aiTextColor,
                     systemMessageColor = systemMessageColor,
                     systemTextColor = systemTextColor,
-                    isHidden = isHidden
+                    isHidden = isHidden,
+                    onRoleAvatarLongPress = onMentionRoleFromAvatar
                 )
             }
         }

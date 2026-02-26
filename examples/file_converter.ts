@@ -1,6 +1,7 @@
 /* METADATA
 {
-    "name": "file_converter",
+    "name": "file_converter",
+
     "display_name": {
         "zh": "文件转换器",
         "en": "File Converter"
@@ -10,6 +11,7 @@
         "en": "Comprehensive file format conversion. Supports converting between common audio/video (MP4, MOV, MP3, WAV), images (JPG, PNG, WEBP), and documents (Markdown, HTML, DOCX, PDF)."
     },
     "enabledByDefault": true,
+    "category": "File",
     "tools": [
         {
             "name": "convert_file",
@@ -24,8 +26,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 
 const fileConverter = (function () {
 

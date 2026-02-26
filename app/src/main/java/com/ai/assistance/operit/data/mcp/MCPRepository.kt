@@ -887,11 +887,6 @@ class MCPRepository(private val context: Context) {
             
             mcpLocalServer.addOrUpdatePluginMetadata(metadata)
 
-            mcpLocalServer.updateServerStatus(
-                server.id,
-                active = false // The bridge will report the active status
-            )
-
             // 重新加载插件状态
             loadPluginsFromMCPLocalServer()
         }
@@ -971,19 +966,34 @@ class MCPRepository(private val context: Context) {
                             val isActive = service?.optBoolean("active", false) ?: false
 
                             if (!serviceName.isNullOrEmpty()) {
+                                val now = System.currentTimeMillis()
+                                val wasRunning = mcpLocalServer.isServerLikelyRunning(serviceName)
                                 if (isActive) {
                                     activeServices.add(serviceName)
                                 }
-                                // 更新MCPLocalServer中的状态
-                                mcpLocalServer.updateServerStatus(serverId = serviceName, active = isActive)
+                                if (isActive && !wasRunning) {
+                                    mcpLocalServer.updateServerStatus(
+                                        serverId = serviceName,
+                                        lastStartTime = now,
+                                        errorMessage = ""
+                                    )
+                                } else if (!isActive && wasRunning) {
+                                    mcpLocalServer.updateServerStatus(
+                                        serverId = serviceName,
+                                        lastStopTime = now
+                                    )
+                                }
                             }
                         }
                     }
                     
-                    // 对于已安装但不在活跃列表中的插件，确保其状态为 inactive
+                    // 对于已安装但不在活跃列表中的插件，更新停止时间
                     _installedPluginIds.value.forEach { pluginId ->
-                        if (!activeServices.contains(pluginId)) {
-                            mcpLocalServer.updateServerStatus(serverId = pluginId, active = false)
+                        if (!activeServices.contains(pluginId) && mcpLocalServer.isServerLikelyRunning(pluginId)) {
+                            mcpLocalServer.updateServerStatus(
+                                serverId = pluginId,
+                                lastStopTime = System.currentTimeMillis()
+                            )
                         }
                     }
                     AppLogger.d(TAG, "桥接器状态同步完成。活跃服务: ${activeServices.joinToString()}")

@@ -228,7 +228,8 @@ internal object ToolPkgArchiveParser {
                 description = containerDescription,
                 tools = emptyList(),
                 isBuiltIn = isBuiltIn,
-                enabledByDefault = true
+                enabledByDefault = true,
+                category = "ToolPkg"
             )
 
         val runtime =

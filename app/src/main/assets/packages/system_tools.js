@@ -11,6 +11,7 @@
         "en": "System-level operations: settings management, app install/uninstall & launch, notification retrieval, location services, device info queries, plus Intent/broadcast execution."
     },
     "enabledByDefault": true,
+    "category": "System",
     "tools": [
         {
             "name": "get_system_setting",
@@ -112,8 +113,7 @@
             "parameters": []
         }
     ]
-}
-*/
+}*/
 const SystemTools = (function () {
     async function get_system_setting(params) {
         const result = await Tools.System.getSetting(params.setting, params.namespace || 'system');

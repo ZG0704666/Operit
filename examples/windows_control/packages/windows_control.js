@@ -10,6 +10,7 @@
         "en": "Control a Windows PC through Operit PC Agent over HTTP, execute PowerShell/CMD commands, and return output."
     },
     "enabledByDefault": false,
+    "category": "System",
     "env": [
         {
             "name": "WINDOWS_AGENT_BASE_URL",

@@ -13,6 +13,7 @@
   "env": [
     "XAI_API_KEY"
   ],
+  "category": "Draw",
   "tools": [
     {
       "name": "draw_image",
@@ -28,8 +29,7 @@
       ]
     }
   ]
-}
-*/
+}*/
 const xaiDraw = (function () {
     const HTTP_TIMEOUT_MS = 600000;
     const client = OkHttp.newBuilder()

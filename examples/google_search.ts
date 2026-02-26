@@ -1,6 +1,7 @@
 /* METADATA
 {
-    "name": "google_search",
+    "name": "google_search",
+
     "display_name": {
         "zh": "Google 搜索",
         "en": "Google Search"
@@ -10,6 +11,7 @@
         "en": "Google web search and Google Scholar search, with configurable language and result count."
     },
     "enabledByDefault": false,
+    "category": "Search",
     "tools": [
         {
             "name": "search_web",
@@ -43,8 +45,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 
 const googleSearch = (function () {
     type SearchParams = {

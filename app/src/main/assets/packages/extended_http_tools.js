@@ -11,6 +11,7 @@
         "en": "Allows file uploads and direct network access operations such as GET/POST."
     },
     "enabledByDefault": true,
+    "category": "Network",
     "tools": [
         {
             "name": "http_request",
@@ -44,8 +45,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const ExtendedHttpTools = (function () {
     const MAX_INLINE_HTTP_RESPONSE_CHARS = 12000;
     async function http_request(params) {

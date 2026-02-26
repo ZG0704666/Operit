@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,6 +47,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.runBlocking
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BubbleAiMessageComposable(
     message: ChatMessage,
@@ -52,7 +55,8 @@ fun BubbleAiMessageComposable(
     textColor: Color,
     onLinkClick: ((String) -> Unit)? = null,
     isHidden: Boolean = false,
-    enableDialogs: Boolean = true
+    enableDialogs: Boolean = true,
+    onAvatarLongPressMention: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val preferencesManager = remember { UserPreferencesManager.getInstance(context) }
@@ -160,23 +164,31 @@ fun BubbleAiMessageComposable(
         verticalAlignment = Alignment.Top
     ) {
         if (bubbleShowAvatar) {
+            val avatarModifier = Modifier
+                .size(32.dp)
+                .clip(avatarShape)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = {
+                        val roleName = message.roleName.trim()
+                        if (roleName.isNotEmpty()) {
+                            onAvatarLongPressMention?.invoke(roleName)
+                        }
+                    }
+                )
             // Avatar
             if (!aiAvatarUri.isNullOrEmpty()) {
                 Image(
                     painter = rememberAsyncImagePainter(model = Uri.parse(aiAvatarUri)),
                     contentDescription = "AI Avatar",
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(avatarShape),
+                    modifier = avatarModifier,
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Assistant,
                     contentDescription = "AI Avatar",
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(avatarShape),
+                    modifier = avatarModifier,
                     tint = MaterialTheme.colorScheme.secondary
                 )
             }

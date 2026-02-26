@@ -2596,6 +2596,7 @@
     <string name="function_type_ui_controller">UI控制器</string>
     <string name="function_type_translation">翻译功能</string>
     <string name="function_type_grep">Grep检索</string>
+    <string name="function_type_role_response_planner">角色回答规划</string>
     <string name="function_type_image_recognition">图像识别</string>
     <string name="function_type_audio_recognition">音频识别</string>
     <string name="function_type_video_recognition">视频识别</string>
@@ -2608,6 +2609,7 @@
     <string name="function_desc_ui_controller">用于UI界面的自动遍历与操作，对应的 UI 控制器模型仅在用户明确要求使用“智能体”控制时才会启用，例如可选择 autoglm 等专用模型。</string>
     <string name="function_desc_translation">提供多语言翻译功能，支持文本内容的语言转换。建议使用支持多语言的模型。</string>
     <string name="function_desc_grep">用于grep_context的检索规划与结果筛选（多轮grep_code）</string>
+    <string name="function_desc_role_response_planner">用于在角色回答规划中动态决定本轮发言顺序与跳过策略</string>
     <string name="function_desc_image_recognition">用于图像内容识别和分析，调用read_file工具读取图片时支持intent参数进行深度理解。建议使用支持视觉的多模态模型。</string>
     <string name="function_desc_audio_recognition">用于音频内容识别和分析，调用read_file工具读取音频时可使用intent参数进行深度理解（如转写/总结/识别说话内容）。建议使用支持音频输入或高质量转写的模型。</string>
     <string name="function_desc_video_recognition">用于视频内容识别和分析，调用read_file工具读取视频时可使用intent参数进行深度理解（如抽帧理解/场景描述/对话总结）。建议使用支持视频/图像输入的多模态模型。</string>
@@ -3281,6 +3283,8 @@
     <string name="show_status_tags_desc">切换任务完成和等待状态标签的可见性</string>
     <string name="show_input_processing_status">显示输入处理状态</string>
     <string name="show_input_processing_status_desc">在输入框上方显示AI正在处理任务的状态</string>
+    <string name="show_chat_floating_dots_animation">显示对话浮点动画</string>
+    <string name="show_chat_floating_dots_animation_desc">在 AI 回复加载时显示对话区域的浮点动画</string>
     <string name="avatar_customization_title">自定义头像</string>
     <string name="user_avatar_label">用户头像</string>
     <string name="global_user_avatar_label">全局用户头像</string>
@@ -3390,6 +3394,7 @@
     <string name="provider_deepseek">Deepseek大模型</string>
     <string name="provider_mistral">Mistral AI (Codestral)</string>
     <string name="provider_siliconflow">硅基流动</string>
+    <string name="provider_iflow">iFlow</string>
     <string name="provider_openrouter">OpenRouter (多模型聚合)</string>
     <string name="provider_infiniai">无问芯穹</string>
     <string name="provider_alipay_bailing">支付宝百灵大模型</string>
@@ -3563,15 +3568,13 @@
     <string name="tag_management">标签管理</string>
     <string name="create_new_tag">新建标签</string>
     <string name="tag_market">标签市场</string>
-    <string name="tag_export_no_custom_tags">没有可导出的自定义标签</string>
+    <string name="tag_export_no_custom_tags">没有可导出的标签</string>
     <string name="tag_export_select_title">选择要导出的标签</string>
     <string name="tag_export_select_all">全选</string>
     <string name="tag_export_clear_all">清空</string>
     <string name="tag_export_select_at_least_one">请至少选择一个标签</string>
     <string name="tag_import_invalid_format">标签文件格式无效</string>
     <string name="tag_import_summary">标签导入完成：新建 %1$d，更新 %2$d，跳过 %3$d</string>
-    <string name="system_tags">系统标签</string>
-    <string name="custom_tags">自定义标签</string>
     <string name="content_preview">内容：%1$s...</string>
     <string name="old_prompt_config">旧版提示词配置</string>
     <string name="old_prompt_config_desc">这些是旧版系统的提示词配置，您可以查看和复制内容到新的角色卡系统中。</string>
@@ -3583,7 +3586,6 @@
     <string name="character_setting_prompt">角色设定（引导词）</string>
     <string name="other_content_prompt">其他内容（引导词）</string>
     <string name="select_tags">选择标签</string>
-    <string name="system_tags_auto_added">系统标签（自动加入）</string>
     <string name="notes_info_not_appended">备注信息（不会被拼接到提示词中）</string>
     <string name="notes_placeholder">可以记录角色卡来源、作者信息等</string>
     <string name="save">保存</string>
@@ -3657,7 +3659,21 @@
     <string name="character_card_other_content">其他内容</string>
     <string name="character_card_other_content_placeholder">角色背景、经历等...</string>
     <string name="character_card_tags">标签</string>
-    <string name="character_card_no_custom_tags">没有可用的自定义标签。请在设置中创建。</string>
+    <string name="character_card_no_custom_tags">没有可用标签。请在设置中创建。</string>
+    <string name="character_groups">角色回答规划</string>
+    <string name="character_group_tab_placeholder">配置角色回答规划后，系统会自动规划本轮发言顺序，角色可跳过本轮。</string>
+    <string name="character_group_empty_state">暂无角色回答规划</string>
+    <string name="character_group_member_count">成员：%1$d</string>
+    <string name="create_character_group">新建角色回答规划</string>
+    <string name="edit_character_group">编辑角色回答规划</string>
+    <string name="delete_character_group">删除角色回答规划</string>
+    <string name="delete_character_group_confirm">确定删除回答规划「%1$s」吗？</string>
+    <string name="role_response_planner_planning">正在规划本轮发言顺序…</string>
+    <string name="role_response_planner_member_replying">正在生成「%1$s」的回复…</string>
+    <string name="role_response_planner_failed">角色回答规划失败</string>
+    <string name="group_members">成员列表</string>
+    <string name="group_add_member">添加成员</string>
+    <string name="group_member_empty_hint">请先添加至少一个角色卡成员</string>
     <string name="character_card_advanced_options">高级选项</string>
     <string name="character_card_chat_model_binding">对话模型绑定</string>
     <string name="character_card_chat_model_follow_global">跟随全局</string>
@@ -3676,6 +3692,7 @@
     <string name="character_card_fullscreen_edit_placeholder">在此输入内容...</string>
     <string name="character_card_fullscreen_edit">大屏编辑</string>
     <string name="character_card_avatar">头像</string>
+    <string name="character_group_avatar">群聊头像</string>
     <string name="character_card_default_avatar">默认头像</string>
     <string name="character_card_reset">重置</string>
     <string name="character_card_add">添加</string>
@@ -4365,7 +4382,9 @@
     <string name="font_file_save_failed">字体文件保存失败</string>
     <string name="unsupported_font_format">不支持的文件格式，请选择 .ttf, .otf 或 .ttc 字体文件</string>
     <string name="current_character">当前角色: %1$s</string>
+    <string name="current_character_group">当前角色群聊: %1$s</string>
     <string name="theme_auto_bind_character_card">主题设置将自动绑定到此角色卡</string>
+    <string name="theme_auto_bind_character_group">主题设置将自动绑定到此角色群聊</string>
     <string name="enable_custom_font">启用自定义字体</string>
     <string name="use_system_or_custom_font">使用系统字体或自定义字体文件</string>
     <string name="font_type_label">字体类型</string>
@@ -4381,6 +4400,7 @@
     
     <!-- Chat History Batch -->
     <string name="no_available_character_cards_toast">暂无可用角色卡，请先创建一个角色卡</string>
+    <string name="no_available_character_groups_toast">暂无可用角色群聊，请先创建一个角色群聊</string>
     <string name="please_select_chats_first">请先选择聊天记录</string>
     <string name="chats_unbound_from_card">已移除 %1$d 条对话的角色卡绑定</string>
     <string name="chats_assigned_to_character">已将 %1$d 条对话归类到「%2$s」</string>
@@ -4396,7 +4416,7 @@
     <string name="no_chat_data_available">暂无聊天数据可供统计。</string>
     <string name="chats_and_messages_count">%1$d 个对话 · %2$d 条消息</string>
     <string name="click_to_assign_to_card">点击归类到现有角色卡</string>
-    <string name="search_by_title_group_card">按标题、分组或角色卡搜索</string>
+    <string name="search_by_title_group_card">按标题、分组、角色卡或角色群聊搜索</string>
     <string name="filter_chat_history">筛选聊天记录</string>
     <string name="no_chat_records_for_batch">暂无聊天记录，无法进行批量操作。</string>
     <string name="no_matching_chats_adjust_filter">没有匹配的聊天记录，请调整筛选条件。</string>
@@ -4405,14 +4425,22 @@
     <string name="assign_to_character_card_title">归类到角色卡</string>
     <string name="unbound_chats_select_card">共有 %1$d 条聊天记录未绑定角色卡。请选择要归类到的目标角色卡：</string>
     <string name="no_cards_create_first">暂无可用角色卡，请先创建一个角色卡。</string>
+    <string name="assign_to_character_group_title">归类到角色群聊</string>
+    <string name="unbound_chats_select_group">共有 %1$d 条聊天记录需要重新绑定角色群聊。请选择目标角色群聊：</string>
+    <string name="no_groups_create_first">暂无可用角色群聊，请先创建一个角色群聊。</string>
     <string name="assign_action">归类</string>
     <string name="select_all_current_list">全选</string>
     <string name="target_character_card_optional">目标角色卡（可选）</string>
     <string name="select_card_or_unbind">请选择一个角色卡或取消绑定</string>
     <string name="remove_character_card_binding">移除角色卡绑定</string>
     <string name="no_available_character_cards_dropdown">暂无可用角色卡</string>
+    <string name="target_character_group_optional">目标角色群聊（可选）</string>
+    <string name="select_group_or_unbind">请选择一个角色群聊或取消绑定</string>
+    <string name="remove_character_group_binding">移除角色群聊绑定</string>
+    <string name="no_available_character_groups_dropdown">暂无可用角色群聊</string>
     <string name="cancel_selection">取消选择</string>
     <string name="character_card_label">角色卡：%1$s</string>
+    <string name="character_group_label">角色群聊：%1$s</string>
     <string name="chat_records_label">聊天记录</string>
     <string name="group_label">分组：%1$s</string>
     <string name="unnamed_conversation">未命名对话</string>
@@ -4484,23 +4512,36 @@
     <string name="removed_character_card_binding">已移除 %1$d 条对话的角色卡绑定</string>
     <string name="assigned_chats_to_character_card">已将 %1$d 条对话归类到「%2$s」</string>
     <string name="assigned_chats_to_group">已将 %1$d 条对话分组到「%2$s」</string>
+    <string name="removed_character_group_binding">已移除 %1$d 条对话的角色群聊绑定</string>
+    <string name="assigned_chats_to_character_group">已将 %1$d 条对话归类到角色群聊「%2$s」</string>
     <string name="deleted_unbound_workspaces">已删除 %1$d 个无绑定工作区</string>
     <string name="delete_failed">删除失败: %1$s</string>
     <string name="character_card_statistics">角色卡统计</string>
     <string name="character_card_statistics_subtitle">查看每个角色卡下的对话与消息数量</string>
+    <string name="character_group_statistics">角色群聊统计</string>
+    <string name="character_group_statistics_subtitle">查看每个角色群聊下的对话与消息数量</string>
     <string name="missing_card_entry_action_title">缺失角色卡条目</string>
     <string name="missing_card_entry_action_message">「%1$s」下共有 %2$d 条对话，请选择操作：</string>
     <string name="action_assign_to_card">归类到角色卡</string>
+    <string name="action_assign_to_group">归类到角色群聊</string>
     <string name="action_delete_residual_chats">删除残留对话</string>
     <string name="delete_residual_chats_confirmation">确定要删除「%1$s」下的 %2$d 条残留对话吗？\n\n已锁定的对话会被跳过，此操作不可撤销。</string>
     <string name="deleted_residual_chats_count">已删除 %1$d 条残留对话</string>
     <string name="deleted_residual_chats_with_skipped_locked">已删除 %1$d 条残留对话，跳过 %2$d 条锁定对话</string>
     <string name="click_to_manage_missing_card">点击处理缺失角色卡条目</string>
+    <string name="missing_group_entry_action_title">缺失角色群聊条目</string>
+    <string name="missing_group_entry_action_message">「%1$s」下共有 %2$d 条对话，请选择操作：</string>
+    <string name="click_to_manage_missing_group">点击处理缺失角色群聊条目</string>
+    <string name="missing_character_group_id">缺失角色群聊（%1$s）</string>
+    <string name="unbound_character_group">未绑定角色群聊</string>
+    <string name="please_select_a_character_group">请选择一个角色群聊</string>
+    <string name="assigned_to_character_group">已归类到角色群聊「%1$s」</string>
     <string name="character_fallback">角</string>
     <string name="selected_chats_count">已选择 %1$d / %2$d 条</string>
     <string name="apply_changes">应用更改</string>
     <string name="apply_group">应用分组</string>
     <string name="apply_character_card">应用角色卡</string>
+    <string name="apply_character_group">应用角色群聊</string>
     <string name="unbound_workspaces_title">无绑定工作区</string>
     <string name="unbound_workspaces_subtitle">管理未被任何对话使用的工作区文件夹</string>
     <string name="no_unbound_workspaces">暂无无绑定的工作区文件夹</string>
@@ -6186,6 +6227,7 @@
     <string name="admin_shell_requires_permission">需要root权限或adb权限</string>
     <string name="default_option">默认</string>
     <string name="character_card_single_char">单字符</string>
+    <string name="character_group_single_char">群</string>
     <string name="waifu_config_bound_to_card">绑定到角色卡</string>
     <string name="advanced_import_key">导入密钥</string>
     <string name="model_custom_params">自定义参数</string>
@@ -6601,14 +6643,7 @@
     <string name="default_character_card">默认角色卡</string>
 
     <!-- PromptTagManager -->
-    <string name="prompt_tag_system_chat_prompt"></string>
     <string name="prompt_tag_unnamed">未命名标签</string>
-    <string name="prompt_tag_general_chat">通用聊天</string>
-    <string name="prompt_tag_general_chat_desc">适用于聊天功能的通用提示词</string>
-    <string name="prompt_tag_general_voice">通用语音</string>
-    <string name="prompt_tag_general_voice_desc">适用于语音功能的通用提示词</string>
-    <string name="prompt_tag_general_desktop_pet">通用桌宠</string>
-    <string name="prompt_tag_general_desktop_pet_desc">适用于桌宠功能的通用提示词</string>
 
     <!-- MessageProcessingDelegate -->
     <string name="message_processing">正在处理消息...</string>

@@ -7,6 +7,7 @@
         "en": "Automation Base Tools"
     },
     "description": { "zh": "提供基本的UI自动化工具，能够按照用户的要求帮助操作设备屏幕（如点击、滑动、输入等）。", "en": "Basic UI automation tools to operate the device screen as requested (tap, swipe, input, etc.)." },
+    "category": "Automatic",
     "enabledByDefault": true,
     "tools": [
         {
@@ -96,8 +97,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const UIAutomationTools = (function () {
     async function get_page_info(params) {
         const result = (await UINode.getCurrentPage()).toFormattedString();

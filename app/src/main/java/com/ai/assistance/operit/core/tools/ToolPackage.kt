@@ -264,12 +264,12 @@ package com.ai.assistance.operit.core.tools
      }
  }
  
- @Serializable
- data class ToolPackage(
-     val name: String,
-     val description: LocalizedText,
-     val tools: List<PackageTool>,
-     val states: List<ToolPackageState> = emptyList(),
+@Serializable
+data class ToolPackage(
+    val name: String,
+    val description: LocalizedText,
+    val tools: List<PackageTool>,
+    val states: List<ToolPackageState> = emptyList(),
      /**
       * Optional list of environment variable declarations for this package.
       * Each environment variable can be marked as required or optional.
@@ -291,13 +291,14 @@ package com.ai.assistance.operit.core.tools
       *   }
       * ]
       */
-     val env: List<EnvVar> = emptyList(),
-     val isBuiltIn: Boolean = false,
-     @JsonNames("enabled_by_default")
-     val enabledByDefault: Boolean = false,
-     @JsonNames("display_name")
-     val displayName: LocalizedText = LocalizedText.of("")
- )
+    val env: List<EnvVar> = emptyList(),
+    val isBuiltIn: Boolean = false,
+    @JsonNames("enabled_by_default")
+    val enabledByDefault: Boolean = false,
+    @JsonNames("display_name")
+    val displayName: LocalizedText = LocalizedText.of(""),
+    val category: String
+)
  
  @Serializable
  data class ToolPackageState(

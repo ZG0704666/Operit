@@ -23,7 +23,8 @@ fun BubbleStyleChatMessage(
     isHidden: Boolean = false,
     onDeleteMessage: ((Int) -> Unit)? = null,
     index: Int = -1,
-    enableDialogs: Boolean = true  // 新增参数：是否启用弹窗功能，默认启用
+    enableDialogs: Boolean = true,  // 新增参数：是否启用弹窗功能，默认启用
+    onRoleAvatarLongPress: ((String) -> Unit)? = null
 ) {
     when (message.sender) {
         "user" -> {
@@ -40,7 +41,8 @@ fun BubbleStyleChatMessage(
                 backgroundColor = aiMessageColor,
                 textColor = aiTextColor,
                 isHidden = isHidden,
-                enableDialogs = enableDialogs
+                enableDialogs = enableDialogs,
+                onAvatarLongPressMention = onRoleAvatarLongPress
             )
         }
         "summary" -> {

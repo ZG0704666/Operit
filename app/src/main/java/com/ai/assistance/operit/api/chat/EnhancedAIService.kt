@@ -513,6 +513,8 @@ class EnhancedAIService private constructor(private val context: Context) {
         characterName: String? = null,
         avatarUri: String? = null,
         roleCardId: String? = null,
+        enableRoleScopedHistoryHint: Boolean = false,
+        enableGroupOrchestrationHint: Boolean = false,
         proxySenderName: String? = null,
         onToolInvocation: (suspend (String) -> Unit)? = null,
         chatModelConfigIdOverride: String? = null,
@@ -563,6 +565,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                                     customSystemPromptTemplate,
                                     enableMemoryQuery,
                                     roleCardId,
+                                    enableRoleScopedHistoryHint,
+                                    enableGroupOrchestrationHint,
                                     proxySenderName,
                                     isSubTask,
                                     functionType,
@@ -748,7 +752,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                             onToolInvocation,
                             chatModelConfigIdOverride,
                             chatModelIndexOverride,
-                            stream
+                            stream,
+                            enableGroupOrchestrationHint
                         )
                     }
                 }
@@ -867,7 +872,8 @@ class EnhancedAIService private constructor(private val context: Context) {
             onToolInvocation: (suspend (String) -> Unit)? = null,
             chatModelConfigIdOverride: String? = null,
             chatModelIndexOverride: Int? = null,
-            stream: Boolean = true
+            stream: Boolean = true,
+            enableGroupOrchestrationHint: Boolean = false
     ) {
         try {
             val startTime = System.currentTimeMillis()
@@ -932,6 +938,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                         chatModelConfigIdOverride = chatModelConfigIdOverride,
                         chatModelIndexOverride = chatModelIndexOverride,
                         stream = stream,
+                        enableGroupOrchestrationHint = enableGroupOrchestrationHint,
                         toolResultOverrideMessage = pureThinkingWarning
                 )
                 return
@@ -1032,13 +1039,20 @@ class EnhancedAIService private constructor(private val context: Context) {
                         onToolInvocation,
                         chatModelConfigIdOverride,
                         chatModelIndexOverride,
-                        stream = stream
+                        stream = stream,
+                        enableGroupOrchestrationHint = enableGroupOrchestrationHint
                 )
                 return
             }
 
             // 修改默认行为：如果没有特殊标记或工具调用，默认等待用户输入
             // 而不是直接标记为完成
+            if (enableGroupOrchestrationHint && ConversationMarkupManager.containsNoSpeak(enhancedContent)) {
+                AppLogger.d(TAG, "群聊回合检测到 no_speak，保持原样结束当前回合")
+                handleWaitForUserNeed(context, enhancedContent, isSubTask, characterName, avatarUri)
+                AppLogger.d(TAG, "流完成处理耗时: ${System.currentTimeMillis() - startTime}ms")
+                return
+            }
 
             // 创建等待用户输入的内容
             val userNeedContent =
@@ -1141,6 +1155,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         chatModelConfigIdOverride: String? = null,
         chatModelIndexOverride: Int? = null,
         stream: Boolean = true,
+        enableGroupOrchestrationHint: Boolean = false,
         toolResultOverrideMessage: String? = null
     ) {
         val startTime = System.currentTimeMillis()
@@ -1173,7 +1188,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     allToolResults, context, functionType, collector, enableThinking,
                     enableMemoryQuery, onNonFatalError, onTokenLimitExceeded, maxTokens, tokenUsageThreshold, isSubTask,
                     characterName, avatarUri, roleCardId, chatId, onToolInvocation,
-                    chatModelConfigIdOverride, chatModelIndexOverride, stream
+                    chatModelConfigIdOverride, chatModelIndexOverride, stream, enableGroupOrchestrationHint
                 )
             } else if (!toolResultOverrideMessage.isNullOrEmpty()) {
                 AppLogger.d(TAG, "0工具路由命中，使用覆盖消息继续请求AI。")
@@ -1197,6 +1212,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     chatModelConfigIdOverride = chatModelConfigIdOverride,
                     chatModelIndexOverride = chatModelIndexOverride,
                     stream = stream,
+                    enableGroupOrchestrationHint = enableGroupOrchestrationHint,
                     toolResultMessageOverride = toolResultOverrideMessage
                 )
             }
@@ -1234,6 +1250,7 @@ class EnhancedAIService private constructor(private val context: Context) {
             chatModelConfigIdOverride: String? = null,
             chatModelIndexOverride: Int? = null,
             stream: Boolean = true,
+            enableGroupOrchestrationHint: Boolean = false,
             toolResultMessageOverride: String? = null
     ) {
         val startTime = System.currentTimeMillis()
@@ -1423,7 +1440,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                     onToolInvocation,
                     chatModelConfigIdOverride,
                     chatModelIndexOverride,
-                    stream
+                    stream,
+                    enableGroupOrchestrationHint
                 )
             } catch (e: Exception) {
                 AppLogger.e(TAG, "处理工具执行结果时出错", e)
@@ -1527,6 +1545,8 @@ class EnhancedAIService private constructor(private val context: Context) {
             customSystemPromptTemplate: String? = null,
             enableMemoryQuery: Boolean,
             roleCardId: String?,
+            enableRoleScopedHistoryHint: Boolean,
+            enableGroupOrchestrationHint: Boolean,
             proxySenderName: String? = null,
             isSubTask: Boolean = false,
             functionType: FunctionType = FunctionType.CHAT,
@@ -1562,6 +1582,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                 customSystemPromptTemplate,
                 enableMemoryQuery,
                 roleCardId,
+                enableRoleScopedHistoryHint,
+                enableGroupOrchestrationHint,
                 proxySenderName,
                 hasImageRecognition,
                 hasAudioRecognition,

@@ -88,7 +88,10 @@ class CustomXmlRenderer(
         if (tagName == "status") {
             val typeMatch = ChatMarkupRegex.typeAttr.find(trimmedContent)
             val statusType = typeMatch?.groupValues?.get(1)
-            if (statusType in listOf("completion", "complete", "wait_for_user_need") && !showStatusTags) {
+            if (statusType == "no_speak") {
+                return
+            }
+            if (statusType in listOf("completion", "complete", "wait_for_user_need", "no_speak") && !showStatusTags) {
                 return
             }
         }
@@ -550,10 +553,13 @@ class CustomXmlRenderer(
     private fun renderStatus(content: String, modifier: Modifier, textColor: Color) {
         val typeMatch = ChatMarkupRegex.typeAttr.find(content)
         val statusType = typeMatch?.groupValues?.get(1) ?: "info"
+        if (statusType == "no_speak") {
+            return
+        }
 
         // 提取状态内容 - 只有在非特殊状态类型时才需要
         val statusContent =
-                if (statusType !in listOf("completion", "complete", "wait_for_user_need")) {
+                if (statusType !in listOf("completion", "complete", "wait_for_user_need", "no_speak")) {
                     extractContentFromXml(content, "status")
                 } else {
                     "" // 特殊状态类型不需要内容
@@ -566,6 +572,7 @@ class CustomXmlRenderer(
                             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                     "wait_for_user_need" ->
                             MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                    "no_speak" -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                     "warning" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
                     else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
                 }
@@ -574,6 +581,7 @@ class CustomXmlRenderer(
                 when (statusType) {
                     "completion", "complete" -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     "wait_for_user_need" -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+                    "no_speak" -> MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
                     "warning" -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
                     else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                 }
@@ -583,6 +591,7 @@ class CustomXmlRenderer(
                 when (statusType) {
                     "completion", "complete" -> "✓ Task completed"
                     "wait_for_user_need" -> "✓ Ready for further assistance"
+                    "no_speak" -> "↷ Skipped this turn"
                     "warning" ->
                             if (statusContent.isNotBlank()) statusContent
                             else "Warning: AI made a mistake"
@@ -602,6 +611,7 @@ class CustomXmlRenderer(
                             when (statusType) {
                                 "completion", "complete" -> MaterialTheme.colorScheme.primary
                                 "wait_for_user_need" -> MaterialTheme.colorScheme.tertiary
+                                "no_speak" -> MaterialTheme.colorScheme.outline
                                 "warning" -> MaterialTheme.colorScheme.error
                                 else -> textColor
                             },

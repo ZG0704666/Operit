@@ -7,9 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.outlined.MoreVert
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.ContentValues
@@ -40,10 +44,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.CharacterCard
+import com.ai.assistance.operit.data.model.CharacterGroupCard
+import com.ai.assistance.operit.data.model.GroupMemberConfig
 import com.ai.assistance.operit.data.model.PromptTag
 import com.ai.assistance.operit.data.model.TagType
 import com.ai.assistance.operit.data.preferences.CharacterCardBilingualData
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
+import com.ai.assistance.operit.data.preferences.ActiveCharacterSelectionManager
 import com.ai.assistance.operit.data.preferences.PromptTagManager
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -82,6 +90,7 @@ import java.nio.ByteOrder
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
+import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -99,14 +108,17 @@ fun ModelPromptsSettingsScreen(
 
     // 管理器
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
+    val activeCharacterSelectionManager = remember { ActiveCharacterSelectionManager.getInstance(context) }
     val promptTagManager = remember { PromptTagManager.getInstance(context) }
     val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
 
-    // 获取当前活跃角色卡ID
+    // 获取当前活跃角色卡/群组ID
     val activeCharacterCardId by characterCardManager.activeCharacterCardIdFlow.collectAsState(initial = "")
+    val activeCharacterGroupId by characterGroupCardManager.activeCharacterGroupCardIdFlow.collectAsState(initial = null)
 
     // 状态
-    var currentTab by remember { mutableStateOf(0) } // 0: 角色卡, 1: 标签
+    var currentTab by remember { mutableStateOf(0) } // 0: 角色卡, 1: 标签, 2: 群组
     var refreshTrigger by remember { mutableStateOf(0) }
 
     // 角色卡相关状态
@@ -120,6 +132,13 @@ fun ModelPromptsSettingsScreen(
     var showDeleteCharacterCardConfirm by remember { mutableStateOf(false) }
     var deletingCharacterCardId by remember { mutableStateOf("") }
     var deletingCharacterCardName by remember { mutableStateOf("") }
+
+    // 群组相关状态
+    var showAddGroupCardDialog by remember { mutableStateOf(false) }
+    var showEditGroupCardDialog by remember { mutableStateOf(false) }
+    var editingGroupCard by remember { mutableStateOf<CharacterGroupCard?>(null) }
+    var showDeleteGroupCardConfirm by remember { mutableStateOf(false) }
+    var deletingGroupCard by remember { mutableStateOf<CharacterGroupCard?>(null) }
 
     // 重置确认对话框状态
     var showResetDefaultConfirm by remember { mutableStateOf(false) }
@@ -434,13 +453,13 @@ fun ModelPromptsSettingsScreen(
         scope.launch {
             isTagExporting = true
             try {
-                val customTags = promptTagManager.getAllTags().filter { !it.isSystemTag }
-                if (customTags.isEmpty()) {
+                val tags = promptTagManager.getAllTags()
+                if (tags.isEmpty()) {
                     Toast.makeText(context, context.getString(R.string.tag_export_no_custom_tags), Toast.LENGTH_SHORT).show()
                     return@launch
                 }
 
-                val selectedTags = customTags.filter { it.id in selectedIds }
+                val selectedTags = tags.filter { it.id in selectedIds }
                 if (selectedTags.isEmpty()) {
                     Toast.makeText(context, context.getString(R.string.tag_export_select_at_least_one), Toast.LENGTH_SHORT).show()
                     return@launch
@@ -476,7 +495,7 @@ fun ModelPromptsSettingsScreen(
     val allTags by promptTagManager.allTagsFlow.collectAsState(initial = emptyList())
     val customTagsForExport by remember(allTags) {
         derivedStateOf {
-            allTags.filter { !it.isSystemTag }.sortedBy { it.name.lowercase(Locale.getDefault()) }
+            allTags.sortedBy { it.name.lowercase(Locale.getDefault()) }
         }
     }
     var showAddTagDialog by remember { mutableStateOf(false) }
@@ -491,6 +510,7 @@ fun ModelPromptsSettingsScreen(
     // 初始化
     LaunchedEffect(Unit) {
         characterCardManager.initializeIfNeeded()
+        characterGroupCardManager.initializeIfNeeded()
     }
 
     // 获取所有角色卡
@@ -501,6 +521,7 @@ fun ModelPromptsSettingsScreen(
             allCharacterCards = cards
         }
     }
+    val allCharacterGroups by characterGroupCardManager.allCharacterGroupCardsFlow.collectAsState(initial = emptyList())
 
     // 保存角色卡
     fun saveCharacterCard() {
@@ -616,6 +637,47 @@ fun ModelPromptsSettingsScreen(
         }
     }
 
+    // 保存群组角色卡
+    fun saveGroupCard() {
+        editingGroupCard?.let { group ->
+            scope.launch {
+                val isNew = group.id.isBlank()
+                if (isNew) {
+                    characterGroupCardManager.createCharacterGroupCard(group)
+                } else {
+                    characterGroupCardManager.updateCharacterGroupCard(group)
+                }
+                showAddGroupCardDialog = false
+                showEditGroupCardDialog = false
+                editingGroupCard = null
+                showSaveSuccessMessage = true
+                refreshTrigger++
+            }
+        }
+    }
+
+    fun duplicateGroupCard(group: CharacterGroupCard) {
+        scope.launch {
+            val duplicatedName = group.name + context.getString(R.string.card_copy_suffix)
+            characterGroupCardManager.duplicateCharacterGroupCard(group.id, duplicatedName)
+            showDuplicateSuccessMessage = true
+            refreshTrigger++
+        }
+    }
+
+    fun confirmDeleteGroupCard() {
+        val group = deletingGroupCard ?: return
+        scope.launch {
+            characterGroupCardManager.deleteCharacterGroupCard(group.id)
+            if (activeCharacterGroupId == group.id) {
+                activeCharacterSelectionManager.activateCharacterGroup(null)
+            }
+            deletingGroupCard = null
+            showDeleteGroupCardConfirm = false
+            refreshTrigger++
+        }
+    }
+
     // 删除标签
     fun deleteTag(id: String) {
         scope.launch {
@@ -685,14 +747,31 @@ fun ModelPromptsSettingsScreen(
                             Text(stringResource(R.string.tags), fontSize = 12.sp)
                         }
                     }
-                    // 旧配置选项已废弃，删除对应标签
+                    Tab(
+                        selected = currentTab == 2,
+                        onClick = { currentTab = 2 }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.People,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(stringResource(R.string.character_groups), fontSize = 12.sp)
+                        }
+                    }
                 }
 
-                // 内容区域（仅保留角色卡和标签两页）
+                // 内容区域
                 when (currentTab) {
                     0 -> CharacterCardTab(
                         characterCards = allCharacterCards,
                         activeCharacterCardId = activeCharacterCardId,
+                        activeCharacterGroupId = activeCharacterGroupId,
                         allTags = allTags,
                         onAddCharacterCard = {
                             editingOriginalName = null
@@ -718,7 +797,7 @@ fun ModelPromptsSettingsScreen(
                         onResetDefaultCharacterCard = { showResetDefaultConfirm = true },
                         onSetActiveCharacterCard = { cardId ->
                             scope.launch {
-                                characterCardManager.setActiveCharacterCard(cardId)
+                                activeCharacterSelectionManager.activateCharacterCard(cardId)
                                 refreshTrigger++
                             }
                         },
@@ -775,6 +854,36 @@ fun ModelPromptsSettingsScreen(
                         isImporting = isTagImporting,
                         isExporting = isTagExporting,
                         onNavigateToMarket = onNavigateToMarket
+                    )
+                    2 -> GroupCardTab(
+                        groups = allCharacterGroups,
+                        characterCards = allCharacterCards,
+                        activeGroupId = activeCharacterGroupId,
+                        onAddGroup = {
+                            editingGroupCard = CharacterGroupCard(
+                                id = "",
+                                name = "",
+                                description = ""
+                            )
+                            showAddGroupCardDialog = true
+                        },
+                        onEditGroup = { group ->
+                            editingGroupCard = group
+                            showEditGroupCardDialog = true
+                        },
+                        onDeleteGroup = { group ->
+                            deletingGroupCard = group
+                            showDeleteGroupCardConfirm = true
+                        },
+                        onDuplicateGroup = { group ->
+                            duplicateGroupCard(group)
+                        },
+                        onSetActiveGroup = { groupId ->
+                            scope.launch {
+                                activeCharacterSelectionManager.activateCharacterGroup(groupId)
+                                refreshTrigger++
+                            }
+                        }
                     )
                 }
             }
@@ -1054,6 +1163,69 @@ fun ModelPromptsSettingsScreen(
                 editingTag = it
                 saveTag()
                                         }
+        )
+    }
+
+    if (showAddGroupCardDialog) {
+        GroupCardDialog(
+            group = editingGroupCard ?: CharacterGroupCard(id = "", name = ""),
+            allCharacterCards = allCharacterCards,
+            onDismiss = {
+                showAddGroupCardDialog = false
+                editingGroupCard = null
+            },
+            onSave = { group ->
+                editingGroupCard = group
+                saveGroupCard()
+            }
+        )
+    }
+
+    if (showEditGroupCardDialog) {
+        GroupCardDialog(
+            group = editingGroupCard ?: CharacterGroupCard(id = "", name = ""),
+            allCharacterCards = allCharacterCards,
+            onDismiss = {
+                showEditGroupCardDialog = false
+                editingGroupCard = null
+            },
+            onSave = { group ->
+                editingGroupCard = group
+                saveGroupCard()
+            }
+        )
+    }
+
+    if (showDeleteGroupCardConfirm && deletingGroupCard != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteGroupCardConfirm = false
+                deletingGroupCard = null
+            },
+            title = { Text(stringResource(R.string.delete_character_group)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.delete_character_group_confirm,
+                        deletingGroupCard?.name ?: ""
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = { confirmDeleteGroupCard() }) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteGroupCardConfirm = false
+                        deletingGroupCard = null
+                    }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         )
     }
 
@@ -1658,6 +1830,7 @@ enum class ExportMode {
 fun CharacterCardTab(
     characterCards: List<CharacterCard>,
     activeCharacterCardId: String,
+    activeCharacterGroupId: String?,
     allTags: List<PromptTag>,
     onAddCharacterCard: () -> Unit,
     onEditCharacterCard: (CharacterCard) -> Unit,
@@ -1845,7 +2018,7 @@ fun CharacterCardTab(
         items(sortedCharacterCards) { characterCard ->
             CharacterCardItem(
                 characterCard = characterCard,
-                isActive = characterCard.id == activeCharacterCardId,
+                isActive = activeCharacterGroupId.isNullOrBlank() && characterCard.id == activeCharacterCardId,
                 allTags = allTags,
                 onEdit = { onEditCharacterCard(characterCard) },
                 onDelete = { onDeleteCharacterCard(characterCard) },
@@ -1854,6 +2027,43 @@ fun CharacterCardTab(
                 onSetActive = { onSetActiveCharacterCard(characterCard.id) },
                 onExport = { onExportCharacterCard(characterCard.id, characterCard.name) }
             )
+        }
+    }
+}
+
+@Composable
+private fun SettingsListAvatar(
+    avatarUri: String?,
+    fallbackIcon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        if (!avatarUri.isNullOrBlank()) {
+            AsyncImage(
+                model = Uri.parse(avatarUri),
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = fallbackIcon,
+                    contentDescription = contentDescription,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }
@@ -1872,17 +2082,23 @@ fun CharacterCardItem(
     onSetActive: () -> Unit,
     onExport: () -> Unit
 ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
+    val context = LocalContext.current
+    val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
+    val avatarUri by remember(characterCard.id) {
+        userPreferencesManager.getAiAvatarForCharacterCardFlow(characterCard.id)
+    }.collectAsState(initial = null)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
         border = BorderStroke(
             width = 0.5.dp,
             color = MaterialTheme.colorScheme.outlineVariant
         )
-                        ) {
+    ) {
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
@@ -1890,153 +2106,164 @@ fun CharacterCardItem(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                    text = characterCard.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                                        )
-                if (isActive) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    AssistChip(
-                        onClick = { },
-                        label = { Text(stringResource(R.string.currently_active), fontSize = 10.sp) },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = stringResource(R.string.currently_active),
-                                modifier = Modifier.size(14.dp)
-                            )
-                        },
-                        modifier = Modifier.height(24.dp)
-                    )
-                }
-            }
-
-            // 三点菜单
-            var showMenu by remember { mutableStateOf(false) }
-            Box {
-                IconButton(
-                    onClick = { showMenu = true },
-                    modifier = Modifier.size(32.dp)
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Outlined.MoreVert,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                    SettingsListAvatar(
+                        avatarUri = avatarUri,
+                        fallbackIcon = Icons.Default.AccountCircle,
+                        contentDescription = "Character Avatar"
                     )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = characterCard.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (isActive) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            AssistChip(
+                                onClick = { },
+                                label = { Text(stringResource(R.string.currently_active), fontSize = 10.sp) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = stringResource(R.string.currently_active),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                },
+                                modifier = Modifier.height(24.dp)
+                            )
+                        }
+                    }
                 }
+
+                // 三点菜单
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    modifier = Modifier
-                        .background(Color.White, RoundedCornerShape(8.dp))
-                ) {
-                    if (!isActive) {
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                    ) {
+                        if (!isActive) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.set_active)) },
+                                onClick = {
+                                    onSetActive()
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            )
+                        }
+                    
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.set_active)) },
+                            text = { Text(stringResource(R.string.edit)) },
                             onClick = {
-                                onSetActive()
+                                onEdit()
                                 showMenu = false
                             },
                             leadingIcon = {
                                 Icon(
-                                    Icons.Default.Check,
+                                    Icons.Default.Edit,
                                     contentDescription = null,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                         )
-                    }
                     
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.edit)) },
-                        onClick = {
-                            onEdit()
-                            showMenu = false
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    )
-                    
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.duplicate)) },
-                        onClick = {
-                            onDuplicate()
-                            showMenu = false
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.duplicate)) },
+                            onClick = {
+                                onDuplicate()
+                                showMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
 
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.export)) },
-                        onClick = {
-                            onExport()
-                            showMenu = false
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Share,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    )
-                    
-                    if (characterCard.isDefault) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.reset)) },
+                            text = { Text(stringResource(R.string.export)) },
                             onClick = {
-                                onReset()
+                                onExport()
                                 showMenu = false
                             },
                             leadingIcon = {
                                 Icon(
-                                    Icons.Default.Restore,
+                                    Icons.Default.Share,
                                     contentDescription = null,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                         )
-                    }
                     
-                    if (!characterCard.isDefault) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.delete)) },
-                            onClick = {
-                                onDelete()
-                                showMenu = false
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            colors = MenuDefaults.itemColors(
-                                textColor = MaterialTheme.colorScheme.error
+                        if (characterCard.isDefault) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.reset)) },
+                                onClick = {
+                                    onReset()
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Restore,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             )
-                        )
+                        }
+                    
+                        if (!characterCard.isDefault) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.delete)) },
+                                onClick = {
+                                    onDelete()
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.error
+                                )
+                            )
+                        }
                     }
                 }
             }
-        }
 
         // 角色设定预览
         if (characterCard.characterSetting.isNotBlank()) {
@@ -2101,9 +2328,8 @@ fun CharacterCardItem(
                 )
             }
         }
+        }
     }
-}
-
 // 标签标签页
 @Composable
 fun TagTab(
@@ -2206,40 +2432,18 @@ fun TagTab(
             }
         }
 
-        // 系统标签
-        val systemTags = tags.filter { it.isSystemTag }
-        if (systemTags.isNotEmpty()) {
+        val sortedTags = tags.sortedBy { it.name.lowercase(Locale.getDefault()) }
+        if (sortedTags.isNotEmpty()) {
             item {
-                                                    Text(
-                    text = stringResource(R.string.system_tags),
+                Text(
+                    text = stringResource(R.string.tags),
                     style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                 )
             }
 
-            items(systemTags) { tag ->
-                TagItem(
-                    tag = tag,
-                    onEdit = { onEditTag(tag) },
-                    onDelete = { onDeleteTag(tag) }
-                )
-            }
-        }
-
-        // 自定义标签
-        val customTags = tags.filter { !it.isSystemTag }
-        if (customTags.isNotEmpty()) {
-            item {
-                                Text(
-                    text = stringResource(R.string.custom_tags),
-                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-            }
-
-            items(customTags) { tag ->
+            items(sortedTags) { tag ->
                 TagItem(
                     tag = tag,
                     onEdit = { onEditTag(tag) },
@@ -2248,6 +2452,452 @@ fun TagTab(
             }
         }
     }
+}
+
+@Composable
+fun GroupCardTab(
+    groups: List<CharacterGroupCard>,
+    characterCards: List<CharacterCard>,
+    activeGroupId: String?,
+    onAddGroup: () -> Unit,
+    onEditGroup: (CharacterGroupCard) -> Unit,
+    onDeleteGroup: (CharacterGroupCard) -> Unit,
+    onDuplicateGroup: (CharacterGroupCard) -> Unit,
+    onSetActiveGroup: (String?) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.character_groups),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = onAddGroup, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = stringResource(R.string.create),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        if (groups.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.character_group_empty_state),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(groups, key = { it.id }) { group ->
+                    val memberNames = group.members.mapNotNull { member ->
+                        characterCards.firstOrNull { it.id == member.characterCardId }?.name
+                    }
+                    GroupCardItem(
+                        group = group,
+                        isActive = activeGroupId == group.id,
+                        memberNames = memberNames,
+                        onEdit = { onEditGroup(group) },
+                        onDelete = { onDeleteGroup(group) },
+                        onDuplicate = { onDuplicateGroup(group) },
+                        onSetActive = { onSetActiveGroup(group.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupCardItem(
+    group: CharacterGroupCard,
+    isActive: Boolean,
+    memberNames: List<String>,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onDuplicate: () -> Unit,
+    onSetActive: () -> Unit
+) {
+    val context = LocalContext.current
+    val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
+    val groupAvatarUri by remember(group.id) {
+        userPreferencesManager.getAiAvatarForCharacterGroupFlow(group.id)
+    }.collectAsState(initial = null)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = 0.5.dp,
+            color = if (isActive) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SettingsListAvatar(
+                        avatarUri = groupAvatarUri,
+                        fallbackIcon = Icons.Default.Group,
+                        contentDescription = "Group Avatar"
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = group.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isActive) {
+                                AssistChip(
+                                    onClick = {},
+                                    label = { Text(stringResource(R.string.currently_active), fontSize = 10.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    },
+                                    modifier = Modifier.height(24.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier.background(Color.White, RoundedCornerShape(8.dp))
+                    ) {
+                        if (!isActive) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.set_active)) },
+                                onClick = {
+                                    onSetActive()
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.edit)) },
+                            onClick = {
+                                onEdit()
+                                showMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.duplicate)) },
+                            onClick = {
+                                onDuplicate()
+                                showMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.delete)) },
+                            onClick = {
+                                onDelete()
+                                showMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.error
+                            )
+                        )
+                    }
+                }
+            }
+
+            if (group.description.isNotBlank()) {
+                Text(
+                    text = group.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+
+            Text(
+                text = stringResource(R.string.character_group_member_count, group.members.size),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (memberNames.isNotEmpty()) {
+                Text(
+                    text = memberNames.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupCardDialog(
+    group: CharacterGroupCard,
+    allCharacterCards: List<CharacterCard>,
+    onDismiss: () -> Unit,
+    onSave: (CharacterGroupCard) -> Unit
+) {
+    var name by remember(group) { mutableStateOf(group.name) }
+    var description by remember(group) { mutableStateOf(group.description) }
+    var members by remember(group) {
+        mutableStateOf(group.members.sortedBy { it.orderIndex })
+    }
+
+    var addMemberMenuExpanded by remember { mutableStateOf(false) }
+    var selectedAddMemberId by remember { mutableStateOf<String?>(null) }
+
+    val selectableCards = remember(allCharacterCards, members) {
+        val existing = members.map { it.characterCardId }.toSet()
+        allCharacterCards.filter { it.id !in existing }
+    }
+
+    if (selectedAddMemberId == null && selectableCards.isNotEmpty()) {
+        selectedAddMemberId = selectableCards.first().id
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (group.id.isBlank()) stringResource(R.string.create_character_group)
+                else stringResource(R.string.edit_character_group)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.group_name)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.description_optional)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                HorizontalDivider()
+                Text(
+                    text = stringResource(R.string.group_members),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (selectableCards.isNotEmpty()) {
+                    val selectedCardName = selectableCards.firstOrNull { it.id == selectedAddMemberId }?.name ?: ""
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedCardName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.group_add_member)) },
+                            trailingIcon = {
+                                Icon(
+                                    if (addMemberMenuExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { addMemberMenuExpanded = !addMemberMenuExpanded }
+                        )
+                        DropdownMenu(
+                            expanded = addMemberMenuExpanded,
+                            onDismissRequest = { addMemberMenuExpanded = false }
+                        ) {
+                            selectableCards.forEach { card ->
+                                DropdownMenuItem(
+                                    text = { Text(card.name) },
+                                    onClick = {
+                                        selectedAddMemberId = card.id
+                                        addMemberMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val selected = selectedAddMemberId ?: return@OutlinedButton
+                            members = (members + GroupMemberConfig(
+                                characterCardId = selected,
+                                orderIndex = members.size
+                            )).mapIndexed { index, member -> member.copy(orderIndex = index) }
+                            val next = selectableCards.firstOrNull { it.id != selected }?.id
+                            selectedAddMemberId = next
+                        },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(stringResource(R.string.add))
+                    }
+                }
+
+                if (members.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.group_member_empty_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        members.forEachIndexed { index, member ->
+                            val cardName = allCharacterCards.firstOrNull { it.id == member.characterCardId }?.name
+                                ?: member.characterCardId
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = cardName,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                members = members.toMutableList().also { it.removeAt(index) }
+                                                    .mapIndexed { orderIndex, it -> it.copy(orderIndex = orderIndex) }
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) { Icon(Icons.Default.Delete, contentDescription = null) }
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val normalizedName = name.trim()
+                    if (normalizedName.isBlank()) return@Button
+
+                    val normalizedMembers = members.mapIndexed { order, member ->
+                        member.copy(orderIndex = order)
+                    }
+
+                    onSave(
+                        group.copy(
+                            name = normalizedName,
+                            description = description.trim(),
+                            members = normalizedMembers,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+            ) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 // 标签项目
@@ -2261,10 +2911,7 @@ fun TagItem(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(6.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (tag.isSystemTag)
-                MaterialTheme.colorScheme.secondaryContainer
-            else
-                MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
                                                         Row(
@@ -2307,14 +2954,12 @@ fun TagItem(
                     Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit), modifier = Modifier.size(16.dp))
                 }
 
-                if (!tag.isSystemTag) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), modifier = Modifier.size(16.dp))
-                                                            }
-                                    }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), modifier = Modifier.size(16.dp))
+                }
             }
         }
     }
@@ -2438,7 +3083,6 @@ private suspend fun importPromptTagsFromJsonContent(
         ?: throw IllegalArgumentException("missing tags array")
 
     val existingCustomTagsByName = promptTagManager.getAllTags()
-        .filter { !it.isSystemTag }
         .associateBy(
             keySelector = { it.name.trim().lowercase(Locale.getDefault()) },
             valueTransform = { it.id }
@@ -2484,8 +3128,7 @@ private suspend fun importPromptTagsFromJsonContent(
                 name = name,
                 description = description,
                 promptContent = promptContent,
-                tagType = tagType,
-                isSystemTag = false
+                tagType = tagType
             )
             existingCustomTagsByName[nameKey] = newId
             createdCount++

@@ -8,6 +8,7 @@
     },
     "description": { "zh": "提供12306火车票信息查询功能，包括余票、中转、经停站等。", "en": "Query China Railway 12306 train ticket information, including availability, transfer routes, and stop stations." },
     "enabledByDefault": true,
+    "category": "Life",
     "tools": [
         {
             "name": "get_current_date",
@@ -81,8 +82,7 @@
             ]
         }
     ]
-}
-*/
+}*/
 const TicketDataKeys = [
     'secret_Sstr', 'button_text_info', 'train_no', 'station_train_code', 'start_station_telecode',
     'end_station_telecode', 'from_station_telecode', 'to_station_telecode', 'start_time', 'arrive_time',
