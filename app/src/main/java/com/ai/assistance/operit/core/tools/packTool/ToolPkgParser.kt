@@ -120,57 +120,82 @@ internal object ToolPkgArchiveParser {
         val subpackageRuntimes = mutableListOf<ToolPkgSubpackageRuntime>()
 
         manifest.subpackages.forEach { subpackage ->
-            if (subpackage.id.isBlank()) {
-                throw IllegalArgumentException("subpackage.id is required")
+            val rawSubpackageId = subpackage.id.trim()
+            val subpackageErrorKey =
+                if (rawSubpackageId.isNotBlank()) rawSubpackageId else "${manifest.toolpkgId}:unknown_subpackage"
+
+            if (rawSubpackageId.isBlank()) {
+                reportPackageLoadError(
+                    subpackageErrorKey,
+                    "$sourcePath: subpackage.id is required"
+                )
+                return@forEach
             }
             if (subpackage.entry.isBlank()) {
-                throw IllegalArgumentException("subpackage.entry is required for '${subpackage.id}'")
+                reportPackageLoadError(
+                    subpackageErrorKey,
+                    "$sourcePath: subpackage.entry is required for '$rawSubpackageId'"
+                )
+                return@forEach
             }
 
-            val normalizedSubpackageId = subpackage.id.trim()
+            val normalizedSubpackageId = rawSubpackageId
             val packageName = normalizedSubpackageId
 
-            val entryBytes =
-                findZipEntryContent(entries, subpackage.entry)
-                    ?: throw IllegalArgumentException(
-                        "Cannot find subpackage entry '${subpackage.entry}'"
+            try {
+                val entryBytes =
+                    findZipEntryContent(entries, subpackage.entry)
+                        ?: throw IllegalArgumentException(
+                            "Cannot find subpackage entry '${subpackage.entry}'"
+                        )
+                val jsContent = entryBytes.toString(StandardCharsets.UTF_8)
+
+                val parsedPackage =
+                    parseJsPackage(jsContent) { _, error ->
+                        reportPackageLoadError(packageName, "$sourcePath:${subpackage.entry}: $error")
+                    }
+                        ?: throw IllegalArgumentException(
+                            "Failed to parse subpackage script '${subpackage.entry}'"
+                        )
+
+                val resolvedDescription = parsedPackage.description
+
+                val resolvedDisplayName =
+                    if (hasLocalizedTextContent(parsedPackage.displayName)) {
+                        parsedPackage.displayName
+                    } else {
+                        LocalizedText.of(parsedPackage.name)
+                    }
+
+                val normalizedPackage =
+                    parsedPackage.copy(
+                        name = packageName,
+                        isBuiltIn = isBuiltIn
                     )
-            val jsContent = entryBytes.toString(StandardCharsets.UTF_8)
 
-            val parsedPackage =
-                parseJsPackage(jsContent) { _, error ->
-                    reportPackageLoadError(packageName, "$sourcePath:${subpackage.entry}: $error")
-                }
-                    ?: throw IllegalArgumentException(
-                        "Failed to parse subpackage script '${subpackage.entry}'"
+                subpackagePackages.add(normalizedPackage)
+                subpackageRuntimes.add(
+                    ToolPkgSubpackageRuntime(
+                        packageName = packageName,
+                        containerPackageName = manifest.toolpkgId,
+                        subpackageId = normalizedSubpackageId,
+                        displayName = resolvedDisplayName,
+                        description = resolvedDescription,
+                        enabledByDefault = normalizedPackage.enabledByDefault,
+                        toolCount = normalizedPackage.tools.size
                     )
-
-            val resolvedDescription = parsedPackage.description
-
-            val resolvedDisplayName =
-                if (hasLocalizedTextContent(parsedPackage.displayName)) {
-                    parsedPackage.displayName
-                } else {
-                    LocalizedText.of(parsedPackage.name)
-                }
-
-            val normalizedPackage =
-                parsedPackage.copy(
-                    name = packageName,
-                    isBuiltIn = isBuiltIn
                 )
-
-            subpackagePackages.add(normalizedPackage)
-            subpackageRuntimes.add(
-                ToolPkgSubpackageRuntime(
-                    packageName = packageName,
-                    containerPackageName = manifest.toolpkgId,
-                    subpackageId = normalizedSubpackageId,
-                    displayName = resolvedDisplayName,
-                    description = resolvedDescription,
-                    enabledByDefault = normalizedPackage.enabledByDefault,
-                    toolCount = normalizedPackage.tools.size
+            } catch (e: Exception) {
+                reportPackageLoadError(
+                    packageName,
+                    "$sourcePath:${subpackage.entry}: ${e.message ?: e.stackTraceToString()}"
                 )
+            }
+        }
+
+        if (manifest.subpackages.isNotEmpty() && subpackagePackages.isEmpty()) {
+            throw IllegalArgumentException(
+                "No valid subpackages were loaded from toolpkg '${manifest.toolpkgId}'"
             )
         }
 

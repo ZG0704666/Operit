@@ -563,4 +563,5 @@ internal fun ThemeSettingsBackgroundSection(
             }
         }
     }
+
 }

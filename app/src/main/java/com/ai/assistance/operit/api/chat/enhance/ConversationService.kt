@@ -260,7 +260,10 @@ class ConversationService(
                     if (proxyCard == null) {
                         ""
                     } else {
-                        characterCardManager.combinePrompts(proxyCard.id)
+                        characterCardManager.combinePrompts(
+                            proxyCard.id,
+                            promptFunctionType = promptFunctionType
+                        )
                     }
                 }
 
@@ -270,7 +273,10 @@ class ConversationService(
                     characterCardManager.getCharacterCardFlow(it).first()
                 }
                 val introPrompt = activeCard?.let {
-                    characterCardManager.combinePrompts(it.id)
+                    characterCardManager.combinePrompts(
+                        it.id,
+                        promptFunctionType = promptFunctionType
+                    )
                 }.orEmpty()
 
                 // 获取自定义系统提示模板
@@ -322,7 +328,7 @@ class ConversationService(
                 AppLogger.d("petRules", desktopPetRulesText)
 
                 // 构建最终的系统提示词
-                val roleHistoryHintText = if (enableRoleScopedHistoryHint) {
+                val roleHistoryHintText = if (enableGroupOrchestrationHint && enableRoleScopedHistoryHint) {
                     val roleName = activeCard?.name?.takeIf { it.isNotBlank() }
                         ?: context.getString(R.string.app_name)
                     if (useEnglish) {

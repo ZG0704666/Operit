@@ -1,6 +1,10 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -203,9 +207,27 @@ fun ChatHistorySelector(
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
+    val deleteAnimationDurationMs = 220L
+    var deletingChatIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var availableCharacterCards by remember { mutableStateOf<List<CharacterCard>>(emptyList()) }
     var availableCharacterGroups by remember { mutableStateOf<List<CharacterGroupCard>>(emptyList()) }
     var resolvedGroupNameById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+
+    fun requestDeleteChat(history: ChatHistory) {
+        if (history.locked) {
+            onDeleteChat(history.id)
+            return
+        }
+        if (deletingChatIds.contains(history.id)) {
+            return
+        }
+        deletingChatIds = deletingChatIds + history.id
+        coroutineScope.launch {
+            delay(deleteAnimationDurationMs)
+            onDeleteChat(history.id)
+        }
+    }
+
     LaunchedEffect(Unit) {
         characterCardManager.characterCardListFlow.collectLatest { ids ->
             val cards = ids.mapNotNull { id ->
@@ -746,7 +768,7 @@ fun ChatHistorySelector(
                                 contentDescription = context.getString(R.string.delete)
                             }
                             .clickable {
-                                onDeleteChat(chatItemActionTarget!!.id)
+                                requestDeleteChat(chatItemActionTarget!!)
                                 chatItemActionTarget = null
                             },
                         color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
@@ -1845,7 +1867,7 @@ fun ChatHistorySelector(
                     }
                     is HistoryListItem.Item -> {
                         val deleteAction = SwipeAction(
-                            onSwipe = { onDeleteChat(item.history.id) },
+                            onSwipe = { requestDeleteChat(item.history) },
                             icon = {
                                 Icon(
                                     modifier = Modifier.padding(16.dp),
@@ -1875,6 +1897,7 @@ fun ChatHistorySelector(
                             key = item.history.id,
                             animateItemModifier = Modifier.animateItem(placementSpec = null)
                         ) { isDragging ->
+                            val isDeleting = deletingChatIds.contains(item.history.id)
                             val isSelected = item.history.id == currentId
                             val containerColor = if (isSelected) {
                                 MaterialTheme.colorScheme.primaryContainer
@@ -1887,139 +1910,148 @@ fun ChatHistorySelector(
                                 MaterialTheme.colorScheme.onSurface
                             }
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            AnimatedVisibility(
+                                visible = !isDeleting,
+                                exit =
+                                    shrinkVertically(
+                                        animationSpec = tween(deleteAnimationDurationMs.toInt()),
+                                        shrinkTowards = Alignment.Top
+                                    ) + fadeOut(animationSpec = tween(deleteAnimationDurationMs.toInt()))
                             ) {
-                                if (historyDisplayMode == ChatHistoryDisplayMode.BY_CHARACTER_CARD) {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(32.dp)
-                                            .padding(start = 16.dp, end = 8.dp)
-                                    ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (historyDisplayMode == ChatHistoryDisplayMode.BY_CHARACTER_CARD) {
                                         Box(
                                             modifier = Modifier
-                                                .width(2.dp)
-                                                .height(50.dp)
-                                                .align(Alignment.Center)
-                                                .background(
-                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                                    shape = RoundedCornerShape(1.dp)
-                                                )
-                                        )
-                                    }
-                                }
-                                Box(modifier = Modifier.weight(1f)) {
-                                    SwipeableActionsBox(
-                                        startActions = listOf(editAction),
-                                        endActions = listOf(deleteAction),
-                                        swipeThreshold = 100.dp,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(MaterialTheme.shapes.medium)
-                                    ) {
-                                        Surface(
-                                            modifier = Modifier
-                                                .fillMaxWidth(),
-                                            color = containerColor,
-                                            shape = MaterialTheme.shapes.medium,
-                                            shadowElevation = if (isDragging) 8.dp else 0.dp
+                                                .width(32.dp)
+                                                .padding(start = 16.dp, end = 8.dp)
                                         ) {
                                             Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth()
+                                                    .width(2.dp)
+                                                    .height(50.dp)
+                                                    .align(Alignment.Center)
+                                                    .background(
+                                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                                        shape = RoundedCornerShape(1.dp)
+                                                    )
+                                            )
+                                        }
+                                    }
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        SwipeableActionsBox(
+                                            startActions = listOf(editAction),
+                                            endActions = listOf(deleteAction),
+                                            swipeThreshold = 100.dp,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(MaterialTheme.shapes.medium)
+                                        ) {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth(),
+                                                color = containerColor,
+                                                shape = MaterialTheme.shapes.medium,
+                                                shadowElevation = if (isDragging) 8.dp else 0.dp
                                             ) {
-                                                val titlePreview = item.history.title.take(20)
-                                                val groupName = item.history.group ?: ungroupedText
-                                                Row(
+                                                Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .padding(horizontal = 10.dp)
-                                                        .semantics(mergeDescendants = false) {
-                                                            contentDescription = "$titlePreview, $groupName"
-                                                        }
-                                                        .pointerInput(Unit) {
-                                                            detectTapGestures(
-                                                                onTap = { onSelectChat(item.history.id) },
-                                                                onLongPress = { chatItemActionTarget = item.history }
-                                                            )
-                                                        },
-                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    val dragDescription = stringResource(R.string.drag_item, item.history.title)
-                                                    IconButton(
+                                                    val titlePreview = item.history.title.take(20)
+                                                    val groupName = item.history.group ?: ungroupedText
+                                                    Row(
                                                         modifier = Modifier
-                                                            .draggableHandle()
-                                                            .semantics {
-                                                                contentDescription = dragDescription
+                                                            .fillMaxWidth()
+                                                            .padding(horizontal = 10.dp)
+                                                            .semantics(mergeDescendants = false) {
+                                                                contentDescription = "$titlePreview, $groupName"
+                                                            }
+                                                            .pointerInput(Unit) {
+                                                                detectTapGestures(
+                                                                    onTap = { onSelectChat(item.history.id) },
+                                                                    onLongPress = { chatItemActionTarget = item.history }
+                                                                )
                                                             },
-                                                        onClick = {}
+                                                        verticalAlignment = Alignment.CenterVertically
                                                     ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.DragHandle,
-                                                            contentDescription = null,
-                                                            tint = contentColor
-                                                        )
-                                                    }
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Column(
-                                                        modifier = Modifier
-                                                            .weight(1f)
-                                                            .semantics { contentDescription = "" }
-                                                    ) {
-                                                        Text(
-                                                            text = item.history.title,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = contentColor,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
+                                                        val dragDescription = stringResource(R.string.drag_item, item.history.title)
+                                                        IconButton(
+                                                            modifier = Modifier
+                                                                .draggableHandle()
+                                                                .semantics {
+                                                                    contentDescription = dragDescription
+                                                                },
+                                                            onClick = {}
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.DragHandle,
+                                                                contentDescription = null,
+                                                                tint = contentColor
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Column(
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .semantics { contentDescription = "" }
+                                                        ) {
+                                                            Text(
+                                                                text = item.history.title,
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                color = contentColor,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
 
-                                                        // 如果是分支，在右侧显示分支图标和父对话标题
-                                                        if (item.history.parentChatId != null) {
-                                                            val parentChat = chatHistories.find { it.id == item.history.parentChatId }
-                                                            if (parentChat != null) {
-                                                                Spacer(modifier = Modifier.height(2.dp))
-                                                                Row(
-                                                                    verticalAlignment = Alignment.CenterVertically,
-                                                                    modifier = Modifier.semantics { contentDescription = "" }
-                                                                ) {
-                                                                    Icon(
-                                                                        imageVector = Icons.Default.AccountTree,
-                                                                        contentDescription = null,
-                                                                        tint = contentColor.copy(alpha = 0.6f),
-                                                                        modifier = Modifier.size(14.dp)
-                                                                    )
-                                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                                    Text(
-                                                                        text = parentChat.title,
-                                                                        style = MaterialTheme.typography.bodySmall,
-                                                                        color = contentColor.copy(alpha = 0.6f),
-                                                                        maxLines = 1,
-                                                                        overflow = TextOverflow.Ellipsis
-                                                                    )
+                                                            // 如果是分支，在右侧显示分支图标和父对话标题
+                                                            if (item.history.parentChatId != null) {
+                                                                val parentChat = chatHistories.find { it.id == item.history.parentChatId }
+                                                                if (parentChat != null) {
+                                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                                    Row(
+                                                                        verticalAlignment = Alignment.CenterVertically,
+                                                                        modifier = Modifier.semantics { contentDescription = "" }
+                                                                    ) {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.AccountTree,
+                                                                            contentDescription = null,
+                                                                            tint = contentColor.copy(alpha = 0.6f),
+                                                                            modifier = Modifier.size(14.dp)
+                                                                        )
+                                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                                        Text(
+                                                                            text = parentChat.title,
+                                                                            style = MaterialTheme.typography.bodySmall,
+                                                                            color = contentColor.copy(alpha = 0.6f),
+                                                                            maxLines = 1,
+                                                                            overflow = TextOverflow.Ellipsis
+                                                                        )
+                                                                    }
                                                                 }
                                                             }
                                                         }
-                                                    }
-                                                    if (activeStreamingChatIds.contains(item.history.id)) {
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        CircularProgressIndicator(
-                                                            modifier = Modifier.size(12.dp),
-                                                            strokeWidth = 1.5.dp,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                        )
-                                                    }
-                                                    if (item.history.locked) {
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Icon(
-                                                            imageVector = Icons.Default.Lock,
-                                                            contentDescription = null,
-                                                            tint = contentColor.copy(alpha = 0.6f),
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
+                                                        if (activeStreamingChatIds.contains(item.history.id)) {
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            CircularProgressIndicator(
+                                                                modifier = Modifier.size(12.dp),
+                                                                strokeWidth = 1.5.dp,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                            )
+                                                        }
+                                                        if (item.history.locked) {
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Icon(
+                                                                imageVector = Icons.Default.Lock,
+                                                                contentDescription = null,
+                                                                tint = contentColor.copy(alpha = 0.6f),
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }

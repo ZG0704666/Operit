@@ -771,19 +771,25 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
             for (fileName in packageFiles) {
                 val assetPath = "$ASSETS_PACKAGES_DIR/$fileName"
-                when {
-                    fileName.endsWith(".js", ignoreCase = true) -> {
-                        val packageMetadata = loadPackageFromJsAsset(assetPath)
-                        if (packageMetadata != null) {
-                            availablePackages[packageMetadata.name] = packageMetadata.copy(isBuiltIn = true)
+                try {
+                    when {
+                        fileName.endsWith(".js", ignoreCase = true) -> {
+                            val packageMetadata = loadPackageFromJsAsset(assetPath)
+                            if (packageMetadata != null) {
+                                availablePackages[packageMetadata.name] = packageMetadata.copy(isBuiltIn = true)
+                            }
+                        }
+                        fileName.endsWith(TOOLPKG_EXTENSION, ignoreCase = true) -> {
+                            val loadResult = loadToolPkgFromAsset(assetPath)
+                            if (loadResult != null) {
+                                registerToolPkg(loadResult)
+                            }
                         }
                     }
-                    fileName.endsWith(TOOLPKG_EXTENSION, ignoreCase = true) -> {
-                        val loadResult = loadToolPkgFromAsset(assetPath)
-                        if (loadResult != null) {
-                            registerToolPkg(loadResult)
-                        }
-                    }
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "Unexpected error while loading asset package: $assetPath", e)
+                    packageLoadErrors[fileName.substringBeforeLast('.')] =
+                        "$assetPath: ${e.stackTraceToString()}"
                 }
             }
 
@@ -791,19 +797,25 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 val externalFiles = externalPackagesDir.listFiles() ?: emptyArray()
                 for (file in externalFiles) {
                     if (!file.isFile) continue
-                    when {
-                        file.name.endsWith(".js", ignoreCase = true) -> {
-                            val packageMetadata = loadPackageFromJsFile(file)
-                            if (packageMetadata != null) {
-                                availablePackages[packageMetadata.name] = packageMetadata.copy(isBuiltIn = false)
+                    try {
+                        when {
+                            file.name.endsWith(".js", ignoreCase = true) -> {
+                                val packageMetadata = loadPackageFromJsFile(file)
+                                if (packageMetadata != null) {
+                                    availablePackages[packageMetadata.name] = packageMetadata.copy(isBuiltIn = false)
+                                }
+                            }
+                            file.name.endsWith(TOOLPKG_EXTENSION, ignoreCase = true) -> {
+                                val loadResult = loadToolPkgFromExternalFile(file)
+                                if (loadResult != null) {
+                                    registerToolPkg(loadResult)
+                                }
                             }
                         }
-                        file.name.endsWith(TOOLPKG_EXTENSION, ignoreCase = true) -> {
-                            val loadResult = loadToolPkgFromExternalFile(file)
-                            if (loadResult != null) {
-                                registerToolPkg(loadResult)
-                            }
-                        }
+                    } catch (e: Exception) {
+                        AppLogger.e(TAG, "Unexpected error while loading external package: ${file.absolutePath}", e)
+                        packageLoadErrors[file.nameWithoutExtension] =
+                            "${file.absolutePath}: ${e.stackTraceToString()}"
                     }
                 }
             }
@@ -1040,6 +1052,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             canonicalKey = "isBuiltIn",
             legacyAlias = "is_built_in"
         )
+        normalizeCategoryField(metadataJson)
     }
 
     private fun normalizeBooleanFieldAlias(
@@ -1072,6 +1085,17 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             }
             else -> null
         }
+    }
+
+    private fun normalizeCategoryField(metadataJson: org.json.JSONObject) {
+        val normalized =
+            metadataJson
+                .opt("category")
+                ?.toString()
+                ?.trim()
+                .orEmpty()
+
+        metadataJson.put("category", normalized.ifBlank { "Other" })
     }
 
     fun getPackageLoadErrors(): Map<String, String> {
@@ -1180,7 +1204,9 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             val packageMetadata =
                 if (isHjson) {
                     val hjsonContent = file.readText()
-                    val jsonString = JsonValue.readHjson(hjsonContent).toString()
+                    val metadataJson = org.json.JSONObject(JsonValue.readHjson(hjsonContent).toString())
+                    normalizeJsPackageMetadata(metadataJson)
+                    val jsonString = metadataJson.toString()
                     val jsonConfig = Json { ignoreUnknownKeys = true }
                     jsonConfig.decodeFromString<ToolPackage>(jsonString)
                 } else {

@@ -14,7 +14,8 @@ data class CharacterCard(
     val description: String = "",
     val characterSetting: String = "", // 角色设定（引导词）
     val openingStatement: String = "", // 新增：开场白
-    val otherContent: String = "", // 其他乱七八糟的东西（引导词）
+    val otherContentChat: String = "", // 其他内容（聊天）
+    val otherContentVoice: String = "", // 其他内容（语音）
     val attachedTagIds: List<String> = emptyList(), // 附着的标签ID列表
     val advancedCustomPrompt: String = "", // 高级设置的自定义（引导词）
     val marks: String = "", // 备注信息（不会被拼接到提示词中）
@@ -80,6 +81,8 @@ data class OperitCharacterCardPayload(
     val characterSetting: String = "",
     val openingStatement: String = "",
     val otherContent: String = "",
+    val otherContentChat: String = "",
+    val otherContentVoice: String = "",
     val attachedTagIds: List<String> = emptyList(),
     val attachedTags: List<OperitAttachedTagPayload> = emptyList(),
     val advancedCustomPrompt: String = "",

@@ -1,8 +1,6 @@
 package com.ai.assistance.operit.data.updates
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import com.ai.assistance.operit.util.AppLogger
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -10,11 +8,7 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.api.GitHubApiService
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.util.GithubReleaseUtil
-import java.net.HttpURLConnection
-import java.net.URL
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
@@ -42,18 +36,6 @@ sealed class UpdateStatus {
 /** UpdateManager - 处理应用更新的核心类 负责检查更新 */
 class UpdateManager private constructor(private val context: Context) {
     private val TAG = "UpdateManager"
-
-    private fun isOnUnmeteredNetwork(): Boolean {
-        return try {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                ?: return false
-            val net = cm.activeNetwork ?: return false
-            val caps = cm.getNetworkCapabilities(net) ?: return false
-            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-        } catch (_: Exception) {
-            false
-        }
-    }
 
     // 更新状态LiveData，可从UI中观察
     private val _updateStatus = MutableLiveData<UpdateStatus>(UpdateStatus.Initial)
@@ -222,73 +204,13 @@ class UpdateManager private constructor(private val context: Context) {
                             patchUpdate
                         }
 
-                        if (finalStatus is UpdateStatus.PatchAvailable && betaEnabled && isOnUnmeteredNetwork()) {
-                            val prefs = UserPreferencesManager.getInstance(context)
-                            val last = runCatching { prefs.getLastAutoPatchPreparedVersion() }.getOrNull() ?: ""
-                            if (last != finalStatus.newVersion) {
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    try {
-                                        val prepared = PatchUpdateInstaller.autoPreparePatchAndNotifyInstallResult(
-                                            context = context,
-                                            patchUrl = finalStatus.patchUrl,
-                                            metaUrl = finalStatus.metaUrl,
-                                            newVersion = finalStatus.newVersion
-                                        )
-                                        prefs.saveLastAutoPatchPreparedVersion(prepared.finalVersion)
-                                    } catch (e: Exception) {
-                                        AppLogger.w(TAG, "auto patch prepare failed", e)
-                                    }
-                                }
-                            }
-                        }
-
                         return@withContext finalStatus
                     }
 
                     val finalStatus = patchUpdate ?: normalUpdate
-                    if (finalStatus is UpdateStatus.PatchAvailable && betaEnabled && isOnUnmeteredNetwork()) {
-                        val prefs = UserPreferencesManager.getInstance(context)
-                        val last = runCatching { prefs.getLastAutoPatchPreparedVersion() }.getOrNull() ?: ""
-                        if (last != finalStatus.newVersion) {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    val prepared = PatchUpdateInstaller.autoPreparePatchAndNotifyInstallResult(
-                                        context = context,
-                                        patchUrl = finalStatus.patchUrl,
-                                        metaUrl = finalStatus.metaUrl,
-                                        newVersion = finalStatus.newVersion
-                                    )
-                                    prefs.saveLastAutoPatchPreparedVersion(prepared.finalVersion)
-                                } catch (e: Exception) {
-                                    AppLogger.w(TAG, "auto patch prepare failed", e)
-                                }
-                            }
-                        }
-                    }
-
                     finalStatus
                 } else {
                     val finalStatus = patchUpdate ?: UpdateStatus.Error(context.getString(R.string.update_cannot_fetch_info))
-                    if (finalStatus is UpdateStatus.PatchAvailable && betaEnabled && isOnUnmeteredNetwork()) {
-                        val prefs = UserPreferencesManager.getInstance(context)
-                        val last = runCatching { prefs.getLastAutoPatchPreparedVersion() }.getOrNull() ?: ""
-                        if (last != finalStatus.newVersion) {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    val prepared = PatchUpdateInstaller.autoPreparePatchAndNotifyInstallResult(
-                                        context = context,
-                                        patchUrl = finalStatus.patchUrl,
-                                        metaUrl = finalStatus.metaUrl,
-                                        newVersion = finalStatus.newVersion
-                                    )
-                                    prefs.saveLastAutoPatchPreparedVersion(prepared.finalVersion)
-                                } catch (e: Exception) {
-                                    AppLogger.w(TAG, "auto patch prepare failed", e)
-                                }
-                            }
-                        }
-                    }
-
                     finalStatus
                 }
             } catch (e: Exception) {

@@ -1401,6 +1401,7 @@
     <string name="floating_window_permission_denied">Floating window permission not granted, floating window mode closed</string>
     <string name="select_download_source">Select Download Source</string>
     <string name="select_download_source_desc">Please select a download source suitable for your network:</string>
+    <string name="auto_select">Auto Select</string>
     <string name="mirror_download">%1$s Mirror Download</string>
     <string name="china_mirror">China Accelerated Mirror</string>
     <string name="china_mirror_desc">Accelerated download for mainland China</string>
@@ -3657,6 +3658,7 @@
     <string name="delete">Delete</string>
     <string name="character_setting_preview">Character Setting: %1$s...</string>
     <string name="other_content_preview">Other Content: %1$s...</string>
+    <string name="other_content_chat_preview">Other Content (Chat): %1$s...</string>
     <string name="advanced_custom_preview">Advanced Custom: %1$s...</string>
     <string name="tag_management">Tag Management</string>
     <string name="create_new_tag">Create Tag</string>
@@ -3750,6 +3752,10 @@
     <string name="character_card_opening_statement_placeholder">Character\'s opening statement or greeting...</string>
     <string name="character_card_translate_opening_statement">Translate Opening Statement</string>
     <string name="character_card_other_content">Other Content</string>
+    <string name="character_card_other_content_chat">Other Content (Chat)</string>
+    <string name="character_card_other_content_voice">Other Content (Voice)</string>
+    <string name="character_card_other_content_chat_placeholder">Character background, experiences, etc...</string>
+    <string name="character_card_other_content_voice_placeholder">Put voice-specific additions here...</string>
     <string name="character_card_other_content_placeholder">Character background, experiences, etc...</string>
     <string name="character_card_tags">Tags</string>
     <string name="character_card_no_custom_tags">No tags available. Please create them in settings.</string>
@@ -3780,6 +3786,8 @@
     <string name="character_card_edit_character_setting">Edit Character Setting</string>
     <string name="character_card_edit_opening_statement">Edit Opening Statement</string>
     <string name="character_card_edit_other_content">Edit Other Content</string>
+    <string name="character_card_edit_other_content_chat">Edit Other Content (Chat)</string>
+    <string name="character_card_edit_other_content_voice">Edit Other Content (Voice)</string>
     <string name="character_card_edit_custom_prompt">Edit Custom Prompt</string>
     <string name="character_card_edit_marks">Edit Notes</string>
     <string name="character_card_fullscreen_edit_placeholder">Enter content here...</string>
@@ -4168,6 +4176,8 @@
     <string name="character_setting">Character Setting</string>
     <string name="opening_statement">Opening Statement</string>
     <string name="other_content">Other Content</string>
+    <string name="other_content_chat">Other Content (Chat)</string>
+    <string name="other_content_voice">Other Content (Voice)</string>
     <string name="advanced_custom_prompt">Advanced Custom Prompt</string>
     <string name="character_marks">Notes (Not included in prompts)</string>
     <string name="please_select_or_create_card">Please select or create a character card from the sidebar to begin.</string>

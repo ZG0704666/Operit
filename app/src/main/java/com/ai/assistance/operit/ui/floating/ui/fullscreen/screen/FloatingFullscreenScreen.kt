@@ -38,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -54,7 +53,6 @@ import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.WakeWordPreferences
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
-import com.ai.assistance.operit.ui.floating.ui.fullscreen.XmlTextProcessor
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.BottomControlBar
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.EditPanel
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.MessageDisplay
@@ -118,7 +116,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         }
     val globalAiAvatarUri by preferencesManager.customAiAvatarUri.collectAsState(initial = null)
     val aiAvatarUri = activeCharacterAvatarUri ?: globalAiAvatarUri
-    
+
     val speechServicesPrefs = SpeechServicesPreferences(context)
     val ttsCleanerRegexs by speechServicesPrefs.ttsCleanerRegexsFlow.collectAsState(initial = emptyList())
     
@@ -215,29 +213,11 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         animationSpec = tween(durationMillis = 260),
         label = "fullscreen_bg_alpha"
     )
-    val fullscreenGradientAlpha by animateFloatAsState(
-        targetValue = if (autoEnteringVoice) 0f else 0.45f,
-        animationSpec = tween(durationMillis = 260),
-        label = "fullscreen_gradient_alpha"
-    )
     val fullscreenScrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = fullscreenBgAlpha)
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(fullscreenScrimColor)
-            .background(
-                brush = Brush.verticalGradient(
-                    colorStops = arrayOf(
-                        // 上半部分完全透明
-                        0.0f to Color.Transparent,
-                        0.10f to Color.Transparent,
-                        // 从屏幕中间往下开始出现更暗一些的蓝绿色渐变（降低明度，不是加厚遮罩）
-                        0.35f to Color(0xFF42A5F5).copy(alpha = fullscreenGradientAlpha),  // 深一点的蓝
-                        0.75f  to Color(0xFF26C6DA).copy(alpha = fullscreenGradientAlpha),  // 深一点的蓝绿
-                        1.0f  to Color(0xFF66BB6A).copy(alpha = fullscreenGradientAlpha)   // 深一点的绿色
-                    )
-                )
-            )
     ) {
         Row(
             modifier = Modifier
@@ -246,7 +226,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
-        ) {
+    ) {
             IconButton(
                 onClick = {
                     val group = autoNewChatGroup.trim().ifBlank {

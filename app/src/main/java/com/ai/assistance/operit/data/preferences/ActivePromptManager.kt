@@ -14,8 +14,8 @@ class ActivePromptManager private constructor(context: Context) {
 
     val activePromptFlow: Flow<ActivePrompt> =
         combine(
-            characterGroupCardManager.activeCharacterGroupCardIdFlow,
-            characterCardManager.activeCharacterCardIdFlow
+            characterGroupCardManager.observeActiveCharacterGroupId(),
+            characterCardManager.observeActiveCharacterCardId()
         ) { groupId, cardId ->
             when {
                 !groupId.isNullOrBlank() -> ActivePrompt.CharacterGroup(groupId)

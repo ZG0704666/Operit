@@ -344,14 +344,6 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name=".data.updates.PatchInstallReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.ai.assistance.operit.action.INSTALL_PATCH_APK" />
-            </intent-filter>
-        </receiver>
-        
         <service
             android:name=".services.UIDebuggerService"
             android:enabled="true"

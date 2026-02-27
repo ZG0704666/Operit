@@ -92,7 +92,9 @@ private object LocalCharacterToolExecutor {
                 "description" -> currentCard.copy(description = content)
                 "characterSetting" -> currentCard.copy(characterSetting = content)
                 "openingStatement" -> currentCard.copy(openingStatement = content)
-                "otherContent" -> currentCard.copy(otherContent = content)
+                "otherContentChat" -> currentCard.copy(otherContentChat = content)
+                "otherContentVoice" -> currentCard.copy(otherContentVoice = content)
+                "otherContent" -> currentCard.copy(otherContentChat = content)
                 "advancedCustomPrompt" -> currentCard.copy(advancedCustomPrompt = content)
                 "marks" -> currentCard.copy(marks = content)
                 else -> {
@@ -205,7 +207,8 @@ fun PersonaCardGenerationScreen(
     var editDescription by remember { mutableStateOf("") }
     var editCharacterSetting by remember { mutableStateOf("") }
     var editOpeningStatement by remember { mutableStateOf("") }
-    var editOtherContent by remember { mutableStateOf("") }
+    var editOtherContentChat by remember { mutableStateOf("") }
+    var editOtherContentVoice by remember { mutableStateOf("") }
     var editAdvancedCustomPrompt by remember { mutableStateOf("") }
     var editMarks by remember { mutableStateOf("") }
 
@@ -245,7 +248,7 @@ fun PersonaCardGenerationScreen(
             // 没有活跃卡片的情况
             activeCard = null
             editName = ""; editDescription = ""; editCharacterSetting = ""; editOpeningStatement = ""
-            editOtherContent = ""; editAdvancedCustomPrompt = ""; editMarks = ""
+            editOtherContentChat = ""; editOtherContentVoice = ""; editAdvancedCustomPrompt = ""; editMarks = ""
             chatMessages.clear()
             chatMessages.add(CharacterChatMessage("assistant", context.getString(R.string.please_select_or_create_card)))
             return@LaunchedEffect
@@ -268,13 +271,14 @@ fun PersonaCardGenerationScreen(
                 editDescription = it.description
                 editCharacterSetting = it.characterSetting
                 editOpeningStatement = it.openingStatement
-                editOtherContent = it.otherContent
+                editOtherContentChat = it.otherContentChat
+                editOtherContentVoice = it.otherContentVoice
                 editAdvancedCustomPrompt = it.advancedCustomPrompt
                 editMarks = it.marks
             } ?: run {
                 // 如果卡片加载失败，则清空编辑器
                 editName = ""; editDescription = ""; editCharacterSetting = ""; editOpeningStatement = ""
-                editOtherContent = ""; editAdvancedCustomPrompt = ""; editMarks = ""
+                editOtherContentChat = ""; editOtherContentVoice = ""; editAdvancedCustomPrompt = ""; editMarks = ""
             }
 
             // 加载该角色卡的聊天历史
@@ -325,7 +329,8 @@ fun PersonaCardGenerationScreen(
                     editDescription = card.description
                     editCharacterSetting = card.characterSetting
                     editOpeningStatement = card.openingStatement
-                    editOtherContent = card.otherContent
+                    editOtherContentChat = card.otherContentChat
+                    editOtherContentVoice = card.otherContentVoice
                     editAdvancedCustomPrompt = card.advancedCustomPrompt
                     editMarks = card.marks
                 }
@@ -347,7 +352,7 @@ fun PersonaCardGenerationScreen(
                 card.description, 
                 card.characterSetting,
                 card.openingStatement,
-                card.otherContent,
+                card.otherContentChat,
                 card.advancedCustomPrompt,
                 card.marks
             ).all { it.isNotBlank() }
@@ -647,7 +652,8 @@ fun PersonaCardGenerationScreen(
                                                 name = name,
                                                 description = "",
                                                 characterSetting = CharacterCardBilingualData.getDefaultCharacterSetting(context),
-                                                otherContent = CharacterCardBilingualData.getDefaultOtherContent(context),
+                                                otherContentChat = CharacterCardBilingualData.getDefaultOtherContentChat(context),
+                                                otherContentVoice = "",
                                                 attachedTagIds = emptyList(),
                                                 advancedCustomPrompt = "",
                                                 isDefault = false
@@ -775,20 +781,40 @@ fun PersonaCardGenerationScreen(
                     
                     Spacer(Modifier.height(8.dp))
                     
-                    // 其他内容
+                    // 其他内容（聊天）
                     OutlinedTextField(
-                        value = editOtherContent,
+                        value = editOtherContentChat,
                         onValueChange = { newValue ->
-                            editOtherContent = newValue
+                            editOtherContentChat = newValue
                             scope.launch {
                                 activeCard?.let { card ->
                                     withContext(Dispatchers.IO) {
-                                        characterCardManager.updateCharacterCard(card.copy(otherContent = newValue))
+                                        characterCardManager.updateCharacterCard(card.copy(otherContentChat = newValue))
                                     }
                                 }
                             }
                         },
-                        label = { Text(context.getString(R.string.other_content)) },
+                        label = { Text(context.getString(R.string.other_content_chat)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 6
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // 其他内容（语音）
+                    OutlinedTextField(
+                        value = editOtherContentVoice,
+                        onValueChange = { newValue ->
+                            editOtherContentVoice = newValue
+                            scope.launch {
+                                activeCard?.let { card ->
+                                    withContext(Dispatchers.IO) {
+                                        characterCardManager.updateCharacterCard(card.copy(otherContentVoice = newValue))
+                                    }
+                                }
+                            }
+                        },
+                        label = { Text(context.getString(R.string.other_content_voice)) },
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 6
                     )

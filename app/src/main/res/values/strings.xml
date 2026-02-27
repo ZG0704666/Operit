@@ -1369,6 +1369,7 @@
     <string name="floating_window_permission_denied">未获得悬浮窗权限，已关闭悬浮窗模式</string>
     <string name="select_download_source">选择下载源</string>
     <string name="select_download_source_desc">请选择适合您网络环境的下载源：</string>
+    <string name="auto_select">自动选择</string>
     <string name="mirror_download">%1$s 镜像下载</string>
     <string name="china_mirror">国内加速镜像</string>
     <string name="china_mirror_desc">通过国内镜像服务器下载，速度更快</string>
@@ -3564,6 +3565,7 @@
     <string name="delete">删除</string>
     <string name="character_setting_preview">角色设定：%1$s...</string>
     <string name="other_content_preview">其他内容：%1$s...</string>
+    <string name="other_content_chat_preview">其他内容（聊天）：%1$s...</string>
     <string name="advanced_custom_preview">高级自定义：%1$s...</string>
     <string name="tag_management">标签管理</string>
     <string name="create_new_tag">新建标签</string>
@@ -3657,6 +3659,10 @@
     <string name="character_card_opening_statement_placeholder">角色的开场白或问候语...</string>
     <string name="character_card_translate_opening_statement">翻译开场白</string>
     <string name="character_card_other_content">其他内容</string>
+    <string name="character_card_other_content_chat">其他内容（聊天）</string>
+    <string name="character_card_other_content_voice">其他内容（语音）</string>
+    <string name="character_card_other_content_chat_placeholder">角色背景、经历等...</string>
+    <string name="character_card_other_content_voice_placeholder">语音想要附加的写在这里...</string>
     <string name="character_card_other_content_placeholder">角色背景、经历等...</string>
     <string name="character_card_tags">标签</string>
     <string name="character_card_no_custom_tags">没有可用标签。请在设置中创建。</string>
@@ -3688,6 +3694,8 @@
     <string name="character_card_edit_character_setting">编辑角色设定</string>
     <string name="character_card_edit_opening_statement">编辑开场白</string>
     <string name="character_card_edit_other_content">编辑其他内容</string>
+    <string name="character_card_edit_other_content_chat">编辑其他内容（聊天）</string>
+    <string name="character_card_edit_other_content_voice">编辑其他内容（语音）</string>
     <string name="character_card_edit_custom_prompt">编辑自定义提示词</string>
     <string name="character_card_edit_marks">编辑备注</string>
     <string name="character_card_fullscreen_edit_placeholder">在此输入内容...</string>
@@ -4109,6 +4117,8 @@
     <string name="character_setting">角色设定</string>
     <string name="opening_statement">开场白</string>
     <string name="other_content">其他内容</string>
+    <string name="other_content_chat">其他内容（聊天）</string>
+    <string name="other_content_voice">其他内容（语音）</string>
     <string name="advanced_custom_prompt">高级自定义提示词</string>
     <string name="character_marks">备注信息（不会被拼接到提示词）</string>
     <string name="please_select_or_create_card">请在侧边栏选择或创建一个角色卡以开始。</string>

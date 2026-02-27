@@ -169,7 +169,6 @@ class UserPreferencesManager private constructor(private val context: Context) {
         private val KEY_UI_ACCESSIBILITY_MODE = booleanPreferencesKey("ui_accessibility_mode")
         private val KEY_BETA_PLAN_ENABLED = booleanPreferencesKey("beta_plan_enabled")
 
-        private val KEY_LAST_AUTO_PATCH_PREPARED_VERSION = stringPreferencesKey("last_auto_patch_prepared_version")
 
         // 布局调整设置
         // 注意：全局用户头像和名称设置已移至 DisplayPreferencesManager
@@ -240,20 +239,6 @@ class UserPreferencesManager private constructor(private val context: Context) {
     fun isBetaPlanEnabled(): Boolean {
         return runBlocking {
             betaPlanEnabled.first()
-        }
-    }
-
-    suspend fun saveLastAutoPatchPreparedVersion(version: String) {
-        context.userPreferencesDataStore.edit { preferences ->
-            preferences[KEY_LAST_AUTO_PATCH_PREPARED_VERSION] = version
-        }
-    }
-
-    fun getLastAutoPatchPreparedVersion(): String {
-        return runBlocking {
-            context.userPreferencesDataStore.data
-                .map { preferences -> preferences[KEY_LAST_AUTO_PATCH_PREPARED_VERSION] ?: "" }
-                .first()
         }
     }
 

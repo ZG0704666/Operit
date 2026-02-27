@@ -842,7 +842,8 @@ fun ModelPromptsSettingsScreen(
                                 name = "",
                                 description = "",
                                 characterSetting = CharacterCardBilingualData.getDefaultCharacterSetting(context),
-                                otherContent = CharacterCardBilingualData.getDefaultOtherContent(context),
+                                otherContentChat = CharacterCardBilingualData.getDefaultOtherContentChat(context),
+                                otherContentVoice = "",
                                 attachedTagIds = emptyList(),
                                 advancedCustomPrompt = "",
                                 marks = ""
@@ -1121,7 +1122,8 @@ fun ModelPromptsSettingsScreen(
                 name = "",
                 description = "",
                 characterSetting = "",
-                otherContent = "",
+                otherContentChat = "",
+                otherContentVoice = "",
                 attachedTagIds = emptyList(),
                 advancedCustomPrompt = ""
             ),
@@ -1157,7 +1159,8 @@ fun ModelPromptsSettingsScreen(
                 name = "",
                 description = "",
                 characterSetting = "",
-                otherContent = "",
+                otherContentChat = "",
+                otherContentVoice = "",
                 attachedTagIds = emptyList(),
                 advancedCustomPrompt = ""
             ),
@@ -2363,10 +2366,10 @@ fun CharacterCardItem(
                 )
             }
 
-            // 其他内容预览
-            if (characterCard.otherContent.isNotBlank()) {
+            // 其他内容（聊天）预览
+            if (characterCard.otherContentChat.isNotBlank()) {
                                     Text(
-                    text = stringResource(R.string.other_content_preview, characterCard.otherContent.take(40)),
+                    text = stringResource(R.string.other_content_chat_preview, characterCard.otherContentChat.take(40)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp

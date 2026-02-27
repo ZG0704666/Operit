@@ -178,7 +178,7 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                         joinerBin =
                                 File(localModelDir, "joiner_jit_trace-pnnx.ncnn.bin").absolutePath,
                         tokens = File(localModelDir, "tokens.txt").absolutePath,
-                        numThreads = 2,
+                        numThreads = 4,
                         useGPU = false
                 )
 

@@ -88,6 +88,17 @@ class ChatHistoryDelegate(
         coroutineScope.launch {
             chatHistoryManager.chatHistoriesFlow.collect { histories ->
                 _chatHistories.value = histories
+
+                val currentId = _currentChatId.value
+                if (currentId != null && histories.none { it.id == currentId }) {
+                    val exists = chatHistoryManager.chatExists(currentId)
+                    if (!exists) {
+                        AppLogger.w(TAG, "当前聊天已不存在，清除currentChatId: $currentId")
+                        chatHistoryManager.clearCurrentChatId()
+                        _currentChatId.value = null
+                        _chatHistory.value = emptyList()
+                    }
+                }
             }
         }
 
@@ -95,6 +106,13 @@ class ChatHistoryDelegate(
         coroutineScope.launch {
             chatHistoryManager.currentChatIdFlow.collect { chatId ->
                 if (chatId != null && chatId != _currentChatId.value) {
+                    if (!chatHistoryManager.chatExists(chatId)) {
+                        AppLogger.w(TAG, "currentChatId不存在于数据库，已清除: $chatId")
+                        chatHistoryManager.clearCurrentChatId()
+                        _currentChatId.value = null
+                        _chatHistory.value = emptyList()
+                        return@collect
+                    }
                     AppLogger.d(TAG, "检测到聊天ID变化: ${_currentChatId.value} -> $chatId")
                     _currentChatId.value = chatId
                     loadChatMessages(chatId)

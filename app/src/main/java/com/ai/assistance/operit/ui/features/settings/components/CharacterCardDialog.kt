@@ -58,7 +58,8 @@ fun CharacterCardDialog(
     var description by remember(characterCard.id) { mutableStateOf(characterCard.description) }
     var characterSetting by remember(characterCard.id) { mutableStateOf(characterCard.characterSetting) }
     var openingStatement by remember(characterCard.id) { mutableStateOf(characterCard.openingStatement) } // 新增：开场白
-    var otherContent by remember(characterCard.id) { mutableStateOf(characterCard.otherContent) }
+    var otherContentChat by remember(characterCard.id) { mutableStateOf(characterCard.otherContentChat) }
+    var otherContentVoice by remember(characterCard.id) { mutableStateOf(characterCard.otherContentVoice) }
     var attachedTagIds by remember(characterCard.id) { mutableStateOf(characterCard.attachedTagIds) }
     var advancedCustomPrompt by remember(characterCard.id) { mutableStateOf(characterCard.advancedCustomPrompt) }
     var marks by remember(characterCard.id) { mutableStateOf(characterCard.marks) }
@@ -287,23 +288,44 @@ fun CharacterCardDialog(
                         }
                     )
 
-                    // 其他内容
+                    // 其他内容（聊天）
                     Text(
-                        text = stringResource(R.string.character_card_other_content),
+                        text = stringResource(R.string.character_card_other_content_chat),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     CompactTextFieldWithExpand(
-                        value = otherContent,
-                        onValueChange = { otherContent = it },
-                        placeholder = stringResource(R.string.character_card_other_content_placeholder),
+                        value = otherContentChat,
+                        onValueChange = { otherContentChat = it },
+                        placeholder = stringResource(R.string.character_card_other_content_chat_placeholder),
                         minLines = 2,
                         maxLines = 4,
                         onExpandClick = {
-                            fullScreenEditTitle = context.getString(R.string.character_card_edit_other_content)
-                            fullScreenEditValue = otherContent
-                            fullScreenEditField = "otherContent"
+                            fullScreenEditTitle = context.getString(R.string.character_card_edit_other_content_chat)
+                            fullScreenEditValue = otherContentChat
+                            fullScreenEditField = "otherContentChat"
+                            showFullScreenEdit = true
+                        }
+                    )
+
+                    // 其他内容（语音）
+                    Text(
+                        text = stringResource(R.string.character_card_other_content_voice),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    CompactTextFieldWithExpand(
+                        value = otherContentVoice,
+                        onValueChange = { otherContentVoice = it },
+                        placeholder = stringResource(R.string.character_card_other_content_voice_placeholder),
+                        minLines = 2,
+                        maxLines = 4,
+                        onExpandClick = {
+                            fullScreenEditTitle = context.getString(R.string.character_card_edit_other_content_voice)
+                            fullScreenEditValue = otherContentVoice
+                            fullScreenEditField = "otherContentVoice"
                             showFullScreenEdit = true
                         }
                     )
@@ -548,7 +570,8 @@ fun CharacterCardDialog(
                                     description = description,
                                     characterSetting = characterSetting,
                                     openingStatement = openingStatement, // 新增
-                                    otherContent = otherContent,
+                                    otherContentChat = otherContentChat,
+                                    otherContentVoice = otherContentVoice,
                                     attachedTagIds = attachedTagIds,
                                     advancedCustomPrompt = advancedCustomPrompt,
                                     marks = marks,
@@ -593,7 +616,8 @@ fun CharacterCardDialog(
                     "description" -> description = newValue
                     "characterSetting" -> characterSetting = newValue
                     "openingStatement" -> openingStatement = newValue // 新增
-                    "otherContent" -> otherContent = newValue
+                    "otherContentChat" -> otherContentChat = newValue
+                    "otherContentVoice" -> otherContentVoice = newValue
                     "advancedCustomPrompt" -> advancedCustomPrompt = newValue
                     "marks" -> marks = newValue
                 }

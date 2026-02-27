@@ -622,6 +622,25 @@ class ChatHistoryManager private constructor(private val context: Context) {
         }
     }
 
+    // 清除当前聊天ID
+    suspend fun clearCurrentChatId() {
+        context.currentChatIdDataStore.edit { preferences ->
+            preferences.remove(PreferencesKeys.CURRENT_CHAT_ID)
+        }
+    }
+
+    // 检查聊天是否存在
+    suspend fun chatExists(chatId: String): Boolean {
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                chatDao.getChatById(chatId) != null
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to check chat existence for chat $chatId", e)
+                false
+            }
+        }
+    }
+
     // 删除聊天历史
     suspend fun deleteChatHistory(chatId: String): Boolean {
         chatMutex(chatId).withLock {

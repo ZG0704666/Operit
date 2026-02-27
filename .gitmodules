@@ -16,3 +16,9 @@
 [submodule "webrtc_aec3"]
 	path = app/src/main/cpp/thirdparty/webrtc_aec3
 	url = https://github.com/khomin/AEC3_cmake.git
+[submodule "app/src/main/cpp/thirdparty/ncnn"]
+	path = app/src/main/cpp/thirdparty/ncnn
+	url = https://github.com/Tencent/ncnn.git
+[submodule "app/src/main/cpp/thirdparty/sherpa-ncnn"]
+	path = app/src/main/cpp/thirdparty/sherpa-ncnn
+	url = https://github.com/k2-fsa/sherpa-ncnn.git

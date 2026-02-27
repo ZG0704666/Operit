@@ -62,7 +62,7 @@ class CharacterGroupCardManager private constructor(private val context: Context
         preferences[CHARACTER_GROUP_LIST]?.toList() ?: emptyList()
     }
 
-    val activeCharacterGroupCardIdFlow: Flow<String?> = dataStore.data.map { preferences ->
+    private val activeCharacterGroupCardIdFlow: Flow<String?> = dataStore.data.map { preferences ->
         preferences[ACTIVE_CHARACTER_GROUP_ID]?.takeIf { it.isNotBlank() }
     }
 
@@ -79,11 +79,13 @@ class CharacterGroupCardManager private constructor(private val context: Context
         decodeGroup(raw)
     }
 
-    val activeCharacterGroupCardFlow: Flow<CharacterGroupCard?> = dataStore.data.map { preferences ->
+    private val activeCharacterGroupCardFlow: Flow<CharacterGroupCard?> = dataStore.data.map { preferences ->
         val activeId = preferences[ACTIVE_CHARACTER_GROUP_ID]?.takeIf { it.isNotBlank() } ?: return@map null
         val raw = preferences[groupDataKey(activeId)] ?: return@map null
         decodeGroup(raw)
     }
+
+    internal fun observeActiveCharacterGroupId(): Flow<String?> = activeCharacterGroupCardIdFlow
 
     suspend fun createCharacterGroupCard(group: CharacterGroupCard): String {
         val now = System.currentTimeMillis()

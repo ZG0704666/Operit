@@ -1,20 +1,14 @@
 package com.ai.assistance.operit.data.updates
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
-import com.ai.assistance.operit.data.api.GitHubApiService
 import com.ai.assistance.operit.util.GithubReleaseUtil
 import com.ai.assistance.operit.util.AppLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -26,28 +20,47 @@ import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.security.DigestOutputStream
 import java.security.MessageDigest
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
+import kotlin.coroutines.coroutineContext
 import kotlin.math.min
 
 object PatchUpdateInstaller {
     private const val TAG = "PatchUpdateInstaller"
 
-    private const val DOWNLOAD_CHANNEL_ID = "PATCH_UPDATE_DOWNLOAD"
-    private const val DOWNLOAD_CHANNEL_NAME = "Patch Update"
-    private const val DOWNLOAD_NOTIFICATION_ID = 71001
+    enum class Stage {
+        SELECTING_MIRROR,
+        DOWNLOADING_META,
+        DOWNLOADING_PATCH,
+        APPLYING_PATCH,
+        VERIFYING_APK,
+        READY_TO_INSTALL
+    }
 
-    private const val INSTALL_CHANNEL_ID = "PATCH_UPDATE_INSTALL"
-    private const val INSTALL_CHANNEL_NAME = "Patch Update Ready"
-    private const val INSTALL_NOTIFICATION_ID = 71002
+    data class MirrorProbeSummary(
+        val ok: Boolean,
+        val latencyMs: Long?,
+        val speedBytesPerSec: Long?,
+        val error: String?
+    )
 
-    const val ACTION_INSTALL_PATCH = "com.ai.assistance.operit.action.INSTALL_PATCH_APK"
-    const val EXTRA_APK_PATH = "extra_apk_path"
-    const val EXTRA_PATCH_VERSION = "extra_patch_version"
-
-    private const val PATCH_OWNER = "AAswordman"
-    private const val PATCH_REPO = "OperitNightlyRelease"
+    sealed class ProgressEvent {
+        data class StageChanged(val stage: Stage, val message: String) : ProgressEvent()
+        data class MirrorProbeStarted(val total: Int) : ProgressEvent()
+        data class MirrorProbeResult(
+            val name: String,
+            val summary: MirrorProbeSummary,
+            val completed: Int,
+            val total: Int
+        ) : ProgressEvent()
+        data class MirrorSelected(val name: String) : ProgressEvent()
+        data class DownloadProgress(
+            val label: String,
+            val readBytes: Long,
+            val totalBytes: Long?,
+            val speedBytesPerSec: Long
+        ) : ProgressEvent()
+    }
 
     private const val PROBE_TIMEOUT_MS = 2500
 
@@ -57,66 +70,7 @@ object PatchUpdateInstaller {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    data class AutoPatchResult(
-        val apkFile: File,
-        val finalVersion: String
-    )
-
-    private data class PatchCandidate(
-        val version: String,
-        val tag: String,
-        val metaUrl: String,
-        val patchUrl: String,
-        val baseSha256: String,
-        val targetSha256: String,
-        val patchSha256: String
-    )
-
-    private fun baseVersionOf(version: String): String {
-        if (version.isBlank()) return ""
-        return version.substringBefore('+')
-    }
-
-    private fun getInstalledVersionName(context: Context): String {
-        return try {
-            val pm = context.packageManager
-            val pkg = context.packageName
-            val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getPackageInfo(pkg, 0)
-            }
-            info.versionName ?: ""
-        } catch (_: Exception) {
-            ""
-        }
-    }
-
-    private fun getApkVersionName(context: Context, apkFile: File): String {
-        return try {
-            val pm = context.packageManager
-            val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.PackageInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getPackageArchiveInfo(apkFile.absolutePath, 0)
-            }
-            info?.versionName ?: ""
-        } catch (_: Exception) {
-            ""
-        }
-    }
-
-    fun getPreparedRebuiltApkIfMatchesVersion(context: Context, expectedVersionName: String): File? {
-        if (expectedVersionName.isBlank()) return null
-        val workDir = File(context.cacheDir, "patch_update")
-        val apk = File(workDir, "rebuilt.apk")
-        if (!apk.exists() || apk.length() <= 0L) return null
-        val actual = getApkVersionName(context, apk)
-        if (actual.isBlank()) return null
-        return if (actual == expectedVersionName) apk else null
-    }
+    private const val WORK_DIR_NAME = "patch_update"
 
     fun installApk(context: Context, apkFile: File) {
         val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -140,72 +94,67 @@ object PatchUpdateInstaller {
         context.startActivity(intent)
     }
 
-    private fun ensureDownloadChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(NotificationManager::class.java)
-            val existing = manager.getNotificationChannel(DOWNLOAD_CHANNEL_ID)
-            if (existing == null) {
-                manager.createNotificationChannel(
-                    NotificationChannel(
-                        DOWNLOAD_CHANNEL_ID,
-                        DOWNLOAD_CHANNEL_NAME,
-                        NotificationManager.IMPORTANCE_LOW
-                    )
-                )
-            }
-        }
-    }
-
-    suspend fun autoPreparePatchAndNotifyInstallResult(
+    suspend fun downloadAndPreparePatchUpdateWithProgress(
         context: Context,
         patchUrl: String,
         metaUrl: String,
-        newVersion: String
-    ): AutoPatchResult = withContext(Dispatchers.IO) {
-        val key = pickFastestMirrorKey(patchUrl = patchUrl, metaUrl = metaUrl)
-
-        AppLogger.d(TAG, "autoPreparePatchAndNotifyInstallResult(): targetVersion=$newVersion mirror=$key")
-        val result = downloadAndPreparePatchUpdateAutoResult(context, mirrorKey = key)
-        val shownVersion = result.finalVersion.ifBlank { newVersion }
-        notifyInstallReady(context, result.apkFile, shownVersion)
-        AutoPatchResult(apkFile = result.apkFile, finalVersion = shownVersion)
-    }
-
-    suspend fun autoPreparePatchAndStartInstallResult(
-        context: Context,
-        patchUrl: String,
-        metaUrl: String,
-        newVersion: String
-    ): AutoPatchResult = withContext(Dispatchers.IO) {
-        val key = pickFastestMirrorKey(patchUrl = patchUrl, metaUrl = metaUrl)
-
-        AppLogger.d(TAG, "autoPreparePatchAndStartInstallResult(): targetVersion=$newVersion mirror=$key")
-        val result = downloadAndPreparePatchUpdateAutoResult(context, mirrorKey = key)
-        val shownVersion = result.finalVersion.ifBlank { newVersion }
-
-        try {
-            withContext(Dispatchers.Main) {
-                installApk(context, result.apkFile)
-            }
-        } catch (e: Exception) {
-            AppLogger.w(TAG, "auto start install failed", e)
-        }
-
-        notifyInstallReady(context, result.apkFile, shownVersion)
-        AutoPatchResult(apkFile = result.apkFile, finalVersion = shownVersion)
-    }
-
-    suspend fun downloadAndPreparePatchUpdate(
-        context: Context,
-        patchUrl: String,
-        metaUrl: String
+        onEvent: (ProgressEvent) -> Unit
     ): File = withContext(Dispatchers.IO) {
-        val workDir = File(context.cacheDir, "patch_update").apply { mkdirs() }
+        onEvent(ProgressEvent.StageChanged(Stage.SELECTING_MIRROR, "正在选择镜像"))
+        val mirrorKey = selectFastestMirrorKeyWithProgress(
+            patchUrl = patchUrl,
+            metaUrl = metaUrl,
+            onEvent = onEvent
+        )
+        onEvent(ProgressEvent.MirrorSelected(mirrorKey))
+
+        val selectedPatchUrl = selectMirrorUrl(patchUrl, mirrorKey)
+        val selectedMetaUrl = selectMirrorUrl(metaUrl, mirrorKey)
+
+        downloadAndPreparePatchUpdateInternal(
+            context = context,
+            patchUrl = selectedPatchUrl,
+            metaUrl = selectedMetaUrl,
+            onEvent = onEvent
+        )
+    }
+
+    suspend fun downloadAndPreparePatchUpdateWithProgressUsingMirror(
+        context: Context,
+        patchUrl: String,
+        metaUrl: String,
+        mirrorKey: String,
+        onEvent: (ProgressEvent) -> Unit
+    ): File = withContext(Dispatchers.IO) {
+        val selectedPatchUrl = selectMirrorUrl(patchUrl, mirrorKey)
+        val selectedMetaUrl = selectMirrorUrl(metaUrl, mirrorKey)
+
+        downloadAndPreparePatchUpdateInternal(
+            context = context,
+            patchUrl = selectedPatchUrl,
+            metaUrl = selectedMetaUrl,
+            onEvent = onEvent
+        )
+    }
+
+    private suspend fun downloadAndPreparePatchUpdateInternal(
+        context: Context,
+        patchUrl: String,
+        metaUrl: String,
+        onEvent: (ProgressEvent) -> Unit
+    ): File = withContext(Dispatchers.IO) {
+        val workDir = prepareCleanWorkDir(context)
         val metaFile = File(workDir, "patch_meta.json")
         val patchFile = File(workDir, "patch.zip")
         val outApk = File(workDir, "rebuilt.apk")
 
-        downloadToFile(context, metaUrl, metaFile, title = "Downloading patch meta")
+        onEvent(ProgressEvent.StageChanged(Stage.DOWNLOADING_META, "正在下载补丁元信息"))
+        downloadToFile(
+            url = metaUrl,
+            out = metaFile,
+            label = "补丁元信息",
+            onEvent = onEvent
+        )
         val metaJson = JSONObject(metaFile.readText())
 
         val format = metaJson.optString("format", "")
@@ -222,20 +171,29 @@ object PatchUpdateInstaller {
             }
         }
 
-        downloadToFile(context, patchUrl, patchFile, title = "Downloading patch")
+        onEvent(ProgressEvent.StageChanged(Stage.DOWNLOADING_PATCH, "正在下载补丁包"))
+        downloadToFile(
+            url = patchUrl,
+            out = patchFile,
+            label = "补丁包",
+            onEvent = onEvent
+        )
 
         val patchShaExpected = metaJson.optString("patchSha256", "")
         if (patchShaExpected.isNotBlank()) {
+            onEvent(ProgressEvent.StageChanged(Stage.VERIFYING_APK, "正在校验补丁包"))
             val patchShaActual = sha256Hex(patchFile)
             if (!patchShaActual.equals(patchShaExpected, ignoreCase = true)) {
                 throw IllegalStateException("Patch sha256 mismatch")
             }
         }
 
+        onEvent(ProgressEvent.StageChanged(Stage.APPLYING_PATCH, "正在合并补丁"))
         applyApkrawPatch(baseApk, patchFile, metaJson, outApk)
 
         val targetShaExpected = metaJson.optString("targetSha256", "")
         if (targetShaExpected.isNotBlank()) {
+            onEvent(ProgressEvent.StageChanged(Stage.VERIFYING_APK, "正在校验新 APK"))
             val targetShaActual = sha256Hex(outApk)
             if (!targetShaActual.equals(targetShaExpected, ignoreCase = true)) {
                 throw IllegalStateException("Target sha256 mismatch")
@@ -243,254 +201,8 @@ object PatchUpdateInstaller {
         }
 
         cleanupPatchWorkDir(workDir, outApk)
+        onEvent(ProgressEvent.StageChanged(Stage.READY_TO_INSTALL, "准备安装"))
         outApk
-    }
-
-    suspend fun autoPreparePatchAndNotifyInstall(
-        context: Context,
-        patchUrl: String,
-        metaUrl: String,
-        newVersion: String
-    ): File = withContext(Dispatchers.IO) {
-        autoPreparePatchAndNotifyInstallResult(
-            context = context,
-            patchUrl = patchUrl,
-            metaUrl = metaUrl,
-            newVersion = newVersion
-        ).apkFile
-    }
-
-    suspend fun downloadAndPreparePatchUpdateAuto(
-        context: Context,
-        mirrorKey: String
-    ): File {
-        return downloadAndPreparePatchUpdateAutoResult(context, mirrorKey).apkFile
-    }
-
-    suspend fun downloadAndPreparePatchUpdateAutoResult(
-        context: Context,
-        mirrorKey: String
-    ): AutoPatchResult = withContext(Dispatchers.IO) {
-        val api = GitHubApiService(context)
-        val candidates = mutableListOf<PatchCandidate>()
-
-        val installedVersionName = getInstalledVersionName(context)
-        val installedBase = baseVersionOf(installedVersionName)
-        val hasInstalledVersion = installedVersionName.isNotBlank() && installedBase.isNotBlank()
-
-        for (page in 1..2) {
-            val res = api.getRepositoryReleases(owner = PATCH_OWNER, repo = PATCH_REPO, page = page, perPage = 100)
-            val releases = res.getOrNull() ?: break
-            if (releases.isEmpty()) break
-
-            for (r in releases) {
-                if (r.draft) continue
-                val tag = r.tag_name
-                val version = tag.removePrefix("v")
-
-                if (hasInstalledVersion) {
-                    val base = baseVersionOf(version)
-                    if (base != installedBase) {
-                        continue
-                    }
-                    if (UpdateManager.compareVersions(version, installedVersionName) <= 0) {
-                        continue
-                    }
-                }
-
-                val summary = r.body?.let { body -> runCatching { JSONObject(body) }.getOrNull() }
-
-                val summaryFormat = summary?.optString("format", "") ?: ""
-                val baseShaFromBody = summary?.optString("baseSha256", "") ?: ""
-                val targetShaFromBody = summary?.optString("targetSha256", "") ?: ""
-                val patchShaFromBody = summary?.optString("patchSha256", "") ?: ""
-                val metaFileName = summary?.optString("metaFile", "")?.takeIf { it.isNotBlank() }
-                val patchFileName = summary?.optString("patchFile", "")?.takeIf { it.isNotBlank() }
-
-                val metaAsset =
-                    metaFileName?.let { n -> r.assets.firstOrNull { it.name == n } }
-                        ?: r.assets.firstOrNull { it.name.startsWith("patch_") && it.name.endsWith(".json") }
-                        ?: r.assets.firstOrNull { it.name.endsWith(".json") }
-                val patchAsset =
-                    patchFileName?.let { n -> r.assets.firstOrNull { it.name == n } }
-                        ?: r.assets.firstOrNull { it.name.startsWith("apkrawpatch_") && it.name.endsWith(".zip") }
-                        ?: r.assets.firstOrNull { it.name.endsWith(".zip") }
-
-                if (metaAsset == null || patchAsset == null) continue
-
-                val baseSha = if (summaryFormat == "apkraw-1") baseShaFromBody else ""
-                val targetSha = if (summaryFormat == "apkraw-1") targetShaFromBody else ""
-                val patchSha = if (summaryFormat == "apkraw-1") patchShaFromBody else ""
-
-                candidates.add(
-                    PatchCandidate(
-                        version = version,
-                        tag = tag,
-                        metaUrl = metaAsset.browser_download_url,
-                        patchUrl = patchAsset.browser_download_url,
-                        baseSha256 = baseSha,
-                        targetSha256 = targetSha,
-                        patchSha256 = patchSha
-                    )
-                )
-            }
-        }
-
-        val workDir = File(context.cacheDir, "patch_update").apply { mkdirs() }
-        val workApk = File(workDir, "_work.apk")
-        val tmpApk = File(workDir, "_work.tmp.apk")
-
-        val installedApk = File(context.applicationInfo.sourceDir)
-        if (workApk.exists()) workApk.delete()
-        installedApk.inputStream().use { ins ->
-            FileOutputStream(workApk).use { out ->
-                ins.copyTo(out)
-            }
-        }
-
-        var currentSha = sha256Hex(workApk)
-        var applied = 0
-        var lastAppliedVersion = ""
-
-        val metaCache = mutableMapOf<String, JSONObject>()
-        fun getMeta(candidate: PatchCandidate): JSONObject {
-            return metaCache.getOrPut(candidate.tag) {
-                val metaFile = File(workDir, "meta_${candidate.tag}.json")
-                val selectedMetaUrl = selectUrl(candidate.metaUrl, mirrorKey)
-                var lastError: Throwable? = null
-                var parsed: JSONObject? = null
-
-                for (attempt in 0..1) {
-                    if (attempt > 0 || !metaFile.exists() || metaFile.length() == 0L) {
-                        runCatching { metaFile.delete() }
-                        downloadToFile(
-                            context,
-                            selectedMetaUrl,
-                            metaFile,
-                            title = "Downloading patch meta"
-                        )
-                    }
-
-                    val readResult = runCatching { metaFile.readText() }
-                    if (readResult.isFailure) {
-                        lastError = readResult.exceptionOrNull()
-                        continue
-                    }
-
-                    val parseResult = runCatching { JSONObject(readResult.getOrThrow()) }
-                    if (parseResult.isSuccess) {
-                        parsed = parseResult.getOrNull()
-                        break
-                    }
-
-                    lastError = parseResult.exceptionOrNull()
-                    runCatching { metaFile.delete() }
-                }
-
-                parsed ?: throw IllegalStateException(
-                    "Invalid patch meta for ${candidate.tag}",
-                    lastError
-                )
-            }
-        }
-
-        while (true) {
-            val applicableByBodySha = candidates
-                .asSequence()
-                .filter { it.baseSha256.isNotBlank() }
-                .filter { it.baseSha256.equals(currentSha, ignoreCase = true) }
-                .toList()
-
-            val chosenAndMeta: Pair<PatchCandidate, JSONObject>? =
-                if (applicableByBodySha.isNotEmpty()) {
-                    val sorted = applicableByBodySha.sortedWith { a, b ->
-                        UpdateManager.compareVersions(b.version, a.version)
-                    }
-                    var found: Pair<PatchCandidate, JSONObject>? = null
-                    for (c in sorted) {
-                        val m = runCatching { getMeta(c) }.getOrNull() ?: continue
-                        found = c to m
-                        break
-                    }
-                    found
-                } else {
-                    val unknown = candidates.filter { it.baseSha256.isBlank() }
-                    val applicable = mutableListOf<Pair<PatchCandidate, JSONObject>>()
-                    for (c in unknown) {
-                        val m = runCatching { getMeta(c) }.getOrNull() ?: continue
-                        val format = m.optString("format", "")
-                        if (format != "apkraw-1") continue
-                        val baseSha = m.optString("baseSha256", "")
-                        if (baseSha.equals(currentSha, ignoreCase = true)) {
-                            applicable.add(c to m)
-                        }
-                    }
-                    applicable.maxWithOrNull { a, b ->
-                        UpdateManager.compareVersions(a.first.version, b.first.version)
-                    }
-                }
-
-            val chosen = chosenAndMeta?.first ?: break
-            val metaJson = chosenAndMeta.second
-
-            val patchFile = File(workDir, "patch_${applied}.zip")
-
-            val format = metaJson.optString("format", "")
-            if (format != "apkraw-1") {
-                throw IllegalStateException("Unsupported patch format: $format")
-            }
-            val patchShaExpected = metaJson.optString("patchSha256", "")
-            val baseShaExpected = metaJson.optString("baseSha256", "")
-            val targetShaExpected = metaJson.optString("targetSha256", "")
-            val patchFileName = metaJson.optString("patchFile", "")
-
-            if (baseShaExpected.isNotBlank() && !baseShaExpected.equals(currentSha, ignoreCase = true)) {
-                break
-            }
-
-            downloadToFile(
-                context,
-                selectUrl(chosen.patchUrl, mirrorKey),
-                patchFile,
-                title = "Downloading patch (${applied + 1})"
-            )
-            if (patchShaExpected.isNotBlank()) {
-                val patchShaActual = sha256Hex(patchFile)
-                if (!patchShaActual.equals(patchShaExpected, ignoreCase = true)) {
-                    throw IllegalStateException("Patch sha256 mismatch")
-                }
-            }
-
-            if (tmpApk.exists()) tmpApk.delete()
-            applyApkrawPatch(workApk, patchFile, metaJson, tmpApk)
-            val newSha = sha256Hex(tmpApk)
-            if (targetShaExpected.isNotBlank() && !newSha.equals(targetShaExpected, ignoreCase = true)) {
-                throw IllegalStateException("Target sha256 mismatch")
-            }
-
-            // Promote
-            if (workApk.exists()) workApk.delete()
-            tmpApk.renameTo(workApk)
-            currentSha = newSha
-            applied += 1
-            lastAppliedVersion = chosen.version
-            if (applied >= 20) break
-
-            AppLogger.d(TAG, "applied patch ${chosen.tag} -> $currentSha (patchFile=$patchFileName)")
-        }
-
-        if (applied == 0) {
-            throw IllegalStateException("No applicable patch found for current APK")
-        }
-
-        val outApk = File(workDir, "rebuilt.apk")
-        if (outApk.exists()) outApk.delete()
-        workApk.renameTo(outApk)
-        cleanupPatchWorkDir(workDir, outApk)
-        AutoPatchResult(
-            apkFile = outApk,
-            finalVersion = lastAppliedVersion
-        )
     }
 
     private fun cleanupPatchWorkDir(workDir: File, keepFile: File) {
@@ -511,17 +223,27 @@ object PatchUpdateInstaller {
         }
     }
 
-    private fun selectUrl(originalUrl: String, mirrorKey: String): String {
+
+    private fun prepareCleanWorkDir(context: Context): File {
+        val workDir = File(context.cacheDir, WORK_DIR_NAME)
+        if (workDir.exists()) {
+            runCatching { workDir.deleteRecursively() }
+        }
+        workDir.mkdirs()
+        return workDir
+    }
+
+    private fun selectMirrorUrl(originalUrl: String, mirrorKey: String): String {
         if (mirrorKey == "GitHub") return originalUrl
         val mirrors = GithubReleaseUtil.getMirroredUrls(originalUrl)
         return mirrors[mirrorKey] ?: originalUrl
     }
 
-    private fun selectMirroredUrl(originalUrl: String, mirrorKey: String): String {
-        return selectUrl(originalUrl, mirrorKey)
-    }
-
-    private suspend fun pickFastestMirrorKey(patchUrl: String, metaUrl: String): String {
+    private suspend fun selectFastestMirrorKeyWithProgress(
+        patchUrl: String,
+        metaUrl: String,
+        onEvent: (ProgressEvent) -> Unit
+    ): String {
         val patchMirrors = GithubReleaseUtil.getMirroredUrls(patchUrl)
         val metaMirrors = GithubReleaseUtil.getMirroredUrls(metaUrl)
 
@@ -531,272 +253,157 @@ object PatchUpdateInstaller {
             add("GitHub")
         }
 
-        val patchProbeUrls = buildMap {
-            putAll(patchMirrors)
-            put("GitHub", patchUrl)
-        }
-        val metaProbeUrls = buildMap {
-            putAll(metaMirrors)
-            put("GitHub", metaUrl)
-        }
+        onEvent(ProgressEvent.MirrorProbeStarted(keys.size))
 
-        val patchRes = GithubReleaseUtil.probeMirrorUrls(patchProbeUrls, timeoutMs = PROBE_TIMEOUT_MS)
-        val metaRes = GithubReleaseUtil.probeMirrorUrls(metaProbeUrls, timeoutMs = PROBE_TIMEOUT_MS)
-
-        var bestKey = "GitHub"
+        var completed = 0
+        var bestKey: String? = null
         var bestSpeed = Long.MIN_VALUE
         var bestLatency = Long.MAX_VALUE
 
-        for (k in keys) {
-            val p = patchRes[k] ?: continue
-            val m = metaRes[k] ?: continue
-            if (!p.ok || !m.ok || p.bytesPerSec == null || m.bytesPerSec == null) continue
+        for (key in keys) {
+            coroutineContext.ensureActive()
 
-            val speed = minOf(p.bytesPerSec, m.bytesPerSec)
-            val latency = when {
-                p.latencyMs != null && m.latencyMs != null -> maxOf(p.latencyMs, m.latencyMs)
-                p.latencyMs != null -> p.latencyMs
-                m.latencyMs != null -> m.latencyMs
-                else -> null
-            } ?: continue
+            val patchProbeUrl = if (key == "GitHub") patchUrl else patchMirrors[key] ?: patchUrl
+            val metaProbeUrl = if (key == "GitHub") metaUrl else metaMirrors[key] ?: metaUrl
 
-            if (speed > bestSpeed || (speed == bestSpeed && latency < bestLatency)) {
-                bestSpeed = speed
-                bestLatency = latency
-                bestKey = k
-            }
-        }
+            val patchRes =
+                GithubReleaseUtil.probeMirrorUrls(
+                    mapOf(key to patchProbeUrl),
+                    timeoutMs = PROBE_TIMEOUT_MS
+                )[key]
+            val metaRes =
+                GithubReleaseUtil.probeMirrorUrls(
+                    mapOf(key to metaProbeUrl),
+                    timeoutMs = PROBE_TIMEOUT_MS
+                )[key]
 
-        return bestKey
-    }
-
-    private fun ensureInstallChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(NotificationManager::class.java)
-            val existing = manager.getNotificationChannel(INSTALL_CHANNEL_ID)
-            if (existing == null) {
-                manager.createNotificationChannel(
-                    NotificationChannel(
-                        INSTALL_CHANNEL_ID,
-                        context.getString(com.ai.assistance.operit.R.string.patch_update),
-                        NotificationManager.IMPORTANCE_HIGH
-                    )
-                )
-            }
-        }
-    }
-
-    private fun notifyInstallReady(context: Context, apkFile: File, version: String) {
-        try {
-            ensureInstallChannel(context)
-
-            val intent = Intent(ACTION_INSTALL_PATCH).apply {
-                setClass(context, PatchInstallReceiver::class.java)
-                putExtra(EXTRA_APK_PATH, apkFile.absolutePath)
-                putExtra(EXTRA_PATCH_VERSION, version)
-            }
-
-            val pi = PendingIntent.getBroadcast(
-                context,
-                INSTALL_NOTIFICATION_ID,
-                intent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            val ok = patchRes?.ok == true && metaRes?.ok == true
+            val speed =
+                if (patchRes?.bytesPerSec != null && metaRes?.bytesPerSec != null) {
+                    min(patchRes.bytesPerSec!!, metaRes.bytesPerSec!!)
                 } else {
-                    PendingIntent.FLAG_UPDATE_CURRENT
+                    null
                 }
+            val latency =
+                when {
+                    patchRes?.latencyMs != null && metaRes?.latencyMs != null ->
+                        maxOf(patchRes.latencyMs, metaRes.latencyMs)
+                    patchRes?.latencyMs != null -> patchRes.latencyMs
+                    metaRes?.latencyMs != null -> metaRes.latencyMs
+                    else -> null
+                }
+            val error =
+                when {
+                    patchRes?.ok != true -> patchRes?.error ?: "PATCH_PROBE_FAILED"
+                    metaRes?.ok != true -> metaRes?.error ?: "META_PROBE_FAILED"
+                    else -> null
+                }
+
+            completed += 1
+            val summary = MirrorProbeSummary(ok = ok, latencyMs = latency, speedBytesPerSec = speed, error = error)
+            onEvent(ProgressEvent.MirrorProbeResult(name = key, summary = summary, completed = completed, total = keys.size))
+
+            if (ok) {
+                val speedValue = speed ?: -1L
+                val latencyValue = latency ?: Long.MAX_VALUE
+                if (speed != null) {
+                    if (speedValue > bestSpeed || (speedValue == bestSpeed && latencyValue < bestLatency)) {
+                        bestKey = key
+                        bestSpeed = speedValue
+                        bestLatency = latencyValue
+                    }
+                } else if (bestKey == null) {
+                    bestKey = key
+                    bestLatency = latencyValue
+                }
+            }
+        }
+
+        return bestKey ?: "GitHub"
+    }
+
+    private suspend fun downloadToFile(
+        url: String,
+        out: File,
+        label: String,
+        onEvent: (ProgressEvent) -> Unit
+    ) {
+        val req = Request.Builder().url(url).build()
+        httpClient.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw IllegalStateException("HTTP ${resp.code}: ${resp.message}")
+            }
+            val body = resp.body ?: throw IllegalStateException("Empty response body")
+            val total = body.contentLength().takeIf { it > 0 }
+            out.parentFile?.mkdirs()
+            if (out.exists()) {
+                runCatching { out.delete() }
+            }
+
+            val buf = ByteArray(128 * 1024)
+            var readTotal = 0L
+            var lastNotifyAt = 0L
+            var lastSpeedSampleAt = 0L
+            var lastSpeedSampleBytes = 0L
+            var speedBytesPerSec = 0L
+
+            onEvent(
+                ProgressEvent.DownloadProgress(
+                    label = label,
+                    readBytes = 0L,
+                    totalBytes = total,
+                    speedBytesPerSec = speedBytesPerSec
+                )
             )
 
-            val builder = NotificationCompat.Builder(context, INSTALL_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                .setContentTitle(context.getString(com.ai.assistance.operit.R.string.patch_install_confirm_title))
-                .setContentText(version)
-                .setContentIntent(pi)
-                .setAutoCancel(true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+            FileOutputStream(out).use { fos ->
+                body.byteStream().use { ins ->
+                    while (true) {
+                        coroutineContext.ensureActive()
+                        val n = ins.read(buf)
+                        if (n <= 0) break
+                        fos.write(buf, 0, n)
+                        readTotal += n.toLong()
 
-            NotificationManagerCompat.from(context)
-                .notify(INSTALL_NOTIFICATION_ID, builder.build())
-        } catch (_: SecurityException) {
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun notifyDownloadProgress(
-        context: Context,
-        title: String,
-        text: String,
-        progress: Int?,
-        indeterminate: Boolean
-    ) {
-        try {
-            ensureDownloadChannel(context)
-            val builder = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(title)
-                .setContentText(text)
-                .setSubText(text)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-                .setOnlyAlertOnce(true)
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-
-            if (indeterminate) {
-                builder.setProgress(100, 0, true)
-            } else if (progress != null) {
-                builder.setProgress(100, progress, false)
-            }
-
-            NotificationManagerCompat.from(context)
-                .notify(DOWNLOAD_NOTIFICATION_ID, builder.build())
-        } catch (_: SecurityException) {
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun notifyDownloadDone(context: Context, title: String) {
-        try {
-            ensureDownloadChannel(context)
-            val builder = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                .setContentTitle(title)
-                .setContentText("Done")
-                .setOnlyAlertOnce(true)
-                .setOngoing(false)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-            NotificationManagerCompat.from(context)
-                .notify(DOWNLOAD_NOTIFICATION_ID, builder.build())
-        } catch (_: SecurityException) {
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun notifyDownloadFailed(context: Context, title: String, message: String) {
-        try {
-            ensureDownloadChannel(context)
-            val builder = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_notify_error)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setOnlyAlertOnce(true)
-                .setOngoing(false)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-            NotificationManagerCompat.from(context)
-                .notify(DOWNLOAD_NOTIFICATION_ID, builder.build())
-        } catch (_: SecurityException) {
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun downloadToFile(context: Context, url: String, out: File, title: String) {
-        val req = Request.Builder().url(url).build()
-        try {
-            httpClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    throw IllegalStateException("HTTP ${resp.code}: ${resp.message}")
-                }
-                val body = resp.body ?: throw IllegalStateException("Empty response body")
-                val total = body.contentLength().takeIf { it > 0 }
-                out.parentFile?.mkdirs()
-
-                val buf = ByteArray(128 * 1024)
-                var readTotal = 0L
-                var lastProgress = -1
-                var lastNotifyAt = 0L
-                var lastSpeedSampleAt = 0L
-                var lastSpeedSampleBytes = 0L
-                var speedBytesPerSec = 0L
-
-                notifyDownloadProgress(
-                    context = context,
-                    title = title,
-                    text =
-                        if (total != null) {
-                            "0% ${formatBytes(0)}/${formatBytes(total)} · ${formatSpeed(speedBytesPerSec)}"
+                        val now = System.currentTimeMillis()
+                        if (lastSpeedSampleAt == 0L) {
+                            lastSpeedSampleAt = now
+                            lastSpeedSampleBytes = readTotal
                         } else {
-                            "${formatBytes(0)} · ${formatSpeed(speedBytesPerSec)}"
-                        },
-                    progress = 0,
-                    indeterminate = total == null
-                )
-
-                FileOutputStream(out).use { fos ->
-                    body.byteStream().use { ins ->
-                        while (true) {
-                            val n = ins.read(buf)
-                            if (n <= 0) break
-                            fos.write(buf, 0, n)
-                            readTotal += n.toLong()
-
-                            val now = System.currentTimeMillis()
-                            if (lastSpeedSampleAt == 0L) {
+                            val elapsed = now - lastSpeedSampleAt
+                            if (elapsed >= 300) {
+                                val delta = readTotal - lastSpeedSampleBytes
+                                if (delta >= 0) {
+                                    speedBytesPerSec = (delta * 1000L) / elapsed.coerceAtLeast(1L)
+                                }
                                 lastSpeedSampleAt = now
                                 lastSpeedSampleBytes = readTotal
-                            } else {
-                                val elapsed = now - lastSpeedSampleAt
-                                if (elapsed >= 300) {
-                                    val delta = readTotal - lastSpeedSampleBytes
-                                    if (delta >= 0) {
-                                        speedBytesPerSec = (delta * 1000L) / elapsed.coerceAtLeast(1L)
-                                    }
-                                    lastSpeedSampleAt = now
-                                    lastSpeedSampleBytes = readTotal
-                                }
                             }
-                            if (total != null) {
-                                val p = ((readTotal * 100) / total).toInt().coerceIn(0, 100)
-                                if (p != lastProgress && (now - lastNotifyAt >= 300)) {
-                                    lastProgress = p
-                                    lastNotifyAt = now
-                                    notifyDownloadProgress(
-                                        context = context,
-                                        title = title,
-                                        text = "$p% ${formatBytes(readTotal)}/${formatBytes(total)} · ${formatSpeed(speedBytesPerSec)}",
-                                        progress = p,
-                                        indeterminate = false
-                                    )
-                                }
-                            } else {
-                                if (now - lastNotifyAt >= 800) {
-                                    lastNotifyAt = now
-                                    notifyDownloadProgress(
-                                        context = context,
-                                        title = title,
-                                        text = "${formatBytes(readTotal)} · ${formatSpeed(speedBytesPerSec)}",
-                                        progress = null,
-                                        indeterminate = true
-                                    )
-                                }
-                            }
+                        }
+
+                        if (now - lastNotifyAt >= 300) {
+                            lastNotifyAt = now
+                            onEvent(
+                                ProgressEvent.DownloadProgress(
+                                    label = label,
+                                    readBytes = readTotal,
+                                    totalBytes = total,
+                                    speedBytesPerSec = speedBytesPerSec
+                                )
+                            )
                         }
                     }
                 }
-
-                notifyDownloadDone(context, title)
             }
-        } catch (e: Exception) {
-            notifyDownloadFailed(context, title, e.message ?: "download failed")
-            throw e
-        }
-    }
 
-    private fun formatSpeed(bytesPerSec: Long): String {
-        if (bytesPerSec <= 0L) return "--/s"
-        return "${formatBytes(bytesPerSec)}/s"
-    }
-
-    private fun formatBytes(bytes: Long): String {
-        if (bytes < 1024L) return "${bytes} B"
-
-        val kb = 1024.0
-        val mb = kb * 1024.0
-        val gb = mb * 1024.0
-        val b = bytes.toDouble()
-
-        return when {
-            b >= gb -> String.format(Locale.US, "%.2f GB", b / gb)
-            b >= mb -> String.format(Locale.US, "%.2f MB", b / mb)
-            else -> String.format(Locale.US, "%.2f KB", b / kb)
+            onEvent(
+                ProgressEvent.DownloadProgress(
+                    label = label,
+                    readBytes = readTotal,
+                    totalBytes = total,
+                    speedBytesPerSec = speedBytesPerSec
+                )
+            )
         }
     }
 

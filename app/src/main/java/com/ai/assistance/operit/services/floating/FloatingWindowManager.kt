@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.ai.assistance.operit.util.AppLogger
@@ -135,6 +136,7 @@ class FloatingWindowManager(
     companion object {
         // Private flag to disable window move animations
         private const val PRIVATE_FLAG_NO_MOVE_ANIMATION = 0x00000040
+        private const val FULLSCREEN_BLUR_RADIUS_DP = 48
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -584,6 +586,8 @@ class FloatingWindowManager(
         params.x = state.x
         params.y = state.y
 
+        applyFullscreenBlur(params, state.currentMode.value == FloatingMode.FULLSCREEN)
+
         state.isAtEdge.value = isAtEdge(params.x, params.width)
 
         return params
@@ -595,6 +599,21 @@ class FloatingWindowManager(
             field.setInt(params, field.getInt(params) or flags)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to set privateFlags", e)
+        }
+    }
+
+    private fun applyFullscreenBlur(params: WindowManager.LayoutParams, enabled: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return
+        }
+        if (enabled) {
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+            val density = context.resources.displayMetrics.density
+            val blurRadiusPx = (FULLSCREEN_BLUR_RADIUS_DP * density).toInt()
+            params.setBlurBehindRadius(blurRadiusPx)
+        } else {
+            params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
+            params.setBlurBehindRadius(0)
         }
     }
 
@@ -716,7 +735,8 @@ class FloatingWindowManager(
             val x: Int,
             val y: Int,
             val flags: Int,
-            val gravity: Int = Gravity.TOP or Gravity.START
+            val gravity: Int = Gravity.TOP or Gravity.START,
+            val blurEnabled: Boolean = false
         )
 
         val target = when (newMode) {
@@ -805,7 +825,14 @@ class FloatingWindowManager(
                 }
                 FloatingMode.FULLSCREEN, FloatingMode.SCREEN_OCR -> {
                 val flags = 0 // Remove all flags, making it focusable
-                TargetParams(screenWidth, screenHeight, 0, 0, flags)
+                TargetParams(
+                    screenWidth,
+                    screenHeight,
+                    0,
+                    0,
+                    flags,
+                    blurEnabled = newMode == FloatingMode.FULLSCREEN
+                )
             }
             FloatingMode.RESULT_DISPLAY -> {
                 val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -861,6 +888,7 @@ class FloatingWindowManager(
                         params.y = target.y
                         params.flags = target.flags
                         params.gravity = target.gravity
+                        applyFullscreenBlur(params, target.blurEnabled)
                         
                         // Sync state with params
                         state.x = params.x
@@ -882,6 +910,7 @@ class FloatingWindowManager(
                         params.y = target.y
                         params.flags = target.flags
                         params.gravity = target.gravity
+                        applyFullscreenBlur(params, target.blurEnabled)
                         
                         // Sync state with params
                         state.x = params.x
@@ -900,6 +929,7 @@ class FloatingWindowManager(
                     params.y = target.y
                     params.flags = target.flags
                     params.gravity = target.gravity
+                    applyFullscreenBlur(params, target.blurEnabled)
                     
                     // Sync state with params
                     state.x = params.x
@@ -920,6 +950,7 @@ class FloatingWindowManager(
                 params.y = target.y
                 params.flags = target.flags
                 params.gravity = target.gravity
+                applyFullscreenBlur(params, target.blurEnabled)
 
                 // Sync state with params
                 state.x = params.x

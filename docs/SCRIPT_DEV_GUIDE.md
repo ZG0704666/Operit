@@ -44,7 +44,7 @@ METADATA
 {
     "name": "MyFirstScript",
     "description": "我的第一个脚本，用于演示。",
-    "category": "TUTORIAL",
+    "category": "Utility",
     "tools": [
         {
             "name": "hello_world",
@@ -304,7 +304,7 @@ METADATA
 -   `name`: 脚本的唯一标识符。
 -   `display_name`: （可选，推荐）用于界面显示的名称。不会影响脚本 ID；脚本 ID 仍由 `name` 决定。支持字符串或多语言对象（见 3.1.2）。
 -   `description`: 对脚本功能的详细描述。
--   `category`: 脚本分类，例如 `UI_AUTOMATION`, `NETWORK`, `DAILY_LIFE`。
+-   `category`: （可选）脚本分类，用于在工具列表中分组和检索。未填写或为空时，系统会自动归类为 `Other`（见 3.1.3）。
 -   `env`: （可选）字符串数组，声明该脚本/包运行时依赖的环境变量名称，例如各类 API Key。应用会根据这里列出的键在“环境配置”界面中展示对应的输入项，并在激活包前校验这些变量是否已经配置。
 -   `tools`: 一个数组，定义了该脚本暴露给外部调用的所有工具（函数）。
     -   `name`: 工具的函数名。
@@ -408,6 +408,7 @@ METADATA
 METADATA
 {
   "name": "MyBilingualPackage",
+  "category": "Utility",
   "display_name": {
     "zh": "双语示例包",
     "en": "Bilingual Demo Package",
@@ -455,6 +456,38 @@ METADATA
 */
 ```
 
+### 3.1.3. `category` 字段规范
+
+`category` 为 **可选字段**，类型为字符串，用于脚本分类展示与检索。建议直接复用 `examples/` 中已使用的分类，避免创建语义重复的新分类。
+
+```json
+"category": "Utility"
+```
+
+当 `category` 缺失、为空字符串或仅包含空白字符时，解析阶段会自动归类为：
+
+```json
+"category": "Other"
+```
+
+当前 `examples/` 中可参考的分类值：
+
+-   `Automatic`
+-   `Chat`
+-   `Development`
+-   `Draw`
+-   `File`
+-   `Life`
+-   `Map`
+-   `Media`
+-   `Memory`
+-   `Network`
+-   `Search`
+-   `System`
+-   `Utility`
+-   `Workflow`
+-   `Other`（系统默认兜底分类）
+
 ### 3.3. 使用内置工具 (Tools)
 
 平台提供了一个全局的 `Tools` 对象，它包含了所有与底层系统交互的API。这些API被分类到不同的命名空间下:
@@ -497,7 +530,7 @@ METADATA
 {
     "name": "MyNewScript",
     "description": "一个用于演示脚本开发的新脚本。",
-    "category": "TUTORIAL",
+    "category": "Utility",
     "tools": [
         {
             "name": "hello_world",

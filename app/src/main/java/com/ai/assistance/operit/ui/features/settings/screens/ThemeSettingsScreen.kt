@@ -243,7 +243,6 @@ fun ThemeSettingsScreen() {
     // Default color definitions
     val defaultPrimaryColor = Color.Magenta.toArgb()
     val defaultSecondaryColor = Color.Blue.toArgb()
-
     // Mutable state
     var themeModeInput by remember { mutableStateOf(themeMode) }
     var useSystemThemeInput by remember { mutableStateOf(useSystemTheme) }

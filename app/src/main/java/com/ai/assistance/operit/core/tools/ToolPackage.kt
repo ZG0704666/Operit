@@ -297,7 +297,7 @@ data class ToolPackage(
     val enabledByDefault: Boolean = false,
     @JsonNames("display_name")
     val displayName: LocalizedText = LocalizedText.of(""),
-    val category: String
+    val category: String = "Other"
 )
  
  @Serializable

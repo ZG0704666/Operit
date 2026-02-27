@@ -16,6 +16,7 @@ import com.ai.assistance.operit.data.model.TavernExtensions
 import com.ai.assistance.operit.data.model.OperitTavernExtension
 import com.ai.assistance.operit.data.model.OperitAttachedTagPayload
 import com.ai.assistance.operit.data.model.OperitCharacterCardPayload
+import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
@@ -78,7 +79,7 @@ class CharacterCardManager private constructor(private val context: Context) {
     }
     
     // 活跃角色卡ID流（可以为null）
-    val activeCharacterCardIdFlow: Flow<String?> = dataStore.data.map { preferences ->
+    private val activeCharacterCardIdFlow: Flow<String?> = dataStore.data.map { preferences ->
         preferences[ACTIVE_CHARACTER_CARD_ID]
     }
     
@@ -88,7 +89,7 @@ class CharacterCardManager private constructor(private val context: Context) {
     }
     
     // 获取活跃角色卡流（可能为null）
-    val activeCharacterCardFlow: Flow<CharacterCard?> = dataStore.data.map { preferences ->
+    private val activeCharacterCardFlow: Flow<CharacterCard?> = dataStore.data.map { preferences ->
         val activeId = preferences[ACTIVE_CHARACTER_CARD_ID]
         if (activeId != null) {
             getCharacterCardFromPreferences(preferences, activeId)
@@ -96,6 +97,8 @@ class CharacterCardManager private constructor(private val context: Context) {
             null
         }
     }
+
+    internal fun observeActiveCharacterCardId(): Flow<String?> = activeCharacterCardIdFlow
     
     // 从Preferences中获取角色卡
     private fun getCharacterCardFromPreferences(preferences: Preferences, id: String): CharacterCard {
@@ -103,7 +106,8 @@ class CharacterCardManager private constructor(private val context: Context) {
         val descriptionKey = stringPreferencesKey("character_card_${id}_description")
         val characterSettingKey = stringPreferencesKey("character_card_${id}_character_setting")
         val openingStatementKey = stringPreferencesKey("character_card_${id}_opening_statement") // 新增
-        val otherContentKey = stringPreferencesKey("character_card_${id}_other_content")
+        val otherContentChatKey = stringPreferencesKey("character_card_${id}_other_content_chat")
+        val otherContentVoiceKey = stringPreferencesKey("character_card_${id}_other_content_voice")
         val attachedTagIdsKey = stringSetPreferencesKey("character_card_${id}_attached_tag_ids")
         val advancedCustomPromptKey = stringPreferencesKey("character_card_${id}_advanced_custom_prompt")
         val marksKey = stringPreferencesKey("character_card_${id}_marks")
@@ -120,14 +124,15 @@ class CharacterCardManager private constructor(private val context: Context) {
             description = preferences[descriptionKey] ?: "",
             characterSetting = preferences[characterSettingKey] ?: "",
             openingStatement = preferences[openingStatementKey] ?: "", // 新增
-            otherContent = preferences[otherContentKey] ?: "",
+            otherContentChat = preferences[otherContentChatKey] ?: "",
+            otherContentVoice = preferences[otherContentVoiceKey] ?: "",
             attachedTagIds = preferences[attachedTagIdsKey]?.toList() ?: emptyList(),
             advancedCustomPrompt = preferences[advancedCustomPromptKey] ?: "",
             marks = preferences[marksKey] ?: "",
             chatModelBindingMode = CharacterCardChatModelBindingMode.normalize(preferences[chatModelBindingModeKey]),
             chatModelConfigId = preferences[chatModelConfigIdKey],
             chatModelIndex = (preferences[chatModelIndexKey] ?: 0).coerceAtLeast(0),
-            isDefault = preferences[isDefaultKey] ?: (id == DEFAULT_CHARACTER_CARD_ID),
+            isDefault = (id == DEFAULT_CHARACTER_CARD_ID) || (preferences[isDefaultKey] ?: false),
             createdAt = preferences[createdAtKey] ?: System.currentTimeMillis(),
             updatedAt = preferences[updatedAtKey] ?: System.currentTimeMillis()
         )
@@ -182,7 +187,8 @@ class CharacterCardManager private constructor(private val context: Context) {
             preferences[stringPreferencesKey("character_card_${id}_description")] = newCard.description
             preferences[stringPreferencesKey("character_card_${id}_character_setting")] = newCard.characterSetting
             preferences[stringPreferencesKey("character_card_${id}_opening_statement")] = newCard.openingStatement // 新增
-            preferences[stringPreferencesKey("character_card_${id}_other_content")] = newCard.otherContent
+        preferences[stringPreferencesKey("character_card_${id}_other_content_chat")] = newCard.otherContentChat
+        preferences[stringPreferencesKey("character_card_${id}_other_content_voice")] = newCard.otherContentVoice
             preferences[stringSetPreferencesKey("character_card_${id}_attached_tag_ids")] = newCard.attachedTagIds.toSet()
             preferences[stringPreferencesKey("character_card_${id}_advanced_custom_prompt")] = newCard.advancedCustomPrompt
             preferences[stringPreferencesKey("character_card_${id}_marks")] = newCard.marks
@@ -220,7 +226,8 @@ class CharacterCardManager private constructor(private val context: Context) {
             preferences[stringPreferencesKey("character_card_${card.id}_description")] = card.description
             preferences[stringPreferencesKey("character_card_${card.id}_character_setting")] = card.characterSetting
             preferences[stringPreferencesKey("character_card_${card.id}_opening_statement")] = card.openingStatement // 新增
-            preferences[stringPreferencesKey("character_card_${card.id}_other_content")] = card.otherContent
+        preferences[stringPreferencesKey("character_card_${card.id}_other_content_chat")] = card.otherContentChat
+        preferences[stringPreferencesKey("character_card_${card.id}_other_content_voice")] = card.otherContentVoice
             preferences[stringSetPreferencesKey("character_card_${card.id}_attached_tag_ids")] = card.attachedTagIds.toSet()
             preferences[stringPreferencesKey("character_card_${card.id}_advanced_custom_prompt")] = card.advancedCustomPrompt
             preferences[stringPreferencesKey("character_card_${card.id}_marks")] = card.marks
@@ -256,6 +263,8 @@ class CharacterCardManager private constructor(private val context: Context) {
                 "character_card_${id}_character_setting",
                 "character_card_${id}_opening_statement", // 新增
                 "character_card_${id}_other_content",
+                "character_card_${id}_other_content_chat",
+                "character_card_${id}_other_content_voice",
                 "character_card_${id}_attached_tag_ids",
                 "character_card_${id}_advanced_custom_prompt",
                 "character_card_${id}_marks",
@@ -312,7 +321,8 @@ class CharacterCardManager private constructor(private val context: Context) {
     // 组合提示词（角色设定 + 其他内容 + 标签 + 高级自定义）
     suspend fun combinePrompts(
         characterCardId: String,
-        additionalTagIds: List<String> = emptyList()
+        additionalTagIds: List<String> = emptyList(),
+        promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
     ): String {
         val characterCard = getCharacterCardFlow(characterCardId).first()
         val allTagIds = (characterCard.attachedTagIds + additionalTagIds).distinct()
@@ -331,8 +341,14 @@ class CharacterCardManager private constructor(private val context: Context) {
                 append("\n\n")
             }
             
-            if (characterCard.otherContent.isNotBlank()) {
-                append(characterCard.otherContent)
+            val otherContent =
+                if (promptFunctionType == PromptFunctionType.VOICE) {
+                    characterCard.otherContentVoice
+                } else {
+                    characterCard.otherContentChat
+                }
+            if (otherContent.isNotBlank()) {
+                append(otherContent)
                 append("\n\n")
             }
             
@@ -383,6 +399,7 @@ class CharacterCardManager private constructor(private val context: Context) {
         // 清理历史内置功能标签（chat/voice/desktop pet）
         tagManager.removeLegacyBuiltInTags()
         removeDeletedTagReferencesFromCharacterCards()
+        migrateLegacyOtherContentToChat()
     }
 
     // 重置默认角色卡
@@ -399,7 +416,8 @@ class CharacterCardManager private constructor(private val context: Context) {
         val descriptionKey = stringPreferencesKey("character_card_${id}_description")
         val characterSettingKey = stringPreferencesKey("character_card_${id}_character_setting")
         val openingStatementKey = stringPreferencesKey("character_card_${id}_opening_statement")
-        val otherContentKey = stringPreferencesKey("character_card_${id}_other_content")
+        val otherContentChatKey = stringPreferencesKey("character_card_${id}_other_content_chat")
+        val otherContentVoiceKey = stringPreferencesKey("character_card_${id}_other_content_voice")
         val attachedTagIdsKey = stringSetPreferencesKey("character_card_${id}_attached_tag_ids")
         val advancedCustomPromptKey = stringPreferencesKey("character_card_${id}_advanced_custom_prompt")
         val marksKey = stringPreferencesKey("character_card_${id}_marks")
@@ -414,7 +432,8 @@ class CharacterCardManager private constructor(private val context: Context) {
         preferences[descriptionKey] = CharacterCardBilingualData.getDefaultDescription(context)
         preferences[characterSettingKey] = CharacterCardBilingualData.getDefaultCharacterSetting(context)
         preferences[openingStatementKey] = ""
-        preferences[otherContentKey] = CharacterCardBilingualData.getDefaultOtherContent(context)
+        preferences[otherContentChatKey] = CharacterCardBilingualData.getDefaultOtherContentChat(context)
+        preferences[otherContentVoiceKey] = CharacterCardBilingualData.getDefaultOtherContentVoice(context)
         preferences[attachedTagIdsKey] = setOf<String>()
         preferences[advancedCustomPromptKey] = ""
         preferences[marksKey] = ""
@@ -571,7 +590,8 @@ class CharacterCardManager private constructor(private val context: Context) {
             preferences[stringPreferencesKey("character_card_${id}_description")] = card.description
             preferences[stringPreferencesKey("character_card_${id}_character_setting")] = card.characterSetting
             preferences[stringPreferencesKey("character_card_${id}_opening_statement")] = card.openingStatement
-            preferences[stringPreferencesKey("character_card_${id}_other_content")] = card.otherContent
+            preferences[stringPreferencesKey("character_card_${id}_other_content_chat")] = card.otherContentChat
+            preferences[stringPreferencesKey("character_card_${id}_other_content_voice")] = card.otherContentVoice
             preferences[stringSetPreferencesKey("character_card_${id}_attached_tag_ids")] = card.attachedTagIds.toSet()
             preferences[stringPreferencesKey("character_card_${id}_advanced_custom_prompt")] = card.advancedCustomPrompt
             preferences[stringPreferencesKey("character_card_${id}_marks")] = card.marks
@@ -659,7 +679,8 @@ class CharacterCardManager private constructor(private val context: Context) {
                     description = operitPayload.description,
                     characterSetting = operitPayload.characterSetting,
                     openingStatement = operitPayload.openingStatement,
-                    otherContent = operitPayload.otherContent,
+                    otherContentChat = operitPayload.otherContentChat.ifBlank { operitPayload.otherContent },
+                    otherContentVoice = operitPayload.otherContentVoice,
                     attachedTagIds = if (operitPayload.attachedTagIds.isNotEmpty()) {
                         remapAttachedTagIds(
                             sourceIds = operitPayload.attachedTagIds,
@@ -724,7 +745,9 @@ class CharacterCardManager private constructor(private val context: Context) {
                     description = card.description,
                     characterSetting = card.characterSetting,
                     openingStatement = card.openingStatement,
-                    otherContent = card.otherContent,
+                    otherContent = card.otherContentChat,
+                    otherContentChat = card.otherContentChat,
+                    otherContentVoice = card.otherContentVoice,
                     attachedTagIds = card.attachedTagIds,
                     attachedTags = attachedTags.map { tag ->
                         OperitAttachedTagPayload(
@@ -752,7 +775,7 @@ class CharacterCardManager private constructor(private val context: Context) {
                     personality = "",
                     first_mes = card.openingStatement,
                     avatar = "",
-                    mes_example = card.otherContent,
+                    mes_example = card.otherContentChat,
                     scenario = "",
                     creator_notes = card.marks,
                     system_prompt = card.characterSetting,
@@ -954,7 +977,7 @@ class CharacterCardManager private constructor(private val context: Context) {
         }.trim()
 
         // 组合其他内容
-        val otherContent = buildString {
+        val otherContentChat = buildString {
             if (data.mes_example.isNotBlank()) {
                 append(CharacterCardBilingualData.getDialogueExampleLabel(context))
                 append("\n${data.mes_example}\n\n")
@@ -1031,7 +1054,8 @@ class CharacterCardManager private constructor(private val context: Context) {
             description = description,
             characterSetting = characterSetting,
             openingStatement = data.first_mes, // 从first_mes获取开场白
-            otherContent = otherContent,
+            otherContentChat = otherContentChat,
+            otherContentVoice = "",
             attachedTagIds = emptyList(), // 可以后续根据tags创建标签
             advancedCustomPrompt = advancedCustomPrompt,
             marks = marks,
@@ -1110,6 +1134,25 @@ class CharacterCardManager private constructor(private val context: Context) {
                 if (filtered.size != attached.size) {
                     preferences[attachedKey] = filtered
                 }
+            }
+        }
+    }
+
+    private suspend fun migrateLegacyOtherContentToChat() {
+        dataStore.edit { preferences ->
+            val cardIds = preferences[CHARACTER_CARD_LIST]?.toSet() ?: setOf(DEFAULT_CHARACTER_CARD_ID)
+            cardIds.forEach { cardId ->
+                val legacyKey = stringPreferencesKey("character_card_${cardId}_other_content")
+                val chatKey = stringPreferencesKey("character_card_${cardId}_other_content_chat")
+                val voiceKey = stringPreferencesKey("character_card_${cardId}_other_content_voice")
+                val legacyValue = preferences[legacyKey]
+                if (!legacyValue.isNullOrBlank() && preferences[chatKey].isNullOrBlank()) {
+                    preferences[chatKey] = legacyValue
+                }
+                if (preferences[voiceKey].isNullOrBlank() && cardId == DEFAULT_CHARACTER_CARD_ID) {
+                    preferences[voiceKey] = CharacterCardBilingualData.getDefaultOtherContentVoice(context)
+                }
+                preferences.remove(legacyKey)
             }
         }
     }
