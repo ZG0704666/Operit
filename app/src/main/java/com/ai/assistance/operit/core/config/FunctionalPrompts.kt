@@ -940,8 +940,8 @@ $existingMemoriesPrompt
 $existingFoldersPrompt
 
 【写入前先过筛】
-- 只记录“用户特异且可复用”的信息：稳定偏好、约束、已确认决策、反复错误、项目事实、长期世界观中的稳定设定。
-- 不记录常识/公开定义（如“TS是什么”“Node是什么”“磁偏角是什么”）。
+- 只记录"用户特异且可复用"的信息：稳定偏好、约束、已确认决策、反复错误、项目事实、长期世界观中的稳定设定。
+- 不记录常识/公开定义（如"TS是什么""Node是什么""磁偏角是什么"）。
 - 不记录未来推测项：下一步建议、TODO、暂定计划。
 - 若没有长期价值信号，直接返回 `{}`。
 
@@ -949,7 +949,7 @@ $existingFoldersPrompt
 - 优先 `update` / `merge`，其次才是 `new`。
 - `new` 仅在确实新增概念时使用（最多 5 条）。
 - 长期小说/世界观场景中，反复出现且影响连续性的角色、地点、组织、规则、时间线可以入库。
-- 若核心是“更新旧概念”，`main` 必须为 `null`，只用 `update`。
+- 若核心是"更新旧概念"，`main` 必须为 `null`，只用 `update`。
 - 如果只是对已有记忆的改写（同主体 + 同动作 + 同结果），按重复处理：优先 `update`/`merge`，不要再 `new`。
 - 如果 `main` 与已有记忆在语义上是同一事件，`main` 设为 `null`，改用 `update` 或 `merge`。
 - 如果当前轮的大部分事实已被已有记忆覆盖，不要再创建平行 `new`，优先给出一次 `update` 或一次 `merge`。
@@ -968,7 +968,7 @@ $existingFoldersPrompt
   - 事件：`[领域] 事件：动作 + 结果`
   - 世界观实体：`实体：名称（身份/类型）`
 - 不推荐标题：`X是什么`、`X的定义`、百科式泛标题。
-- 内容只写“已发生事实 + 当前已确认状态”。
+- 内容只写"已发生事实 + 当前已确认状态"。
 - 内容禁止写未来动作、TODO、推测性计划。
 
 【连接关系规则】
@@ -977,26 +977,26 @@ $existingFoldersPrompt
   - 事件流程：`FOLLOWS`、`CORRECTS`、`UPDATES`
   - 参与与上下文：`INVOLVES`、`HAPPENS_AT`
   - 世界观结构：`PART_OF`、`ALLIED_WITH`、`OPPOSES`
-- 不能仅凭“同段提到过”就连边。
+- 不能仅凭"同段提到过"就连边。
 - 拿不准就不连。
-- 建边范围不应只限于本轮新输出；如果“已有样本记忆”与本轮事件/实体关系明确，也应主动建边。
+- 建边范围不应只限于本轮新输出；如果"已有样本记忆"与本轮事件/实体关系明确，也应主动建边。
 - 输出前请在全量对象上做两两关系检查：`main`、`new`、`update` 目标、以及提供的已有记忆；凡有明确证据都应建边。
 
 【示例（必须遵循）】
-- 仅在问答常识（如“磁偏角是什么”）且无用户特异信号：返回 `{}`。
+- 仅在问答常识（如"磁偏角是什么"）且无用户特异信号：返回 `{}`。
 - 仅解释 TS/Node 等公开定义：返回 `{}`。
 - 闲聊但有实际交流内容：压缩成一条事件型 `main` 记录，不拆技术细节。
-- 只有空泛寒暄（如仅“你好/在吗”）：返回 `{}`。
-- 本轮出现“用户犯错并被纠正”：作为事件写入 `main`。
+- 只有空泛寒暄（如仅"你好/在吗"）：返回 `{}`。
+- 本轮出现"用户犯错并被纠正"：作为事件写入 `main`。
 - 长期小说/世界观讨论：反复出现且影响连续性的角色、地名、组织、规则、时间线应入库，按需使用 `new`/`links`。
-- 仅解释医疗定义（如“流感是什么”）：返回 `{}`。
-- 仅解释金融定义（如“ETF是什么”）：返回 `{}`。
+- 仅解释医疗定义（如"流感是什么"）：返回 `{}`。
+- 仅解释金融定义（如"ETF是什么"）：返回 `{}`。
 - 项目本轮有明确进展（修复完成/摘要完成/任务终止）：写一条事件型 `main`。
 - 反复解释但没有新进展/新决策：返回 `{}`。
 - 世界观设定发生变化（关系/归属变更）：优先 `update`，并在证据明确时连 `UPDATES` / `PART_OF`。
 - 本轮只是重述已存在事件：优先 `update`/`merge`，不要 `new`。
 - 事件里明确出现参与者/工具包且关系清晰：补充 `INVOLVES` 链接。
-- 本轮确认了“已有样本记忆”和其他记忆的明确关系：即使没有 `new`，也应在 `links` 中体现。
+- 本轮确认了"已有样本记忆"和其他记忆的明确关系：即使没有 `new`，也应在 `links` 中体现。
 
 【输出格式（严格JSON）】
 - 顶层键：`main`、`new`、`update`、`merge`、`links`、`user`。
@@ -1012,6 +1012,72 @@ $existingFoldersPrompt
 
 只返回合法 JSON 对象，不要输出其他内容。
 """.trimIndent()
+        }
+    }
+
+    /**
+     * Prompt for group chat role response planner.
+     * Returns a JSON object with the response order for group members.
+     * Supports multi-turn conversations where members can discuss with each other.
+     */
+    const val GROUP_ROLE_RESPONSE_PLANNER_PROMPT = """
+You are a role response planner. Return ONLY valid JSON.
+Task: plan the response order for this turn. You may plan multiple rounds of conversation.
+Output schema:
+{"rounds":[[{"id":"<memberId>","speak":true}],[{"id":"<memberId2>","speak":true}]]}
+Rules:
+- Each round is an array of members who should speak in that round.
+- You can plan multiple rounds to allow members to discuss with each other.
+- For simple responses, use a single round with one or more members.
+- For discussions, use multiple rounds (e.g., member A speaks, then member B responds, then member A replies).
+- You may omit members to skip them, or set speak=false.
+- If no one should respond, return {"rounds":[[]]}.
+- Use ONLY the provided member ids.
+- Maximum 5 rounds to avoid excessive back-and-forth.
+    """
+
+    const val GROUP_ROLE_RESPONSE_PLANNER_PROMPT_CN = """
+你是群聊角色发言规划器。只返回有效的 JSON。
+任务：规划本轮的发言顺序。你可以规划多轮对话。
+输出格式：
+{"rounds":[[{"id":"<成员ID>","speak":true}],[{"id":"<成员ID2>","speak":true}]]}
+规则：
+- 每一轮（round）是一个数组，包含该轮应该发言的成员。
+- 你可以规划多轮对话，让成员之间相互讨论。
+- 对于简单回应，使用单轮，包含一个或多个成员。
+- 对于讨论场景，使用多轮（例如：成员A发言，然后成员B回应，然后成员A再回复）。
+- 你可以省略成员来跳过他们，或设置 speak=false。
+- 如果没有人应该回应，返回 {"rounds":[[]]}。
+- 只使用提供的成员 ID。
+- 最多 5 轮，避免过度来回。
+    """
+
+    fun groupRoleResponsePlannerPrompt(useEnglish: Boolean): String {
+        return if (useEnglish) GROUP_ROLE_RESPONSE_PLANNER_PROMPT else GROUP_ROLE_RESPONSE_PLANNER_PROMPT_CN
+    }
+
+    fun buildGroupRoleResponsePlannerPrompt(
+        memberLines: String,
+        userText: String,
+        useEnglish: Boolean
+    ): String {
+        val basePrompt = groupRoleResponsePlannerPrompt(useEnglish)
+        return buildString {
+            append(basePrompt)
+            appendLine()
+            if (useEnglish) {
+                appendLine("Members:")
+                appendLine(memberLines.ifBlank { "(none)" })
+                appendLine()
+                appendLine("User message:")
+                appendLine(userText.ifBlank { "(user sent attachments or empty text)" })
+            } else {
+                appendLine("成员列表：")
+                appendLine(memberLines.ifBlank { "（无）" })
+                appendLine()
+                appendLine("用户消息：")
+                appendLine(userText.ifBlank { "（用户发送了附件或空文本）" })
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.features.settings.screens
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,11 +24,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.outlined.MoreVert
 import com.ai.assistance.operit.ui.components.CustomScaffold
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,7 +57,8 @@ import com.ai.assistance.operit.data.model.TagType
 import com.ai.assistance.operit.data.preferences.CharacterCardBilingualData
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
-import com.ai.assistance.operit.data.preferences.ActiveCharacterSelectionManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.data.preferences.PromptTagManager
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -73,6 +80,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.toArgb
 import com.ai.assistance.operit.ui.features.settings.components.CharacterCardDialog
+import com.ai.assistance.operit.ui.features.settings.components.CompactAvatarPicker
+import com.ai.assistance.operit.ui.features.settings.components.CompactTextFieldWithExpand
+import coil.compose.rememberAsyncImagePainter
 import com.ai.assistance.operit.ui.common.rememberLocal
 import com.ai.assistance.operit.util.ColorQrCodeUtil
 import com.ai.assistance.operit.util.AppLogger
@@ -109,13 +119,14 @@ fun ModelPromptsSettingsScreen(
     // 管理器
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
-    val activeCharacterSelectionManager = remember { ActiveCharacterSelectionManager.getInstance(context) }
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
     val promptTagManager = remember { PromptTagManager.getInstance(context) }
     val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
 
-    // 获取当前活跃角色卡/群组ID
-    val activeCharacterCardId by characterCardManager.activeCharacterCardIdFlow.collectAsState(initial = "")
-    val activeCharacterGroupId by characterGroupCardManager.activeCharacterGroupCardIdFlow.collectAsState(initial = null)
+    // 获取当前活跃目标（角色卡或群组）
+    val activePrompt by activePromptManager.activePromptFlow.collectAsState(
+        initial = ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+    )
 
     // 状态
     var currentTab by remember { mutableStateOf(0) } // 0: 角色卡, 1: 标签, 2: 群组
@@ -186,6 +197,28 @@ fun ModelPromptsSettingsScreen(
         }
     }
 
+    val cropGroupAvatarLauncher = rememberLauncherForActivityResult(CropImageContract()) { result ->
+        if (result.isSuccessful) {
+            val croppedUri = result.uriContent
+            if (croppedUri != null) {
+                scope.launch {
+                    editingGroupCard?.let { group ->
+                        val internalUri = FileUtils.copyFileToInternalStorage(context, croppedUri, "group_avatar_${group.id}")
+                        if (internalUri != null) {
+                            userPreferencesManager.saveAiAvatarForCharacterGroup(group.id, internalUri.toString())
+                            Toast.makeText(context, context.getString(R.string.avatar_updated), Toast.LENGTH_SHORT).show()
+                            refreshTrigger++
+                        } else {
+                            Toast.makeText(context, context.getString(R.string.theme_copy_failed), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        } else if (result.error != null) {
+            Toast.makeText(context, context.getString(R.string.avatar_crop_failed, result.error!!.message), Toast.LENGTH_LONG).show()
+        }
+    }
+
     fun launchAvatarCrop(uri: Uri) {
         val cropOptions = CropImageContractOptions(
             uri,
@@ -205,11 +238,38 @@ fun ModelPromptsSettingsScreen(
         cropAvatarLauncher.launch(cropOptions)
     }
 
+    fun launchGroupAvatarCrop(uri: Uri) {
+        val cropOptions = CropImageContractOptions(
+            uri,
+            CropImageOptions().apply {
+                guidelines = com.canhub.cropper.CropImageView.Guidelines.ON
+                outputCompressFormat = android.graphics.Bitmap.CompressFormat.PNG
+                outputCompressQuality = 90
+                fixAspectRatio = true
+                aspectRatioX = 1
+                aspectRatioY = 1
+                cropMenuCropButtonTitle = context.getString(R.string.theme_crop_done)
+                activityTitle = context.getString(R.string.crop_avatar)
+                toolbarColor = Color.Gray.toArgb()
+                toolbarTitleColor = Color.White.toArgb()
+            }
+        )
+        cropGroupAvatarLauncher.launch(cropOptions)
+    }
+
     val avatarImagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             launchAvatarCrop(uri)
+        }
+    }
+
+    val groupAvatarImagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            launchGroupAvatarCrop(uri)
         }
     }
 
@@ -669,8 +729,11 @@ fun ModelPromptsSettingsScreen(
         val group = deletingGroupCard ?: return
         scope.launch {
             characterGroupCardManager.deleteCharacterGroupCard(group.id)
-            if (activeCharacterGroupId == group.id) {
-                activeCharacterSelectionManager.activateCharacterGroup(null)
+            val currentPrompt = activePrompt
+            if (currentPrompt is ActivePrompt.CharacterGroup && currentPrompt.id == group.id) {
+                activePromptManager.setActivePrompt(
+                    ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+                )
             }
             deletingGroupCard = null
             showDeleteGroupCardConfirm = false
@@ -770,8 +833,7 @@ fun ModelPromptsSettingsScreen(
                 when (currentTab) {
                     0 -> CharacterCardTab(
                         characterCards = allCharacterCards,
-                        activeCharacterCardId = activeCharacterCardId,
-                        activeCharacterGroupId = activeCharacterGroupId,
+                        activePrompt = activePrompt,
                         allTags = allTags,
                         onAddCharacterCard = {
                             editingOriginalName = null
@@ -797,7 +859,7 @@ fun ModelPromptsSettingsScreen(
                         onResetDefaultCharacterCard = { showResetDefaultConfirm = true },
                         onSetActiveCharacterCard = { cardId ->
                             scope.launch {
-                                activeCharacterSelectionManager.activateCharacterCard(cardId)
+                                activePromptManager.setActivePrompt(ActivePrompt.CharacterCard(cardId))
                                 refreshTrigger++
                             }
                         },
@@ -858,7 +920,7 @@ fun ModelPromptsSettingsScreen(
                     2 -> GroupCardTab(
                         groups = allCharacterGroups,
                         characterCards = allCharacterCards,
-                        activeGroupId = activeCharacterGroupId,
+                        activePrompt = activePrompt,
                         onAddGroup = {
                             editingGroupCard = CharacterGroupCard(
                                 id = "",
@@ -880,7 +942,7 @@ fun ModelPromptsSettingsScreen(
                         },
                         onSetActiveGroup = { groupId ->
                             scope.launch {
-                                activeCharacterSelectionManager.activateCharacterGroup(groupId)
+                                activePromptManager.setActivePrompt(ActivePrompt.CharacterGroup(groupId))
                                 refreshTrigger++
                             }
                         }
@@ -1170,6 +1232,7 @@ fun ModelPromptsSettingsScreen(
         GroupCardDialog(
             group = editingGroupCard ?: CharacterGroupCard(id = "", name = ""),
             allCharacterCards = allCharacterCards,
+            userPreferencesManager = userPreferencesManager,
             onDismiss = {
                 showAddGroupCardDialog = false
                 editingGroupCard = null
@@ -1177,6 +1240,18 @@ fun ModelPromptsSettingsScreen(
             onSave = { group ->
                 editingGroupCard = group
                 saveGroupCard()
+            },
+            onAvatarChange = {
+                groupAvatarImagePicker.launch("image/*")
+            },
+            onAvatarReset = {
+                scope.launch {
+                    editingGroupCard?.let { group ->
+                        userPreferencesManager.saveAiAvatarForCharacterGroup(group.id, null)
+                        Toast.makeText(context, context.getString(R.string.avatar_reset), Toast.LENGTH_SHORT).show()
+                        refreshTrigger++
+                    }
+                }
             }
         )
     }
@@ -1185,6 +1260,7 @@ fun ModelPromptsSettingsScreen(
         GroupCardDialog(
             group = editingGroupCard ?: CharacterGroupCard(id = "", name = ""),
             allCharacterCards = allCharacterCards,
+            userPreferencesManager = userPreferencesManager,
             onDismiss = {
                 showEditGroupCardDialog = false
                 editingGroupCard = null
@@ -1192,6 +1268,18 @@ fun ModelPromptsSettingsScreen(
             onSave = { group ->
                 editingGroupCard = group
                 saveGroupCard()
+            },
+            onAvatarChange = {
+                groupAvatarImagePicker.launch("image/*")
+            },
+            onAvatarReset = {
+                scope.launch {
+                    editingGroupCard?.let { group ->
+                        userPreferencesManager.saveAiAvatarForCharacterGroup(group.id, null)
+                        Toast.makeText(context, context.getString(R.string.avatar_reset), Toast.LENGTH_SHORT).show()
+                        refreshTrigger++
+                    }
+                }
             }
         )
     }
@@ -1829,8 +1917,7 @@ enum class ExportMode {
 @Composable
 fun CharacterCardTab(
     characterCards: List<CharacterCard>,
-    activeCharacterCardId: String,
-    activeCharacterGroupId: String?,
+    activePrompt: ActivePrompt,
     allTags: List<PromptTag>,
     onAddCharacterCard: () -> Unit,
     onEditCharacterCard: (CharacterCard) -> Unit,
@@ -2018,7 +2105,7 @@ fun CharacterCardTab(
         items(sortedCharacterCards) { characterCard ->
             CharacterCardItem(
                 characterCard = characterCard,
-                isActive = activeCharacterGroupId.isNullOrBlank() && characterCard.id == activeCharacterCardId,
+                isActive = (activePrompt as? ActivePrompt.CharacterCard)?.id == characterCard.id,
                 allTags = allTags,
                 onEdit = { onEditCharacterCard(characterCard) },
                 onDelete = { onDeleteCharacterCard(characterCard) },
@@ -2458,12 +2545,12 @@ fun TagTab(
 fun GroupCardTab(
     groups: List<CharacterGroupCard>,
     characterCards: List<CharacterCard>,
-    activeGroupId: String?,
+    activePrompt: ActivePrompt,
     onAddGroup: () -> Unit,
     onEditGroup: (CharacterGroupCard) -> Unit,
     onDeleteGroup: (CharacterGroupCard) -> Unit,
     onDuplicateGroup: (CharacterGroupCard) -> Unit,
-    onSetActiveGroup: (String?) -> Unit
+    onSetActiveGroup: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -2511,7 +2598,7 @@ fun GroupCardTab(
                     }
                     GroupCardItem(
                         group = group,
-                        isActive = activeGroupId == group.id,
+                        isActive = (activePrompt as? ActivePrompt.CharacterGroup)?.id == group.id,
                         memberNames = memberNames,
                         onEdit = { onEditGroup(group) },
                         onDelete = { onDeleteGroup(group) },
@@ -2716,12 +2803,15 @@ private fun GroupCardItem(
 private fun GroupCardDialog(
     group: CharacterGroupCard,
     allCharacterCards: List<CharacterCard>,
+    userPreferencesManager: UserPreferencesManager,
     onDismiss: () -> Unit,
-    onSave: (CharacterGroupCard) -> Unit
+    onSave: (CharacterGroupCard) -> Unit,
+    onAvatarChange: () -> Unit,
+    onAvatarReset: () -> Unit
 ) {
-    var name by remember(group) { mutableStateOf(group.name) }
-    var description by remember(group) { mutableStateOf(group.description) }
-    var members by remember(group) {
+    var name by remember(group.id) { mutableStateOf(group.name) }
+    var description by remember(group.id) { mutableStateOf(group.description) }
+    var members by remember(group.id) {
         mutableStateOf(group.members.sortedBy { it.orderIndex })
     }
 
@@ -2737,120 +2827,191 @@ private fun GroupCardDialog(
         selectedAddMemberId = selectableCards.first().id
     }
 
-    AlertDialog(
+    val avatarUri by userPreferencesManager.getAiAvatarForCharacterGroupFlow(group.id)
+        .collectAsState(initial = null)
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                if (group.id.isBlank()) stringResource(R.string.create_character_group)
-                else stringResource(R.string.edit_character_group)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .wrapContentHeight()
+                .imePadding(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
             )
-        },
-        text = {
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(16.dp)
             ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.group_name)) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text(stringResource(R.string.description_optional)) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                HorizontalDivider()
-                Text(
-                    text = stringResource(R.string.group_members),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (selectableCards.isNotEmpty()) {
-                    val selectedCardName = selectableCards.firstOrNull { it.id == selectedAddMemberId }?.name ?: ""
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            value = selectedCardName,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.group_add_member)) },
-                            trailingIcon = {
-                                Icon(
-                                    if (addMemberMenuExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable { addMemberMenuExpanded = !addMemberMenuExpanded }
-                        )
-                        DropdownMenu(
-                            expanded = addMemberMenuExpanded,
-                            onDismissRequest = { addMemberMenuExpanded = false }
-                        ) {
-                            selectableCards.forEach { card ->
-                                DropdownMenuItem(
-                                    text = { Text(card.name) },
-                                    onClick = {
-                                        selectedAddMemberId = card.id
-                                        addMemberMenuExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            val selected = selectedAddMemberId ?: return@OutlinedButton
-                            members = (members + GroupMemberConfig(
-                                characterCardId = selected,
-                                orderIndex = members.size
-                            )).mapIndexed { index, member -> member.copy(orderIndex = index) }
-                            val next = selectableCards.firstOrNull { it.id != selected }?.id
-                            selectedAddMemberId = next
-                        },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                // 头部区域 - 头像 + 基本信息
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 紧凑型头像
+                    CompactAvatarPicker(
+                        avatarUri = avatarUri,
+                        onAvatarChange = onAvatarChange,
+                        onAvatarReset = onAvatarReset
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // 基本信息
+                    Column(
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text(stringResource(R.string.add))
+                        CompactTextFieldWithExpand(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = stringResource(R.string.group_name),
+                            singleLine = true,
+                            onExpandClick = { /* 可选：添加全屏编辑 */ }
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        CompactTextFieldWithExpand(
+                            value = description,
+                            onValueChange = { description = it },
+                            label = stringResource(R.string.description_optional),
+                            maxLines = 2,
+                            onExpandClick = { /* 可选：添加全屏编辑 */ }
+                        )
                     }
                 }
 
-                if (members.isEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 可滚动内容区域
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 群组成员标题
                     Text(
-                        text = stringResource(R.string.group_member_empty_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = stringResource(R.string.group_members),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        members.forEachIndexed { index, member ->
-                            val cardName = allCharacterCards.firstOrNull { it.id == member.characterCardId }?.name
-                                ?: member.characterCardId
-                            Card(
+
+                    // 添加成员
+                    if (selectableCards.isNotEmpty()) {
+                        val selectedCardName = selectableCards.firstOrNull { it.id == selectedAddMemberId }?.name ?: ""
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = selectedCardName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text(stringResource(R.string.group_add_member), fontSize = 11.sp) },
+                                trailingIcon = {
+                                    Icon(
+                                        if (addMemberMenuExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                )
+                                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { addMemberMenuExpanded = !addMemberMenuExpanded }
+                            )
+                            DropdownMenu(
+                                expanded = addMemberMenuExpanded,
+                                onDismissRequest = { addMemberMenuExpanded = false }
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                selectableCards.forEach { card ->
+                                    DropdownMenuItem(
+                                        text = { Text(card.name, fontSize = 12.sp) },
+                                        onClick = {
+                                            selectedAddMemberId = card.id
+                                            addMemberMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                val selected = selectedAddMemberId ?: return@OutlinedButton
+                                members = (members + GroupMemberConfig(
+                                    characterCardId = selected,
+                                    orderIndex = members.size
+                                )).mapIndexed { index, member -> member.copy(orderIndex = index) }
+                                val next = selectableCards.firstOrNull { it.id != selected }?.id
+                                selectedAddMemberId = next
+                            },
+                            modifier = Modifier.height(32.dp),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(stringResource(R.string.add), fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // 成员列表
+                    if (members.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.group_member_empty_hint),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            members.forEachIndexed { index, member ->
+                                val cardName = allCharacterCards.firstOrNull { it.id == member.characterCardId }?.name
+                                    ?: member.characterCardId
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                    ),
+                                    shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
                                             text = cardName,
-                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
                                             modifier = Modifier.weight(1f)
                                         )
                                         IconButton(
@@ -2859,45 +3020,62 @@ private fun GroupCardDialog(
                                                     .mapIndexed { orderIndex, it -> it.copy(orderIndex = orderIndex) }
                                             },
                                             modifier = Modifier.size(28.dp)
-                                        ) { Icon(Icons.Default.Delete, contentDescription = null) }
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
                                     }
-
                                 }
                             }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val normalizedName = name.trim()
-                    if (normalizedName.isBlank()) return@Button
 
-                    val normalizedMembers = members.mapIndexed { order, member ->
-                        member.copy(orderIndex = order)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 操作按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(stringResource(R.string.cancel), fontSize = 13.sp)
                     }
 
-                    onSave(
-                        group.copy(
-                            name = normalizedName,
-                            description = description.trim(),
-                            members = normalizedMembers,
-                            updatedAt = System.currentTimeMillis()
-                        )
-                    )
+                    Button(
+                        onClick = {
+                            val normalizedName = name.trim()
+                            if (normalizedName.isBlank()) return@Button
+
+                            val normalizedMembers = members.mapIndexed { order, member ->
+                                member.copy(orderIndex = order)
+                            }
+
+                            onSave(
+                                group.copy(
+                                    name = normalizedName,
+                                    description = description.trim(),
+                                    members = normalizedMembers,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(stringResource(R.string.save), fontSize = 13.sp)
+                    }
                 }
-            ) {
-                Text(stringResource(R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
             }
         }
-    )
+    }
 }
 
 // 标签项目

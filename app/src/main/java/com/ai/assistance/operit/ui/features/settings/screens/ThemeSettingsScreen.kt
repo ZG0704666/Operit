@@ -37,11 +37,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.ui.features.settings.components.ColorPickerDialog
 import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsAvatarSection
 import com.ai.assistance.operit.ui.features.settings.sections.ThemeSettingsBackgroundSection
@@ -74,25 +75,23 @@ fun ThemeSettingsScreen() {
     // 添加角色卡管理器
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
 
-    // 获取当前活跃角色卡
-    val activeCharacterCard = characterCardManager.activeCharacterCardFlow.collectAsState(
-        initial = CharacterCard(
-            id = "default_character",
-            name = stringResource(R.string.theme_default_character_card),
-            description = "",
-            characterSetting = "",
-            otherContent = "",
-            attachedTagIds = emptyList(),
-            advancedCustomPrompt = "",
-            marks = "",
-            isDefault = true,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
-        )
-    ).value
-    val activeCharacterGroup =
-        characterGroupCardManager.activeCharacterGroupCardFlow.collectAsState(initial = null).value
+    val activePrompt by activePromptManager.activePromptFlow.collectAsState(
+        initial = ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+    )
+    val activeCharacterCard by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCardFlow(prompt.id)
+            is ActivePrompt.CharacterGroup -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
+    val activeCharacterGroup by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterGroup -> characterGroupCardManager.getCharacterGroupCardFlow(prompt.id)
+            is ActivePrompt.CharacterCard -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
 
     // Collect theme settings
     val themeMode =
@@ -194,8 +193,9 @@ fun ThemeSettingsScreen() {
     // Collect avatar settings
     val userAvatarUri = preferencesManager.customUserAvatarUri.collectAsState(initial = null).value
     val aiAvatarUri = preferencesManager.customAiAvatarUri.collectAsState(initial = null).value
-    val activeCardAvatarUri by remember(activeCharacterCard.id) {
-        preferencesManager.getAiAvatarForCharacterCardFlow(activeCharacterCard.id)
+    val activeCardAvatarUri by remember(activeCharacterCard?.id) {
+        activeCharacterCard?.id?.let { preferencesManager.getAiAvatarForCharacterCardFlow(it) }
+            ?: flowOf(null)
     }.collectAsState(initial = null)
     val activeGroupAvatarUri by remember(activeCharacterGroup?.id) {
         activeCharacterGroup?.id?.let { preferencesManager.getAiAvatarForCharacterGroupFlow(it) }
@@ -214,17 +214,20 @@ fun ThemeSettingsScreen() {
 
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
-    val activeThemeTargetName = activeCharacterGroup?.name ?: activeCharacterCard.name
+    val activeThemeTargetName = activeCharacterGroup?.name ?: activeCharacterCard?.name
     val activeThemeTargetAvatarUri = activeGroupAvatarUri ?: activeCardAvatarUri
-    val isGroupThemeTarget = activeCharacterGroup != null
+    val isGroupThemeTarget = activePrompt is ActivePrompt.CharacterGroup
 
     // 自动保存主题到当前角色目标（角色卡或群聊）的函数
     val saveThemeToActiveTarget: () -> Unit = {
         scope.launch {
-            if (isGroupThemeTarget) {
-                activeCharacterGroup?.id?.let { preferencesManager.saveCurrentThemeToCharacterGroup(it) }
-            } else {
-                preferencesManager.saveCurrentThemeToCharacterCard(activeCharacterCard.id)
+            when (activePrompt) {
+                is ActivePrompt.CharacterGroup -> {
+                    activeCharacterGroup?.id?.let { preferencesManager.saveCurrentThemeToCharacterGroup(it) }
+                }
+                is ActivePrompt.CharacterCard -> {
+                    activeCharacterCard?.id?.let { preferencesManager.saveCurrentThemeToCharacterCard(it) }
+                }
             }
         }
     }
@@ -1038,7 +1041,7 @@ fun ThemeSettingsScreen() {
                         if (isGroupThemeTarget) {
                             activeCharacterGroup?.id?.let { preferencesManager.deleteCharacterGroupTheme(it) }
                         } else {
-                            preferencesManager.deleteCharacterCardTheme(activeCharacterCard.id)
+                            activeCharacterCard?.id?.let { preferencesManager.deleteCharacterCardTheme(it) }
                         }
                         // Reset local state after reset
                         themeModeInput = UserPreferencesManager.THEME_MODE_LIGHT

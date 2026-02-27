@@ -76,6 +76,7 @@ import java.io.File
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.flow.flowOf
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.ui.main.components.LocalIsCurrentScreen
 import kotlinx.coroutines.launch
@@ -85,7 +86,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Constraints
-import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -303,13 +305,20 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val historyListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
-    val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
-    val activeCharacterGroupId by characterGroupCardManager.activeCharacterGroupCardIdFlow.collectAsState(initial = null)
-    val activeCharacterCard by characterCardManager.activeCharacterCardFlow.collectAsState(initial = null)
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
+    val activePrompt by activePromptManager.activePromptFlow.collectAsState(
+        initial = ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+    )
+    val activeCharacterCard by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCardFlow(prompt.id)
+            is ActivePrompt.CharacterGroup -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
     val characterCardBoundChatModelConfigId =
         activeCharacterCard
             ?.takeIf {
-                activeCharacterGroupId.isNullOrBlank() &&
+                activePrompt is ActivePrompt.CharacterCard &&
                     CharacterCardChatModelBindingMode.normalize(it.chatModelBindingMode) ==
                     CharacterCardChatModelBindingMode.FIXED_CONFIG &&
                     !it.chatModelConfigId.isNullOrBlank()

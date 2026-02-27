@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** 委托类，负责管理聊天历史相关功能 */
@@ -40,6 +42,7 @@ class ChatHistoryDelegate(
 
     private val chatHistoryManager = ChatHistoryManager.getInstance(context)
     private val characterCardManager = CharacterCardManager.getInstance(context) // 新增
+    private val activePromptManager = ActivePromptManager.getInstance(context)
     private val isInitialized = AtomicBoolean(false)
     private val historyUpdateMutex = Mutex()
     private val allowAddMessage = AtomicBoolean(true) // 控制是否允许添加消息，切换对话时设为false
@@ -102,11 +105,13 @@ class ChatHistoryDelegate(
             }
         }
 
-        // 监听角色卡切换：如果当前会话尚无用户消息，则更新/插入开场白
+        // 监听活跃目标变更：仅当当前为角色卡时才同步开场白
         coroutineScope.launch {
-            characterCardManager.activeCharacterCardFlow.collect { _ ->
-                val chatId = _currentChatId.value ?: return@collect
-                syncOpeningStatementIfNoUserMessage(chatId)
+            activePromptManager.activePromptFlow.collect { activePrompt ->
+                if (activePrompt is ActivePrompt.CharacterCard) {
+                    val chatId = _currentChatId.value ?: return@collect
+                    syncOpeningStatementIfNoUserMessage(chatId)
+                }
             }
         }
     }
@@ -214,8 +219,20 @@ class ChatHistoryDelegate(
 
             val boundCardName = chatMeta?.characterCardName
             val boundCard = boundCardName?.let { characterCardManager.findCharacterCardByName(it) }
-            val activeCard = characterCardManager.activeCharacterCardFlow.first()
+            val activePrompt = activePromptManager.getActivePrompt()
+            val activeCard = when (activePrompt) {
+                is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCard(activePrompt.id)
+                is ActivePrompt.CharacterGroup -> null
+            }
             val effectiveCard = boundCard ?: activeCard
+
+            // 如果没有有效的角色卡，使用默认角色卡
+            if (effectiveCard == null) {
+                AppLogger.d(TAG, "没有有效的角色卡，跳过开场白处理")
+                _chatHistory.value = dbMessages
+                return@withLock
+            }
+
             val opening = effectiveCard.openingStatement
             val roleName = effectiveCard.name
             if (boundCard == null && boundCardName != null) {
@@ -310,7 +327,11 @@ class ChatHistoryDelegate(
             val inheritGroupFromChatId = if (inheritGroupFromCurrent) currentChatId else null
             
             // 获取当前活跃的角色卡
-            val activeCard = characterCardManager.activeCharacterCardFlow.first()
+            val activePrompt = activePromptManager.getActivePrompt()
+            val activeCard = when (activePrompt) {
+                is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCard(activePrompt.id)
+                is ActivePrompt.CharacterGroup -> null
+            }
             val resolvedCard =
                 if (characterGroupId.isNullOrBlank()) {
                     characterCardId
@@ -318,17 +339,17 @@ class ChatHistoryDelegate(
                         ?.let { characterCardManager.getCharacterCard(it) }
                         ?: activeCard
                 } else {
-                    activeCard
+                    null  // 群组模式下不使用角色卡
                 }
-            
+
             // 确定角色卡名称：如果参数指定了则使用参数，否则使用目标角色卡
             val effectiveCharacterCardName =
                 if (characterGroupId.isNullOrBlank()) {
-                    characterCardName ?: resolvedCard.name
+                    characterCardName ?: resolvedCard?.name
                 } else {
-                    characterCardName
+                    null  // 群组模式下不使用角色卡名称
                 }
-            
+
             // 创建新对话，如果有当前对话则继承其分组，并绑定角色卡
             val newChat = chatHistoryManager.createNewChat(
                 group = group,
@@ -337,9 +358,9 @@ class ChatHistoryDelegate(
                 characterGroupId = characterGroupId,
                 setAsCurrentChat = setAsCurrentChat
             )
-            
+
             // --- 新增：检查并添加开场白（群组模式跳过） ---
-            if (characterGroupId.isNullOrBlank() && characterCardName == null && resolvedCard.openingStatement.isNotBlank()) {
+            if (characterGroupId.isNullOrBlank() && characterCardName == null && resolvedCard != null && resolvedCard.openingStatement.isNotBlank()) {
                 val openingMessage = ChatMessage(
                     sender = "ai",
                     content = resolvedCard.openingStatement,

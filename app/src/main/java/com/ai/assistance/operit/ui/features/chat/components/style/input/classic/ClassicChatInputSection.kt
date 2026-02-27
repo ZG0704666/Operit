@@ -30,6 +30,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +64,8 @@ import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.util.ChatUtils
 import androidx.compose.ui.res.stringResource
 import android.net.Uri
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @Composable
 fun ClassicChatInputSection(
@@ -94,35 +99,9 @@ fun ClassicChatInputSection(
 ) {
     val showTokenLimitDialog = remember { mutableStateOf(false) }
     val showFullscreenInput = remember { mutableStateOf(false) }
+    var pendingInterruptSend by remember { mutableStateOf(false) }
     val context = LocalContext.current
-
-    if (showTokenLimitDialog.value) {
-        AlertDialog(
-            onDismissRequest = { showTokenLimitDialog.value = false },
-            title = { Text(context.getString(R.string.token_limit_warning)) },
-            text = { Text(context.getString(R.string.token_limit_warning_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showTokenLimitDialog.value = false
-                        onSendMessage()
-                    }
-                ) { Text(context.getString(R.string.continue_send)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTokenLimitDialog.value = false }) {
-                    Text(context.getString(R.string.cancel))
-                }
-            }
-        )
-    }
-    val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
     val scope = rememberCoroutineScope()
-    val colorScheme = MaterialTheme.colorScheme
-    val typography = MaterialTheme.typography
-
-    val toolProgressEvent by ToolProgressBus.progress.collectAsState()
-
     val isProcessing =
         isLoading ||
             inputState is InputProcessingState.Connecting ||
@@ -132,6 +111,53 @@ fun ClassicChatInputSection(
             inputState is InputProcessingState.ProcessingToolResult ||
             inputState is InputProcessingState.Summarizing ||
             inputState is InputProcessingState.Receiving
+    val isProcessingState = rememberUpdatedState(isProcessing)
+
+    if (showTokenLimitDialog.value) {
+        AlertDialog(
+            onDismissRequest = {
+                showTokenLimitDialog.value = false
+                pendingInterruptSend = false
+            },
+            title = { Text(context.getString(R.string.token_limit_warning)) },
+            text = { Text(context.getString(R.string.token_limit_warning_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showTokenLimitDialog.value = false
+                        val shouldInterrupt = pendingInterruptSend
+                        pendingInterruptSend = false
+                        if (shouldInterrupt) {
+                            scope.launch {
+                                if (isProcessingState.value) {
+                                    onCancelMessage()
+                                    snapshotFlow { isProcessingState.value }.first { !it }
+                                }
+                                onSendMessage()
+                            }
+                        } else {
+                            onSendMessage()
+                        }
+                    }
+                ) { Text(context.getString(R.string.continue_send)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showTokenLimitDialog.value = false
+                        pendingInterruptSend = false
+                    },
+                ) {
+                    Text(context.getString(R.string.cancel))
+                }
+            }
+        )
+    }
+    val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
+    val colorScheme = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+
+    val toolProgressEvent by ToolProgressBus.progress.collectAsState()
 
     // Token limit calculation
     val currentWindowSize by actualViewModel.currentWindowSize.collectAsState()
@@ -147,6 +173,8 @@ fun ClassicChatInputSection(
         }
 
     val canSendMessage = userMessage.text.isNotBlank() || attachments.isNotEmpty()
+    val canInterruptSend = isProcessing && canSendMessage
+    val showCancelAction = isProcessing && !canSendMessage
     val sendButtonEnabled =
         when {
             isProcessing -> true // Cancel button
@@ -458,7 +486,7 @@ fun ClassicChatInputSection(
                         .clip(CircleShape)
                         .background(
                             when {
-                                isProcessing ->
+                                showCancelAction ->
                                     MaterialTheme
                                         .colorScheme
                                         .error
@@ -479,18 +507,32 @@ fun ClassicChatInputSection(
                             enabled = sendButtonEnabled,
                             onClick = {
                                 when {
-                                    isProcessing ->
+                                    showCancelAction ->
                                         onCancelMessage()
 
                                     canSendMessage -> {
                                         if (isOverTokenLimit) {
+                                            pendingInterruptSend = canInterruptSend
                                             showTokenLimitDialog.value = true
                                         } else {
-                                            onSendMessage()
-                                            // 发送消息后关闭附件面板
-                                            setShowAttachmentPanel(
-                                                false
-                                            )
+                                            pendingInterruptSend = false
+                                            if (canInterruptSend) {
+                                                scope.launch {
+                                                    if (isProcessingState.value) {
+                                                        onCancelMessage()
+                                                        snapshotFlow { isProcessingState.value }.first { !it }
+                                                    }
+                                                    onSendMessage()
+                                                    // 发送消息后关闭附件面板
+                                                    setShowAttachmentPanel(false)
+                                                }
+                                            } else {
+                                                onSendMessage()
+                                                // 发送消息后关闭附件面板
+                                                setShowAttachmentPanel(
+                                                    false
+                                                )
+                                            }
                                         }
                                     }
 
@@ -509,7 +551,7 @@ fun ClassicChatInputSection(
                 ) {
                     val iconTint =
                         when {
-                            isProcessing -> MaterialTheme.colorScheme.onError
+                            showCancelAction -> MaterialTheme.colorScheme.onError
                             canSendMessage ->
                                 if (isOverTokenLimit)
                                     MaterialTheme.colorScheme.onSecondary
@@ -521,13 +563,13 @@ fun ClassicChatInputSection(
                     Icon(
                         imageVector =
                         when {
-                            isProcessing -> Icons.Default.Close
+                            showCancelAction -> Icons.Default.Close
                             canSendMessage -> Icons.AutoMirrored.Filled.Send
                             else -> Icons.Default.Mic
                         },
                         contentDescription =
                         when {
-                            isProcessing -> context.getString(R.string.cancel)
+                            showCancelAction -> context.getString(R.string.cancel)
                             canSendMessage -> context.getString(R.string.send)
                             else -> context.getString(R.string.voice_input)
                         },

@@ -18,10 +18,13 @@ import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
 import com.ai.assistance.operit.data.preferences.WaifuPreferences
-import com.ai.assistance.operit.data.model.CharacterCard
+import com.ai.assistance.operit.data.model.ActivePrompt
 import kotlinx.coroutines.launch
 import com.ai.assistance.operit.ui.components.CustomScaffold
+import kotlinx.coroutines.flow.flowOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,24 +36,26 @@ fun WaifuModeSettingsScreen(
     val apiPreferences = remember { ApiPreferences.getInstance(context) }
     val waifuPreferences = remember { WaifuPreferences.getInstance(context) }
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
     val scope = rememberCoroutineScope()
     
-    // 获取当前活跃角色卡
-    val activeCharacterCard = characterCardManager.activeCharacterCardFlow.collectAsState(
-        initial = CharacterCard(
-            id = "default_character",
-            name = stringResource(R.string.theme_default_character_card),
-            description = "",
-            characterSetting = "",
-            otherContent = "",
-            attachedTagIds = emptyList(),
-            advancedCustomPrompt = "",
-            marks = "",
-            isDefault = true,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
-        )
-    ).value
+    val activePrompt by activePromptManager.activePromptFlow.collectAsState(
+        initial = ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+    )
+    val activeCharacterCard by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCardFlow(prompt.id)
+            is ActivePrompt.CharacterGroup -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
+    val activeCharacterGroup by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterGroup -> characterGroupCardManager.getCharacterGroupCardFlow(prompt.id)
+            is ActivePrompt.CharacterCard -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
+    val activeTargetName = activeCharacterGroup?.name ?: activeCharacterCard?.name ?: ""
 
     // 状态
     var showSaveSuccess by remember { mutableStateOf(false) }
@@ -66,7 +71,14 @@ fun WaifuModeSettingsScreen(
     val saveSettings: (suspend () -> Unit) -> Unit = { saveAction ->
         scope.launch {
             saveAction()
-            characterCardManager.saveWaifuSettingsForActiveCharacterCard()
+            when (activePrompt) {
+                is ActivePrompt.CharacterGroup -> {
+                    activeCharacterGroup?.id?.let { waifuPreferences.saveCurrentWaifuSettingsToCharacterGroup(it) }
+                }
+                is ActivePrompt.CharacterCard -> {
+                    activeCharacterCard?.id?.let { waifuPreferences.saveCurrentWaifuSettingsToCharacterCard(it) }
+                }
+            }
             showSaveSuccess = true
         }
     }
@@ -153,7 +165,7 @@ fun WaifuModeSettingsScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         )
                         Text(
-                            text = activeCharacterCard.name,
+                            text = activeTargetName,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer

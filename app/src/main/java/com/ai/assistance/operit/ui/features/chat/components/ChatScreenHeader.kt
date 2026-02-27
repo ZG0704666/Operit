@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
@@ -72,9 +74,23 @@ fun ChatScreenHeader(
 
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
     val userPreferencesManager = remember { UserPreferencesManager.getInstance(context) }
-    val activeCharacterCard by characterCardManager.activeCharacterCardFlow.collectAsState(initial = null)
-    val activeCharacterGroup by characterGroupCardManager.activeCharacterGroupCardFlow.collectAsState(initial = null)
+    val activePrompt by activePromptManager.activePromptFlow.collectAsState(
+        initial = ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+    )
+    val activeCharacterCard by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCardFlow(prompt.id)
+            is ActivePrompt.CharacterGroup -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
+    val activeCharacterGroup by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterGroup -> characterGroupCardManager.getCharacterGroupCardFlow(prompt.id)
+            is ActivePrompt.CharacterCard -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
     val activeCardAvatarUri by remember(activeCharacterCard?.id) {
         activeCharacterCard?.id?.let { userPreferencesManager.getAiAvatarForCharacterCardFlow(it) }
             ?: flowOf(null)
@@ -92,10 +108,9 @@ fun ChatScreenHeader(
             ?: flowOf(null)
     }.collectAsState(initial = null)
     val activeCharacterAvatarUri =
-        if (activeCharacterGroup != null) {
-            activeGroupAvatarUri ?: activeGroupFallbackMemberAvatarUri
-        } else {
-            activeCardAvatarUri
+        when (activePrompt) {
+            is ActivePrompt.CharacterGroup -> activeGroupAvatarUri ?: activeGroupFallbackMemberAvatarUri
+            is ActivePrompt.CharacterCard -> activeCardAvatarUri
         }
 
     val activeStreamingChatIds by actualViewModel.activeStreamingChatIds.collectAsState()

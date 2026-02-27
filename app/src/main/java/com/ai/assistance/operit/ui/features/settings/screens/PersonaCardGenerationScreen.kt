@@ -27,7 +27,8 @@ import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PromptTag
 import com.ai.assistance.operit.data.model.ToolResult
-import com.ai.assistance.operit.data.preferences.ActiveCharacterSelectionManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.PromptTagManager
@@ -182,7 +183,7 @@ fun PersonaCardGenerationScreen(
 
     // 角色卡数据
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
-    val activeCharacterSelectionManager = remember { ActiveCharacterSelectionManager.getInstance(context) }
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
     val tagManager = remember { PromptTagManager.getInstance(context) }
     val chatHistoryManager = remember { PersonaCardChatHistoryManager.getInstance(context) }
     var allCharacterCards by remember { mutableStateOf(listOf<CharacterCard>()) }
@@ -215,16 +216,20 @@ fun PersonaCardGenerationScreen(
             val cards = characterCardManager.getAllCharacterCards()
             val tags = tagManager.getAllTags()
 
-            var currentId = characterCardManager.activeCharacterCardIdFlow.first()
+            val currentPrompt = activePromptManager.getActivePrompt()
+            var currentId = when (currentPrompt) {
+                is ActivePrompt.CharacterCard -> currentPrompt.id
+                is ActivePrompt.CharacterGroup -> null
+            }
 
-            // 如果记录的活跃ID无效（例如卡被删除），则默认使用第一张卡
-            if (characterCardManager.getCharacterCard(currentId) == null && cards.isNotEmpty()) {
+            // 如果没有活跃角色卡，则使用第一张卡
+            if (currentId == null && cards.isNotEmpty()) {
                 val firstCardId = cards.first().id
-                activeCharacterSelectionManager.activateCharacterCard(firstCardId)
+                activePromptManager.setActivePrompt(ActivePrompt.CharacterCard(firstCardId))
                 currentId = firstCardId
             }
 
-            Triple(cards, tags, currentId)
+            Triple(cards, tags, currentId ?: "")
         }
 
         withContext(Dispatchers.Main) {
@@ -294,16 +299,20 @@ fun PersonaCardGenerationScreen(
             val result = withContext(Dispatchers.IO) {
                 characterCardManager.initializeIfNeeded()
                 val cards = characterCardManager.getAllCharacterCards()
-                var id = characterCardManager.activeCharacterCardIdFlow.first()
+                val currentPrompt = activePromptManager.getActivePrompt()
+                var id = when (currentPrompt) {
+                    is ActivePrompt.CharacterCard -> currentPrompt.id
+                    is ActivePrompt.CharacterGroup -> null
+                }
 
-                // 如果记录的活跃ID无效（例如卡被删除），则默认使用第一张卡
-                if (characterCardManager.getCharacterCard(id) == null && cards.isNotEmpty()) {
+                // 如果没有活跃角色卡，则使用第一张卡
+                if (id == null && cards.isNotEmpty()) {
                     val firstCardId = cards.first().id
-                    activeCharacterSelectionManager.activateCharacterCard(firstCardId)
+                    activePromptManager.setActivePrompt(ActivePrompt.CharacterCard(firstCardId))
                     id = firstCardId
                 }
 
-                Triple(cards, id, characterCardManager.getCharacterCard(id))
+                Triple(cards, id ?: "", characterCardManager.getCharacterCard(id ?: ""))
             }
 
             withContext(Dispatchers.Main) {
@@ -582,7 +591,7 @@ fun PersonaCardGenerationScreen(
                                     onClick = {
                                         expanded = false
                                         scope.launch {
-                                            activeCharacterSelectionManager.activateCharacterCard(card.id)
+                                            activePromptManager.setActivePrompt(ActivePrompt.CharacterCard(card.id))
                                             activeCardId = card.id // 更新ID以触发Effect
                                         }
                                     }
@@ -644,7 +653,7 @@ fun PersonaCardGenerationScreen(
                                                 isDefault = false
                                             )
                                             val newId = characterCardManager.createCharacterCard(newCard)
-                                            activeCharacterSelectionManager.activateCharacterCard(newId)
+                                            activePromptManager.setActivePrompt(ActivePrompt.CharacterCard(newId))
                                         }
                                         refreshData()
                                     }
@@ -669,8 +678,7 @@ fun PersonaCardGenerationScreen(
                                         activeCard?.let { card ->
                                             withContext(Dispatchers.IO) {
                                                 characterCardManager.deleteCharacterCard(card.id)
-                                                // 删除后，activeCharacterCardIdFlow 会自动更新为列表中的第一项
-                                                // 或者如果没有角色卡，会是空字符串
+                                                // 删除后，如果没有活跃角色卡，则会回退到列表中的第一项
                                             }
                                             refreshData()
                                         }

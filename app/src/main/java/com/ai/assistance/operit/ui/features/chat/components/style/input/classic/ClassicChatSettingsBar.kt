@@ -65,6 +65,8 @@ import com.ai.assistance.operit.data.model.ModelConfigSummary
 import com.ai.assistance.operit.data.model.PreferenceProfile
 import com.ai.assistance.operit.data.model.PromptProfile
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.FunctionConfigMapping
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
@@ -145,6 +147,7 @@ fun ClassicChatSettingsBar(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
     val functionalConfigManager = remember { FunctionalConfigManager(context) }
     val modelConfigManager = remember { ModelConfigManager(context) }
     val configMappingWithIndex by
@@ -221,14 +224,20 @@ fun ClassicChatSettingsBar(
                 return@CharacterCardModelBindingSwitchConfirmDialog
             }
             scope.launch {
-                val activeCard = characterCardManager.activeCharacterCardFlow.first()
-                characterCardManager.updateCharacterCard(
-                    activeCard.copy(
-                        chatModelBindingMode = CharacterCardChatModelBindingMode.FIXED_CONFIG,
-                        chatModelConfigId = selection.first,
-                        chatModelIndex = selection.second.coerceAtLeast(0),
+                val activePrompt = activePromptManager.getActivePrompt()
+                val activeCard = when (activePrompt) {
+                    is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCard(activePrompt.id)
+                    is ActivePrompt.CharacterGroup -> null
+                }
+                if (activeCard != null) {
+                    characterCardManager.updateCharacterCard(
+                        activeCard.copy(
+                            chatModelBindingMode = CharacterCardChatModelBindingMode.FIXED_CONFIG,
+                            chatModelConfigId = selection.first,
+                            chatModelIndex = selection.second.coerceAtLeast(0),
+                        )
                     )
-                )
+                }
                 showModelDropdown = false
                 showCharacterCardBindingSwitchConfirm = false
                 pendingCharacterCardModelSelection = null

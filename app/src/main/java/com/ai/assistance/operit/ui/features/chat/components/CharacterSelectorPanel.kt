@@ -37,6 +37,8 @@ import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.CharacterGroupCard
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.common.rememberLocal
 import android.net.Uri
@@ -80,10 +82,14 @@ fun CharacterSelectorPanel(
     val context = LocalContext.current
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
     var allCards by remember { mutableStateOf<List<CharacterCard>>(emptyList()) }
     var allGroups by remember { mutableStateOf<List<CharacterGroupCard>>(emptyList()) }
-    val activeCardId by characterCardManager.activeCharacterCardIdFlow.collectAsState(initial = "")
-    val activeGroupId by characterGroupCardManager.activeCharacterGroupCardIdFlow.collectAsState(initial = null)
+    val activePrompt by activePromptManager.activePromptFlow.collectAsState(
+        initial = ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+    )
+    val activeCardId = (activePrompt as? ActivePrompt.CharacterCard)?.id
+    val activeGroupId = (activePrompt as? ActivePrompt.CharacterGroup)?.id
     val sortOptionNameState = rememberLocal(
         key = "ModelPromptsSettingsScreen.CharacterCardTab.sortOption",
         defaultValue = CharacterSelectorSortOption.DEFAULT.name

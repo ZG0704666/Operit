@@ -287,7 +287,8 @@ class MessageProcessingDelegate(
             isGroupOrchestrationTurn: Boolean = false
     ) {
         val rawMessageText = messageTextOverride ?: _userMessage.value.text
-        if (rawMessageText.isBlank() && attachments.isEmpty() && !isAutoContinuation) {
+        // 群组编排模式下，允许空消息（后续成员不需要用户消息）
+        if (rawMessageText.isBlank() && attachments.isEmpty() && !isAutoContinuation && !isGroupOrchestrationTurn) {
             AppLogger.d(
                 TAG,
                 "sendUserMessage忽略: 空消息且无附件, chatId=$chatId, autoContinuation=$isAutoContinuation"
@@ -353,9 +354,13 @@ class MessageProcessingDelegate(
             )
 
             // 自动继续且原本消息为空时，不添加到聊天历史（虽然会发送"继续"给AI）
+            // 群组编排模式下，空消息也不添加到聊天历史
             val shouldAddUserMessageToChat =
                 !suppressUserMessageInHistory &&
                 !(isAutoContinuation &&
+                        originalMessageText.isBlank() &&
+                        attachments.isEmpty()) &&
+                !(isGroupOrchestrationTurn &&
                         originalMessageText.isBlank() &&
                         attachments.isEmpty())
             var userMessageAdded = false
@@ -478,6 +483,7 @@ class MessageProcessingDelegate(
                 }
 
                 // 2. 使用 AIMessageManager 发送消息
+                // 群组编排模式下，只有当消息内容不为空时才添加 [From user] 前缀
                 val requestMessageContent =
                     if (isGroupOrchestrationTurn &&
                         finalMessageContent.trimStart().isNotEmpty() &&

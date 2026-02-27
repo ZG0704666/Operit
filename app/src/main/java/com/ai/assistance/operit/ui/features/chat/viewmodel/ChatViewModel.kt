@@ -49,7 +49,8 @@ import com.ai.assistance.operit.ui.floating.ui.pet.AvatarEmotionManager
 import com.ai.assistance.operit.api.voice.VoiceService
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
-import com.ai.assistance.operit.data.preferences.ActiveCharacterSelectionManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.util.WaifuMessageProcessor
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.WorkspaceBackupManager
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.CommandConfig
@@ -85,7 +86,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 添加语音服务
     private var voiceService: VoiceService? = null
     private val speechServicesPreferences = SpeechServicesPreferences(context)
-    private val activeCharacterSelectionManager = ActiveCharacterSelectionManager.getInstance(context)
+    private val activePromptManager = ActivePromptManager.getInstance(context)
 
     // 添加语音播放状态
     private val _isPlaying = MutableStateFlow(false)
@@ -755,10 +756,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             when (target) {
                 is CharacterSelectorTarget.CharacterCardTarget -> {
-                    activeCharacterSelectionManager.activateCharacterCard(target.id)
+                    activePromptManager.setActivePrompt(ActivePrompt.CharacterCard(target.id))
                 }
                 is CharacterSelectorTarget.CharacterGroupTarget -> {
-                    activeCharacterSelectionManager.activateCharacterGroup(target.id)
+                    activePromptManager.setActivePrompt(ActivePrompt.CharacterGroup(target.id))
                 }
             }
         }
@@ -767,7 +768,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private suspend fun autoSwitchCharacterTargetForChat(chatId: String) {
         val targetHistory = chatHistories.value.firstOrNull { it.id == chatId } ?: return
         runCatching {
-            activeCharacterSelectionManager.activateForChatBinding(
+            activePromptManager.activateForChatBinding(
                 characterCardName = targetHistory.characterCardName,
                 characterGroupId = targetHistory.characterGroupId
             )
@@ -833,13 +834,18 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     messageProcessingDelegate.setInputProcessingStateForChat(currentChatId, InputProcessingState.Idle)
                     return@launch
                 }
-                
+
+                // 检查是否是群聊
+                val currentChat = chatHistoryDelegate.chatHistories.value.firstOrNull { it.id == currentChatId }
+                val isGroupChat = currentChat?.characterGroupId != null
+
                 val summaryMessage = AIMessageManager.summarizeMemory(
                     enhancedAiService!!,
                     historyForSummary,
-                    autoContinue = false
+                    autoContinue = false,
+                    isGroupChat = isGroupChat
                 )
-                
+
                 if (summaryMessage != null) {
                     // 插入总结消息
                     chatHistoryDelegate.addSummaryMessage(summaryMessage, insertPosition)
@@ -1096,9 +1102,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         timestampOfFirstDeletedMessage
                 )
 
-                // 显示重新发送的消息准备状态
-                uiStateDelegate.showToast(context.getString(R.string.chat_preparing_resend))
-
                 // 使用修改后的消息内容来发送
                 messageProcessingDelegate.updateUserMessage(editedContent)
                 sendUserMessage()
@@ -1265,7 +1268,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         if (chatId != null) {
             messageProcessingDelegate.cancelMessage(chatId)
         }
-        uiStateDelegate.showToast(context.getString(R.string.chat_cancelled_current_conversation))
     }
 
     // UI状态相关方法

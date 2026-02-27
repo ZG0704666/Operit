@@ -44,6 +44,8 @@ import com.ai.assistance.operit.data.model.CharacterGroupCard
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
+import com.ai.assistance.operit.data.preferences.ActivePromptManager
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatHistoryDisplayMode
 import com.ai.assistance.operit.ui.common.rememberLocal
@@ -51,6 +53,7 @@ import com.ai.assistance.operit.ui.features.chat.webview.workspace.WorkspaceBack
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flowOf
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -180,25 +183,42 @@ fun ChatScreenContent(
     val isAutoReadEnabled by actualViewModel.isAutoReadEnabled.collectAsState()
     val characterCardManager = remember { CharacterCardManager.getInstance(context) }
     val characterGroupCardManager = remember { CharacterGroupCardManager.getInstance(context) }
-    val activeCharacterCard by characterCardManager.activeCharacterCardFlow.collectAsState(initial = null)
-    val activeCharacterGroup by characterGroupCardManager.activeCharacterGroupCardFlow.collectAsState(initial = null)
+    val activePromptManager = remember { ActivePromptManager.getInstance(context) }
+    val activePrompt by activePromptManager.activePromptFlow.collectAsState(
+        initial = ActivePrompt.CharacterCard(CharacterCardManager.DEFAULT_CHARACTER_CARD_ID)
+    )
+    val activeCharacterCard by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterCard -> characterCardManager.getCharacterCardFlow(prompt.id)
+            is ActivePrompt.CharacterGroup -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
+    val activeCharacterGroup by remember(activePrompt) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterGroup -> characterGroupCardManager.getCharacterGroupCardFlow(prompt.id)
+            is ActivePrompt.CharacterCard -> flowOf(null)
+        }
+    }.collectAsState(initial = null)
     val displayedChatHistories =
-            remember(chatHistories, activeCharacterCard, activeCharacterGroup, historyDisplayMode) {
+            remember(chatHistories, activePrompt, activeCharacterCard, activeCharacterGroup, historyDisplayMode) {
                 when (historyDisplayMode) {
                     ChatHistoryDisplayMode.CURRENT_CHARACTER_ONLY -> {
-                        val group = activeCharacterGroup
-                        if (group != null) {
-                            chatHistories.filter { history ->
-                                history.characterGroupId == group.id
+                        when (activePrompt) {
+                            is ActivePrompt.CharacterGroup -> {
+                                val group = activeCharacterGroup ?: return@remember emptyList()
+                                chatHistories.filter { history ->
+                                    history.characterGroupId == group.id
+                                }
                             }
-                        } else {
-                            val activeCard = activeCharacterCard ?: return@remember emptyList()
-                            chatHistories.filter { history ->
-                                val historyCard = history.characterCardName
-                                if (activeCard.isDefault) {
-                                    historyCard == null || historyCard == activeCard.name
-                                } else {
-                                    historyCard == activeCard.name
+                            is ActivePrompt.CharacterCard -> {
+                                val activeCard = activeCharacterCard ?: return@remember emptyList()
+                                chatHistories.filter { history ->
+                                    val historyCard = history.characterCardName
+                                    if (activeCard.isDefault) {
+                                        historyCard == null || historyCard == activeCard.name
+                                    } else {
+                                        historyCard == activeCard.name
+                                    }
                                 }
                             }
                         }
@@ -210,6 +230,7 @@ fun ChatScreenContent(
                 }
             }
     LaunchedEffect(
+        activePrompt,
         activeCharacterCard,
         activeCharacterGroup,
         displayedChatHistories,
@@ -220,7 +241,11 @@ fun ChatScreenContent(
         if (historyDisplayMode != ChatHistoryDisplayMode.CURRENT_CHARACTER_ONLY) {
             return@LaunchedEffect
         }
-        if (activeCharacterGroup == null && activeCharacterCard == null) {
+        val hasActiveTarget = when (activePrompt) {
+            is ActivePrompt.CharacterGroup -> activeCharacterGroup != null
+            is ActivePrompt.CharacterCard -> activeCharacterCard != null
+        }
+        if (!hasActiveTarget) {
             return@LaunchedEffect
         }
         if (displayedChatHistories.isEmpty()) {
@@ -683,8 +708,7 @@ fun ChatScreenContent(
                     historyListState = historyListState,
                     searchQuery = chatHistorySearchQuery,
                     onSearchQueryChange = actualViewModel::onChatHistorySearchQueryChange,
-                    activeCharacterCard = activeCharacterCard,
-                    activeCharacterGroup = activeCharacterGroup,
+                    activePrompt = activePrompt,
                     historyDisplayMode = historyDisplayMode,
                     onDisplayModeChange = { historyDisplayMode = it },
                     autoSwitchCharacterCard = autoSwitchCharacterCard,
@@ -919,8 +943,7 @@ fun ChatHistorySelectorPanel(
         historyListState: LazyListState,
         searchQuery: String,
         onSearchQueryChange: (String) -> Unit,
-        activeCharacterCard: CharacterCard?,
-        activeCharacterGroup: CharacterGroupCard?,
+        activePrompt: ActivePrompt,
         historyDisplayMode: ChatHistoryDisplayMode,
         onDisplayModeChange: (ChatHistoryDisplayMode) -> Unit,
         autoSwitchCharacterCard: Boolean,
@@ -939,65 +962,55 @@ fun ChatHistorySelectorPanel(
                                     shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
                             )
     ) {
-        if (activeCharacterCard == null) {
-            Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            val activeStreamingChatIds by actualViewModel.activeStreamingChatIds.collectAsState()
-            // 直接使用ChatHistorySelector
-            ChatHistorySelector(
-                    modifier = Modifier.fillMaxSize().padding(top = 8.dp),
-                    onNewChat = { characterCardName, characterGroupId ->
-                        actualViewModel.createNewChat(characterCardName, characterGroupId)
-                        // 创建新对话后自动收起侧边框
-                        actualViewModel.showChatHistorySelector(false)
-                    },
-                    onSelectChat = { chatId ->
-                        actualViewModel.switchChat(chatId)
-                        // 切换聊天后也自动收起侧边框
-                        actualViewModel.showChatHistorySelector(false)
-                    },
-                    onDeleteChat = { chatId -> actualViewModel.deleteChatHistory(chatId) },
-                    onUpdateChatTitle = { chatId, newTitle ->
-                        actualViewModel.updateChatTitle(chatId, newTitle)
-                    },
-                    onUpdateChatBinding = { chatId, characterCardName, characterGroupId ->
-                        actualViewModel.updateChatCharacterBinding(chatId, characterCardName, characterGroupId)
-                    },
-                    onCreateGroup = { groupName, characterCardName, characterGroupId ->
-                        actualViewModel.createGroup(groupName, characterCardName, characterGroupId)
-                    },
-                    onUpdateChatOrderAndGroup = { reorderedHistories, movedItem, targetGroup ->
-                        actualViewModel.updateChatOrderAndGroup(
-                                reorderedHistories,
-                                movedItem,
-                                targetGroup
-                        )
-                    },
-                    onUpdateGroupName = { oldName, newName, characterCardName ->
-                        actualViewModel.updateGroupName(oldName, newName, characterCardName)
-                    },
-                    onDeleteGroup = { groupName, deleteChats, characterCardName ->
-                        actualViewModel.deleteGroup(groupName, deleteChats, characterCardName)
-                    },
-                    chatHistories = chatHistories,
-                    currentId = currentChatId,
-                    activeStreamingChatIds = activeStreamingChatIds,
-                    lazyListState = historyListState,
-                    onBack = { actualViewModel.toggleChatHistorySelector() },
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = onSearchQueryChange,
-                    historyDisplayMode = historyDisplayMode,
-                    onDisplayModeChange = onDisplayModeChange,
-                    autoSwitchCharacterCard = autoSwitchCharacterCard,
-                    onAutoSwitchCharacterCardChange = onAutoSwitchCharacterCardChange,
-                    activeCharacterCard = activeCharacterCard,
-                    activeCharacterGroup = activeCharacterGroup
-            )
-        }
+        val activeStreamingChatIds by actualViewModel.activeStreamingChatIds.collectAsState()
+        // 直接使用ChatHistorySelector
+        ChatHistorySelector(
+                modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+                onNewChat = { characterCardName, characterGroupId ->
+                    actualViewModel.createNewChat(characterCardName, characterGroupId)
+                    // 创建新对话后自动收起侧边框
+                    actualViewModel.showChatHistorySelector(false)
+                },
+                onSelectChat = { chatId ->
+                    actualViewModel.switchChat(chatId)
+                    // 切换聊天后也自动收起侧边框
+                    actualViewModel.showChatHistorySelector(false)
+                },
+                onDeleteChat = { chatId -> actualViewModel.deleteChatHistory(chatId) },
+                onUpdateChatTitle = { chatId, newTitle ->
+                    actualViewModel.updateChatTitle(chatId, newTitle)
+                },
+                onUpdateChatBinding = { chatId, characterCardName, characterGroupId ->
+                    actualViewModel.updateChatCharacterBinding(chatId, characterCardName, characterGroupId)
+                },
+                onCreateGroup = { groupName, characterCardName, characterGroupId ->
+                    actualViewModel.createGroup(groupName, characterCardName, characterGroupId)
+                },
+                onUpdateChatOrderAndGroup = { reorderedHistories, movedItem, targetGroup ->
+                    actualViewModel.updateChatOrderAndGroup(
+                            reorderedHistories,
+                            movedItem,
+                            targetGroup
+                    )
+                },
+                onUpdateGroupName = { oldName, newName, characterCardName ->
+                    actualViewModel.updateGroupName(oldName, newName, characterCardName)
+                },
+                onDeleteGroup = { groupName, deleteChats, characterCardName ->
+                    actualViewModel.deleteGroup(groupName, deleteChats, characterCardName)
+                },
+                chatHistories = chatHistories,
+                currentId = currentChatId,
+                activeStreamingChatIds = activeStreamingChatIds,
+                lazyListState = historyListState,
+                onBack = { actualViewModel.toggleChatHistorySelector() },
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                historyDisplayMode = historyDisplayMode,
+                onDisplayModeChange = onDisplayModeChange,
+                autoSwitchCharacterCard = autoSwitchCharacterCard,
+                onAutoSwitchCharacterCardChange = onAutoSwitchCharacterCardChange,
+                activePrompt = activePrompt
+        )
     }
 }

@@ -90,6 +90,7 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.CharacterGroupCard
+import com.ai.assistance.operit.data.model.ActivePrompt
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
@@ -122,17 +123,16 @@ private data class GroupTarget(
 
 private fun resolveBindingForCreate(
     historyDisplayMode: ChatHistoryDisplayMode,
-    activeCharacterCard: CharacterCard?,
-    activeCharacterGroup: CharacterGroupCard?
+    activePrompt: ActivePrompt,
+    activeCharacterCardName: String?
 ): Pair<String?, String?> {
     if (historyDisplayMode == ChatHistoryDisplayMode.BY_FOLDER) {
         return Pair(null, null)
     }
-    val groupId = activeCharacterGroup?.id?.takeIf { it.isNotBlank() }
-    if (!groupId.isNullOrBlank()) {
-        return Pair(null, groupId)
+    return when (val prompt = activePrompt) {
+        is ActivePrompt.CharacterGroup -> Pair(null, prompt.id)
+        is ActivePrompt.CharacterCard -> Pair(activeCharacterCardName, null)
     }
-    return Pair(activeCharacterCard?.name, null)
 }
 
 private sealed interface HistoryListItem {
@@ -178,8 +178,7 @@ fun ChatHistorySelector(
         onDisplayModeChange: (ChatHistoryDisplayMode) -> Unit,
         autoSwitchCharacterCard: Boolean,
         onAutoSwitchCharacterCardChange: (Boolean) -> Unit,
-        activeCharacterCard: CharacterCard? = null,
-        activeCharacterGroup: CharacterGroupCard? = null
+        activePrompt: ActivePrompt
 ) {
     var chatToEdit by remember { mutableStateOf<ChatHistory?>(null) }
     var chatItemActionTarget by remember { mutableStateOf<ChatHistory?>(null) }
@@ -223,6 +222,13 @@ fun ChatHistorySelector(
     val groupNameById = remember(availableCharacterGroups, resolvedGroupNameById) {
         val fromList = availableCharacterGroups.associate { it.id to it.name }
         fromList + resolvedGroupNameById
+    }
+    val activeCharacterCardName = remember(activePrompt, availableCharacterCards) {
+        when (val prompt = activePrompt) {
+            is ActivePrompt.CharacterCard ->
+                availableCharacterCards.firstOrNull { it.id == prompt.id }?.name
+            is ActivePrompt.CharacterGroup -> null
+        }
     }
     val actualLazyListState = lazyListState ?: rememberLazyListState()
     val ungroupedText = stringResource(R.string.ungrouped)
@@ -300,7 +306,7 @@ fun ChatHistorySelector(
     }
 
     val unboundCharacterText = stringResource(R.string.unbound_character_card)
-    val groupPrefix = stringResource(R.string.character_groups)
+    val groupPrefix = stringResource(R.string.character_group_binding_prefix)
     val flatItems =
             remember(
                     filteredHistories,
@@ -312,7 +318,7 @@ fun ChatHistorySelector(
                     groupNameById,
                     groupPrefix,
                     historyDisplayMode,
-                    activeCharacterCard
+                    activeCharacterCardName
             ) {
                 fun characterKey(name: String) = "character::$name"
                 fun groupKey(characterName: String?, groupValue: String?): String {
@@ -414,7 +420,7 @@ fun ChatHistorySelector(
                                 val gKey = groupKey(null, groupValue)
                                 // 在仅显示当前角色卡模式下，使用当前角色卡名称
                                 val effectiveCharacterCardName = if (historyDisplayMode == ChatHistoryDisplayMode.CURRENT_CHARACTER_ONLY) {
-                                    activeCharacterCard?.name
+                                    activeCharacterCardName
                                 } else {
                                     null
                                 }
@@ -1098,7 +1104,7 @@ fun ChatHistorySelector(
         val unboundLabel = stringResource(R.string.unbound_character_card)
         val bindingLabel = stringResource(R.string.bind_character_card)
         val bindingHint = stringResource(R.string.chat_binding_scope_hint)
-        val groupPrefix = stringResource(R.string.character_groups)
+        val groupPrefix = stringResource(R.string.character_group_binding_prefix)
         val bindingOptions = remember(availableCharacterCards, availableCharacterGroups, unboundLabel, groupPrefix) {
             buildList {
                 add(ChatBindingOption(unboundLabel, null, null))
@@ -1401,8 +1407,8 @@ fun ChatHistorySelector(
                                     }
                                     val (characterCardName, characterGroupId) = resolveBindingForCreate(
                                         historyDisplayMode = historyDisplayMode,
-                                        activeCharacterCard = activeCharacterCard,
-                                        activeCharacterGroup = activeCharacterGroup
+                                        activePrompt = activePrompt,
+                                        activeCharacterCardName = activeCharacterCardName
                                     )
                                     onCreateGroup(normalizedGroupName, characterCardName, characterGroupId)
                                     newGroupName = ""
@@ -1492,8 +1498,8 @@ fun ChatHistorySelector(
                 onClick = { 
                     val (characterCardName, characterGroupId) = resolveBindingForCreate(
                         historyDisplayMode = historyDisplayMode,
-                        activeCharacterCard = activeCharacterCard,
-                        activeCharacterGroup = activeCharacterGroup
+                        activePrompt = activePrompt,
+                        activeCharacterCardName = activeCharacterCardName
                     )
                     onNewChat(characterCardName, characterGroupId)
                 },

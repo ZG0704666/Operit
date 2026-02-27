@@ -2543,7 +2543,7 @@
     <string name="function_type_file_binding">File Binding Processing</string>
     <string name="function_type_ui_controller">UI Controller</string>
     <string name="function_type_grep">Grep Retrieval</string>
-    <string name="function_type_role_response_planner">Role Response Planner</string>
+    <string name="function_type_role_response_planner">Group Planner</string>
 
     <!-- Function Descriptions -->
     <string name="function_desc_chat">Main chat function for daily conversation interaction with users</string>
@@ -2552,7 +2552,7 @@
     <string name="function_desc_file_binding">Process intelligent binding and mixing of file content, providing more precise code processing capabilities. Recommend using fast, inexpensive models like Gemini Flash, not recommended to use DeepSeek R1</string>
     <string name="function_desc_ui_controller">Used for automatic traversal and operation of UI interfaces. The corresponding UI controller model is only activated when the user explicitly requests to use an "agent" for control, for example by choosing dedicated models such as autoglm-phone-9b.</string>
     <string name="function_desc_grep">Used for grep_context planning and result filtering (multi-round grep_code)</string>
-    <string name="function_desc_role_response_planner">Dynamically plans role response order and skip decisions for the current turn</string>
+    <string name="function_desc_role_response_planner">Dynamically plans speaking order and skip decisions in groups, supports multi-turn discussions</string>
 
     <!-- Functional Prompt Config Screen -->
     <string name="advanced_config_notice">For advanced configurations like modifying system prompt templates, please go to the \"Manage All Prompts\" page.</string>
@@ -3753,17 +3753,17 @@
     <string name="character_card_other_content_placeholder">Character background, experiences, etc...</string>
     <string name="character_card_tags">Tags</string>
     <string name="character_card_no_custom_tags">No tags available. Please create them in settings.</string>
-    <string name="character_groups">Role Response Plans</string>
-    <string name="character_group_tab_placeholder">Configure a role response plan to let the system dynamically decide who responds and in what order per turn.</string>
-    <string name="character_group_empty_state">No role response plans yet</string>
+    <string name="character_groups">Groups</string>
+    <string name="character_group_tab_placeholder">Configure groups to let the system dynamically plan speaking order and support multi-turn discussions.</string>
+    <string name="character_group_empty_state">No groups yet</string>
     <string name="character_group_member_count">Members: %1$d</string>
-    <string name="create_character_group">Create Role Response Plan</string>
-    <string name="edit_character_group">Edit Role Response Plan</string>
-    <string name="delete_character_group">Delete Role Response Plan</string>
-    <string name="delete_character_group_confirm">Delete plan \"%1$s\"?</string>
-    <string name="role_response_planner_planning">Planning response order for this turn…</string>
+    <string name="create_character_group">Create Group</string>
+    <string name="edit_character_group">Edit Group</string>
+    <string name="delete_character_group">Delete Group</string>
+    <string name="delete_character_group_confirm">Delete group \"%1$s\"?</string>
+    <string name="role_response_planner_planning">Planning group speaking order…</string>
     <string name="role_response_planner_member_replying">Generating a reply from \"%1$s\"…</string>
-    <string name="role_response_planner_failed">Role response planning failed</string>
+    <string name="role_response_planner_failed">Group planning failed</string>
     <string name="group_members">Members</string>
     <string name="group_add_member">Add member</string>
     <string name="group_member_empty_hint">Add at least one character member</string>

@@ -39,7 +39,7 @@ internal typealias SaveThemeSettingsAction = (suspend () -> Unit) -> Unit
 @Composable
 internal fun ThemeSettingsCharacterBindingInfoCard(
     aiAvatarUri: String?,
-    activeCharacterName: String,
+    activeCharacterName: String?,
     isGroupTarget: Boolean,
     cardColors: CardColors,
 ) {
@@ -83,9 +83,9 @@ internal fun ThemeSettingsCharacterBindingInfoCard(
                 Text(
                     text =
                         if (isGroupTarget) {
-                            stringResource(R.string.current_character_group, activeCharacterName)
+                            stringResource(R.string.current_character_group, activeCharacterName ?: "")
                         } else {
-                            stringResource(R.string.current_character, activeCharacterName)
+                            stringResource(R.string.current_character, activeCharacterName ?: "")
                         },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,

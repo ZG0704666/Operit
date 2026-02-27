@@ -74,12 +74,12 @@ class CharacterCardManager private constructor(private val context: Context) {
     
     // 角色卡列表流
     val characterCardListFlow: Flow<List<String>> = dataStore.data.map { preferences ->
-        preferences[CHARACTER_CARD_LIST]?.toList() ?: listOf(DEFAULT_CHARACTER_CARD_ID)
+        preferences[CHARACTER_CARD_LIST]?.toList() ?: emptyList()
     }
     
-    // 活跃角色卡ID流
-    val activeCharacterCardIdFlow: Flow<String> = dataStore.data.map { preferences ->
-        preferences[ACTIVE_CHARACTER_CARD_ID] ?: DEFAULT_CHARACTER_CARD_ID
+    // 活跃角色卡ID流（可以为null）
+    val activeCharacterCardIdFlow: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[ACTIVE_CHARACTER_CARD_ID]
     }
     
     // 获取角色卡流
@@ -87,10 +87,14 @@ class CharacterCardManager private constructor(private val context: Context) {
         getCharacterCardFromPreferences(preferences, id)
     }
     
-    // 获取活跃角色卡流
-    val activeCharacterCardFlow: Flow<CharacterCard> = dataStore.data.map { preferences ->
-        val activeId = preferences[ACTIVE_CHARACTER_CARD_ID] ?: DEFAULT_CHARACTER_CARD_ID
-        getCharacterCardFromPreferences(preferences, activeId)
+    // 获取活跃角色卡流（可能为null）
+    val activeCharacterCardFlow: Flow<CharacterCard?> = dataStore.data.map { preferences ->
+        val activeId = preferences[ACTIVE_CHARACTER_CARD_ID]
+        if (activeId != null) {
+            getCharacterCardFromPreferences(preferences, activeId)
+        } else {
+            null
+        }
     }
     
     // 从Preferences中获取角色卡
@@ -275,7 +279,7 @@ class CharacterCardManager private constructor(private val context: Context) {
             
             // 如果这是活跃角色卡，切换到默认
             if (preferences[ACTIVE_CHARACTER_CARD_ID] == id) {
-                preferences[ACTIVE_CHARACTER_CARD_ID] = DEFAULT_CHARACTER_CARD_ID
+                preferences.remove(ACTIVE_CHARACTER_CARD_ID)
             }
         }
 
@@ -291,11 +295,18 @@ class CharacterCardManager private constructor(private val context: Context) {
         dataStore.edit { preferences ->
             preferences[ACTIVE_CHARACTER_CARD_ID] = id
         }
-        
+
         // 切换到对应角色卡的主题
         switchToCharacterCardTheme(id)
         // 切换到对应角色卡的Waifu模式配置
         switchToCharacterCardWaifuSettings(id)
+    }
+
+    // 清空活跃角色卡
+    suspend fun clearActiveCharacterCard() {
+        dataStore.edit { preferences ->
+            preferences.remove(ACTIVE_CHARACTER_CARD_ID)
+        }
     }
     
     // 组合提示词（角色设定 + 其他内容 + 标签 + 高级自定义）
@@ -347,14 +358,15 @@ class CharacterCardManager private constructor(private val context: Context) {
         dataStore.edit { preferences ->
             val cardListKey = CHARACTER_CARD_LIST
             val currentList = preferences[cardListKey]?.toMutableSet()
-            
+
             if (currentList == null || currentList.isEmpty()) {
                 isInitialized = true
                 // 首次安装，创建默认角色卡
                 val defaultCardId = DEFAULT_CHARACTER_CARD_ID
                 preferences[cardListKey] = setOf(defaultCardId)
-                preferences[ACTIVE_CHARACTER_CARD_ID] = defaultCardId
-                
+                // 不再自动设置活跃角色卡，让用户自己选择角色卡或群组
+                // preferences[ACTIVE_CHARACTER_CARD_ID] = defaultCardId
+
                 // 设置默认角色卡数据
                 setupDefaultCharacterCard(preferences, defaultCardId)
             }
@@ -1053,9 +1065,11 @@ class CharacterCardManager private constructor(private val context: Context) {
      */
     suspend fun saveThemeForActiveCharacterCard() {
         try {
-            val activeCardId = activeCharacterCardFlow.first().id
-            userPreferencesManager.saveCurrentThemeToCharacterCard(activeCardId)
-            AppLogger.d("CharacterCardManager", "已为角色卡 $activeCardId 保存主题配置")
+            val activeCard = activeCharacterCardFlow.first()
+            if (activeCard != null) {
+                userPreferencesManager.saveCurrentThemeToCharacterCard(activeCard.id)
+                AppLogger.d("CharacterCardManager", "已为角色卡 ${activeCard.id} 保存主题配置")
+            }
         } catch (e: Exception) {
             AppLogger.e("CharacterCardManager", "为活跃角色卡保存主题失败", e)
         }
@@ -1123,9 +1137,11 @@ class CharacterCardManager private constructor(private val context: Context) {
      */
     suspend fun saveWaifuSettingsForActiveCharacterCard() {
         try {
-            val activeCardId = activeCharacterCardFlow.first().id
-            waifuPreferences.saveCurrentWaifuSettingsToCharacterCard(activeCardId)
-            AppLogger.d("CharacterCardManager", "已为角色卡 $activeCardId 保存Waifu模式配置")
+            val activeCard = activeCharacterCardFlow.first()
+            if (activeCard != null) {
+                waifuPreferences.saveCurrentWaifuSettingsToCharacterCard(activeCard.id)
+                AppLogger.d("CharacterCardManager", "已为角色卡 ${activeCard.id} 保存Waifu模式配置")
+            }
         } catch (e: Exception) {
             AppLogger.e("CharacterCardManager", "为活跃角色卡保存Waifu配置失败", e)
         }
