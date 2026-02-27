@@ -120,6 +120,7 @@ class StandardTerminalCommandExecutor(private val context: Context) {
 
                 if (outputFlow != null) {
                     val events = mutableListOf<String>()
+                    var completionOutput: String? = null
                     var exitCode = 0
                     var hasCompleted = false
                     var didTimeout = false
@@ -127,7 +128,9 @@ class StandardTerminalCommandExecutor(private val context: Context) {
                     try {
                         withTimeout(timeout) {
                             outputFlow.collect { event ->
-                                if (event.outputChunk.isNotEmpty()) {
+                                if (event.isCompleted) {
+                                    completionOutput = event.outputChunk
+                                } else if (event.outputChunk.isNotEmpty()) {
                                     events.add(event.outputChunk)
                                 }
                                 if (event.isCompleted) {
@@ -143,7 +146,7 @@ class StandardTerminalCommandExecutor(private val context: Context) {
                         didTimeout = true
                     }
 
-                    val fullOutput = events.joinToString("")
+                    val fullOutput = completionOutput?.takeIf { it.isNotEmpty() } ?: events.joinToString("")
                     AppLogger.d(TAG, "Command output collected: '$fullOutput', exitCode: $exitCode")
                     val errorMessage =
                             when {

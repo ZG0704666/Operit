@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collect
+import java.util.UUID
 
 /**
  * 终端管理器
@@ -115,6 +116,7 @@ class Terminal private constructor(private val context: Context) {
     suspend fun executeCommand(sessionId: String, command: String): String? {
         val deferred = CompletableDeferred<String>()
         val output = StringBuilder()
+        var completionOutput: String? = null
         
         // 生成命令ID
         val commandId = java.util.UUID.randomUUID().toString()
@@ -127,9 +129,13 @@ class Terminal private constructor(private val context: Context) {
                 .filter { it.sessionId == sessionId && it.commandId == commandId }
                 .onStart { collectorReady.complete(Unit) } // 发出信号，表示已准备好收集
                 .collect { event ->
-                    output.append(event.outputChunk)
                     if (event.isCompleted) {
-                        deferred.complete(output.toString())
+                        completionOutput = event.outputChunk
+                    } else {
+                        output.append(event.outputChunk)
+                    }
+                    if (event.isCompleted) {
+                        deferred.complete(completionOutput?.takeIf { it.isNotEmpty() } ?: output.toString())
                     }
                 }
         }
@@ -153,16 +159,26 @@ class Terminal private constructor(private val context: Context) {
      */
     fun executeCommandFlow(sessionId: String, command: String): Flow<CommandExecutionEvent> {
         return channelFlow {
-            val commandId = terminalManager.sendCommandToSession(sessionId, command)
-            commandEvents
-                .filter { it.sessionId == sessionId && it.commandId == commandId }
-                .transformWhile { event ->
-                    emit(event)
-                    !event.isCompleted
-                }
-                .collect { sentEvent ->
-                    send(sentEvent)
-                }
+            val commandId = UUID.randomUUID().toString()
+            val collectorReady = CompletableDeferred<Unit>()
+
+            val collectorJob = launch {
+                commandEvents
+                    .filter { it.sessionId == sessionId && it.commandId == commandId }
+                    .onStart { collectorReady.complete(Unit) }
+                    .transformWhile { event ->
+                        emit(event)
+                        !event.isCompleted
+                    }
+                    .collect { sentEvent ->
+                        send(sentEvent)
+                    }
+            }
+
+            // 先确保事件收集器就绪，再发送命令，避免快命令输出在订阅前丢失。
+            collectorReady.await()
+            terminalManager.sendCommandToSession(sessionId, command, commandId)
+            collectorJob.join()
         }
     }
     

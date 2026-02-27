@@ -3,7 +3,10 @@ package com.ai.assistance.operit.core.tools.defaultTool.standard
 import android.content.Context
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.api.chat.llmprovider.ModelConfigConnectionTester
+import com.ai.assistance.operit.api.speech.SpeechServiceFactory
+import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.core.tools.FunctionModelBindingResultData
+import com.ai.assistance.operit.core.tools.FunctionModelConfigResultData
 import com.ai.assistance.operit.core.tools.FunctionModelConfigsResultData
 import com.ai.assistance.operit.core.tools.FunctionModelMappingResultItem
 import com.ai.assistance.operit.core.tools.ModelConfigConnectionTestItemResultData
@@ -13,6 +16,10 @@ import com.ai.assistance.operit.core.tools.ModelConfigDeleteResultData
 import com.ai.assistance.operit.core.tools.ModelConfigResultItem
 import com.ai.assistance.operit.core.tools.ModelConfigUpdateResultData
 import com.ai.assistance.operit.core.tools.ModelConfigsResultData
+import com.ai.assistance.operit.core.tools.SpeechServicesConfigResultData
+import com.ai.assistance.operit.core.tools.SpeechServicesUpdateResultData
+import com.ai.assistance.operit.core.tools.SpeechSttHttpConfigResultItem
+import com.ai.assistance.operit.core.tools.SpeechTtsHttpConfigResultItem
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
@@ -28,6 +35,7 @@ import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.FunctionConfigMapping
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
+import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingStateRegistry
 import com.ai.assistance.operit.ui.features.startup.screens.PluginStatus
 import kotlinx.coroutines.delay
@@ -236,6 +244,307 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
                     "Failed to update sandbox package switch: $packageName"
                 }
         )
+    }
+
+    suspend fun getSpeechServicesConfig(tool: AITool): ToolResult {
+        return try {
+            val prefs = SpeechServicesPreferences(context)
+            val ttsServiceType = prefs.ttsServiceTypeFlow.first()
+            val ttsHttpConfig = prefs.ttsHttpConfigFlow.first()
+            val ttsCleanerRegexs = prefs.ttsCleanerRegexsFlow.first()
+            val ttsSpeechRate = prefs.ttsSpeechRateFlow.first()
+            val ttsPitch = prefs.ttsPitchFlow.first()
+
+            val sttServiceType = prefs.sttServiceTypeFlow.first()
+            val sttHttpConfig = prefs.sttHttpConfigFlow.first()
+
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result =
+                    SpeechServicesConfigResultData(
+                        ttsServiceType = ttsServiceType.name,
+                        ttsHttpConfig =
+                            SpeechTtsHttpConfigResultItem(
+                                urlTemplate = ttsHttpConfig.urlTemplate,
+                                apiKeySet = ttsHttpConfig.apiKey.isNotBlank(),
+                                apiKeyPreview = maskSecret(ttsHttpConfig.apiKey),
+                                headers = ttsHttpConfig.headers,
+                                httpMethod = ttsHttpConfig.httpMethod,
+                                requestBody = ttsHttpConfig.requestBody,
+                                contentType = ttsHttpConfig.contentType,
+                                voiceId = ttsHttpConfig.voiceId,
+                                modelName = ttsHttpConfig.modelName
+                            ),
+                        ttsCleanerRegexs = ttsCleanerRegexs,
+                        ttsSpeechRate = ttsSpeechRate,
+                        ttsPitch = ttsPitch,
+                        sttServiceType = sttServiceType.name,
+                        sttHttpConfig =
+                            SpeechSttHttpConfigResultItem(
+                                endpointUrl = sttHttpConfig.endpointUrl,
+                                apiKeySet = sttHttpConfig.apiKey.isNotBlank(),
+                                apiKeyPreview = maskSecret(sttHttpConfig.apiKey),
+                                modelName = sttHttpConfig.modelName
+                            )
+                    )
+            )
+        } catch (e: Exception) {
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = e.message ?: "Failed to get speech services config"
+            )
+        }
+    }
+
+    suspend fun setSpeechServicesConfig(tool: AITool): ToolResult {
+        return try {
+            val prefs = SpeechServicesPreferences(context)
+
+            val currentTtsServiceType = prefs.ttsServiceTypeFlow.first()
+            val currentTtsHttpConfig = prefs.ttsHttpConfigFlow.first()
+            val currentTtsCleanerRegexs = prefs.ttsCleanerRegexsFlow.first()
+            val currentTtsSpeechRate = prefs.ttsSpeechRateFlow.first()
+            val currentTtsPitch = prefs.ttsPitchFlow.first()
+
+            val currentSttServiceType = prefs.sttServiceTypeFlow.first()
+            val currentSttHttpConfig = prefs.sttHttpConfigFlow.first()
+
+            val hasField = { name: String -> tool.parameters.any { it.name == name } }
+
+            val ttsServiceType =
+                getParameterValue(tool, "tts_service_type")?.let { raw ->
+                    VoiceServiceFactory.VoiceServiceType.values().firstOrNull {
+                        it.name.equals(raw.trim(), ignoreCase = true)
+                    } ?: throw IllegalArgumentException("Invalid tts_service_type: $raw")
+                } ?: currentTtsServiceType
+
+            val sttServiceType =
+                getParameterValue(tool, "stt_service_type")?.let { raw ->
+                    when {
+                        raw.trim().equals("SHERPA_MNN", ignoreCase = true) ->
+                            SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN
+
+                        else ->
+                            SpeechServiceFactory.SpeechServiceType.values().firstOrNull {
+                                it.name.equals(raw.trim(), ignoreCase = true)
+                            } ?: throw IllegalArgumentException("Invalid stt_service_type: $raw")
+                    }
+                } ?: currentSttServiceType
+
+            val ttsHeaders =
+                if (hasField("tts_headers")) {
+                    val raw = getParameterValue(tool, "tts_headers").orEmpty().trim()
+                    if (raw.isBlank()) {
+                        emptyMap()
+                    } else {
+                        val jsonObj =
+                            try {
+                                JSONObject(raw)
+                            } catch (_: Exception) {
+                                throw IllegalArgumentException("Invalid JSON object parameter: tts_headers")
+                            }
+                        val headers = mutableMapOf<String, String>()
+                        jsonObj.keys().forEach { key ->
+                            headers[key] = jsonObj.optString(key, "")
+                        }
+                        headers
+                    }
+                } else {
+                    currentTtsHttpConfig.headers
+                }
+
+            val ttsCleanerRegexs =
+                if (hasField("tts_cleaner_regexs")) {
+                    val raw = getParameterValue(tool, "tts_cleaner_regexs").orEmpty().trim()
+                    if (raw.isBlank()) {
+                        emptyList()
+                    } else {
+                        val arr =
+                            try {
+                                JSONArray(raw)
+                            } catch (_: Exception) {
+                                throw IllegalArgumentException(
+                                    "Invalid JSON array parameter: tts_cleaner_regexs"
+                                )
+                            }
+                        buildList {
+                            for (i in 0 until arr.length()) {
+                                val item = arr.optString(i, "").trim()
+                                if (item.isNotBlank()) add(item)
+                            }
+                        }
+                    }
+                } else {
+                    currentTtsCleanerRegexs
+                }
+
+            val ttsHttpMethod =
+                if (hasField("tts_http_method")) {
+                    val method = getParameterValue(tool, "tts_http_method").orEmpty().trim().uppercase()
+                    if (method != "GET" && method != "POST") {
+                        throw IllegalArgumentException("Invalid tts_http_method: $method (expected GET/POST)")
+                    }
+                    method
+                } else {
+                    currentTtsHttpConfig.httpMethod
+                }
+
+            val ttsSpeechRate =
+                if (hasField("tts_speech_rate")) {
+                    getParameterValue(tool, "tts_speech_rate")?.trim()?.toFloatOrNull()
+                        ?: throw IllegalArgumentException("Invalid number parameter: tts_speech_rate")
+                } else {
+                    currentTtsSpeechRate
+                }
+
+            val ttsPitch =
+                if (hasField("tts_pitch")) {
+                    getParameterValue(tool, "tts_pitch")?.trim()?.toFloatOrNull()
+                        ?: throw IllegalArgumentException("Invalid number parameter: tts_pitch")
+                } else {
+                    currentTtsPitch
+                }
+
+            val ttsHttpConfig =
+                currentTtsHttpConfig.copy(
+                    urlTemplate =
+                        if (hasField("tts_url_template")) {
+                            getParameterValue(tool, "tts_url_template").orEmpty().trim()
+                        } else {
+                            currentTtsHttpConfig.urlTemplate
+                        },
+                    apiKey =
+                        if (hasField("tts_api_key")) {
+                            getParameterValue(tool, "tts_api_key").orEmpty().trim()
+                        } else {
+                            currentTtsHttpConfig.apiKey
+                        },
+                    headers = ttsHeaders,
+                    httpMethod = ttsHttpMethod,
+                    requestBody =
+                        if (hasField("tts_request_body")) {
+                            getParameterValue(tool, "tts_request_body").orEmpty()
+                        } else {
+                            currentTtsHttpConfig.requestBody
+                        },
+                    contentType =
+                        if (hasField("tts_content_type")) {
+                            getParameterValue(tool, "tts_content_type").orEmpty().trim()
+                        } else {
+                            currentTtsHttpConfig.contentType
+                        },
+                    voiceId =
+                        if (hasField("tts_voice_id")) {
+                            getParameterValue(tool, "tts_voice_id").orEmpty().trim()
+                        } else {
+                            currentTtsHttpConfig.voiceId
+                        },
+                    modelName =
+                        if (hasField("tts_model_name")) {
+                            getParameterValue(tool, "tts_model_name").orEmpty().trim()
+                        } else {
+                            currentTtsHttpConfig.modelName
+                        }
+                )
+
+            val sttHttpConfig =
+                currentSttHttpConfig.copy(
+                    endpointUrl =
+                        if (hasField("stt_endpoint_url")) {
+                            getParameterValue(tool, "stt_endpoint_url").orEmpty().trim()
+                        } else {
+                            currentSttHttpConfig.endpointUrl
+                        },
+                    apiKey =
+                        if (hasField("stt_api_key")) {
+                            getParameterValue(tool, "stt_api_key").orEmpty().trim()
+                        } else {
+                            currentSttHttpConfig.apiKey
+                        },
+                    modelName =
+                        if (hasField("stt_model_name")) {
+                            getParameterValue(tool, "stt_model_name").orEmpty().trim()
+                        } else {
+                            currentSttHttpConfig.modelName
+                        }
+                )
+
+            val updateFieldNames =
+                listOf(
+                    "tts_service_type",
+                    "tts_url_template",
+                    "tts_api_key",
+                    "tts_headers",
+                    "tts_http_method",
+                    "tts_request_body",
+                    "tts_content_type",
+                    "tts_voice_id",
+                    "tts_model_name",
+                    "tts_cleaner_regexs",
+                    "tts_speech_rate",
+                    "tts_pitch",
+                    "stt_service_type",
+                    "stt_endpoint_url",
+                    "stt_api_key",
+                    "stt_model_name"
+                ).filter { hasField(it) }
+            val hasAnyUpdate = updateFieldNames.isNotEmpty()
+
+            if (!hasAnyUpdate) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "No update fields provided for speech services config"
+                )
+            }
+
+            prefs.saveTtsSettings(
+                serviceType = ttsServiceType,
+                httpConfig = ttsHttpConfig,
+                cleanerRegexs = ttsCleanerRegexs,
+                speechRate = ttsSpeechRate,
+                pitch = ttsPitch
+            )
+            prefs.saveSttSettings(
+                serviceType = sttServiceType,
+                httpConfig = sttHttpConfig
+            )
+
+            VoiceServiceFactory.resetInstance()
+            SpeechServiceFactory.resetInstance()
+
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result =
+                    SpeechServicesUpdateResultData(
+                        updated = true,
+                        changedFields = updateFieldNames,
+                        ttsServiceType = ttsServiceType.name,
+                        sttServiceType = sttServiceType.name,
+                        ttsApiKeySet = ttsHttpConfig.apiKey.isNotBlank(),
+                        sttApiKeySet = sttHttpConfig.apiKey.isNotBlank()
+                    )
+            )
+        } catch (e: IllegalArgumentException) {
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = e.message ?: "Invalid parameter"
+            )
+        } catch (e: Exception) {
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = e.message ?: "Failed to set speech services config"
+            )
+        }
     }
 
     suspend fun listModelConfigs(tool: AITool): ToolResult {
@@ -498,30 +807,21 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
 
     suspend fun listFunctionModelConfigs(tool: AITool): ToolResult {
         return try {
-            val modelConfigManager = ModelConfigManager(context)
             val functionalConfigManager = FunctionalConfigManager(context)
-            modelConfigManager.initializeIfNeeded()
             functionalConfigManager.initializeIfNeeded()
 
             val mappingWithIndex = functionalConfigManager.functionConfigMappingWithIndexFlow.first()
-            val configCache = mutableMapOf<String, ModelConfigData?>()
 
             val mappings = mutableListOf<FunctionModelMappingResultItem>()
             FunctionType.values().forEach { functionType ->
                 val mapping =
                     mappingWithIndex[functionType]
                         ?: FunctionConfigMapping(FunctionalConfigManager.DEFAULT_CONFIG_ID, 0)
-                val config =
-                    configCache.getOrPut(mapping.configId) { modelConfigManager.getModelConfig(mapping.configId) }
-                val actualIndex = config?.let { getValidModelIndex(it.modelName, mapping.modelIndex) } ?: 0
                 mappings.add(
                     FunctionModelMappingResultItem(
                         functionType = functionType.name,
                         configId = mapping.configId,
-                        configName = config?.name,
-                        modelIndex = mapping.modelIndex,
-                        actualModelIndex = actualIndex,
-                        selectedModel = config?.let { getModelByIndex(it.modelName, actualIndex) }
+                        modelIndex = mapping.modelIndex
                     )
                 )
             }
@@ -541,6 +841,74 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
                 success = false,
                 result = StringResultData(""),
                 error = e.message ?: "Failed to list function model configs"
+            )
+        }
+    }
+
+    suspend fun getFunctionModelConfig(tool: AITool): ToolResult {
+        val functionTypeRaw = getParameterValue(tool, "function_type")?.trim().orEmpty()
+        if (functionTypeRaw.isBlank()) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Missing required parameter: function_type"
+            )
+        }
+
+        return try {
+            val functionType =
+                parseFunctionType(functionTypeRaw)
+                    ?: return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Invalid function_type: $functionTypeRaw"
+                    )
+
+            val modelConfigManager = ModelConfigManager(context)
+            val functionalConfigManager = FunctionalConfigManager(context)
+            modelConfigManager.initializeIfNeeded()
+            functionalConfigManager.initializeIfNeeded()
+
+            val mappingWithIndex = functionalConfigManager.functionConfigMappingWithIndexFlow.first()
+            val mapping =
+                mappingWithIndex[functionType]
+                    ?: FunctionConfigMapping(FunctionalConfigManager.DEFAULT_CONFIG_ID, 0)
+
+            val config =
+                modelConfigManager.getModelConfig(mapping.configId)
+                    ?: return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Model config not found: ${mapping.configId}"
+                    )
+
+            val actualModelIndex = getValidModelIndex(config.modelName, mapping.modelIndex)
+            val selectedModel = getModelByIndex(config.modelName, actualModelIndex)
+
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result =
+                    FunctionModelConfigResultData(
+                        defaultConfigId = FunctionalConfigManager.DEFAULT_CONFIG_ID,
+                        functionType = functionType.name,
+                        configId = mapping.configId,
+                        configName = config.name,
+                        modelIndex = mapping.modelIndex,
+                        actualModelIndex = actualModelIndex,
+                        selectedModel = selectedModel,
+                        config = modelConfigToResultItem(config)
+                    )
+            )
+        } catch (e: Exception) {
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = e.message ?: "Failed to get function model config"
             )
         }
     }
@@ -842,6 +1210,15 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
             changedFields.add(name)
         }
 
+        fun applyFloat(name: String, transform: (ModelConfigData, Float) -> ModelConfigData) {
+            val raw = getParameterValue(tool, name) ?: return
+            val parsed =
+                raw.trim().toFloatOrNull()
+                    ?: throw IllegalArgumentException("Invalid number parameter: $name")
+            updated = transform(updated, parsed)
+            changedFields.add(name)
+        }
+
         fun applyBoolean(name: String, transform: (ModelConfigData, Boolean) -> ModelConfigData) {
             val raw = getParameterValue(tool, name) ?: return
             val parsed =
@@ -865,6 +1242,58 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
                     ?: throw IllegalArgumentException("Invalid api_provider_type: $raw")
             updated = updated.copy(apiProviderType = provider)
             changedFields.add("api_provider_type")
+        }
+
+        applyBoolean("max_tokens_enabled") { config, value -> config.copy(maxTokensEnabled = value) }
+        applyInt("max_tokens") { config, value -> config.copy(maxTokens = value.coerceAtLeast(1)) }
+        applyBoolean("temperature_enabled") { config, value -> config.copy(temperatureEnabled = value) }
+        applyFloat("temperature") { config, value -> config.copy(temperature = value) }
+        applyBoolean("top_p_enabled") { config, value -> config.copy(topPEnabled = value) }
+        applyFloat("top_p") { config, value -> config.copy(topP = value) }
+        applyBoolean("top_k_enabled") { config, value -> config.copy(topKEnabled = value) }
+        applyInt("top_k") { config, value -> config.copy(topK = value.coerceAtLeast(0)) }
+        applyBoolean("presence_penalty_enabled") { config, value ->
+            config.copy(presencePenaltyEnabled = value)
+        }
+        applyFloat("presence_penalty") { config, value -> config.copy(presencePenalty = value) }
+        applyBoolean("frequency_penalty_enabled") { config, value ->
+            config.copy(frequencyPenaltyEnabled = value)
+        }
+        applyFloat("frequency_penalty") { config, value -> config.copy(frequencyPenalty = value) }
+        applyBoolean("repetition_penalty_enabled") { config, value ->
+            config.copy(repetitionPenaltyEnabled = value)
+        }
+        applyFloat("repetition_penalty") { config, value -> config.copy(repetitionPenalty = value) }
+        applyFloat("context_length") { config, value ->
+            config.copy(contextLength = value.coerceAtLeast(1f))
+        }
+        applyFloat("max_context_length") { config, value ->
+            config.copy(maxContextLength = value.coerceAtLeast(1f))
+        }
+        applyBoolean("enable_max_context_mode") { config, value ->
+            config.copy(enableMaxContextMode = value)
+        }
+        applyFloat("summary_token_threshold") { config, value ->
+            config.copy(summaryTokenThreshold = value.coerceIn(0f, 1f))
+        }
+        applyBoolean("enable_summary") { config, value -> config.copy(enableSummary = value) }
+        applyBoolean("enable_summary_by_message_count") { config, value ->
+            config.copy(enableSummaryByMessageCount = value)
+        }
+        applyInt("summary_message_count_threshold") { config, value ->
+            config.copy(summaryMessageCountThreshold = value.coerceAtLeast(1))
+        }
+        applyString("custom_parameters") { config, value ->
+            val json = value.ifBlank { "[]" }
+            try {
+                JSONArray(json)
+            } catch (e: Exception) {
+                throw IllegalArgumentException("Invalid JSON array parameter: custom_parameters")
+            }
+            config.copy(
+                customParameters = json,
+                hasCustomParameters = json != "[]"
+            )
         }
 
         applyInt("mnn_forward_type") { config, value -> config.copy(mnnForwardType = value) }
@@ -915,6 +1344,29 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
             modelList = getModelList(config.modelName),
             apiKeySet = config.apiKey.isNotBlank(),
             apiKeyPreview = maskSecret(config.apiKey),
+            maxTokensEnabled = config.maxTokensEnabled,
+            maxTokens = config.maxTokens,
+            temperatureEnabled = config.temperatureEnabled,
+            temperature = config.temperature,
+            topPEnabled = config.topPEnabled,
+            topP = config.topP,
+            topKEnabled = config.topKEnabled,
+            topK = config.topK,
+            presencePenaltyEnabled = config.presencePenaltyEnabled,
+            presencePenalty = config.presencePenalty,
+            frequencyPenaltyEnabled = config.frequencyPenaltyEnabled,
+            frequencyPenalty = config.frequencyPenalty,
+            repetitionPenaltyEnabled = config.repetitionPenaltyEnabled,
+            repetitionPenalty = config.repetitionPenalty,
+            hasCustomParameters = config.hasCustomParameters,
+            customParameters = config.customParameters,
+            contextLength = config.contextLength,
+            maxContextLength = config.maxContextLength,
+            enableMaxContextMode = config.enableMaxContextMode,
+            summaryTokenThreshold = config.summaryTokenThreshold,
+            enableSummary = config.enableSummary,
+            enableSummaryByMessageCount = config.enableSummaryByMessageCount,
+            summaryMessageCountThreshold = config.summaryMessageCountThreshold,
             mnnForwardType = config.mnnForwardType,
             mnnThreadCount = config.mnnThreadCount,
             llamaThreadCount = config.llamaThreadCount,

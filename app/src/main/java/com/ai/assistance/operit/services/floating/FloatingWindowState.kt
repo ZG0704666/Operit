@@ -43,6 +43,9 @@ class FloatingWindowState(context: Context) {
     // Ball explosion animation state
     val ballExploding = mutableStateOf(false)
 
+    // Whether system-level cross-window blur is actually active for fullscreen
+    val fullscreenSystemBlurActive = mutableStateOf(false)
+
     init {
         val displayMetrics = context.resources.displayMetrics
         screenWidthDp = (displayMetrics.widthPixels / displayMetrics.density).dp

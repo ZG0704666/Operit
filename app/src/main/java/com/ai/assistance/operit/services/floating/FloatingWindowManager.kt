@@ -604,17 +604,29 @@ class FloatingWindowManager(
 
     private fun applyFullscreenBlur(params: WindowManager.LayoutParams, enabled: Boolean) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            AppLogger.d(TAG, "Fullscreen blur skipped: API < 31")
+            state.fullscreenSystemBlurActive.value = false
             return
         }
+        val crossWindowBlurEnabled = windowManager.isCrossWindowBlurEnabled
         if (enabled) {
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
             val density = context.resources.displayMetrics.density
             val blurRadiusPx = (FULLSCREEN_BLUR_RADIUS_DP * density).toInt()
             params.setBlurBehindRadius(blurRadiusPx)
+            AppLogger.d(
+                TAG,
+                "Fullscreen blur enabled: radiusPx=$blurRadiusPx, crossWindowBlurEnabled=$crossWindowBlurEnabled"
+            )
         } else {
             params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
             params.setBlurBehindRadius(0)
+            AppLogger.d(
+                TAG,
+                "Fullscreen blur disabled: crossWindowBlurEnabled=$crossWindowBlurEnabled"
+            )
         }
+        state.fullscreenSystemBlurActive.value = enabled && crossWindowBlurEnabled
     }
 
     private fun isAtEdge(x: Int, width: Int): Boolean {

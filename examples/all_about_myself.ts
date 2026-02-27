@@ -6,8 +6,8 @@
     en: "Operit Config Editor"
   }
   description: {
-    zh: '''配置排查手册：用于处理 MCP、Skill、Sandbox Package，以及功能模型与模型配置的安装、部署、启动、导入、开关与测试。'''
-    en: '''Configuration troubleshooting guide for MCP, Skill, Sandbox Package, and function/model-configuration setup, deployment, startup, import, toggles, and testing.'''
+    zh: '''软件设置直改工具包：提供一组可直接读取与修改 Operit 设置的工具，覆盖 MCP、Skill、Sandbox Package、功能模型绑定、模型参数、上下文总结与 TTS/STT 语音服务配置。'''
+    en: '''Direct software-settings toolkit: a collection of tools for reading and directly modifying Operit settings, covering MCP, Skill, Sandbox Package, function-model bindings, model parameters, context-summary settings, and TTS/STT speech-service configuration.'''
   }
 
   enabledByDefault: true
@@ -24,6 +24,7 @@
 - 用户提到沙盒包（Package）开关、内置包列表、导入删除路径、包启用状态异常
 - 用户让你排查 Operit 的插件配置路径、部署目录、开关状态、环境变量
 - 用户提到功能模型绑定、模型配置新增/删除/修改、模型连接测试
+- 用户提到 TTS/STT 语音服务不会配置、参数太多不会填、语音播报/语音识别不可用
 - 问题核心是“配置和部署链路”，而不是普通问答
 
 【MCP：安装与排查】
@@ -136,11 +137,78 @@
 - `create_model_config`：新增模型配置（可带初始 provider/endpoint/key/model_name）。
 - `update_model_config`：修改已有配置（按 config_id）。
 - `delete_model_config`：删除配置（默认配置不可删）。
-- `list_function_model_configs`：查看功能 -> 配置绑定关系。
+- `list_function_model_configs`：仅列出功能 -> 配置绑定关系（轻量）。
+- `get_function_model_config`：查看某个功能当前绑定的单个配置详情。
 - `set_function_model_config`：为功能指定配置与模型索引。
 - `test_model_config_connection`：按设置页同等逻辑测试配置连通与多模态能力。
 4) 配置修改后：
 - 若该配置被某些功能使用，系统会刷新对应功能服务；绑定变更也会刷新目标功能服务。
+5) 用户抱怨“输出总被截断”时：
+- 可先用 `get_function_model_config` 查看对应功能绑定配置里的 `max_tokens` 参数。
+- 对 DeepSeek 来说，默认常见是 4096；可将 `max_tokens_enabled` 打开并把 `max_tokens` 设到 8192 再测试。
+- 对其他模型，先联网确认该模型可支持的输出上限后再设置。
+
+【上下文总结模块（Context Summary）】
+1) 用途：
+- 控制会话上下文窗口与“何时触发总结”，用于降低上下文膨胀导致的丢信息、跑偏或响应不稳定。
+- 只有当前对话功能模型（CHAT）所绑定配置里的上下文总结参数，会在实际对话中生效。
+2) 核心机制说明：
+- 软件内有一个 max 开关，即 `enable_max_context_mode`。
+- 开启时使用 `max_context_length`，关闭时使用 `context_length`，目标是为用户节约 token，并按场景动态决定使用长度。
+- `enable_summary` 控制是否自动总结；当上下文超过 `summary_token_threshold * 当前可用上下文长度` 时，会触发总结。
+3) 建议排查顺序：
+- 先用 `get_context_summary_config` 看当前功能绑定配置的上下文总结参数。
+- 再用 `set_context_summary_config` 设置上下文总结参数（可传入参数覆盖默认值）。
+- 若仍异常，再结合具体模型能力与业务负载做细调。
+
+【TTS/STT 语音服务配置】
+1) 配置入口：
+- 在软件设置里的 Speech Services（语音服务）页面配置。
+- 该页面会自动保存；改完后语音服务实例会自动重建。
+2) TTS（文本转语音）可选引擎：
+- `SIMPLE_TTS`：系统 TTS，基本无需填网络参数。
+- `HTTP_TTS`：需重点填写 `url_template`、`headers`、`http_method`、`content_type`、`request_body`。
+- `SILICONFLOW_TTS`：需填写 `api_key`、`model_name`、`voice_id`。
+- `OPENAI_TTS`：需填写 `url_template`、`api_key`、`model_name`、`voice_id`。
+3) STT（语音转文本）可选引擎：
+- `SHERPA_NCNN`：本地识别，通常无需 API Key。
+- `OPENAI_STT`：需填写 `endpoint_url`、`api_key`、`model_name`。
+- `DEEPGRAM_STT`：需填写 `endpoint_url`、`api_key`、`model_name`。
+4) 最常见填错点（优先检查）：
+- `HTTP_TTS` 的 `headers` 不是合法 JSON（必须是对象）。
+- `HTTP_TTS` 的模板没放 `{text}` 占位符（GET 通常在 URL，POST 通常在 body）。
+- TTS/STT 的 endpoint 路径写错（比如把 chat/completions 写成 audio 接口）。
+- `model_name` 填了不存在的模型或与接口不匹配。
+- 改完配置后没有重新测试语音播报或语音识别。
+5) HTTP_TTS 占位符说明（按代码逻辑）：
+- 必填占位符：`{text}`。
+  - 当 `http_method=GET` 时，`{text}` 必须在 `url_template` 里。
+  - 当 `http_method=POST` 时，`{text}` 必须在 `request_body` 里。
+- 可选占位符：`{rate}`、`{pitch}`、`{voice}`。
+- 当前对外可稳定使用的占位符只有：`{text}`、`{rate}`、`{pitch}`、`{voice}`。
+6) 可直接参考的最小模板：
+- HTTP TTS（GET）：
+  - `url_template`: `https://example.com/tts?text={text}`
+  - `headers`: `{}`
+  - `http_method`: `GET`
+  - `content_type`: `application/json`
+- HTTP TTS（POST）：
+  - `url_template`: `https://example.com/tts`
+  - `headers`: `{"Authorization":"Bearer <API_KEY>"}`
+  - `http_method`: `POST`
+  - `content_type`: `application/json`
+  - `request_body`: `{"text":"{text}"}`
+- OpenAI STT（默认常见）：
+  - `endpoint_url`: `https://api.openai.com/v1/audio/transcriptions`
+  - `model_name`: `whisper-1`
+7) 排查顺序（建议）：
+- 先确认选中的引擎类型是否正确（TTS 与 STT 分开看）。
+- 再检查 endpoint / key / model 三件套是否完整。
+- 再检查 HTTP 模板字段（headers JSON、method、body、占位符）。
+- 最后做一次真实语音测试（播报 + 识别），看是否能端到端通过。
+8) 对应工具（可直接用）：
+- `get_speech_services_config`：获取当前 TTS/STT 配置快照（含引擎类型与关键字段）。
+- `set_speech_services_config`：按字段修改 TTS/STT 配置（支持只改部分字段）。
 
 【多模态输入规则】
 1) 能力开关含义：
@@ -171,6 +239,7 @@
 - The user mentions sandbox package toggles, built-in package listing, import/delete paths, or package enable-state issues
 - The user asks to troubleshoot plugin config paths, deploy directories, enable switches, or environment variables
 - The user mentions function model bindings, adding/deleting/updating model configs, or testing model connectivity
+- The user says TTS/STT setup is confusing, too many fields to fill, or speech playback/recognition is not working
 - The core issue is configuration/deployment flow rather than normal Q&A
 
 [MCP: install and troubleshooting]
@@ -283,11 +352,78 @@
 - `create_model_config`: create a new model config (with optional initial provider/endpoint/key/model_name).
 - `update_model_config`: update an existing config by config_id.
 - `delete_model_config`: delete a config (default cannot be deleted).
-- `list_function_model_configs`: list current function -> config bindings.
+- `list_function_model_configs`: list function -> config bindings only (lightweight).
+- `get_function_model_config`: get one bound config detail by function type.
 - `set_function_model_config`: assign config and model index for a function.
 - `test_model_config_connection`: run settings-UI-equivalent connectivity/capability checks for a config.
 4) After config changes:
 - If a config is used by functions, corresponding function services are refreshed; binding updates also refresh target function service.
+5) When users complain about truncated outputs:
+- Use `get_function_model_config` to inspect `max_tokens` in the bound config for that function.
+- For DeepSeek, a common default is 4096; enable `max_tokens_enabled` and try setting `max_tokens` to 8192.
+- For other models, verify the supported output-token limit online before changing values.
+
+[Context summary module]
+1) Purpose:
+- Controls context window behavior and summary-trigger conditions to reduce context bloat, drift, and unstable long-chat responses.
+- Only context-summary settings on the config currently bound to CHAT are effective in real conversation.
+2) Core mechanism:
+- There is a max switch in the app: `enable_max_context_mode`.
+- When enabled, it uses `max_context_length`; when disabled, it uses `context_length`, so context length can be chosen dynamically to save tokens.
+- `enable_summary` controls automatic summarization. When context exceeds `summary_token_threshold * current available context length`, summarization is triggered.
+3) Recommended troubleshooting flow:
+- Use `get_context_summary_config` to inspect current context-summary fields for a function.
+- Use `set_context_summary_config` to set context-summary fields (you can override default values via params).
+- If issues remain, fine-tune based on real model capability and workload.
+
+[TTS/STT speech-service configuration]
+1) Where to configure:
+- Configure it on the Speech Services page in app settings.
+- The page auto-saves; after changes, speech-service instances are rebuilt automatically.
+2) TTS (text-to-speech) engines:
+- `SIMPLE_TTS`: system TTS, usually no network fields required.
+- `HTTP_TTS`: mainly fill `url_template`, `headers`, `http_method`, `content_type`, `request_body`.
+- `SILICONFLOW_TTS`: fill `api_key`, `model_name`, `voice_id`.
+- `OPENAI_TTS`: fill `url_template`, `api_key`, `model_name`, `voice_id`.
+3) STT (speech-to-text) engines:
+- `SHERPA_NCNN`: local recognition, usually no API key required.
+- `OPENAI_STT`: fill `endpoint_url`, `api_key`, `model_name`.
+- `DEEPGRAM_STT`: fill `endpoint_url`, `api_key`, `model_name`.
+4) Most common mistakes (check first):
+- `headers` in `HTTP_TTS` is not valid JSON (must be an object).
+- Missing `{text}` placeholder in HTTP TTS template (typically in URL for GET, in body for POST).
+- Wrong endpoint path for TTS/STT (for example using chat/completions instead of audio endpoints).
+- `model_name` does not exist or does not match the API.
+- No real retest after saving config.
+5) HTTP_TTS placeholder rules (from implementation):
+- Required placeholder: `{text}`.
+  - When `http_method=GET`, `{text}` must appear in `url_template`.
+  - When `http_method=POST`, `{text}` must appear in `request_body`.
+- Optional placeholders: `{rate}`, `{pitch}`, `{voice}`.
+- Only these placeholders are stably supported for external configuration: `{text}`, `{rate}`, `{pitch}`, `{voice}`.
+6) Minimal templates you can copy:
+- HTTP TTS (GET):
+  - `url_template`: `https://example.com/tts?text={text}`
+  - `headers`: `{}`
+  - `http_method`: `GET`
+  - `content_type`: `application/json`
+- HTTP TTS (POST):
+  - `url_template`: `https://example.com/tts`
+  - `headers`: `{"Authorization":"Bearer <API_KEY>"}`
+  - `http_method`: `POST`
+  - `content_type`: `application/json`
+  - `request_body`: `{"text":"{text}"}`
+- OpenAI STT (common default):
+  - `endpoint_url`: `https://api.openai.com/v1/audio/transcriptions`
+  - `model_name`: `whisper-1`
+7) Recommended troubleshooting order:
+- Confirm the selected engine type first (TTS and STT separately).
+- Check endpoint/key/model as a bundle.
+- Then verify HTTP template fields (headers JSON, method, body, placeholder).
+- Finally run real voice tests (playback + recognition) end to end.
+8) Related tools:
+- `get_speech_services_config`: fetch current TTS/STT config snapshot (engine types + key fields).
+- `set_speech_services_config`: update TTS/STT config fields (partial update supported).
 
 [Multimodal input rules]
 1) Meaning of capability switches:
@@ -422,6 +558,167 @@
       ]
     },
     {
+      name: "get_speech_services_config"
+      description: {
+        zh: '''获取当前 TTS/STT 语音服务配置快照。'''
+        en: '''Get current TTS/STT speech services config snapshot.'''
+      }
+      parameters: []
+    },
+    {
+      name: "set_speech_services_config"
+      description: {
+        zh: '''按字段更新 TTS/STT 语音服务配置（支持部分字段更新）。'''
+        en: '''Update TTS/STT speech services config by fields (partial update supported).'''
+      }
+      parameters: [
+        {
+          name: "tts_service_type"
+          description: {
+            zh: "可选，SIMPLE_TTS/HTTP_TTS/SILICONFLOW_TTS/OPENAI_TTS"
+            en: "Optional, SIMPLE_TTS/HTTP_TTS/SILICONFLOW_TTS/OPENAI_TTS"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_url_template"
+          description: {
+            zh: "可选，TTS URL 模板。仅支持 `{text}`、`{rate}`、`{pitch}`、`{voice}`"
+            en: "Optional TTS URL template. Supports only `{text}`, `{rate}`, `{pitch}`, `{voice}`"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_api_key"
+          description: {
+            zh: "可选，TTS API Key"
+            en: "Optional TTS API key"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_headers"
+          description: {
+            zh: "可选，TTS headers 的 JSON 对象字符串"
+            en: "Optional JSON object string for TTS headers"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_http_method"
+          description: {
+            zh: "可选，GET/POST"
+            en: "Optional, GET/POST"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_request_body"
+          description: {
+            zh: "可选，TTS POST body 模板。仅支持 `{text}`、`{rate}`、`{pitch}`、`{voice}`"
+            en: "Optional TTS POST body template. Supports only `{text}`, `{rate}`, `{pitch}`, `{voice}`"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_content_type"
+          description: {
+            zh: "可选，TTS Content-Type"
+            en: "Optional TTS content type"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_voice_id"
+          description: {
+            zh: "可选，TTS 音色 ID"
+            en: "Optional TTS voice id"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_model_name"
+          description: {
+            zh: "可选，TTS 模型名"
+            en: "Optional TTS model name"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_cleaner_regexs"
+          description: {
+            zh: "可选，TTS 清理正则列表 JSON 数组字符串"
+            en: "Optional JSON array string for TTS cleaner regex list"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "tts_speech_rate"
+          description: {
+            zh: "可选，TTS 语速"
+            en: "Optional TTS speech rate"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "tts_pitch"
+          description: {
+            zh: "可选，TTS 音调"
+            en: "Optional TTS pitch"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "stt_service_type"
+          description: {
+            zh: "可选，SHERPA_NCNN/OPENAI_STT/DEEPGRAM_STT"
+            en: "Optional, SHERPA_NCNN/OPENAI_STT/DEEPGRAM_STT"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "stt_endpoint_url"
+          description: {
+            zh: "可选，STT endpoint URL"
+            en: "Optional STT endpoint URL"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "stt_api_key"
+          description: {
+            zh: "可选，STT API Key"
+            en: "Optional STT API key"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "stt_model_name"
+          description: {
+            zh: "可选，STT 模型名"
+            en: "Optional STT model name"
+          }
+          type: string
+          required: false
+        }
+      ]
+    },
+    {
       name: "list_model_configs"
       description: {
         zh: '''列出全部模型配置及功能模型绑定关系。'''
@@ -477,6 +774,141 @@
           description: {
             zh: "可选，模型名（多个可逗号分隔）"
             en: "Optional model name (comma-separated for multiple models)"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "max_tokens_enabled"
+          description: {
+            zh: "可选，是否启用 max_tokens 参数"
+            en: "Optional switch for max_tokens"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "max_tokens"
+          description: {
+            zh: "可选，max_tokens 数值"
+            en: "Optional max_tokens value"
+          }
+          type: integer
+          required: false
+        },
+        {
+          name: "temperature_enabled"
+          description: {
+            zh: "可选，是否启用 temperature 参数"
+            en: "Optional switch for temperature"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "temperature"
+          description: {
+            zh: "可选，temperature 数值"
+            en: "Optional temperature value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "top_p_enabled"
+          description: {
+            zh: "可选，是否启用 top_p 参数"
+            en: "Optional switch for top_p"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "top_p"
+          description: {
+            zh: "可选，top_p 数值"
+            en: "Optional top_p value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "top_k_enabled"
+          description: {
+            zh: "可选，是否启用 top_k 参数"
+            en: "Optional switch for top_k"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "top_k"
+          description: {
+            zh: "可选，top_k 数值"
+            en: "Optional top_k value"
+          }
+          type: integer
+          required: false
+        },
+        {
+          name: "presence_penalty_enabled"
+          description: {
+            zh: "可选，是否启用 presence_penalty 参数"
+            en: "Optional switch for presence_penalty"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "presence_penalty"
+          description: {
+            zh: "可选，presence_penalty 数值"
+            en: "Optional presence_penalty value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "frequency_penalty_enabled"
+          description: {
+            zh: "可选，是否启用 frequency_penalty 参数"
+            en: "Optional switch for frequency_penalty"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "frequency_penalty"
+          description: {
+            zh: "可选，frequency_penalty 数值"
+            en: "Optional frequency_penalty value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "repetition_penalty_enabled"
+          description: {
+            zh: "可选，是否启用 repetition_penalty 参数"
+            en: "Optional switch for repetition_penalty"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "repetition_penalty"
+          description: {
+            zh: "可选，repetition_penalty 数值"
+            en: "Optional repetition_penalty value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "custom_parameters"
+          description: {
+            zh: "可选，自定义参数 JSON 字符串"
+            en: "Optional custom parameters JSON string"
           }
           type: string
           required: false
@@ -545,6 +977,141 @@
           required: false
         },
         {
+          name: "max_tokens_enabled"
+          description: {
+            zh: "可选，是否启用 max_tokens 参数"
+            en: "Optional switch for max_tokens"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "max_tokens"
+          description: {
+            zh: "可选，max_tokens 数值"
+            en: "Optional max_tokens value"
+          }
+          type: integer
+          required: false
+        },
+        {
+          name: "temperature_enabled"
+          description: {
+            zh: "可选，是否启用 temperature 参数"
+            en: "Optional switch for temperature"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "temperature"
+          description: {
+            zh: "可选，temperature 数值"
+            en: "Optional temperature value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "top_p_enabled"
+          description: {
+            zh: "可选，是否启用 top_p 参数"
+            en: "Optional switch for top_p"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "top_p"
+          description: {
+            zh: "可选，top_p 数值"
+            en: "Optional top_p value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "top_k_enabled"
+          description: {
+            zh: "可选，是否启用 top_k 参数"
+            en: "Optional switch for top_k"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "top_k"
+          description: {
+            zh: "可选，top_k 数值"
+            en: "Optional top_k value"
+          }
+          type: integer
+          required: false
+        },
+        {
+          name: "presence_penalty_enabled"
+          description: {
+            zh: "可选，是否启用 presence_penalty 参数"
+            en: "Optional switch for presence_penalty"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "presence_penalty"
+          description: {
+            zh: "可选，presence_penalty 数值"
+            en: "Optional presence_penalty value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "frequency_penalty_enabled"
+          description: {
+            zh: "可选，是否启用 frequency_penalty 参数"
+            en: "Optional switch for frequency_penalty"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "frequency_penalty"
+          description: {
+            zh: "可选，frequency_penalty 数值"
+            en: "Optional frequency_penalty value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "repetition_penalty_enabled"
+          description: {
+            zh: "可选，是否启用 repetition_penalty 参数"
+            en: "Optional switch for repetition_penalty"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "repetition_penalty"
+          description: {
+            zh: "可选，repetition_penalty 数值"
+            en: "Optional repetition_penalty value"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "custom_parameters"
+          description: {
+            zh: "可选，自定义参数 JSON 字符串"
+            en: "Optional custom parameters JSON string"
+          }
+          type: string
+          required: false
+        },
+        {
           name: "enable_tool_call"
           description: {
             zh: "可选，是否开启Tool Call"
@@ -585,10 +1152,127 @@
     {
       name: "list_function_model_configs"
       description: {
-        zh: '''列出功能模型绑定关系（功能 -> 配置 + 模型索引）。'''
-        en: '''List function model bindings (function -> config + model index).'''
+        zh: '''仅列出功能模型绑定关系（功能 -> 配置 + 模型索引）。'''
+        en: '''List function model bindings only (function -> config + model index).'''
       }
       parameters: []
+    },
+    {
+      name: "get_function_model_config"
+      description: {
+        zh: '''查看某个功能当前绑定的单个模型配置详情。'''
+        en: '''Get one function's currently bound model config detail.'''
+      }
+      parameters: [
+        {
+          name: "function_type"
+          description: {
+            zh: "功能类型枚举名"
+            en: "Function type enum name"
+          }
+          type: string
+          required: true
+        }
+      ]
+    },
+    {
+      name: "get_context_summary_config"
+      description: {
+        zh: '''获取某个功能当前绑定模型配置中的上下文总结参数。'''
+        en: '''Get context-summary settings from the model config bound to a function.'''
+      }
+      parameters: [
+        {
+          name: "function_type"
+          description: {
+            zh: "可选，功能类型；默认 CHAT"
+            en: "Optional function type; default CHAT"
+          }
+          type: string
+          required: false
+        }
+      ]
+    },
+    {
+      name: "set_context_summary_config"
+      description: {
+        zh: '''为某个功能绑定配置设置上下文总结参数（可选覆盖默认值）。'''
+        en: '''Set context-summary settings for a function binding (optional overrides supported).'''
+      }
+      parameters: [
+        {
+          name: "function_type"
+          description: {
+            zh: "可选，功能类型；默认 CHAT"
+            en: "Optional function type; default CHAT"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "context_length"
+          description: {
+            zh: "可选，基础上下文长度"
+            en: "Optional base context length"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "max_context_length"
+          description: {
+            zh: "可选，最大上下文长度"
+            en: "Optional max context length"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "enable_max_context_mode"
+          description: {
+            zh: "可选，是否启用最大上下文模式"
+            en: "Optional max-context-mode switch"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "summary_token_threshold"
+          description: {
+            zh: "可选，总结触发 token 阈值（0~1）"
+            en: "Optional token-ratio threshold for summary trigger (0~1)"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "enable_summary"
+          description: {
+            zh: "可选，是否启用上下文总结"
+            en: "Optional context-summary switch"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "enable_summary_by_message_count"
+          description: {
+            zh: "可选，是否启用按消息条数触发总结"
+            en: "Optional message-count summary trigger switch"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "summary_message_count_threshold"
+          description: {
+            zh: "可选，按消息条数触发总结阈值"
+            en: "Optional message-count threshold for summary trigger"
+          }
+          type: integer
+          required: false
+        }
+      ]
     },
     {
       name: "set_function_model_config"
@@ -679,15 +1363,15 @@ async function all_about_myself(params: { query?: string }) {
     const { query } = params ?? {};
     complete({
       success: true,
-      message: "配置排查手册已加载（MCP/Skill/Sandbox Package/功能模型与模型配置），将按配置链路执行排查。",
+      message: "配置排查手册已加载（MCP/Skill/Sandbox Package/功能模型与模型配置/TTS-STT语音服务），将按配置链路执行排查。",
       data: {
         query: query ?? ""
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -732,10 +1416,10 @@ description: one-line summary of what this skill does
         en
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -743,7 +1427,7 @@ description: one-line summary of what this skill does
 async function list_sandbox_packages() {
   try {
     const result = await Tools.SoftwareSettings.listSandboxPackages();
-    const payload = result?.value ?? "";
+    const payload = extract_string_result(result);
     complete({
       success: true,
       message: payload || "Sandbox package list fetched.",
@@ -751,10 +1435,10 @@ async function list_sandbox_packages() {
         raw: payload
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -764,7 +1448,7 @@ async function set_sandbox_package_enabled(params?: { package_name?: string; ena
     const packageName = params?.package_name ?? "";
     const enabled = params?.enabled ?? false;
     const result = await Tools.SoftwareSettings.setSandboxPackageEnabled(packageName, enabled);
-    const payload = result?.value ?? "";
+    const payload = extract_string_result(result);
     complete({
       success: true,
       message: payload || "Sandbox package switch updated.",
@@ -772,11 +1456,44 @@ async function set_sandbox_package_enabled(params?: { package_name?: string; ena
         raw: payload
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
+  }
+}
+
+type EnvironmentVariablePayload = {
+  exists?: boolean;
+  value?: string | null;
+};
+
+function extract_string_result(result: unknown): string {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object" || Array.isArray(result)) return "";
+
+  const record = result as Record<string, unknown>;
+  if (typeof record.value === "string") return record.value;
+  if (record.value !== undefined && record.value !== null) return String(record.value);
+  if (typeof record.data === "string") return record.data;
+  if (record.data !== undefined && record.data !== null) return String(record.data);
+  return "";
+}
+function parse_environment_variable_payload(raw: string): EnvironmentVariablePayload | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    const record = parsed as Record<string, unknown>;
+    return {
+      exists: typeof record.exists === "boolean" ? record.exists : undefined,
+      value: typeof record.value === "string" || record.value === null ? record.value : undefined
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -792,13 +1509,8 @@ async function read_environment_variable(params?: { key?: string }) {
     }
 
     const result = await Tools.SoftwareSettings.readEnvironmentVariable(key);
-    const raw = result?.value ?? "";
-    let parsed: any = null;
-    try {
-      parsed = raw ? JSON.parse(raw) : null;
-    } catch {
-      parsed = null;
-    }
+    const raw = extract_string_result(result);
+    const parsed = parse_environment_variable_payload(raw);
 
     complete({
       success: true,
@@ -810,10 +1522,10 @@ async function read_environment_variable(params?: { key?: string }) {
         raw
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -831,13 +1543,8 @@ async function write_environment_variable(params?: { key?: string; value?: strin
 
     const value = params?.value ?? "";
     const result = await Tools.SoftwareSettings.writeEnvironmentVariable(key, String(value));
-    const raw = result?.value ?? "";
-    let parsed: any = null;
-    try {
-      parsed = raw ? JSON.parse(raw) : null;
-    } catch {
-      parsed = null;
-    }
+    const raw = extract_string_result(result);
+    const parsed = parse_environment_variable_payload(raw);
     const cleared = String(value).trim() === "";
 
     complete({
@@ -851,10 +1558,10 @@ async function write_environment_variable(params?: { key?: string; value?: strin
         raw
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -863,7 +1570,7 @@ async function restart_mcp_with_logs(params?: { timeout_ms?: number | string }) 
   try {
     const timeoutMs = params?.timeout_ms;
     const result = await Tools.SoftwareSettings.restartMcpWithLogs(timeoutMs);
-    const logs = result?.value ?? "";
+    const logs = extract_string_result(result);
     complete({
       success: true,
       message: logs || "MCP restart completed.",
@@ -871,10 +1578,71 @@ async function restart_mcp_with_logs(params?: { timeout_ms?: number | string }) 
         logs
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
+    });
+  }
+}
+
+async function get_speech_services_config() {
+  try {
+    const result = await Tools.SoftwareSettings.getSpeechServicesConfig();
+    const parsed = result;
+
+    complete({
+      success: true,
+      message: "Speech services config fetched.",
+      data: {
+        parsed
+      }
+    });
+  } catch (error: unknown) {
+    complete({
+      success: false,
+      message: get_error_message(error)
+    });
+  }
+}
+
+type SpeechServicesConfigUpdateParams = {
+  tts_service_type?: string;
+  tts_url_template?: string;
+  tts_api_key?: string;
+  tts_headers?: string | Record<string, string>;
+  tts_http_method?: string;
+  tts_request_body?: string;
+  tts_content_type?: string;
+  tts_voice_id?: string;
+  tts_model_name?: string;
+  tts_cleaner_regexs?: string | string[];
+  tts_speech_rate?: number;
+  tts_pitch?: number;
+  stt_service_type?: string;
+  stt_endpoint_url?: string;
+  stt_api_key?: string;
+  stt_model_name?: string;
+};
+
+async function set_speech_services_config(params?: SpeechServicesConfigUpdateParams) {
+  try {
+    const updates: Record<string, unknown> = { ...(params ?? {}) };
+    const result = await Tools.SoftwareSettings.setSpeechServicesConfig(updates);
+    const parsed = result;
+
+    complete({
+      success: true,
+      message: "Speech services config updated.",
+      data: {
+        updates,
+        parsed
+      }
+    });
+  } catch (error: unknown) {
+    complete({
+      success: false,
+      message: get_error_message(error)
     });
   }
 }
@@ -887,10 +1655,10 @@ async function list_model_configs() {
       message: "Model configs listed.",
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -901,6 +1669,21 @@ async function create_model_config(params?: {
   api_endpoint?: string;
   api_key?: string;
   model_name?: string;
+  max_tokens_enabled?: boolean;
+  max_tokens?: number;
+  temperature_enabled?: boolean;
+  temperature?: number;
+  top_p_enabled?: boolean;
+  top_p?: number;
+  top_k_enabled?: boolean;
+  top_k?: number;
+  presence_penalty_enabled?: boolean;
+  presence_penalty?: number;
+  frequency_penalty_enabled?: boolean;
+  frequency_penalty?: number;
+  repetition_penalty_enabled?: boolean;
+  repetition_penalty?: number;
+  custom_parameters?: string;
 }) {
   try {
     const options = { ...(params ?? {}) };
@@ -910,10 +1693,10 @@ async function create_model_config(params?: {
       message: "Model config created.",
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -925,6 +1708,21 @@ async function update_model_config(params?: {
   api_endpoint?: string;
   api_key?: string;
   model_name?: string;
+  max_tokens_enabled?: boolean;
+  max_tokens?: number;
+  temperature_enabled?: boolean;
+  temperature?: number;
+  top_p_enabled?: boolean;
+  top_p?: number;
+  top_k_enabled?: boolean;
+  top_k?: number;
+  presence_penalty_enabled?: boolean;
+  presence_penalty?: number;
+  frequency_penalty_enabled?: boolean;
+  frequency_penalty?: number;
+  repetition_penalty_enabled?: boolean;
+  repetition_penalty?: number;
+  custom_parameters?: string;
   enable_direct_image_processing?: boolean;
   enable_direct_audio_processing?: boolean;
   enable_direct_video_processing?: boolean;
@@ -948,18 +1746,17 @@ async function update_model_config(params?: {
       return;
     }
 
-    const updates = { ...(params ?? {}) };
-    delete (updates as any).config_id;
+    const { config_id: _ignoredConfigId, ...updates } = params ?? {};
     const result = await Tools.SoftwareSettings.updateModelConfig(configId, updates);
     complete({
       success: true,
       message: "Model config updated.",
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -980,10 +1777,10 @@ async function delete_model_config(params?: { config_id?: string }) {
       message: "Model config deleted.",
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -996,10 +1793,228 @@ async function list_function_model_configs() {
       message: "Function model bindings listed.",
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
+    });
+  }
+}
+
+async function get_function_model_config(params?: { function_type?: string }) {
+  try {
+    const functionType = (params?.function_type ?? "").trim();
+    if (!functionType) {
+      complete({
+        success: false,
+        message: "Missing required parameter: function_type"
+      });
+      return;
+    }
+
+    const result = await Tools.SoftwareSettings.getFunctionModelConfig(functionType);
+    const config = result?.config ?? {};
+    const {
+      contextLength: _contextLength,
+      maxContextLength: _maxContextLength,
+      enableMaxContextMode: _enableMaxContextMode,
+      summaryTokenThreshold: _summaryTokenThreshold,
+      enableSummary: _enableSummary,
+      enableSummaryByMessageCount: _enableSummaryByMessageCount,
+      summaryMessageCountThreshold: _summaryMessageCountThreshold,
+      ...configWithoutContextSummary
+    } = config;
+
+    const filteredResult = {
+      ...result,
+      config: configWithoutContextSummary
+    };
+
+    complete({
+      success: true,
+      message: "Function model config fetched.",
+      data: filteredResult
+    });
+  } catch (error: unknown) {
+    complete({
+      success: false,
+      message: get_error_message(error)
+    });
+  }
+}
+
+type ContextSummaryConfigSnapshot = {
+  id?: string;
+  name?: string;
+  contextLength?: number;
+  maxContextLength?: number;
+  enableMaxContextMode?: boolean;
+  summaryTokenThreshold?: number;
+  enableSummary?: boolean;
+  enableSummaryByMessageCount?: boolean;
+  summaryMessageCountThreshold?: number;
+};
+
+type FunctionModelConfigDetailLike = {
+  configId?: string;
+  configName?: string;
+  modelIndex?: number;
+  actualModelIndex?: number;
+  selectedModel?: string;
+  config?: ContextSummaryConfigSnapshot;
+};
+
+type ModelConfigUpdateResultLike = {
+  config?: ContextSummaryConfigSnapshot;
+};
+
+function get_error_message(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
+function pick_context_summary_fields(config?: ContextSummaryConfigSnapshot) {
+  return {
+    context_length: config?.contextLength,
+    max_context_length: config?.maxContextLength,
+    enable_max_context_mode: config?.enableMaxContextMode,
+    summary_token_threshold: config?.summaryTokenThreshold,
+    enable_summary: config?.enableSummary,
+    enable_summary_by_message_count: config?.enableSummaryByMessageCount,
+    summary_message_count_threshold: config?.summaryMessageCountThreshold
+  };
+}
+
+async function get_context_summary_config(params?: { function_type?: string }) {
+  try {
+    const functionType = (params?.function_type ?? "CHAT").trim().toUpperCase();
+    if (!functionType) {
+      complete({
+        success: false,
+        message: "Missing required parameter: function_type"
+      });
+      return;
+    }
+
+    const result = (await Tools.SoftwareSettings.getFunctionModelConfig(
+      functionType
+    )) as FunctionModelConfigDetailLike;
+    const config = result.config;
+    if (!config) {
+      complete({
+        success: false,
+        message: `No bound config found for function_type: ${functionType}`,
+        data: result
+      });
+      return;
+    }
+
+    complete({
+      success: true,
+      message: `Context summary config fetched for ${functionType}.`,
+      data: {
+        function_type: functionType,
+        config_id: result.configId ?? config.id ?? "",
+        config_name: result.configName ?? config.name ?? "",
+        model_index: result.modelIndex ?? 0,
+        actual_model_index: result.actualModelIndex ?? 0,
+        selected_model: result.selectedModel ?? "",
+        context_summary: pick_context_summary_fields(config),
+        raw: result
+      }
+    });
+  } catch (error: unknown) {
+    complete({
+      success: false,
+      message: get_error_message(error)
+    });
+  }
+}
+
+async function set_context_summary_config(params?: {
+  function_type?: string;
+  context_length?: number;
+  max_context_length?: number;
+  enable_max_context_mode?: boolean;
+  summary_token_threshold?: number;
+  enable_summary?: boolean;
+  enable_summary_by_message_count?: boolean;
+  summary_message_count_threshold?: number;
+}) {
+  try {
+    const functionType = (params?.function_type ?? "CHAT").trim().toUpperCase();
+    if (!functionType) {
+      complete({
+        success: false,
+        message: "Missing required parameter: function_type"
+      });
+      return;
+    }
+
+    const binding = (await Tools.SoftwareSettings.getFunctionModelConfig(
+      functionType
+    )) as FunctionModelConfigDetailLike;
+    const configId = (binding.configId ?? binding.config?.id ?? "").trim();
+    if (!configId) {
+      complete({
+        success: false,
+        message: `No bound config found for function_type: ${functionType}`,
+        data: binding
+      });
+      return;
+    }
+
+    const defaultUpdates = {
+      context_length: 48,
+      max_context_length: 128,
+      enable_max_context_mode: true,
+      summary_token_threshold: 0.7,
+      enable_summary: true,
+      enable_summary_by_message_count: true,
+      summary_message_count_threshold: 16
+    };
+
+    const updates = {
+      ...defaultUpdates,
+      ...(params?.context_length === undefined ? {} : { context_length: params.context_length }),
+      ...(params?.max_context_length === undefined
+        ? {}
+        : { max_context_length: params.max_context_length }),
+      ...(params?.enable_max_context_mode === undefined
+        ? {}
+        : { enable_max_context_mode: params.enable_max_context_mode }),
+      ...(params?.summary_token_threshold === undefined
+        ? {}
+        : { summary_token_threshold: params.summary_token_threshold }),
+      ...(params?.enable_summary === undefined ? {} : { enable_summary: params.enable_summary }),
+      ...(params?.enable_summary_by_message_count === undefined
+        ? {}
+        : { enable_summary_by_message_count: params.enable_summary_by_message_count }),
+      ...(params?.summary_message_count_threshold === undefined
+        ? {}
+        : { summary_message_count_threshold: params.summary_message_count_threshold })
+    };
+
+    const updateResult = (await Tools.SoftwareSettings.updateModelConfig(
+      configId,
+      updates
+    )) as ModelConfigUpdateResultLike;
+
+    complete({
+      success: true,
+      message: `Context summary config updated for ${functionType}.`,
+      data: {
+        function_type: functionType,
+        config_id: configId,
+        applied_updates: updates,
+        before: pick_context_summary_fields(binding.config),
+        after: pick_context_summary_fields(updateResult.config),
+        update_result: updateResult
+      }
+    });
+  } catch (error: unknown) {
+    complete({
+      success: false,
+      message: get_error_message(error)
     });
   }
 }
@@ -1037,10 +2052,10 @@ async function set_function_model_config(params?: {
       message: "Function model binding updated.",
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -1063,10 +2078,10 @@ async function test_model_config_connection(params?: { config_id?: string; model
       message: success ? "Model config connection tests passed." : "Model config connection tests have failures.",
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -1088,10 +2103,10 @@ async function ping_mcp(params?: { package_name?: string }) {
       message: `Package probe finished: ${packageName}`,
       data: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     complete({
       success: false,
-      message: error?.message ?? "Unknown error"
+      message: get_error_message(error)
     });
   }
 }
@@ -1103,11 +2118,20 @@ exports.set_sandbox_package_enabled = set_sandbox_package_enabled;
 exports.read_environment_variable = read_environment_variable;
 exports.write_environment_variable = write_environment_variable;
 exports.restart_mcp_with_logs = restart_mcp_with_logs;
+exports.get_speech_services_config = get_speech_services_config;
+exports.set_speech_services_config = set_speech_services_config;
 exports.list_model_configs = list_model_configs;
 exports.create_model_config = create_model_config;
 exports.update_model_config = update_model_config;
 exports.delete_model_config = delete_model_config;
 exports.list_function_model_configs = list_function_model_configs;
+exports.get_function_model_config = get_function_model_config;
+exports.get_context_summary_config = get_context_summary_config;
+exports.set_context_summary_config = set_context_summary_config;
 exports.set_function_model_config = set_function_model_config;
 exports.test_model_config_connection = test_model_config_connection;
 exports.ping_mcp = ping_mcp;
+
+
+
+

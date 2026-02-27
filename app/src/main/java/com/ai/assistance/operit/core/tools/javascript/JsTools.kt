@@ -414,6 +414,19 @@ fun getJsToolsDefinition(): String {
                     if (timeoutMs !== undefined && timeoutMs !== null) params.timeout_ms = String(timeoutMs);
                     return toolCall("restart_mcp_with_logs", params);
                 },
+                getSpeechServicesConfig: () => {
+                    return toolCall("get_speech_services_config", {});
+                },
+                setSpeechServicesConfig: (updates = {}) => {
+                    const params = { ...(updates || {}) };
+                    if (params.tts_headers !== undefined && params.tts_headers !== null && typeof params.tts_headers === 'object') {
+                        params.tts_headers = JSON.stringify(params.tts_headers);
+                    }
+                    if (params.tts_cleaner_regexs !== undefined && params.tts_cleaner_regexs !== null && Array.isArray(params.tts_cleaner_regexs)) {
+                        params.tts_cleaner_regexs = JSON.stringify(params.tts_cleaner_regexs);
+                    }
+                    return toolCall("set_speech_services_config", params);
+                },
                 listModelConfigs: () => {
                     return toolCall("list_model_configs", {});
                 },
@@ -430,6 +443,9 @@ fun getJsToolsDefinition(): String {
                 },
                 listFunctionModelConfigs: () => {
                     return toolCall("list_function_model_configs", {});
+                },
+                getFunctionModelConfig: (functionType) => {
+                    return toolCall("get_function_model_config", { function_type: String(functionType ?? "") });
                 },
                 setFunctionModelConfig: (functionType, configId, modelIndex) => {
                     const params = {

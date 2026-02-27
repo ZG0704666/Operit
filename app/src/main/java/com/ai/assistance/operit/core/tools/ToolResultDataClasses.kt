@@ -1657,6 +1657,60 @@ data class MemoryLinkQueryResultData(
     }
 }
 
+/** 语音服务 TTS HTTP 配置条目 */
+@Serializable
+data class SpeechTtsHttpConfigResultItem(
+    val urlTemplate: String,
+    val apiKeySet: Boolean,
+    val apiKeyPreview: String,
+    val headers: Map<String, String>,
+    val httpMethod: String,
+    val requestBody: String,
+    val contentType: String,
+    val voiceId: String,
+    val modelName: String
+)
+
+/** 语音服务 STT HTTP 配置条目 */
+@Serializable
+data class SpeechSttHttpConfigResultItem(
+    val endpointUrl: String,
+    val apiKeySet: Boolean,
+    val apiKeyPreview: String,
+    val modelName: String
+)
+
+/** 获取语音服务配置结果 */
+@Serializable
+data class SpeechServicesConfigResultData(
+    val ttsServiceType: String,
+    val ttsHttpConfig: SpeechTtsHttpConfigResultItem,
+    val ttsCleanerRegexs: List<String>,
+    val ttsSpeechRate: Float,
+    val ttsPitch: Float,
+    val sttServiceType: String,
+    val sttHttpConfig: SpeechSttHttpConfigResultItem
+) : ToolResultData() {
+    override fun toString(): String {
+        return "Speech services config: TTS=$ttsServiceType, STT=$sttServiceType"
+    }
+}
+
+/** 更新语音服务配置结果 */
+@Serializable
+data class SpeechServicesUpdateResultData(
+    val updated: Boolean,
+    val changedFields: List<String>,
+    val ttsServiceType: String,
+    val sttServiceType: String,
+    val ttsApiKeySet: Boolean,
+    val sttApiKeySet: Boolean
+) : ToolResultData() {
+    override fun toString(): String {
+        return "Speech services updated: changed=${changedFields.size}, TTS=$ttsServiceType, STT=$sttServiceType"
+    }
+}
+
 /** 模型配置条目 */
 @Serializable
 data class ModelConfigResultItem(
@@ -1668,6 +1722,29 @@ data class ModelConfigResultItem(
     val modelList: List<String>,
     val apiKeySet: Boolean,
     val apiKeyPreview: String,
+    val maxTokensEnabled: Boolean,
+    val maxTokens: Int,
+    val temperatureEnabled: Boolean,
+    val temperature: Float,
+    val topPEnabled: Boolean,
+    val topP: Float,
+    val topKEnabled: Boolean,
+    val topK: Int,
+    val presencePenaltyEnabled: Boolean,
+    val presencePenalty: Float,
+    val frequencyPenaltyEnabled: Boolean,
+    val frequencyPenalty: Float,
+    val repetitionPenaltyEnabled: Boolean,
+    val repetitionPenalty: Float,
+    val hasCustomParameters: Boolean,
+    val customParameters: String,
+    val contextLength: Float,
+    val maxContextLength: Float,
+    val enableMaxContextMode: Boolean,
+    val summaryTokenThreshold: Float,
+    val enableSummary: Boolean,
+    val enableSummaryByMessageCount: Boolean,
+    val summaryMessageCountThreshold: Int,
     val mnnForwardType: Int,
     val mnnThreadCount: Int,
     val llamaThreadCount: Int,
@@ -1754,6 +1831,23 @@ data class FunctionModelConfigsResultData(
 ) : ToolResultData() {
     override fun toString(): String {
         return "Function model bindings: ${mappings.size}"
+    }
+}
+
+/** 查询单个功能模型绑定结果 */
+@Serializable
+data class FunctionModelConfigResultData(
+    val defaultConfigId: String,
+    val functionType: String,
+    val configId: String,
+    val configName: String,
+    val modelIndex: Int,
+    val actualModelIndex: Int,
+    val selectedModel: String,
+    val config: ModelConfigResultItem
+) : ToolResultData() {
+    override fun toString(): String {
+        return "Function model config: $functionType -> $configId[$actualModelIndex]"
     }
 }
 

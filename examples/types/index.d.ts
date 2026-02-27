@@ -40,6 +40,7 @@ import {
     ModelConfigUpdateResultData as _ModelConfigUpdateResultData,
     ModelConfigDeleteResultData as _ModelConfigDeleteResultData,
     FunctionModelConfigsResultData as _FunctionModelConfigsResultData,
+    FunctionModelConfigResultData as _FunctionModelConfigResultData,
     FunctionModelBindingResultData as _FunctionModelBindingResultData,
     ModelConfigConnectionTestItemResultData as _ModelConfigConnectionTestItemResultData,
     ModelConfigConnectionTestResultData as _ModelConfigConnectionTestResultData
@@ -152,6 +153,7 @@ declare global {
     type ModelConfigUpdateResultData = _ModelConfigUpdateResultData;
     type ModelConfigDeleteResultData = _ModelConfigDeleteResultData;
     type FunctionModelConfigsResultData = _FunctionModelConfigsResultData;
+    type FunctionModelConfigResultData = _FunctionModelConfigResultData;
     type FunctionModelBindingResultData = _FunctionModelBindingResultData;
     type ModelConfigConnectionTestItemResultData = _ModelConfigConnectionTestItemResultData;
     type ModelConfigConnectionTestResultData = _ModelConfigConnectionTestResultData;

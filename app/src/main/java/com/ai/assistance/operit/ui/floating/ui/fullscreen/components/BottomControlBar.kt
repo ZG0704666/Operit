@@ -1,6 +1,12 @@
 package com.ai.assistance.operit.ui.floating.ui.fullscreen.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -51,7 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -60,6 +66,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -76,7 +84,17 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.PI
+import kotlin.math.sin
+import kotlin.random.Random
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import android.graphics.Path as AndroidPath
+import android.graphics.PathMeasure
+import android.graphics.RectF
+import android.graphics.Color as AndroidColor
 
 /**
  * 底部控制栏组件
@@ -157,7 +175,6 @@ fun BottomControlBar(
 
             val canSend = userMessage.isNotBlank() || attachScreenContent || attachNotifications || attachLocation || hasOcrSelection
             val glowPadding = 10.dp
-            val glowPaddingPx = with(density) { glowPadding.toPx() }
             val glowBaseColors = listOf(
                 Color(0xFF42A5F5),
                 Color(0xFF26C6DA),
@@ -231,61 +248,16 @@ fun BottomControlBar(
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .drawBehind {
-                            val innerRect = Rect(
-                                left = glowPaddingPx,
-                                top = glowPaddingPx,
-                                right = size.width - glowPaddingPx,
-                                bottom = size.height - glowPaddingPx
-                            )
-
-                            val baseRadius = innerRect.height / 2f
-                            val maxGlow = glowPaddingPx
-                            val layers = 12
-                            
-                            // Draw from largest (outer) to smallest (inner)
-                            for (i in 0 until layers) {
-                                val progress = i / (layers - 1f) // 0.0 -> 1.0
-                                // progress 0 = Outer (Faint), progress 1 = Inner (Bright)
-                                
-                                val spread = maxGlow * (1f - progress)
-                                val radius = baseRadius + spread
-                                
-                                // Steeper curve (pow 4) means the outer layers drop off much faster
-                                val boost = progress * progress * progress * progress
-                                // Base alpha extremely low for outer layers
-                                val alpha = 0.005f + 0.7f * boost
-
-                                // Whiteness only at the very core
-                                val whiteFactor = progress * progress * progress * 0.9f 
-
-                                val layerColors = glowBaseColors.map { color ->
-                                    androidx.compose.ui.graphics.lerp(color, Color.White, whiteFactor).copy(alpha = alpha)
-                                }
-
-                                val rect = Rect(
-                                    left = innerRect.left - spread,
-                                    top = innerRect.top - spread,
-                                    right = innerRect.right + spread,
-                                    bottom = innerRect.bottom + spread
-                                )
-
-                                drawRoundRect(
-                                    brush = Brush.horizontalGradient(colors = layerColors),
-                                    topLeft = Offset(rect.left, rect.top),
-                                    size = Size(rect.width, rect.height),
-                                    cornerRadius = CornerRadius(radius, radius)
-                                )
-                            }
-                        }
-                        .padding(glowPadding)
-                ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    AnimatedGlowBorder(
+                        modifier = Modifier.matchParentSize(),
+                        glowPadding = glowPadding,
+                        colors = glowBaseColors
+                    )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(glowPadding)
                             .shadow(
                                 elevation = 10.dp,
                                 shape = CircleShape,
@@ -505,6 +477,162 @@ fun BottomControlBar(
             }
         }
     }
+}
+
+@Composable
+private fun AnimatedGlowBorder(
+    modifier: Modifier,
+    glowPadding: androidx.compose.ui.unit.Dp,
+    colors: List<Color>
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "glow_border")
+    val flowPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 9000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "glow_flow"
+    )
+    val bulgePhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "glow_bulge"
+    )
+    val anchors = listOf(0.08f, 0.22f, 0.35f, 0.50f, 0.64f, 0.78f, 0.92f)
+    var activeAnchorIndex by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        val random = Random(System.currentTimeMillis())
+        while (true) {
+            delay(1800)
+            activeAnchorIndex = random.nextInt(anchors.size)
+        }
+    }
+
+    fun boostColor(color: Color, saturationBoost: Float, valueBoost: Float): Color {
+        val hsv = FloatArray(3)
+        AndroidColor.colorToHSV(color.toArgb(), hsv)
+        hsv[1] = (hsv[1] * saturationBoost).coerceIn(0f, 1f)
+        hsv[2] = (hsv[2] * valueBoost).coerceIn(0f, 1f)
+        return Color(AndroidColor.HSVToColor(hsv)).copy(alpha = color.alpha)
+    }
+
+    Canvas(
+        modifier = modifier.drawWithCache {
+            val paddingPx = glowPadding.toPx()
+            val innerRect = Rect(
+                left = paddingPx,
+                top = paddingPx,
+                right = size.width - paddingPx,
+                bottom = size.height - paddingPx
+            )
+            val baseRadius = innerRect.height / 2f
+            val outerSpread = paddingPx * 1.2f
+            val layers = 8
+            val boostedColors = colors.map { boostColor(it, saturationBoost = 1.45f, valueBoost = 1.35f) }
+
+            val roundRectPath = AndroidPath().apply {
+                addRoundRect(
+                    RectF(innerRect.left, innerRect.top, innerRect.right, innerRect.bottom),
+                    baseRadius,
+                    baseRadius,
+                    AndroidPath.Direction.CW
+                )
+            }
+            val pathMeasure = PathMeasure(roundRectPath, true)
+            val pathLength = pathMeasure.length
+
+            fun colorAt(t: Float): Color {
+                if (colors.isEmpty()) return Color.White
+                if (colors.size == 1) return colors.first()
+                val value = ((t % 1f) + 1f) % 1f
+                val scaled = value * (colors.size - 1)
+                val index = floor(scaled).toInt().coerceIn(0, colors.size - 2)
+                val localT = scaled - index
+                return lerp(colors[index], colors[index + 1], localT)
+            }
+
+            onDrawBehind {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val angle = flowPhase * 2f * PI.toFloat()
+                val gradientStart =
+                    Offset(center.x + cos(angle) * size.width, center.y + sin(angle) * size.height)
+                val gradientEnd =
+                    Offset(center.x - cos(angle) * size.width, center.y - sin(angle) * size.height)
+
+                // Base glowing ring layers
+                for (i in 0 until layers) {
+                    val progress = i / (layers - 1f)
+                    val spread = outerSpread * (1f - progress)
+                    val radius = baseRadius + spread
+                    val alpha = 0.03f + 0.30f * (progress * progress)
+                    val whiteFactor = progress * progress * 0.55f
+
+                    val layerColors = boostedColors.map { color ->
+                        lerp(color, Color.White, whiteFactor).copy(alpha = alpha)
+                    }
+
+                    val rect = Rect(
+                        left = innerRect.left - spread,
+                        top = innerRect.top - spread,
+                        right = innerRect.right + spread,
+                        bottom = innerRect.bottom + spread
+                    )
+
+                    drawRoundRect(
+                        brush = Brush.linearGradient(
+                            colors = layerColors,
+                            start = gradientStart,
+                            end = gradientEnd
+                        ),
+                        topLeft = Offset(rect.left, rect.top),
+                        size = Size(rect.width, rect.height),
+                        cornerRadius = CornerRadius(radius, radius)
+                    )
+                }
+
+                // Single local bulge: expands outward then returns
+                if (anchors.isNotEmpty()) {
+                    val t = anchors[activeAnchorIndex.coerceIn(0, anchors.lastIndex)]
+                    val pulse = kotlin.math.sin(PI.toFloat() * bulgePhase)
+                    val alpha = 0.12f + 0.30f * pulse
+                    val baseBulge = 3.0.dp.toPx()
+                    val bulgeAmp = 7.0.dp.toPx()
+                    val baseOut = 2.0.dp.toPx()
+                    val radius = baseBulge + bulgeAmp * pulse
+
+                    val pos = FloatArray(2)
+                    val tan = FloatArray(2)
+                    pathMeasure.getPosTan(pathLength * t, pos, tan)
+                    val tanX = tan[0]
+                    val tanY = tan[1]
+                    val len = kotlin.math.sqrt(tanX * tanX + tanY * tanY).coerceAtLeast(0.0001f)
+                    val normal = Offset(-tanY / len, tanX / len)
+                    val centerPos = Offset(pos[0], pos[1]) + normal * (baseOut + bulgeAmp * 0.35f * pulse)
+
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                boostColor(colorAt(t), saturationBoost = 1.55f, valueBoost = 1.45f)
+                                    .copy(alpha = alpha),
+                                Color.Transparent
+                            ),
+                            center = centerPos,
+                            radius = radius
+                        ),
+                        radius = radius,
+                        center = centerPos
+                    )
+                }
+
+            }
+        }
+    ) {}
 }
 
 /**

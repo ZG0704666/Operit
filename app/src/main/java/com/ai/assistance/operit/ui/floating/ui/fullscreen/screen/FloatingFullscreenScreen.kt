@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +39,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -58,10 +65,13 @@ import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.EditPanel
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.MessageDisplay
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.WaveVisualizerSection
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.viewmodel.rememberFloatingFullscreenModeViewModel
+import java.util.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 
 /**
  * 全屏模式主屏幕
@@ -213,12 +223,71 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         animationSpec = tween(durationMillis = 260),
         label = "fullscreen_bg_alpha"
     )
+    val systemBlurActive = floatContext.windowState?.fullscreenSystemBlurActive?.value ?: false
+    val fallbackBlurEnabled = !systemBlurActive
+    val fallbackOverlayAlpha by animateFloatAsState(
+        targetValue = if (fallbackBlurEnabled && !autoEnteringVoice) 0.30f else 0f,
+        animationSpec = tween(durationMillis = 260),
+        label = "fullscreen_fallback_alpha"
+    )
+    val fallbackBlurRadius by animateFloatAsState(
+        targetValue = if (fallbackBlurEnabled && !autoEnteringVoice) 22f else 0f,
+        animationSpec = tween(durationMillis = 260),
+        label = "fullscreen_fallback_blur"
+    )
+    val fallbackNoiseAlpha by animateFloatAsState(
+        targetValue = if (fallbackBlurEnabled && !autoEnteringVoice) 0.06f else 0f,
+        animationSpec = tween(durationMillis = 260),
+        label = "fullscreen_fallback_noise"
+    )
     val fullscreenScrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = fullscreenBgAlpha)
+    val noiseBitmap = rememberNoiseBitmap()
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(fullscreenScrimColor)
     ) {
+        if (fallbackBlurEnabled) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer { alpha = fallbackOverlayAlpha }
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.40f to Color.Transparent,
+                                0.68f to MaterialTheme.colorScheme.surface.copy(alpha = 0.22f),
+                                1.0f to MaterialTheme.colorScheme.surface.copy(alpha = 0.40f)
+                            )
+                        )
+                    )
+                    .blur(fallbackBlurRadius.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer { alpha = fallbackOverlayAlpha }
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.35f to Color.Transparent,
+                                0.70f to Color.White.copy(alpha = 0.08f),
+                                1.0f to Color.White.copy(alpha = 0.16f)
+                            )
+                        )
+                    )
+            )
+            Image(
+                bitmap = noiseBitmap,
+                contentDescription = null,
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer { alpha = fallbackNoiseAlpha },
+                contentScale = ContentScale.Crop
+            )
+        }
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -424,5 +493,20 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
             volumeLevel = volumeLevel,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+    }
+}
+
+@Composable
+private fun rememberNoiseBitmap(size: Int = 120): ImageBitmap {
+    return remember(size) {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val random = Random(0)
+        val pixels = IntArray(size * size)
+        for (i in pixels.indices) {
+            val alpha = 8 + random.nextInt(20)
+            pixels[i] = AndroidColor.argb(alpha, 255, 255, 255)
+        }
+        bitmap.setPixels(pixels, 0, size, 0, 0, size, size)
+        bitmap.asImageBitmap()
     }
 }

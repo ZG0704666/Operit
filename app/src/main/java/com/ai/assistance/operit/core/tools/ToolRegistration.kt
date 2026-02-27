@@ -246,6 +246,30 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     handler.registerTool(
+            name = "get_speech_services_config",
+            dangerCheck = { false },
+            descriptionGenerator = { _ ->
+                "Get current TTS/STT speech services configuration"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.getSpeechServicesConfig(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "set_speech_services_config",
+            dangerCheck = { false },
+            descriptionGenerator = { _ ->
+                "Update TTS/STT speech services configuration"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.setSpeechServicesConfig(tool) }
+            }
+    )
+
+    handler.registerTool(
             name = "list_model_configs",
             dangerCheck = { false },
             descriptionGenerator = { _ ->
@@ -300,11 +324,24 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             name = "list_function_model_configs",
             dangerCheck = { false },
             descriptionGenerator = { _ ->
-                "List function model bindings (function -> config + model index)"
+                "List function model bindings only (function -> config_id + model_index)"
             },
             executor = { tool ->
                 val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
                 runBlocking(Dispatchers.IO) { softwareSettingsTools.listFunctionModelConfigs(tool) }
+            }
+    )
+
+    handler.registerTool(
+            name = "get_function_model_config",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val functionType = tool.parameters.find { it.name == "function_type" }?.value ?: ""
+                "Get function model config: $functionType"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.getFunctionModelConfig(tool) }
             }
     )
 

@@ -970,6 +970,46 @@ export interface StringResultData {
 // Software Settings Types
 // ============================================================================
 
+export interface SpeechTtsHttpConfigResultItem {
+    urlTemplate: string;
+    apiKeySet: boolean;
+    apiKeyPreview: string;
+    headers: Record<string, string>;
+    httpMethod: string;
+    requestBody: string;
+    contentType: string;
+    voiceId: string;
+    modelName: string;
+}
+
+export interface SpeechSttHttpConfigResultItem {
+    endpointUrl: string;
+    apiKeySet: boolean;
+    apiKeyPreview: string;
+    modelName: string;
+}
+
+export interface SpeechServicesConfigResultData {
+    ttsServiceType: string;
+    ttsHttpConfig: SpeechTtsHttpConfigResultItem;
+    ttsCleanerRegexs: string[];
+    ttsSpeechRate: number;
+    ttsPitch: number;
+    sttServiceType: string;
+    sttHttpConfig: SpeechSttHttpConfigResultItem;
+    toString(): string;
+}
+
+export interface SpeechServicesUpdateResultData {
+    updated: boolean;
+    changedFields: string[];
+    ttsServiceType: string;
+    sttServiceType: string;
+    ttsApiKeySet: boolean;
+    sttApiKeySet: boolean;
+    toString(): string;
+}
+
 export interface ModelConfigResultItem {
     id: string;
     name: string;
@@ -979,6 +1019,29 @@ export interface ModelConfigResultItem {
     modelList: string[];
     apiKeySet: boolean;
     apiKeyPreview: string;
+    maxTokensEnabled: boolean;
+    maxTokens: number;
+    temperatureEnabled: boolean;
+    temperature: number;
+    topPEnabled: boolean;
+    topP: number;
+    topKEnabled: boolean;
+    topK: number;
+    presencePenaltyEnabled: boolean;
+    presencePenalty: number;
+    frequencyPenaltyEnabled: boolean;
+    frequencyPenalty: number;
+    repetitionPenaltyEnabled: boolean;
+    repetitionPenalty: number;
+    hasCustomParameters: boolean;
+    customParameters: string;
+    contextLength: number;
+    maxContextLength: number;
+    enableMaxContextMode: boolean;
+    summaryTokenThreshold: number;
+    enableSummary: boolean;
+    enableSummaryByMessageCount: boolean;
+    summaryMessageCountThreshold: number;
     mnnForwardType: number;
     mnnThreadCount: number;
     llamaThreadCount: number;
@@ -1039,6 +1102,18 @@ export interface ModelConfigDeleteResultData {
 export interface FunctionModelConfigsResultData {
     defaultConfigId: string;
     mappings: FunctionModelMappingResultItem[];
+    toString(): string;
+}
+
+export interface FunctionModelConfigResultData {
+    defaultConfigId: string;
+    functionType: string;
+    configId: string;
+    configName: string;
+    modelIndex: number;
+    actualModelIndex: number;
+    selectedModel: string;
+    config: ModelConfigResultItem;
     toString(): string;
 }
 

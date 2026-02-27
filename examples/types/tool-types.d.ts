@@ -16,8 +16,9 @@ import {
     StringResultData, ChatServiceStartResultData, ChatCreationResultData, ChatListResultData, ChatFindResultData, AgentStatusResultData,
     ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, MemoryLinkQueryResultData, GrepResultData,
     ChatMessagesResultData, CharacterCardListResultData,
+    SpeechServicesConfigResultData, SpeechServicesUpdateResultData,
     ModelConfigsResultData, ModelConfigCreateResultData, ModelConfigUpdateResultData, ModelConfigDeleteResultData,
-    FunctionModelConfigsResultData, FunctionModelBindingResultData, ModelConfigConnectionTestResultData
+    FunctionModelConfigsResultData, FunctionModelConfigResultData, FunctionModelBindingResultData, ModelConfigConnectionTestResultData
 } from './results';
 
 /**
@@ -82,11 +83,14 @@ export interface ToolResultMap {
     'list_sandbox_packages': StringResultData;
     'set_sandbox_package_enabled': StringResultData;
     'restart_mcp_with_logs': StringResultData;
+    'get_speech_services_config': SpeechServicesConfigResultData;
+    'set_speech_services_config': SpeechServicesUpdateResultData;
     'list_model_configs': ModelConfigsResultData;
     'create_model_config': ModelConfigCreateResultData;
     'update_model_config': ModelConfigUpdateResultData;
     'delete_model_config': ModelConfigDeleteResultData;
     'list_function_model_configs': FunctionModelConfigsResultData;
+    'get_function_model_config': FunctionModelConfigResultData;
     'set_function_model_config': FunctionModelBindingResultData;
     'test_model_config_connection': ModelConfigConnectionTestResultData;
     'trigger_tasker_event': string;
