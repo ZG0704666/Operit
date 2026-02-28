@@ -746,7 +746,7 @@ fun AgentChatInputSection(
                                     .padding(start = 6.dp)
                                     .size(34.dp)
                                     .clickable(
-                                        enabled = !isProcessing,
+                                        enabled = true,
                                         onClick = {
                                             showModelSelectorPopup.value = false
                                             showExtraSettingsPopup.value = !showExtraSettingsPopup.value
@@ -773,7 +773,7 @@ fun AgentChatInputSection(
                                     .padding(start = 8.dp)
                                     .size(36.dp)
                                     .clickable(
-                                        enabled = !isProcessing,
+                                        enabled = true,
                                         onClick = {
                                             showModelSelectorPopup.value = false
                                             showExtraSettingsPopup.value = false
@@ -1014,18 +1014,18 @@ fun AgentChatInputSection(
                                 }
                             }
 
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .padding(start = 6.dp)
-                                        .size(34.dp)
-                                        .clickable(
-                                            enabled = !isProcessing,
-                                            onClick = {
-                                                showModelSelectorPopup.value = false
-                                                showExtraSettingsPopup.value = !showExtraSettingsPopup.value
-                                            },
-                                        ),
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .padding(start = 6.dp)
+                                            .size(34.dp)
+                                            .clickable(
+                                                enabled = true,
+                                                onClick = {
+                                                    showModelSelectorPopup.value = false
+                                                    showExtraSettingsPopup.value = !showExtraSettingsPopup.value
+                                                },
+                                            ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
@@ -1041,19 +1041,19 @@ fun AgentChatInputSection(
                                 )
                             }
 
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .padding(start = 8.dp)
-                                        .size(36.dp)
-                                        .clickable(
-                                            enabled = !isProcessing,
-                                            onClick = {
-                                                showModelSelectorPopup.value = false
-                                                showExtraSettingsPopup.value = false
-                                                setShowAttachmentPanel(!showAttachmentPanel)
-                                            },
-                                        ),
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .padding(start = 8.dp)
+                                            .size(36.dp)
+                                            .clickable(
+                                                enabled = true,
+                                                onClick = {
+                                                    showModelSelectorPopup.value = false
+                                                    showExtraSettingsPopup.value = false
+                                                    setShowAttachmentPanel(!showAttachmentPanel)
+                                                },
+                                            ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(

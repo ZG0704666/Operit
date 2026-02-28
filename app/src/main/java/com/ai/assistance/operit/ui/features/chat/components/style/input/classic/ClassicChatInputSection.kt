@@ -454,7 +454,7 @@ fun ClassicChatInputSection(
                                     .surfaceVariant
                         )
                         .clickable(
-                            enabled = !isProcessing,
+                            enabled = true,
                             onClick = {
                                 setShowAttachmentPanel(
                                     !showAttachmentPanel
