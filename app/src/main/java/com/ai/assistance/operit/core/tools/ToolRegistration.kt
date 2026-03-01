@@ -1161,6 +1161,26 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.switchChat(tool) } }
     )
 
+    // 更新对话标题
+    handler.registerTool(
+            name = "update_chat_title",
+            descriptionGenerator = { tool ->
+                val chatId = tool.parameters.find { it.name == "chat_id" }?.value ?: ""
+                s(R.string.toolreg_update_chat_title_desc, chatId)
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.updateChatTitle(tool) } }
+    )
+
+    // 删除对话
+    handler.registerTool(
+            name = "delete_chat",
+            descriptionGenerator = { tool ->
+                val chatId = tool.parameters.find { it.name == "chat_id" }?.value ?: ""
+                s(R.string.toolreg_delete_chat_desc, chatId)
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { chatManagerTool.deleteChat(tool) } }
+    )
+
     // 发送消息给AI
     handler.registerTool(
             name = "send_message_to_ai",
@@ -1534,28 +1554,6 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool ->
                 runBlocking(Dispatchers.IO) { fileSystemTools.makeDirectory(tool) }
             }
-    )
-
-    // SSH远程文件系统工具
-    val sshTools = ToolGetter.getSSHRemoteConnectionTools(context)
-
-    // 登录SSH服务器
-    handler.registerTool(
-            name = "ssh_login",
-            descriptionGenerator = { tool ->
-                val host = tool.parameters.find { it.name == "host" }?.value ?: ""
-                val username = tool.parameters.find { it.name == "username" }?.value ?: ""
-                val port = tool.parameters.find { it.name == "port" }?.value ?: "22"
-                s(R.string.toolreg_ssh_login_desc, username, host, port)
-            },
-            executor = { tool -> runBlocking(Dispatchers.IO) { sshTools.sshLogin(tool) } }
-    )
-
-    // 退出SSH
-    handler.registerTool(
-            name = "ssh_exit",
-            descriptionGenerator = { _ -> s(R.string.toolreg_ssh_exit_desc) },
-            executor = { tool -> runBlocking(Dispatchers.IO) { sshTools.sshExit(tool) } }
     )
 
     // 搜索文件

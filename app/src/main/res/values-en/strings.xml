@@ -4981,6 +4981,8 @@
     <string name="toolreg_find_chat_desc">Find chat: %1$s</string>
     <string name="toolreg_agent_status_desc">Check chat status: %1$s</string>
     <string name="toolreg_switch_chat_desc">Switch to chat: %1$s</string>
+    <string name="toolreg_update_chat_title_desc">Update chat title: %1$s</string>
+    <string name="toolreg_delete_chat_desc">Delete chat: %1$s</string>
     <string name="toolreg_send_message_to_ai_desc">Send message to AI: %1$s</string>
     <string name="toolreg_list_character_cards_desc">List all character cards</string>
     <string name="toolreg_get_chat_messages_desc">Get chat messages: %1$s%2$s%3$s</string>
@@ -5002,8 +5004,6 @@
     <string name="toolreg_move_file_desc">Move file: %1$s -&gt; %2$s%3$s</string>
     <string name="toolreg_copy_file_desc">Copy file: %1$s -&gt; %2$s%3$s</string>
     <string name="toolreg_make_directory_desc">Create directory: %1$s%2$s</string>
-    <string name="toolreg_ssh_login_desc">SSH login: %1$s@%2$s:%3$s</string>
-    <string name="toolreg_ssh_exit_desc">Exit SSH</string>
     <string name="toolreg_find_files_desc">Find files: search %2$s in %1$s%3$s</string>
     <string name="toolreg_file_info_desc">Get file info: %1$s%2$s</string>
     <string name="toolreg_apply_file_desc">Apply AI code merge to file: %1$s%2$s</string>

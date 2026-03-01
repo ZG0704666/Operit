@@ -14,7 +14,7 @@ import {
     CalculationResultData, FFmpegResultData, ADBResultData, IntentResultData, TerminalCommandResultData, TerminalSessionScreenResultData,
     FilePartContentData, FileApplyResultData, WorkflowListResultData, WorkflowResultData, WorkflowDetailResultData,
     StringResultData, ChatServiceStartResultData, ChatCreationResultData, ChatListResultData, ChatFindResultData, AgentStatusResultData,
-    ChatSwitchResultData, MessageSendResultData, MemoryLinkResultData, MemoryLinkQueryResultData, GrepResultData,
+    ChatSwitchResultData, ChatTitleUpdateResultData, ChatDeleteResultData, MessageSendResultData, MemoryLinkResultData, MemoryLinkQueryResultData, GrepResultData,
     ChatMessagesResultData, CharacterCardListResultData,
     SpeechServicesConfigResultData, SpeechServicesUpdateResultData,
     ModelConfigsResultData, ModelConfigCreateResultData, ModelConfigUpdateResultData, ModelConfigDeleteResultData,
@@ -144,6 +144,8 @@ export interface ToolResultMap {
     'find_chat': ChatFindResultData;
     'agent_status': AgentStatusResultData;
     'switch_chat': ChatSwitchResultData;
+    'update_chat_title': ChatTitleUpdateResultData;
+    'delete_chat': ChatDeleteResultData;
 
     'send_message_to_ai': MessageSendResultData;
     'list_character_cards': CharacterCardListResultData;

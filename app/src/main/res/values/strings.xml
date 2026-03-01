@@ -4953,6 +4953,8 @@
     <string name="toolreg_find_chat_desc">查找对话: %1$s</string>
     <string name="toolreg_agent_status_desc">查询对话状态: %1$s</string>
     <string name="toolreg_switch_chat_desc">切换到对话: %1$s</string>
+    <string name="toolreg_update_chat_title_desc">更新对话标题: %1$s</string>
+    <string name="toolreg_delete_chat_desc">删除对话: %1$s</string>
     <string name="toolreg_send_message_to_ai_desc">发送消息给AI: %1$s</string>
     <string name="toolreg_list_character_cards_desc">列出所有角色卡</string>
     <string name="toolreg_get_chat_messages_desc">获取对话消息: %1$s%2$s%3$s</string>
@@ -4974,8 +4976,6 @@
     <string name="toolreg_move_file_desc">移动文件: %1$s -&gt; %2$s%3$s</string>
     <string name="toolreg_copy_file_desc">复制文件: %1$s -&gt; %2$s%3$s</string>
     <string name="toolreg_make_directory_desc">创建目录: %1$s%2$s</string>
-    <string name="toolreg_ssh_login_desc">登录SSH服务器: %1$s@%2$s:%3$s</string>
-    <string name="toolreg_ssh_exit_desc">退出SSH连接</string>
     <string name="toolreg_find_files_desc">搜索文件: 在 %1$s 中查找 %2$s%3$s</string>
     <string name="toolreg_file_info_desc">获取文件信息: %1$s%2$s</string>
     <string name="toolreg_apply_file_desc">智能合并AI代码到文件: %1$s%2$s</string>

@@ -7,8 +7,8 @@
         "en": "Extended Chat"
     },
     "description": {
-        "zh": "对话工具包：列出/查找对话、跨话题读取消息、绑定角色卡对话并发送消息。",
-        "en": "Chat toolkit: list/find chats, read messages across chats, bind character cards and send messages."
+        "zh": "对话工具包：列出/查找/重命名/删除对话、跨话题读取消息、绑定角色卡对话并发送消息。",
+        "en": "Chat toolkit: list/find/rename/delete chats, read messages across chats, bind character cards and send messages."
     },
     "enabledByDefault": true,
     "category": "Chat",
@@ -53,6 +53,35 @@
                 { "name": "match", "description": { "zh": "可选：contains/exact/regex（默认 contains）", "en": "Optional: contains/exact/regex (default contains)" }, "type": "string", "required": false },
                 { "name": "order", "description": { "zh": "可选：asc/desc（默认 desc）", "en": "Optional: asc/desc (default desc)" }, "type": "string", "required": false },
                 { "name": "limit", "description": { "zh": "可选：返回消息条数（默认 20）", "en": "Optional: max number of messages (default 20)" }, "type": "number", "required": false }
+            ]
+        },
+        {
+            "name": "rename_chat",
+            "description": {
+                "zh": "重命名指定对话（可按 chat_id 或 chat_title 指定）。",
+                "en": "Rename a chat (by chat_id or chat_title)."
+            },
+            "parameters": [
+                { "name": "new_title", "description": { "zh": "新的对话标题", "en": "New chat title" }, "type": "string", "required": true },
+                { "name": "chat_id", "description": { "zh": "目标对话 ID（可选）", "en": "Target chat id (optional)" }, "type": "string", "required": false },
+                { "name": "chat_title", "description": { "zh": "目标对话标题（可选；当 chat_id 为空时使用）", "en": "Target chat title (optional; used when chat_id is empty)" }, "type": "string", "required": false },
+                { "name": "chat_query", "description": { "zh": "可选：标题筛选关键字（当 chat_id/chat_title 为空时使用）", "en": "Optional title keyword (used when chat_id/chat_title is empty)" }, "type": "string", "required": false },
+                { "name": "chat_index", "description": { "zh": "可选：当筛选结果有多个时选择第 N 个（默认 0）", "en": "Optional: pick Nth when multiple matches (default 0)" }, "type": "number", "required": false },
+                { "name": "match", "description": { "zh": "可选：contains/exact/regex（默认 contains）", "en": "Optional: contains/exact/regex (default contains)" }, "type": "string", "required": false }
+            ]
+        },
+        {
+            "name": "delete_chat",
+            "description": {
+                "zh": "删除指定对话（可按 chat_id 或 chat_title 指定）。",
+                "en": "Delete a chat (by chat_id or chat_title)."
+            },
+            "parameters": [
+                { "name": "chat_id", "description": { "zh": "目标对话 ID（可选）", "en": "Target chat id (optional)" }, "type": "string", "required": false },
+                { "name": "chat_title", "description": { "zh": "目标对话标题（可选；当 chat_id 为空时使用）", "en": "Target chat title (optional; used when chat_id is empty)" }, "type": "string", "required": false },
+                { "name": "chat_query", "description": { "zh": "可选：标题筛选关键字（当 chat_id/chat_title 为空时使用）", "en": "Optional title keyword (used when chat_id/chat_title is empty)" }, "type": "string", "required": false },
+                { "name": "chat_index", "description": { "zh": "可选：当筛选结果有多个时选择第 N 个（默认 0）", "en": "Optional: pick Nth when multiple matches (default 0)" }, "type": "number", "required": false },
+                { "name": "match", "description": { "zh": "可选：contains/exact/regex（默认 contains）", "en": "Optional: contains/exact/regex (default contains)" }, "type": "string", "required": false }
             ]
         },
         {
@@ -213,6 +242,41 @@ const HistoryChat = (function () {
             },
         };
     }
+    async function rename_chat_impl(params) {
+        var _a;
+        const newTitle = ((_a = params === null || params === void 0 ? void 0 : params.new_title) !== null && _a !== void 0 ? _a : '').toString().trim();
+        if (!newTitle) {
+            throw new Error('Missing parameter: new_title');
+        }
+        const chatId = await resolveChatId(params || {});
+        const result = (await toolCall('update_chat_title', {
+            chat_id: chatId,
+            title: newTitle,
+        }));
+        return {
+            success: true,
+            message: '对话重命名完成',
+            data: {
+                chat_id: chatId,
+                title: newTitle,
+                result,
+            },
+        };
+    }
+    async function delete_chat_impl(params) {
+        const chatId = await resolveChatId(params || {});
+        const result = (await toolCall('delete_chat', {
+            chat_id: chatId,
+        }));
+        return {
+            success: true,
+            message: '对话删除完成',
+            data: {
+                chat_id: chatId,
+                result,
+            },
+        };
+    }
     async function agent_status_impl(params) {
         var _a;
         const chatId = ((_a = params === null || params === void 0 ? void 0 : params.chat_id) !== null && _a !== void 0 ? _a : '').toString().trim();
@@ -366,6 +430,12 @@ const HistoryChat = (function () {
     async function read_messages(params) {
         return await wrapToolExecution(read_messages_impl, params);
     }
+    async function rename_chat(params) {
+        return await wrapToolExecution(rename_chat_impl, params);
+    }
+    async function delete_chat(params) {
+        return await wrapToolExecution(delete_chat_impl, params);
+    }
     async function list_chats(params) {
         return await wrapToolExecution(list_chats_impl, params);
     }
@@ -386,7 +456,7 @@ const HistoryChat = (function () {
             success: true,
             message: 'extended_chat 工具包已加载',
             data: {
-                hint: 'Use extended_chat:read_messages or extended_chat:list_character_cards.',
+                hint: 'Use extended_chat:read_messages / rename_chat / delete_chat.',
             },
         });
     }
@@ -394,6 +464,8 @@ const HistoryChat = (function () {
         list_chats,
         find_chat,
         read_messages,
+        rename_chat,
+        delete_chat,
         chat_with_agent,
         agent_status,
         list_character_cards,
@@ -403,6 +475,8 @@ const HistoryChat = (function () {
 exports.list_chats = HistoryChat.list_chats;
 exports.find_chat = HistoryChat.find_chat;
 exports.read_messages = HistoryChat.read_messages;
+exports.rename_chat = HistoryChat.rename_chat;
+exports.delete_chat = HistoryChat.delete_chat;
 exports.chat_with_agent = HistoryChat.chat_with_agent;
 exports.agent_status = HistoryChat.agent_status;
 exports.list_character_cards = HistoryChat.list_character_cards;

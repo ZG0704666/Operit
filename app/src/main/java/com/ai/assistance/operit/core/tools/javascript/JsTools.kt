@@ -737,6 +737,13 @@ fun getJsToolsDefinition(): String {
                 agentStatus: (chatId) => toolCall("agent_status", { chat_id: chatId }),
                 // 切换对话
                 switchTo: (chatId) => toolCall("switch_chat", { chat_id: chatId }),
+                updateTitle: (chatId, title) => {
+                    const params = { chat_id: String(chatId ?? ""), title: String(title ?? "") };
+                    return toolCall("update_chat_title", params);
+                },
+                deleteChat: (chatId) => {
+                    return toolCall("delete_chat", { chat_id: String(chatId ?? "") });
+                },
                 getMessages: (chatId, order, limit) => {
                     const params = { chat_id: chatId };
                     if (order !== undefined && order !== null && String(order).trim() !== "") params.order = String(order);

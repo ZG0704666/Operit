@@ -87,22 +87,6 @@ object SystemToolPrompts {
         categoryName = "File System Tools",
         tools = listOf(
             ToolPrompt(
-                name = "ssh_login",
-                description = "Login to a remote SSH server. After logging in, all file tools with environment=\"linux\" will use this SSH connection instead of the local Ubuntu 24 terminal.",
-                parametersStructured = listOf(
-                    ToolParameterSchema(name = "host", type = "string", description = "SSH server address", required = true),
-                    ToolParameterSchema(name = "port", type = "integer", description = "optional", required = false, default = "22"),
-                    ToolParameterSchema(name = "username", type = "string", description = "required", required = true),
-                    ToolParameterSchema(name = "password", type = "string", description = "required", required = true),
-                    ToolParameterSchema(name = "enable_reverse_mount", type = "boolean", description = "optional, enables reverse mounting of local storage to remote server", required = false, default = "false")
-                )
-            ),
-            ToolPrompt(
-                name = "ssh_exit",
-                description = "Logout from the SSH connection. After logout, file tools will resume using the local Ubuntu 24 terminal.",
-                parametersStructured = listOf()
-            ),
-            ToolPrompt(
                 name = "list_files",
                 description = "List files in a directory.",
                 parametersStructured = listOf(
@@ -263,22 +247,6 @@ object SystemToolPrompts {
     val fileSystemToolsCn = SystemToolPromptCategory(
         categoryName = "文件系统工具",
         tools = listOf(
-            ToolPrompt(
-                name = "ssh_login",
-                description = "登录远程SSH服务器。登录后，所有environment=\"linux\"的文件工具都将使用此SSH连接，而不是本地Ubuntu 24终端。",
-                parametersStructured = listOf(
-                    ToolParameterSchema(name = "host", type = "string", description = "SSH服务器地址", required = true),
-                    ToolParameterSchema(name = "port", type = "integer", description = "可选", required = false, default = "22"),
-                    ToolParameterSchema(name = "username", type = "string", description = "必填", required = true),
-                    ToolParameterSchema(name = "password", type = "string", description = "必填", required = true),
-                    ToolParameterSchema(name = "enable_reverse_mount", type = "boolean", description = "可选，布尔值，启用后将本地存储反向挂载到远程服务器", required = false, default = "false")
-                )
-            ),
-            ToolPrompt(
-                name = "ssh_exit",
-                description = "退出SSH连接。退出后，文件工具将恢复使用本地Ubuntu 24终端。",
-                parametersStructured = listOf()
-            ),
             ToolPrompt(
                 name = "list_files",
                 description = "列出目录中的文件。",

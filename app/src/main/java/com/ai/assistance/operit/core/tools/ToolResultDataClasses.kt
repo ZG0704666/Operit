@@ -1520,6 +1520,29 @@ data class ChatSwitchResultData(
     }
 }
 
+/** 更新对话标题结果数据 */
+@Serializable
+data class ChatTitleUpdateResultData(
+    val chatId: String,
+    val title: String,
+    val updatedAt: Long = System.currentTimeMillis()
+) : ToolResultData() {
+    override fun toString(): String {
+        return "Updated chat title: $chatId -> $title"
+    }
+}
+
+/** 删除对话结果数据 */
+@Serializable
+data class ChatDeleteResultData(
+    val chatId: String,
+    val deletedAt: Long = System.currentTimeMillis()
+) : ToolResultData() {
+    override fun toString(): String {
+        return "Deleted chat: $chatId"
+    }
+}
+
 @Serializable
 data class ChatMessagesResultData(
     val chatId: String,

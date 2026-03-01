@@ -1230,6 +1230,32 @@ export interface ChatSwitchResultData {
 }
 
 /**
+ * Chat title update result data
+ */
+export interface ChatTitleUpdateResultData {
+    /** Target chat ID */
+    chatId: string;
+    /** Updated title */
+    title: string;
+    /** Update timestamp */
+    updatedAt: number;
+    /** Returns a formatted string representation */
+    toString(): string;
+}
+
+/**
+ * Chat delete result data
+ */
+export interface ChatDeleteResultData {
+    /** Deleted chat ID */
+    chatId: string;
+    /** Delete timestamp */
+    deletedAt: number;
+    /** Returns a formatted string representation */
+    toString(): string;
+}
+
+/**
  * Message send result data
  */
 export interface MessageSendResultData {
@@ -1342,6 +1368,14 @@ export interface AgentStatusResult extends BaseResult {
 
 export interface ChatSwitchResult extends BaseResult {
     data: ChatSwitchResultData;
+}
+
+export interface ChatTitleUpdateResult extends BaseResult {
+    data: ChatTitleUpdateResultData;
+}
+
+export interface ChatDeleteResult extends BaseResult {
+    data: ChatDeleteResultData;
 }
 
 export interface MessageSendResult extends BaseResult {

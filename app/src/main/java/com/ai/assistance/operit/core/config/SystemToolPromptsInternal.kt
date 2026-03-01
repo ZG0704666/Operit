@@ -1018,6 +1018,38 @@ object SystemToolPromptsInternal {
                                 )
                         ),
                         ToolPrompt(
+                            name = "update_chat_title",
+                            description = "Update a chat title.",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "target chat id",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "title",
+                                        type = "string",
+                                        description = "new chat title",
+                                        required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "delete_chat",
+                            description = "Delete a chat by id.",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "target chat id",
+                                        required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
                             name = "send_message_to_ai",
                             description = "Send a user message to AI.",
                             parametersStructured =
@@ -3429,6 +3461,38 @@ object SystemToolPromptsInternal {
                         ToolPrompt(
                             name = "switch_chat",
                             description = "切换到指定对话。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "目标对话 ID",
+                                        required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "update_chat_title",
+                            description = "更新对话标题。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "chat_id",
+                                        type = "string",
+                                        description = "目标对话 ID",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "title",
+                                        type = "string",
+                                        description = "新的对话标题",
+                                        required = true
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "delete_chat",
+                            description = "按 ID 删除对话。",
                             parametersStructured =
                                 listOf(
                                     ToolParameterSchema(

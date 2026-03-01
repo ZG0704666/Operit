@@ -12,6 +12,8 @@ import {
     ChatFindResultData,
     AgentStatusResultData,
     ChatSwitchResultData,
+    ChatTitleUpdateResultData,
+    ChatDeleteResultData,
     MessageSendResultData,
     ChatMessagesResultData,
     CharacterCardListResultData
@@ -74,6 +76,16 @@ export namespace Chat {
      * @returns Promise resolving to the chat switch result
      */
     function switchTo(chatId: string): Promise<ChatSwitchResultData>;
+
+    /**
+     * Update chat title
+     */
+    function updateTitle(chatId: string, title: string): Promise<ChatTitleUpdateResultData>;
+
+    /**
+     * Delete a chat conversation by id
+     */
+    function deleteChat(chatId: string): Promise<ChatDeleteResultData>;
 
     /**
      * Send a message to the AI

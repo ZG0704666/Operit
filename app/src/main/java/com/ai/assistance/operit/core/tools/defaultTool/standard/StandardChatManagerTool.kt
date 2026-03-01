@@ -18,6 +18,8 @@ import com.ai.assistance.operit.core.tools.ChatMessagesResultData
 import com.ai.assistance.operit.core.tools.CharacterCardListResultData
 import com.ai.assistance.operit.core.tools.ChatServiceStartResultData
 import com.ai.assistance.operit.core.tools.ChatSwitchResultData
+import com.ai.assistance.operit.core.tools.ChatTitleUpdateResultData
+import com.ai.assistance.operit.core.tools.ChatDeleteResultData
 import com.ai.assistance.operit.core.tools.MessageSendResultData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.data.model.ChatHistory
@@ -398,6 +400,121 @@ class StandardChatManagerTool(private val context: Context) {
                 success = false,
                 result = ChatFindResultData(matchedCount = 0, chat = null),
                 error = "Error finding chat: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * 更新对话标题
+     */
+    suspend fun updateChatTitle(tool: AITool): ToolResult {
+        return try {
+            val chatId = tool.parameters.find { it.name == "chat_id" }?.value?.trim()
+            if (chatId.isNullOrBlank()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatTitleUpdateResultData(chatId = "", title = ""),
+                    error = "Invalid parameter: missing chat_id"
+                )
+            }
+
+            val titleRaw = tool.parameters.find { it.name == "title" }?.value
+            val title = titleRaw?.trim().orEmpty()
+            if (title.isBlank()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatTitleUpdateResultData(chatId = chatId, title = ""),
+                    error = "Invalid parameter: missing title"
+                )
+            }
+
+            val chatHistoryManager = ChatHistoryManager.getInstance(appContext)
+            val existingTitle = chatHistoryManager.getChatTitle(chatId)
+            if (existingTitle == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatTitleUpdateResultData(chatId = chatId, title = title),
+                    error = "Chat does not exist: $chatId"
+                )
+            }
+
+            chatHistoryManager.updateChatTitle(chatId, title)
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = ChatTitleUpdateResultData(chatId = chatId, title = title)
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to update chat title", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = ChatTitleUpdateResultData(chatId = "", title = ""),
+                error = "Error updating chat title: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * 删除对话
+     */
+    suspend fun deleteChat(tool: AITool): ToolResult {
+        return try {
+            val chatId = tool.parameters.find { it.name == "chat_id" }?.value?.trim()
+            if (chatId.isNullOrBlank()) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatDeleteResultData(chatId = ""),
+                    error = "Invalid parameter: missing chat_id"
+                )
+            }
+
+            val chatHistoryManager = ChatHistoryManager.getInstance(appContext)
+            val chat = chatHistoryManager.chatHistoriesFlow.first().find { it.id == chatId }
+            if (chat == null) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatDeleteResultData(chatId = chatId),
+                    error = "Chat does not exist: $chatId"
+                )
+            }
+
+            if (chat.locked) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatDeleteResultData(chatId = chatId),
+                    error = "Chat is locked and cannot be deleted: $chatId"
+                )
+            }
+
+            val deleted = chatHistoryManager.deleteChatHistory(chatId)
+            if (!deleted) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = ChatDeleteResultData(chatId = chatId),
+                    error = "Failed to delete chat: $chatId"
+                )
+            }
+
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = ChatDeleteResultData(chatId = chatId)
+            )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to delete chat", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = ChatDeleteResultData(chatId = ""),
+                error = "Error deleting chat: ${e.message}"
             )
         }
     }

@@ -65,6 +65,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val ACTION_OPEN_SETTINGS_SHORTCUT = "com.ai.assistance.operit.action.OPEN_SETTINGS_SHORTCUT"
+    }
+
     private val TAG = "MainActivity"
 
     // ======== 屏幕方向变更状态 ========
@@ -108,6 +112,7 @@ class MainActivity : ComponentActivity() {
     private var pendingSharedFileUris: List<Uri>? = null
 
     private var pendingSharedLinks: List<String>? = null
+    private var pendingShortcutNavItem: NavItem? = null
 
     // 通知权限请求启动器
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -283,9 +288,14 @@ class MainActivity : ComponentActivity() {
         val isGitHubOAuthCallback = intent?.data?.let { uri ->
             uri.scheme == "operit" && uri.host == "github-oauth-callback"
         } == true
-        handleIntent(intent)
+        val handledShortcutIntent = handleIntent(intent)
 
         if (isGitHubOAuthCallback) {
+            return
+        }
+
+        if (handledShortcutIntent) {
+            setAppContent()
             return
         }
         
@@ -299,7 +309,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun handleIntent(intent: Intent?) {
+    private fun handleIntent(intent: Intent?): Boolean {
+        if (intent?.action == ACTION_OPEN_SETTINGS_SHORTCUT) {
+            pendingShortcutNavItem = NavItem.Settings
+            AppLogger.d(TAG, "Shortcut requested opening settings")
+            return true
+        }
+
         val uri = intent?.data
         if (uri != null && uri.scheme == "operit" && uri.host == "github-oauth-callback") {
             val code = uri.getQueryParameter("code")
@@ -310,7 +326,7 @@ class MainActivity : ComponentActivity() {
                 val error = uri.getQueryParameter("error")
                 AppLogger.e(TAG, "GitHub OAuth error from onCreate: $error")
             }
-            return
+            return false
         }
         
         // Handle opened and shared files
@@ -338,7 +354,7 @@ class MainActivity : ComponentActivity() {
                 uri?.let {
                     pendingSharedFileUris = listOf(it)
                     AppLogger.d(TAG, "Received shared file: $it")
-                    return
+                    return false
                 }
 
                 val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
@@ -372,6 +388,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        return false
     }
 
     private fun extractHttpUrls(text: String): List<String> {
@@ -735,15 +752,19 @@ class MainActivity : ComponentActivity() {
                             // 处理待处理的分享文件
                             processPendingSharedFiles()
                             processPendingSharedLinks()
+                            val initialNavItem = when {
+                                showPreferencesGuide -> NavItem.UserPreferencesGuide
+                                pendingShortcutNavItem != null -> pendingShortcutNavItem!!
+                                else -> NavItem.AiChat
+                            }
+                            if (!showPreferencesGuide && pendingShortcutNavItem != null) {
+                                pendingShortcutNavItem = null
+                            }
                             
                             CompositionLocalProvider(LocalPluginLoadingState provides pluginLoadingState) {
                                 // 主应用界面 (始终存在于底层)
                                 OperitApp(
-                                        initialNavItem =
-                                                when {
-                                                    showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                                    else -> NavItem.AiChat
-                                                },
+                                        initialNavItem = initialNavItem,
                                         toolHandler = toolHandler
                                 )
                             }
