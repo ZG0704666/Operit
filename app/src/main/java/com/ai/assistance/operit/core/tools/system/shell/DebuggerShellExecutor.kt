@@ -465,7 +465,7 @@ class DebuggerShellExecutor(private val context: Context) : ShellExecutor {
     private fun getShizukuService(): IShizukuService? {
         try {
             val uid = Shizuku.getUid()
-            if (uid <= 0) {
+            if (uid < 0) {
                 AppLogger.d(TAG, "Invalid Shizuku UID: $uid")
                 return null
             }

@@ -210,12 +210,14 @@ fun MemoryScreen() {
                                 }
                             }
 
-                            val toolHandler = AIToolHandler.getInstance(context)
-                            val tool = AITool(
-                                name = "read_file_full",
-                                parameters = listOf(ToolParameter("path", tempFile.absolutePath))
-                            )
-                            val result = toolHandler.executeTool(tool)
+                            val result = withContext(Dispatchers.IO) {
+                                val toolHandler = AIToolHandler.getInstance(context)
+                                val tool = AITool(
+                                    name = "read_file_full",
+                                    parameters = listOf(ToolParameter("path", tempFile.absolutePath))
+                                )
+                                toolHandler.executeTool(tool)
+                            }
 
                             if (result.success) {
                                 // Assuming result.result can be cast to StringResultData
