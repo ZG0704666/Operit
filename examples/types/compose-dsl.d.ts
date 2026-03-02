@@ -1,6 +1,7 @@
 /**
  * Compose-like DSL type definitions for toolpkg ui_modules runtime="compose_dsl".
  */
+import type { ComposeMaterial3GeneratedUiFactoryRegistry } from "./compose-dsl.material3.generated";
 
 export type ComposeTextStyle =
   | "headlineSmall"
@@ -24,13 +25,48 @@ export type ComposeArrangement =
 
 export type ComposeAlignment = "start" | "center" | "end";
 
+export interface ComposeShape {
+  cornerRadius?: number;
+}
+
+export interface ComposeBorder {
+  width?: number;
+  color?: string;
+  alpha?: number;
+}
+
+export interface ComposePadding {
+  horizontal?: number;
+  vertical?: number;
+}
+
+export interface ComposeModifierOp {
+  name: string;
+  args?: unknown[];
+}
+
+export interface ComposeModifierValue {
+  __modifierOps: ComposeModifierOp[];
+}
+
+export type ComposeModifierProxy = ComposeModifierValue & {
+  [method: string]: (...args: unknown[]) => ComposeModifierProxy;
+};
+
+export interface ComposeTextFieldStyle {
+  fontSize?: number;
+  fontWeight?: string;
+  color?: string;
+}
+
 export interface ComposeCommonProps {
   key?: string;
   onLoad?: () => void | Promise<void>;
+  modifier?: ComposeModifierValue;
   weight?: number;
   width?: number;
   height?: number;
-  padding?: number;
+  padding?: number | ComposePadding;
   paddingHorizontal?: number;
   paddingVertical?: number;
   spacing?: number;
@@ -46,6 +82,7 @@ export interface ColumnProps extends ComposeCommonProps {
 export interface RowProps extends ComposeCommonProps {
   horizontalArrangement?: ComposeArrangement;
   verticalAlignment?: ComposeAlignment;
+  onClick?: () => void | Promise<void>;
 }
 
 export interface BoxProps extends ComposeCommonProps {
@@ -73,6 +110,8 @@ export interface TextFieldProps extends ComposeCommonProps {
   onValueChange: (value: string) => void;
   singleLine?: boolean;
   minLines?: number;
+  isPassword?: boolean;
+  style?: ComposeTextFieldStyle;
 }
 
 export interface SwitchProps extends ComposeCommonProps {
@@ -91,10 +130,11 @@ export interface ButtonProps extends ComposeCommonProps {
   text?: string;
   enabled?: boolean;
   onClick: () => void | Promise<void>;
+  shape?: ComposeShape;
 }
 
 export interface IconButtonProps extends ComposeCommonProps {
-  icon: string;
+  icon?: string;
   enabled?: boolean;
   onClick: () => void | Promise<void>;
 }
@@ -102,11 +142,22 @@ export interface IconButtonProps extends ComposeCommonProps {
 export interface CardProps extends ComposeCommonProps {
   containerColor?: string;
   contentColor?: string;
+  shape?: ComposeShape;
+  border?: ComposeBorder;
+  elevation?: number;
+}
+
+export interface SurfaceProps extends ComposeCommonProps {
+  containerColor?: string;
+  contentColor?: string;
+  shape?: ComposeShape;
+  alpha?: number;
 }
 
 export interface IconProps extends ComposeCommonProps {
   name?: string;
   tint?: string;
+  size?: number;
 }
 
 export interface LazyColumnProps extends ComposeCommonProps {
@@ -128,6 +179,33 @@ export interface ComposeNode {
   type: string;
   props?: Record<string, unknown>;
   children?: ComposeNode[];
+}
+
+export type ComposeChildren = ComposeNode | ComposeNode[] | null | undefined;
+
+export type ComposeNodeFactory<TProps extends Record<string, unknown> = Record<string, unknown>> = (
+  props?: TProps,
+  children?: ComposeChildren
+) => ComposeNode;
+
+export interface ComposeUiFactoryRegistry {
+  Column: ComposeNodeFactory<ColumnProps>;
+  Row: ComposeNodeFactory<RowProps>;
+  Box: ComposeNodeFactory<BoxProps>;
+  Spacer: ComposeNodeFactory<SpacerProps>;
+  Text: ComposeNodeFactory<TextProps>;
+  TextField: ComposeNodeFactory<TextFieldProps>;
+  Switch: ComposeNodeFactory<SwitchProps>;
+  Checkbox: ComposeNodeFactory<CheckboxProps>;
+  Button: ComposeNodeFactory<ButtonProps>;
+  IconButton: ComposeNodeFactory<IconButtonProps>;
+  Card: ComposeNodeFactory<CardProps>;
+  Surface: ComposeNodeFactory<SurfaceProps>;
+  Icon: ComposeNodeFactory<IconProps>;
+  LazyColumn: ComposeNodeFactory<LazyColumnProps>;
+  LinearProgressIndicator: ComposeNodeFactory<LinearProgressIndicatorProps>;
+  CircularProgressIndicator: ComposeNodeFactory<CircularProgressIndicatorProps>;
+  SnackbarHost: ComposeNodeFactory<SnackbarHostProps>;
 }
 
 export interface ComposeTemplateValues {
@@ -246,25 +324,17 @@ export interface ComposeDslContext {
    */
   resolveToolName?(request: ComposeResolveToolNameRequest): Promise<string> | string;
 
-  Column(props: ColumnProps, children?: ComposeNode[]): ComposeNode;
-  Row(props: RowProps, children?: ComposeNode[]): ComposeNode;
-  Box(props: BoxProps, children?: ComposeNode[]): ComposeNode;
-  Spacer(props?: SpacerProps): ComposeNode;
+  h<TProps extends Record<string, unknown> = Record<string, unknown>>(
+    type: string,
+    props?: TProps,
+    children?: ComposeChildren
+  ): ComposeNode;
 
-  Text(props: TextProps): ComposeNode;
-  TextField(props: TextFieldProps): ComposeNode;
-  Switch(props: SwitchProps): ComposeNode;
-  Checkbox(props: CheckboxProps): ComposeNode;
+  Modifier: ComposeModifierProxy;
 
-  Button(props: ButtonProps, children?: ComposeNode[]): ComposeNode;
-  IconButton(props: IconButtonProps): ComposeNode;
-  Card(props: CardProps, children?: ComposeNode[]): ComposeNode;
-  Icon(props: IconProps): ComposeNode;
-
-  LazyColumn(props: LazyColumnProps, children?: ComposeNode[]): ComposeNode;
-  LinearProgressIndicator(props?: LinearProgressIndicatorProps): ComposeNode;
-  CircularProgressIndicator(props?: CircularProgressIndicatorProps): ComposeNode;
-  SnackbarHost(props?: SnackbarHostProps): ComposeNode;
+  UI: ComposeUiFactoryRegistry &
+    ComposeMaterial3GeneratedUiFactoryRegistry &
+    Record<string, ComposeNodeFactory<Record<string, unknown>>>;
 }
 
 export type ComposeDslScreen = (ctx: ComposeDslContext) => ComposeNode | Promise<ComposeNode>;

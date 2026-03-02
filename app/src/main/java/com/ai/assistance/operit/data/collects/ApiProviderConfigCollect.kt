@@ -155,6 +155,11 @@ object ApiProviderConfigs {
             defaultApiEndpoint = "http://localhost:1234/v1/chat/completions"
         ),
         ProviderApiConfig(
+            providerType = ApiProviderType.OLLAMA,
+            defaultModelName = "",
+            defaultApiEndpoint = "http://localhost:11434/v1/chat/completions"
+        ),
+        ProviderApiConfig(
             providerType = ApiProviderType.MNN,
             defaultModelName = "",
             defaultApiEndpoint = ""

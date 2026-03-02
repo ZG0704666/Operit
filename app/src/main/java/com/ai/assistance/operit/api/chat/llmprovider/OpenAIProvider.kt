@@ -1318,11 +1318,14 @@ open class OpenAIProvider(
 
     // 创建请求
     private suspend fun createRequest(requestBody: RequestBody): Request {
-        val currentApiKey = apiKeyProvider.getApiKey()
+        val currentApiKey = apiKeyProvider.getApiKey().trim()
         val builder = Request.Builder()
             .url(EndpointCompleter.completeEndpoint(apiEndpoint, providerType))
-            .addHeader("Authorization", "Bearer $currentApiKey")
             .addHeader("Content-Type", "application/json")
+
+        if (currentApiKey.isNotEmpty()) {
+            builder.addHeader("Authorization", "Bearer $currentApiKey")
+        }
 
         // 添加自定义请求头
         customHeaders.forEach { (key, value) ->

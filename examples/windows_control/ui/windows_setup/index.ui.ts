@@ -201,15 +201,15 @@ function buildConnectionMetaRows(
       return;
     }
     rows.push(
-      ctx.Row({ fillMaxWidth: true, verticalAlignment: "start" }, [
-        ctx.Text({
+      ctx.UI.Row({ fillMaxWidth: true, verticalAlignment: "start" }, [
+        ctx.UI.Text({
           text: `${label}:`,
           style: "bodySmall",
           color: contentColor,
           fontWeight: "semiBold",
           width: 96
         }),
-        ctx.Text({
+        ctx.UI.Text({
           text,
           style: "bodySmall",
           color: contentColor,
@@ -515,20 +515,20 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
   const currentStatusUi = statusConfigByStatus[connectionCardState.value.status];
 
   const connectionCardChildren: ComposeNode[] = [
-    ctx.Row({ verticalAlignment: "center" }, [
-      ctx.Icon({
+    ctx.UI.Row({ verticalAlignment: "center" }, [
+      ctx.UI.Icon({
         name: currentStatusUi.icon,
         tint: currentStatusUi.contentColor
       }),
-      ctx.Spacer({ width: 8 }),
-      ctx.Column({ spacing: 2 }, [
-        ctx.Text({
+      ctx.UI.Spacer({ width: 8 }),
+      ctx.UI.Column({ spacing: 2 }, [
+        ctx.UI.Text({
           text: TEXT.connectionCardTitle,
           style: "titleMedium",
           color: currentStatusUi.contentColor,
           fontWeight: "semiBold"
         }),
-        ctx.Text({
+        ctx.UI.Text({
           text: currentStatusUi.text,
           style: "bodySmall",
           color: currentStatusUi.contentColor
@@ -539,10 +539,10 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
   if (connectionCardState.value.status === "checking") {
     connectionCardChildren.push(
-      ctx.Row({ verticalAlignment: "center" }, [
-        ctx.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: currentStatusUi.contentColor }),
-        ctx.Spacer({ width: 8 }),
-        ctx.Text({
+      ctx.UI.Row({ verticalAlignment: "center" }, [
+        ctx.UI.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: currentStatusUi.contentColor }),
+        ctx.UI.Spacer({ width: 8 }),
+        ctx.UI.Text({
           text: TEXT.checking,
           style: "bodyMedium",
           color: currentStatusUi.contentColor
@@ -559,7 +559,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
       connectionCardState.value.status === "notConfigured"
     ) {
       connectionCardChildren.push(
-        ctx.TextField({
+        ctx.UI.TextField({
           label: TEXT.connectionFixBaseUrlLabel,
           placeholder: TEXT.connectionFixBaseUrlPlaceholder,
           value: connectionFixBaseUrlState.value,
@@ -569,18 +569,18 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
       );
       connectionCardChildren.push(
         isCheckingConnectionState.value
-          ? ctx.Button({
+          ? ctx.UI.Button({
               enabled: false,
               fillMaxWidth: true,
               onClick: applyNewBaseUrlAndRetry
             }, [
-              ctx.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
-                ctx.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
-                ctx.Spacer({ width: 8 }),
-                ctx.Text({ text: TEXT.checking })
+              ctx.UI.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
+                ctx.UI.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
+                ctx.UI.Spacer({ width: 8 }),
+                ctx.UI.Text({ text: TEXT.checking })
               ])
             ])
-          : ctx.Button({
+          : ctx.UI.Button({
               text: TEXT.connectionFixApplyButton,
               enabled: connectionFixBaseUrlState.value.trim().length > 0,
               fillMaxWidth: true,
@@ -591,59 +591,59 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
   }
 
   const rootChildren: ComposeNode[] = [
-    ctx.Row({ verticalAlignment: "center" }, [
-      ctx.Icon({
+    ctx.UI.Row({ verticalAlignment: "center" }, [
+      ctx.UI.Icon({
         name: "computer",
         tint: "primary"
       }),
-      ctx.Spacer({ width: 8 }),
-      ctx.Text({
+      ctx.UI.Spacer({ width: 8 }),
+      ctx.UI.Text({
         text: TEXT.title,
         style: "headlineSmall",
         fontWeight: "bold"
       })
     ]),
-    ctx.Text({
+    ctx.UI.Text({
       text: TEXT.subtitle,
       style: "bodyMedium",
       color: "onSurfaceVariant"
     }),
-    ctx.Card({
+    ctx.UI.Card({
       fillMaxWidth: true,
       containerColor: currentStatusUi.containerColor,
       contentColor: currentStatusUi.contentColor
     }, [
-      ctx.Column({ padding: 16, spacing: 10 }, connectionCardChildren)
+      ctx.UI.Column({ padding: 16, spacing: 10 }, connectionCardChildren)
     ]),
-    ctx.Card({ fillMaxWidth: true }, [
-      ctx.Column({ padding: 16, spacing: 10 }, [
-        ctx.Row({ verticalAlignment: "center" }, [
-          ctx.Icon({ name: "share", tint: "primary" }),
-          ctx.Spacer({ width: 8 }),
-          ctx.Text({
+    ctx.UI.Card({ fillMaxWidth: true }, [
+      ctx.UI.Column({ padding: 16, spacing: 10 }, [
+        ctx.UI.Row({ verticalAlignment: "center" }, [
+          ctx.UI.Icon({ name: "share", tint: "primary" }),
+          ctx.UI.Spacer({ width: 8 }),
+          ctx.UI.Text({
             text: TEXT.step1Title,
             style: "titleMedium",
             fontWeight: "semiBold"
           })
         ]),
-        ctx.Text({
+        ctx.UI.Text({
           text: TEXT.step1Desc,
           style: "bodyMedium",
           color: "onSurfaceVariant"
         }),
         isSharingZipState.value
-          ? ctx.Button({
+          ? ctx.UI.Button({
               enabled: false,
               fillMaxWidth: true,
               onClick: sharePcAgentZip
             }, [
-              ctx.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
-                ctx.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
-                ctx.Spacer({ width: 8 }),
-                ctx.Text({ text: TEXT.exporting })
+              ctx.UI.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
+                ctx.UI.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
+                ctx.UI.Spacer({ width: 8 }),
+                ctx.UI.Text({ text: TEXT.exporting })
               ])
             ])
-          : ctx.Button({
+          : ctx.UI.Button({
               text: TEXT.step1Button,
               enabled: true,
               fillMaxWidth: true,
@@ -651,83 +651,83 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
             })
       ])
     ]),
-    ctx.Card({ fillMaxWidth: true }, [
-      ctx.Column({ padding: 16, spacing: 10 }, [
-        ctx.Row({ verticalAlignment: "center" }, [
-          ctx.Icon({ name: "computer", tint: "primary" }),
-          ctx.Spacer({ width: 8 }),
-          ctx.Text({
+    ctx.UI.Card({ fillMaxWidth: true }, [
+      ctx.UI.Column({ padding: 16, spacing: 10 }, [
+        ctx.UI.Row({ verticalAlignment: "center" }, [
+          ctx.UI.Icon({ name: "computer", tint: "primary" }),
+          ctx.UI.Spacer({ width: 8 }),
+          ctx.UI.Text({
             text: TEXT.step2Title,
             style: "titleMedium",
             fontWeight: "semiBold"
           })
         ]),
-        ctx.Text({
+        ctx.UI.Text({
           text: TEXT.step2Desc,
           style: "bodyMedium",
           color: "onSurfaceVariant"
         })
       ])
     ]),
-    ctx.Card({ fillMaxWidth: true }, [
-      ctx.Column({ padding: 16, spacing: 10 }, [
-        ctx.Row({ verticalAlignment: "center" }, [
-          ctx.Icon({ name: "settings", tint: "primary" }),
-          ctx.Spacer({ width: 8 }),
-          ctx.Text({
+    ctx.UI.Card({ fillMaxWidth: true }, [
+      ctx.UI.Column({ padding: 16, spacing: 10 }, [
+        ctx.UI.Row({ verticalAlignment: "center" }, [
+          ctx.UI.Icon({ name: "settings", tint: "primary" }),
+          ctx.UI.Spacer({ width: 8 }),
+          ctx.UI.Text({
             text: TEXT.step3Title,
             style: "titleMedium",
             fontWeight: "semiBold"
           })
         ]),
-        ctx.Text({
+        ctx.UI.Text({
           text: TEXT.step3Desc,
           style: "bodyMedium",
           color: "onSurfaceVariant"
         }),
-        ctx.TextField({
+        ctx.UI.TextField({
           label: TEXT.configLabel,
           placeholder: TEXT.configPlaceholder,
           value: pastedConfigState.value,
           onValueChange: pastedConfigState.set,
           minLines: 8
         }),
-        ctx.Text({
+        ctx.UI.Text({
           text: TEXT.envTip,
           style: "bodySmall",
           color: "onSurfaceVariant"
         }),
         isSavingConfigState.value
-          ? ctx.Button({
+          ? ctx.UI.Button({
               enabled: false,
               fillMaxWidth: true,
               onClick: pasteConfigAndApply
             }, [
-              ctx.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
-                ctx.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
-                ctx.Spacer({ width: 8 }),
-                ctx.Text({ text: TEXT.applying })
+              ctx.UI.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
+                ctx.UI.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
+                ctx.UI.Spacer({ width: 8 }),
+                ctx.UI.Text({ text: TEXT.applying })
               ])
             ])
-          : ctx.Button({
+          : ctx.UI.Button({
               text: TEXT.applyButton,
               enabled: true,
               fillMaxWidth: true,
               onClick: pasteConfigAndApply
             }),
         isCheckingConnectionState.value
-          ? ctx.Button({
+          ? ctx.UI.Button({
               enabled: false,
               fillMaxWidth: true,
               onClick: checkConnectionByTool
             }, [
-              ctx.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
-                ctx.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
-                ctx.Spacer({ width: 8 }),
-                ctx.Text({ text: TEXT.checking })
+              ctx.UI.Row({ verticalAlignment: "center", horizontalArrangement: "center" }, [
+                ctx.UI.CircularProgressIndicator({ width: 16, height: 16, strokeWidth: 2, color: "onPrimary" }),
+                ctx.UI.Spacer({ width: 8 }),
+                ctx.UI.Text({ text: TEXT.checking })
               ])
             ])
-          : ctx.Button({
+          : ctx.UI.Button({
               text: TEXT.recheckButton,
               enabled: true,
               fillMaxWidth: true,
@@ -739,11 +739,11 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
   if (step1MessageState.value.trim()) {
     rootChildren.push(
-      ctx.Card({ containerColor: "primaryContainer", fillMaxWidth: true }, [
-        ctx.Row({ padding: 14, verticalAlignment: "center" }, [
-          ctx.Icon({ name: "checkCircle", tint: "onPrimaryContainer" }),
-          ctx.Spacer({ width: 8 }),
-          ctx.Text({
+      ctx.UI.Card({ containerColor: "primaryContainer", fillMaxWidth: true }, [
+        ctx.UI.Row({ padding: 14, verticalAlignment: "center" }, [
+          ctx.UI.Icon({ name: "checkCircle", tint: "onPrimaryContainer" }),
+          ctx.UI.Spacer({ width: 8 }),
+          ctx.UI.Text({
             text: step1MessageState.value,
             style: "bodyMedium",
             color: "onPrimaryContainer"
@@ -755,11 +755,11 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
   if (step2MessageState.value.trim()) {
     rootChildren.push(
-      ctx.Card({ containerColor: "primaryContainer", fillMaxWidth: true }, [
-        ctx.Row({ padding: 14, verticalAlignment: "center" }, [
-          ctx.Icon({ name: "checkCircle", tint: "onPrimaryContainer" }),
-          ctx.Spacer({ width: 8 }),
-          ctx.Text({
+      ctx.UI.Card({ containerColor: "primaryContainer", fillMaxWidth: true }, [
+        ctx.UI.Row({ padding: 14, verticalAlignment: "center" }, [
+          ctx.UI.Icon({ name: "checkCircle", tint: "onPrimaryContainer" }),
+          ctx.UI.Spacer({ width: 8 }),
+          ctx.UI.Text({
             text: step2MessageState.value,
             style: "bodyMedium",
             color: "onPrimaryContainer"
@@ -771,11 +771,11 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
   if (errorMessageState.value.trim()) {
     rootChildren.push(
-      ctx.Card({ containerColor: "errorContainer", fillMaxWidth: true }, [
-        ctx.Row({ padding: 14, verticalAlignment: "center" }, [
-          ctx.Icon({ name: "error", tint: "onErrorContainer" }),
-          ctx.Spacer({ width: 8 }),
-          ctx.Text({
+      ctx.UI.Card({ containerColor: "errorContainer", fillMaxWidth: true }, [
+        ctx.UI.Row({ padding: 14, verticalAlignment: "center" }, [
+          ctx.UI.Icon({ name: "error", tint: "onErrorContainer" }),
+          ctx.UI.Spacer({ width: 8 }),
+          ctx.UI.Text({
             text: errorMessageState.value,
             style: "bodyMedium",
             color: "onErrorContainer"
@@ -785,7 +785,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
     );
   }
 
-  return ctx.Column(
+  return ctx.UI.Column(
     {
       onLoad: async () => {
         if (!hasInitializedState.value) {

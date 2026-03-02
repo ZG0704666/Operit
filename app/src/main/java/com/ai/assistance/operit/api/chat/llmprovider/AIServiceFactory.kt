@@ -142,6 +142,21 @@ object AIServiceFactory {
                     enableToolCall = enableToolCall
                 )
 
+            // Ollama使用OpenAI兼容格式
+            ApiProviderType.OLLAMA ->
+                OllamaProvider(
+                    apiEndpoint = config.apiEndpoint,
+                    apiKeyProvider = apiKeyProvider,
+                    modelName = config.modelName,
+                    client = httpClient,
+                    customHeaders = customHeaders,
+                    providerType = config.apiProviderType,
+                    supportsVision = supportsVision,
+                    supportsAudio = supportsAudio,
+                    supportsVideo = supportsVideo,
+                    enableToolCall = enableToolCall
+                )
+
             // MNN本地推理引擎
             ApiProviderType.MNN -> MNNProvider(
                 context = context,

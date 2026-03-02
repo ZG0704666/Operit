@@ -173,6 +173,7 @@ object DefaultModelPricingCollect {
         "DOUBAO" to zeroPricing(PricingCurrency.CNY),
         "PPINFRA" to zeroPricing(PricingCurrency.CNY),
         "LMSTUDIO" to zeroPricing(PricingCurrency.CNY),
+        "OLLAMA" to zeroPricing(PricingCurrency.CNY),
         "MNN" to zeroPricing(PricingCurrency.CNY),
         "LLAMA_CPP" to zeroPricing(PricingCurrency.CNY)
     )

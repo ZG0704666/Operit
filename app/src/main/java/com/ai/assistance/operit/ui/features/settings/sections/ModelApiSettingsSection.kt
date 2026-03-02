@@ -333,7 +333,8 @@ fun ModelApiSettingsSection(
             selectedApiProvider == ApiProviderType.OPENAI_GENERIC ||
             selectedApiProvider == ApiProviderType.OTHER ||
             selectedApiProvider == ApiProviderType.GEMINI_GENERIC ||
-            selectedApiProvider == ApiProviderType.ANTHROPIC_GENERIC
+            selectedApiProvider == ApiProviderType.ANTHROPIC_GENERIC ||
+            selectedApiProvider == ApiProviderType.OLLAMA
 
         if (isGenericProviderForEndpoint) {
             // 通用供应商仍保留原逻辑：只有在为空或当前就是某个默认端点时才写入默认值
@@ -354,6 +355,7 @@ fun ModelApiSettingsSection(
 
     // 检查是否使用默认API密钥（仅用于UI显示）
     val isUsingDefaultApiKey = apiKeyInput == ApiPreferences.DEFAULT_API_KEY
+    val providerRequiresApiKey = selectedApiProvider != ApiProviderType.OLLAMA
 
     // 移除了强制锁定模型名称的逻辑，允许用户自由修改
 
@@ -407,12 +409,13 @@ fun ModelApiSettingsSection(
                 SettingsInfoBanner(text = stringResource(R.string.overseas_provider_warning))
             }
 
-            // 仅 OpenAI通用(OPENAI_GENERIC)、其他供应商(OTHER) 和 Gemini通用(GEMINI_GENERIC) 允许自定义端点
+            // 允许自定义端点的供应商（通用类 + Ollama）
             val isGenericProvider =
                 selectedApiProvider == ApiProviderType.OPENAI_GENERIC ||
                 selectedApiProvider == ApiProviderType.OTHER ||
                 selectedApiProvider == ApiProviderType.GEMINI_GENERIC ||
-                selectedApiProvider == ApiProviderType.ANTHROPIC_GENERIC
+                selectedApiProvider == ApiProviderType.ANTHROPIC_GENERIC ||
+                selectedApiProvider == ApiProviderType.OLLAMA
 
             val isMnnProvider = selectedApiProvider == ApiProviderType.MNN
             val isLlamaProvider = selectedApiProvider == ApiProviderType.LLAMA_CPP
@@ -637,8 +640,8 @@ fun ModelApiSettingsSection(
 
                             scope.launch {
                                 if (apiEndpointInput.isNotBlank() &&
-                                                apiKeyInput.isNotBlank() &&
-                                                !isUsingDefaultApiKey
+                                                !isUsingDefaultApiKey &&
+                                                (!providerRequiresApiKey || apiKeyInput.isNotBlank())
                                 ) {
                                     isLoadingModels = true
                                     modelLoadError = null
@@ -812,8 +815,8 @@ fun ModelApiSettingsSection(
                                 onClick = {
                                     scope.launch {
                                         if (apiEndpointInput.isNotBlank() &&
-                                                        apiKeyInput.isNotBlank() &&
-                                                        !isUsingDefaultApiKey
+                                                        !isUsingDefaultApiKey &&
+                                                        (!providerRequiresApiKey || apiKeyInput.isNotBlank())
                                         ) {
                                             isLoadingModels = true
                                             try {
@@ -1080,6 +1083,7 @@ private fun getProviderDisplayName(provider: ApiProviderType, context: android.c
         ApiProviderType.ALIPAY_BAILING -> context.getString(R.string.provider_alipay_bailing)
         ApiProviderType.DOUBAO -> context.getString(R.string.provider_doubao)
         ApiProviderType.LMSTUDIO -> context.getString(R.string.provider_lmstudio)
+        ApiProviderType.OLLAMA -> context.getString(R.string.provider_ollama)
         ApiProviderType.MNN -> context.getString(R.string.provider_mnn)
         ApiProviderType.LLAMA_CPP -> context.getString(R.string.provider_llama_cpp)
         ApiProviderType.PPINFRA -> context.getString(R.string.provider_ppinfra)
@@ -1670,6 +1674,7 @@ private fun getProviderColor(provider: ApiProviderType): androidx.compose.ui.gra
         ApiProviderType.ALIPAY_BAILING -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
         ApiProviderType.DOUBAO -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f)
         ApiProviderType.LMSTUDIO -> MaterialTheme.colorScheme.tertiary
+        ApiProviderType.OLLAMA -> MaterialTheme.colorScheme.primary.copy(alpha = 0.78f)
         ApiProviderType.MNN -> MaterialTheme.colorScheme.secondary
         ApiProviderType.LLAMA_CPP -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f)
         ApiProviderType.PPINFRA -> MaterialTheme.colorScheme.primaryContainer

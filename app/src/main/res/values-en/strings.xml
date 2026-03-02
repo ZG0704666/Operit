@@ -3494,6 +3494,7 @@
     <string name="provider_infiniai">InfiniAI</string>
     <string name="provider_alipay_bailing">Alipay Bailing Model</string>
     <string name="provider_lmstudio">LM Studio</string>
+    <string name="provider_ollama">Ollama</string>
     <string name="provider_ppinfra">PPInfra Cloud</string>
     <string name="provider_openai_generic">OpenAI (Generic)</string>
     <string name="provider_other">Other Providers</string>

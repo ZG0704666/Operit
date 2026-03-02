@@ -445,27 +445,27 @@ function Screen(ctx) {
     }
 
     // UI 布局
-    return ctx.Column({ padding: 16 }, [
-        ctx.Text({ text: 'Windows Agent 配置', fontSize: 20, bold: true }),
-        ctx.Spacer({ height: 16 }),
+    return ctx.UI.Column({ padding: 16 }, [
+        ctx.UI.Text({ text: 'Windows Agent 配置', fontSize: 20, bold: true }),
+        ctx.UI.Spacer({ height: 16 }),
 
-        ctx.TextField({
+        ctx.UI.TextField({
             value: url,
             onValueChange: setUrl,
             label: 'Agent 地址',
             placeholder: 'http://192.168.1.8:58321'
         }),
-        ctx.Spacer({ height: 8 }),
+        ctx.UI.Spacer({ height: 8 }),
 
-        ctx.TextField({
+        ctx.UI.TextField({
             value: token,
             onValueChange: setToken,
             label: 'Token',
             placeholder: '输入 Token'
         }),
-        ctx.Spacer({ height: 16 }),
+        ctx.UI.Spacer({ height: 16 }),
 
-        ctx.Button({
+        ctx.UI.Button({
             text: '测试连接',
             onClick: handleConnect
         })

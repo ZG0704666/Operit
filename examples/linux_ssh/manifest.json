@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "toolpkg_id": "com.operit.linux_ssh_bundle",
+  "version": "0.1.0",
+  "display_name": {
+    "zh": "Linux SSH 工具包",
+    "en": "Linux SSH Bundle"
+  },
+  "description": {
+    "zh": "基于 terminal 集成函数的 Linux SSH 连接、tmux 任务与远程文件操作工具包",
+    "en": "Linux SSH toolkit powered by terminal integration for SSH, tmux jobs, and remote file operations"
+  },
+  "subpackages": [
+    {
+      "id": "linux_ssh",
+      "entry": "packages/linux_ssh.js"
+    }
+  ],
+  "ui_modules": [
+    {
+      "id": "linux_ssh_setup",
+      "runtime": "compose_dsl",
+      "entry": "ui/linux_ssh_setup/index.ui.js",
+      "title": {
+        "zh": "Linux SSH 管理",
+        "en": "Linux SSH Manager"
+      },
+      "permissions": [
+        "tool.call",
+        "resource.read"
+      ],
+      "show_in_package_manager": true
+    }
+  ]
+}

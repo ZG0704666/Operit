@@ -196,6 +196,59 @@ internal fun buildComposeDslContextBridgeDefinition(): String {
                     return basePackage + ':' + normalizedTool;
                 }
 
+                function createNodeFactory(type) {
+                    var nodeType = String(type || '');
+                    return function(props, children) {
+                        return createNode(nodeType, props, children);
+                    };
+                }
+
+                function createModifierProxy(ops) {
+                    var chain = Array.isArray(ops) ? ops.slice() : [];
+                    var target = {
+                        __modifierOps: chain
+                    };
+                    return new Proxy(target, {
+                        get: function(_target, key) {
+                            if (key === '__modifierOps') {
+                                return chain;
+                            }
+                            if (key === 'toJSON') {
+                                return function() {
+                                    return { __modifierOps: chain.slice() };
+                                };
+                            }
+                            if (key === 'then') {
+                                return undefined;
+                            }
+                            if (typeof key !== 'string') {
+                                return undefined;
+                            }
+                            return function() {
+                                var args = [];
+                                for (var i = 0; i < arguments.length; i += 1) {
+                                    args.push(normalizePropValue(arguments[i]));
+                                }
+                                var next = chain.slice();
+                                next.push({
+                                    name: key,
+                                    args: args
+                                });
+                                return createModifierProxy(next);
+                            };
+                        }
+                    });
+                }
+
+                var uiProxy = new Proxy({}, {
+                    get: function(_target, key) {
+                        if (typeof key !== 'string') {
+                            return undefined;
+                        }
+                        return createNodeFactory(key);
+                    }
+                });
+
                 var ctx = {
                     useState: useState,
                     useMemo: useMemo,
@@ -344,54 +397,11 @@ internal fun buildComposeDslContextBridgeDefinition(): String {
                         }
                         return Promise.resolve(normalizeToolName(packageName, toolName));
                     },
-                    Column: function(props, children) {
-                        return createNode('Column', props, children);
+                    h: function(type, props, children) {
+                        return createNode(String(type || ''), props, children);
                     },
-                    Row: function(props, children) {
-                        return createNode('Row', props, children);
-                    },
-                    Box: function(props, children) {
-                        return createNode('Box', props, children);
-                    },
-                    Spacer: function(props) {
-                        return createNode('Spacer', props, []);
-                    },
-                    Text: function(props) {
-                        return createNode('Text', props, []);
-                    },
-                    TextField: function(props) {
-                        return createNode('TextField', props, []);
-                    },
-                    Switch: function(props) {
-                        return createNode('Switch', props, []);
-                    },
-                    Checkbox: function(props) {
-                        return createNode('Checkbox', props, []);
-                    },
-                    Button: function(props, children) {
-                        return createNode('Button', props, children);
-                    },
-                    IconButton: function(props) {
-                        return createNode('IconButton', props, []);
-                    },
-                    Card: function(props, children) {
-                        return createNode('Card', props, children);
-                    },
-                    Icon: function(props) {
-                        return createNode('Icon', props, []);
-                    },
-                    LazyColumn: function(props, children) {
-                        return createNode('LazyColumn', props, children);
-                    },
-                    LinearProgressIndicator: function(props) {
-                        return createNode('LinearProgressIndicator', props, []);
-                    },
-                    CircularProgressIndicator: function(props) {
-                        return createNode('CircularProgressIndicator', props, []);
-                    },
-                    SnackbarHost: function(props) {
-                        return createNode('SnackbarHost', props, []);
-                    }
+                    Modifier: createModifierProxy([]),
+                    UI: uiProxy
                 };
 
                 return {

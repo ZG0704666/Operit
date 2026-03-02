@@ -1,6 +1,8 @@
 package com.ai.assistance.operit.ui.features.toolbox.screens
 
 import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,21 +10,22 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,11 +52,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.javascript.JsEngine
@@ -69,8 +78,72 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.Locale
 
 private const val TAG = "ToolPkgComposeDslScreen"
+internal fun normalizeToken(raw: String): String =
+    raw.lowercase(Locale.ROOT)
+        .replace("-", "")
+        .replace("_", "")
+        .trim()
+
+private fun buildZeroArgGetterByToken(
+    ownerClass: Class<*>,
+    returnTypeMatcher: (Class<*>) -> Boolean
+): Map<String, java.lang.reflect.Method> =
+    ownerClass.methods
+        .asSequence()
+        .filter { method ->
+            method.name.startsWith("get") &&
+                method.parameterCount == 0 &&
+                returnTypeMatcher(method.returnType)
+        }
+        .onEach { method -> method.isAccessible = true }
+        .associateBy { method -> normalizeToken(method.name.removePrefix("get")) }
+
+private val typographyGetterByToken: Map<String, java.lang.reflect.Method> by lazy {
+    buildZeroArgGetterByToken(androidx.compose.material3.Typography::class.java) { returnType ->
+        returnType == androidx.compose.ui.text.TextStyle::class.java
+    }
+}
+private val horizontalAlignmentGetterByToken: Map<String, java.lang.reflect.Method> by lazy {
+    buildZeroArgGetterByToken(Alignment::class.java) { returnType ->
+        Alignment.Horizontal::class.java.isAssignableFrom(returnType)
+    }
+}
+private val verticalAlignmentGetterByToken: Map<String, java.lang.reflect.Method> by lazy {
+    buildZeroArgGetterByToken(Alignment::class.java) { returnType ->
+        Alignment.Vertical::class.java.isAssignableFrom(returnType)
+    }
+}
+private val boxAlignmentGetterByToken: Map<String, java.lang.reflect.Method> by lazy {
+    buildZeroArgGetterByToken(Alignment::class.java) { returnType ->
+        returnType == Alignment::class.java
+    }
+}
+private val horizontalArrangementGetterByToken: Map<String, java.lang.reflect.Method> by lazy {
+    buildZeroArgGetterByToken(Arrangement::class.java) { returnType ->
+        Arrangement.Horizontal::class.java.isAssignableFrom(returnType)
+    }
+}
+private val verticalArrangementGetterByToken: Map<String, java.lang.reflect.Method> by lazy {
+    buildZeroArgGetterByToken(Arrangement::class.java) { returnType ->
+        Arrangement.Vertical::class.java.isAssignableFrom(returnType)
+    }
+}
+private val fontWeightGetterByToken: Map<String, java.lang.reflect.Method> by lazy {
+    buildZeroArgGetterByToken(FontWeight.Companion::class.java) { returnType ->
+        FontWeight::class.java.isAssignableFrom(returnType)
+    }
+}
+
+private val colorSchemeFieldByToken: Map<String, java.lang.reflect.Field> by lazy {
+    androidx.compose.material3.ColorScheme::class.java.declaredFields
+        .onEach { it.isAccessible = true }
+        .associateBy { field ->
+            normalizeToken(field.name)
+        }
+}
 
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -300,7 +373,7 @@ fun ToolPkgComposeDslToolScreen(
                 }
                 rootNode != null -> {
                     Box(modifier = contentModifier) {
-                        RenderComposeDslNode(
+                        renderComposeDslNode(
                             node = rootNode,
                             onAction = ::dispatchAction,
                             nodePath = "0"
@@ -321,303 +394,28 @@ fun ToolPkgComposeDslToolScreen(
 }
 
 @Composable
-private fun RenderComposeDslNode(
+internal fun renderComposeDslNode(
     node: ToolPkgComposeDslNode,
     onAction: (String, Any?) -> Unit,
     nodePath: String
 ) {
-    val props = node.props
-    when (node.type.lowercase()) {
-        "column" -> {
-            val spacing = props.dp("spacing")
-            Column(
-                modifier = applyCommonModifier(Modifier, props),
-                horizontalAlignment = props.horizontalAlignment("horizontalAlignment"),
-                verticalArrangement = props.verticalArrangement("verticalArrangement", spacing)
-            ) {
-                node.children.forEachIndexed { index, child ->
-                    val childWeight = child.props.floatOrNull("weight")
-                    if (childWeight != null) {
-                        Box(modifier = Modifier.weight(childWeight)) {
-                            RenderComposeDslNode(
-                                node = child,
-                                onAction = onAction,
-                                nodePath = "$nodePath/$index"
-                            )
-                        }
-                    } else {
-                        RenderComposeDslNode(
-                            node = child,
-                            onAction = onAction,
-                            nodePath = "$nodePath/$index"
-                        )
-                    }
-                }
-            }
-        }
-        "row" -> {
-            val spacing = props.dp("spacing")
-            Row(
-                modifier = applyCommonModifier(Modifier, props),
-                horizontalArrangement = props.horizontalArrangement("horizontalArrangement", spacing),
-                verticalAlignment = props.verticalAlignment("verticalAlignment")
-            ) {
-                node.children.forEachIndexed { index, child ->
-                    val childWeight = child.props.floatOrNull("weight")
-                    if (childWeight != null) {
-                        Box(modifier = Modifier.weight(childWeight)) {
-                            RenderComposeDslNode(
-                                node = child,
-                                onAction = onAction,
-                                nodePath = "$nodePath/$index"
-                            )
-                        }
-                    } else {
-                        RenderComposeDslNode(
-                            node = child,
-                            onAction = onAction,
-                            nodePath = "$nodePath/$index"
-                        )
-                    }
-                }
-            }
-        }
-        "box" -> {
-            Box(
-                modifier = applyCommonModifier(Modifier, props),
-                contentAlignment = props.boxAlignment("contentAlignment")
-            ) {
-                node.children.forEachIndexed { index, child ->
-                    RenderComposeDslNode(
-                        node = child,
-                        onAction = onAction,
-                        nodePath = "$nodePath/$index"
-                    )
-                }
-            }
-        }
-        "spacer" -> {
-            Spacer(
-                modifier =
-                    Modifier
-                        .width(props.dp("width"))
-                        .height(props.dp("height"))
-            )
-        }
-        "text" -> {
-            val textStyle = props.textStyle("style")
-            val textColor = props.colorOrNull("color")
-            val fontWeight = props.fontWeightOrNull("fontWeight")
-            Text(
-                text = props.string("text"),
-                style = if (fontWeight != null) textStyle.copy(fontWeight = fontWeight) else textStyle,
-                color = textColor ?: Color.Unspecified,
-                maxLines = props.int("maxLines", Int.MAX_VALUE),
-                overflow = TextOverflow.Ellipsis,
-                modifier = applyCommonModifier(Modifier, props)
-            )
-        }
-        "textfield" -> {
-            val actionId = ToolPkgComposeDslParser.extractActionId(props["onValueChange"])
-            val label = props.stringOrNull("label")
-            val placeholder = props.stringOrNull("placeholder")
-            val externalValue = props.string("value")
-            var textFieldValue by remember(nodePath) {
-                mutableStateOf(
-                    TextFieldValue(
-                        text = externalValue,
-                        selection = TextRange(externalValue.length)
-                    )
-                )
-            }
-            LaunchedEffect(nodePath, externalValue) {
-                if (externalValue != textFieldValue.text) {
-                    val start = textFieldValue.selection.start.coerceIn(0, externalValue.length)
-                    val end = textFieldValue.selection.end.coerceIn(0, externalValue.length)
-                    textFieldValue =
-                        TextFieldValue(
-                            text = externalValue,
-                            selection = TextRange(start, end)
-                        )
-                }
-            }
-            OutlinedTextField(
-                value = textFieldValue,
-                onValueChange = { nextValue ->
-                    if (!actionId.isNullOrBlank()) {
-                        textFieldValue = nextValue
-                        onAction(actionId, nextValue.text)
-                    }
-                },
-                label = label?.let { { Text(it) } },
-                placeholder = placeholder?.let { { Text(it) } },
-                singleLine = props.bool("singleLine", false),
-                minLines = props.int("minLines", 1),
-                modifier =
-                    applyCommonModifier(Modifier.fillMaxWidth(), props)
-            )
-        }
-        "button" -> {
-            val actionId = ToolPkgComposeDslParser.extractActionId(props["onClick"])
-            val hasChildren = node.children.isNotEmpty()
-            Button(
-                onClick = {
-                    if (!actionId.isNullOrBlank()) {
-                        onAction(actionId, null)
-                    }
-                },
-                enabled = !actionId.isNullOrBlank() && props.bool("enabled", true),
-                modifier = applyCommonModifier(Modifier, props)
-            ) {
-                if (hasChildren) {
-                    node.children.forEachIndexed { index, child ->
-                        RenderComposeDslNode(
-                            node = child,
-                            onAction = onAction,
-                            nodePath = "$nodePath/$index"
-                        )
-                    }
-                } else {
-                    Text(props.string("text", "Button"))
-                }
-            }
-        }
-        "switch" -> {
-            val actionId = ToolPkgComposeDslParser.extractActionId(props["onCheckedChange"])
-            Switch(
-                checked = props.bool("checked", false),
-                onCheckedChange = { checked ->
-                    if (!actionId.isNullOrBlank()) {
-                        onAction(actionId, checked)
-                    }
-                },
-                enabled = !actionId.isNullOrBlank() && props.bool("enabled", true),
-                modifier = applyCommonModifier(Modifier, props)
-            )
-        }
-        "checkbox" -> {
-            val actionId = ToolPkgComposeDslParser.extractActionId(props["onCheckedChange"])
-            Checkbox(
-                checked = props.bool("checked", false),
-                onCheckedChange = { checked ->
-                    if (!actionId.isNullOrBlank()) {
-                        onAction(actionId, checked)
-                    }
-                },
-                enabled = !actionId.isNullOrBlank() && props.bool("enabled", true),
-                modifier = applyCommonModifier(Modifier, props)
-            )
-        }
-        "iconbutton" -> {
-            val actionId = ToolPkgComposeDslParser.extractActionId(props["onClick"])
-            IconButton(
-                onClick = {
-                    if (!actionId.isNullOrBlank()) {
-                        onAction(actionId, null)
-                    }
-                },
-                enabled = !actionId.isNullOrBlank() && props.bool("enabled", true),
-                modifier = applyCommonModifier(Modifier, props)
-            ) {
-                Text(props.string("icon", "◎"))
-            }
-        }
-        "card" -> {
-            val containerColor = props.colorOrNull("containerColor")
-            val contentColor = props.colorOrNull("contentColor")
-            val spacing = props.dp("spacing")
-            val cardColors =
-                when {
-                    containerColor != null && contentColor != null ->
-                        CardDefaults.cardColors(
-                            containerColor = containerColor,
-                            contentColor = contentColor
-                        )
-                    containerColor != null ->
-                        CardDefaults.cardColors(containerColor = containerColor)
-                    contentColor != null ->
-                        CardDefaults.cardColors(contentColor = contentColor)
-                    else -> CardDefaults.cardColors()
-                }
-            Card(
-                colors = cardColors,
-                modifier = applyCommonModifier(Modifier, props)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(spacing)
-                ) {
-                    node.children.forEachIndexed { index, child ->
-                        RenderComposeDslNode(
-                            node = child,
-                            onAction = onAction,
-                            nodePath = "$nodePath/$index"
-                        )
-                    }
-                }
-            }
-        }
-        "icon" -> {
-            val iconName = props.string("name", props.string("icon", "info"))
-            val tint = props.colorOrNull("tint") ?: MaterialTheme.colorScheme.onSurfaceVariant
-            Icon(
-                imageVector = iconFromName(iconName),
-                contentDescription = null,
-                tint = tint,
-                modifier = applyCommonModifier(Modifier, props)
-            )
-        }
-        "lazycolumn" -> {
-            val spacing = props.dp("spacing")
-            LazyColumn(
-                modifier = applyCommonModifier(Modifier.fillMaxSize(), props),
-                verticalArrangement = Arrangement.spacedBy(spacing),
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                itemsIndexed(node.children) { index, child ->
-                    RenderComposeDslNode(
-                        node = child,
-                        onAction = onAction,
-                        nodePath = "$nodePath/$index"
-                    )
-                }
-            }
-        }
-        "linearprogressindicator" -> {
-            val progress = props.floatOrNull("progress")
-            if (progress != null) {
-                LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
-                    modifier = applyCommonModifier(Modifier.fillMaxWidth(), props)
-                )
-            } else {
-                LinearProgressIndicator(
-                    modifier = applyCommonModifier(Modifier.fillMaxWidth(), props)
-                )
-            }
-        }
-        "circularprogressindicator" -> {
-            val strokeWidth = props.floatOrNull("strokeWidth")
-            val color = props.colorOrNull("color")
-            CircularProgressIndicator(
-                modifier = applyCommonModifier(Modifier, props),
-                strokeWidth = if (strokeWidth != null) strokeWidth.dp else 4.dp,
-                color = color ?: MaterialTheme.colorScheme.primary
-            )
-        }
-        "snackbarhost" -> {
-            Spacer(modifier = applyCommonModifier(Modifier, props))
-        }
-        else -> {
-            Text(
-                text = "Unsupported node: ${node.type}",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
+    val renderer = composeDslGeneratedNodeRendererRegistry[normalizeToken(node.type)]
+    if (renderer != null) {
+        renderer(node, onAction, nodePath)
+        return
     }
+    Text(
+        text = "Unsupported node: ${node.type}",
+        style = MaterialTheme.typography.bodySmall
+    )
 }
 
-private fun applyCommonModifier(base: Modifier, props: Map<String, Any?>): Modifier {
+internal typealias ComposeDslNodeRenderer =
+    @Composable (ToolPkgComposeDslNode, (String, Any?) -> Unit, String) -> Unit
+
+
+@Composable
+internal fun applyCommonModifier(base: Modifier, props: Map<String, Any?>): Modifier {
     var modifier = base
 
     val explicitWidth = props.floatOrNull("width")
@@ -635,34 +433,251 @@ private fun applyCommonModifier(base: Modifier, props: Map<String, Any?>): Modif
         modifier = modifier.fillMaxWidth()
     }
 
-    val allPadding = props.floatOrNull("padding")
-    if (allPadding != null) {
-        modifier = modifier.padding(allPadding.dp)
-    } else {
-        val horizontal = props.floatOrNull("paddingHorizontal")
-        val vertical = props.floatOrNull("paddingVertical")
+    val paddingValue = props["padding"]
+    if (paddingValue is Map<*, *>) {
+        val horizontal = (paddingValue["horizontal"] as? Number)?.toFloat()
+        val vertical = (paddingValue["vertical"] as? Number)?.toFloat()
         if (horizontal != null || vertical != null) {
-            modifier =
-                modifier.padding(
+            modifier = modifier.padding(
+                horizontal = (horizontal ?: 0f).dp,
+                vertical = (vertical ?: 0f).dp
+            )
+        }
+    } else {
+        val allPadding = props.floatOrNull("padding")
+        if (allPadding != null) {
+            modifier = modifier.padding(allPadding.dp)
+        } else {
+            val horizontal = props.floatOrNull("paddingHorizontal")
+            val vertical = props.floatOrNull("paddingVertical")
+            if (horizontal != null || vertical != null) {
+                modifier = modifier.padding(
                     horizontal = (horizontal ?: 0f).dp,
                     vertical = (vertical ?: 0f).dp
                 )
+            }
         }
     }
+
+    modifier = applyProxyModifierOps(modifier, props["modifier"])
 
     return modifier
 }
 
-private fun Map<String, Any?>.string(key: String, defaultValue: String = ""): String {
+private data class ComposeDslModifierOp(
+    val name: String,
+    val args: List<Any?>
+)
+
+@Composable
+private fun applyProxyModifierOps(base: Modifier, rawModifier: Any?): Modifier {
+    val ops = extractModifierOps(rawModifier)
+    if (ops.isEmpty()) {
+        return base
+    }
+    var modifier = base
+    ops.forEach { op ->
+        modifier = applySingleModifierOp(modifier, op)
+    }
+    return modifier
+}
+
+private fun extractModifierOps(rawModifier: Any?): List<ComposeDslModifierOp> {
+    val container = rawModifier as? Map<*, *> ?: return emptyList()
+    val list = container["__modifierOps"] as? List<*> ?: return emptyList()
+    return list.mapNotNull { item ->
+        val map = item as? Map<*, *> ?: return@mapNotNull null
+        val name = map["name"]?.toString()?.trim().orEmpty()
+        if (name.isBlank()) {
+            return@mapNotNull null
+        }
+        val args = (map["args"] as? List<*>)?.toList() ?: emptyList()
+        ComposeDslModifierOp(name = name, args = args)
+    }
+}
+
+@Composable
+private fun applySingleModifierOp(modifier: Modifier, op: ComposeDslModifierOp): Modifier {
+    val token = normalizeToken(op.name)
+    return when (token) {
+        "fillmaxsize" -> {
+            val fraction = op.args.getOrNull(0).floatArg() ?: 1f
+            modifier.fillMaxSize(fraction.coerceAtLeast(0f))
+        }
+        "fillmaxwidth" -> {
+            val fraction = op.args.getOrNull(0).floatArg() ?: 1f
+            modifier.fillMaxWidth(fraction.coerceAtLeast(0f))
+        }
+        "fillmaxheight" -> {
+            val fraction = op.args.getOrNull(0).floatArg() ?: 1f
+            modifier.fillMaxHeight(fraction.coerceAtLeast(0f))
+        }
+        "width" -> {
+            val value = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.width(value.dp)
+        }
+        "height" -> {
+            val value = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.height(value.dp)
+        }
+        "size" -> {
+            val value = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.size(value.dp)
+        }
+        "padding" -> applyPaddingModifierOp(modifier, op.args)
+        "offset" -> applyOffsetModifierOp(modifier, op.args)
+        "aspectratio" -> {
+            val ratio = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.aspectRatio(ratio, true)
+        }
+        "alpha" -> {
+            val value = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.alpha(value)
+        }
+        "rotate" -> {
+            val value = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.rotate(value)
+        }
+        "scale" -> {
+            val value = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.scale(value)
+        }
+        "zindex" -> {
+            val value = op.args.getOrNull(0).floatArg() ?: return modifier
+            modifier.zIndex(value)
+        }
+        "background" -> {
+            val color = colorFromModifierArg(op.args.getOrNull(0)) ?: return modifier
+            val shape = shapeFromModifierArg(op.args.getOrNull(1))
+            if (shape != null) {
+                modifier.background(color = color, shape = shape)
+            } else {
+                modifier.background(color = color)
+            }
+        }
+        "border" -> {
+            val width = op.args.getOrNull(0).floatArg() ?: 1f
+            val color = colorFromModifierArg(op.args.getOrNull(1)) ?: return modifier
+            val shape = shapeFromModifierArg(op.args.getOrNull(2))
+            if (shape != null) {
+                modifier.border(width = width.dp, color = color, shape = shape)
+            } else {
+                modifier.border(width = width.dp, color = color)
+            }
+        }
+        "clip" -> {
+            val shape = shapeFromModifierArg(op.args.getOrNull(0)) ?: return modifier
+            modifier.clip(shape)
+        }
+        else -> modifier
+    }
+}
+
+private fun applyPaddingModifierOp(modifier: Modifier, args: List<Any?>): Modifier {
+    if (args.isEmpty()) {
+        return modifier
+    }
+    val first = args.firstOrNull()
+    if (first is Map<*, *>) {
+        val all = first["all"].floatArg()
+        if (all != null) {
+            return modifier.padding(all.dp)
+        }
+        val horizontal = first["horizontal"].floatArg() ?: 0f
+        val vertical = first["vertical"].floatArg() ?: 0f
+        val start = first["start"].floatArg()
+        val top = first["top"].floatArg()
+        val end = first["end"].floatArg()
+        val bottom = first["bottom"].floatArg()
+        return if (start != null || top != null || end != null || bottom != null) {
+            modifier.padding(
+                start = (start ?: 0f).dp,
+                top = (top ?: 0f).dp,
+                end = (end ?: 0f).dp,
+                bottom = (bottom ?: 0f).dp
+            )
+        } else {
+            modifier.padding(horizontal = horizontal.dp, vertical = vertical.dp)
+        }
+    }
+
+    val firstNumber = first.floatArg()
+    val secondNumber = args.getOrNull(1).floatArg()
+    val thirdNumber = args.getOrNull(2).floatArg()
+    val fourthNumber = args.getOrNull(3).floatArg()
+
+    return when {
+        firstNumber != null && secondNumber == null -> modifier.padding(firstNumber.dp)
+        firstNumber != null && secondNumber != null && thirdNumber == null ->
+            modifier.padding(horizontal = firstNumber.dp, vertical = secondNumber.dp)
+        firstNumber != null && secondNumber != null && thirdNumber != null && fourthNumber != null ->
+            modifier.padding(
+                start = firstNumber.dp,
+                top = secondNumber.dp,
+                end = thirdNumber.dp,
+                bottom = fourthNumber.dp
+            )
+        else -> modifier
+    }
+}
+
+private fun applyOffsetModifierOp(modifier: Modifier, args: List<Any?>): Modifier {
+    if (args.isEmpty()) {
+        return modifier
+    }
+    val first = args.firstOrNull()
+    if (first is Map<*, *>) {
+        val x = first["x"].floatArg() ?: 0f
+        val y = first["y"].floatArg() ?: 0f
+        return modifier.offset(x.dp, y.dp)
+    }
+    val x = first.floatArg() ?: 0f
+    val y = args.getOrNull(1).floatArg() ?: 0f
+    return modifier.offset(x.dp, y.dp)
+}
+
+@Composable
+private fun colorFromModifierArg(value: Any?): Color? {
+    return when (value) {
+        is Color -> value
+        is Number -> Color(value.toLong().toULong())
+        else -> value?.toString()?.let { token ->
+            resolveColorToken(token) ?: try {
+                Color(AndroidColor.parseColor(token))
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+}
+
+private fun shapeFromModifierArg(value: Any?): androidx.compose.ui.graphics.Shape? {
+    if (value is Map<*, *>) {
+        val cornerRadius = value["cornerRadius"].floatArg()
+        if (cornerRadius != null) {
+            return RoundedCornerShape(cornerRadius.dp)
+        }
+    }
+    return null
+}
+
+private fun Any?.floatArg(): Float? {
+    return when (this) {
+        is Number -> this.toFloat()
+        else -> this?.toString()?.toFloatOrNull()
+    }
+}
+
+internal fun Map<String, Any?>.string(key: String, defaultValue: String = ""): String {
     return this[key]?.toString().orEmpty().ifBlank { defaultValue }
 }
 
-private fun Map<String, Any?>.stringOrNull(key: String): String? {
+internal fun Map<String, Any?>.stringOrNull(key: String): String? {
     val value = this[key]?.toString()?.trim().orEmpty()
     return if (value.isBlank()) null else value
 }
 
-private fun Map<String, Any?>.bool(key: String, defaultValue: Boolean): Boolean {
+internal fun Map<String, Any?>.bool(key: String, defaultValue: Boolean): Boolean {
     val value = this[key] ?: return defaultValue
     return when (value) {
         is Boolean -> value
@@ -671,7 +686,7 @@ private fun Map<String, Any?>.bool(key: String, defaultValue: Boolean): Boolean 
     }
 }
 
-private fun Map<String, Any?>.int(key: String, defaultValue: Int): Int {
+internal fun Map<String, Any?>.int(key: String, defaultValue: Int): Int {
     val value = this[key] ?: return defaultValue
     return when (value) {
         is Number -> value.toInt()
@@ -679,7 +694,7 @@ private fun Map<String, Any?>.int(key: String, defaultValue: Int): Int {
     }
 }
 
-private fun Map<String, Any?>.floatOrNull(key: String): Float? {
+internal fun Map<String, Any?>.floatOrNull(key: String): Float? {
     val value = this[key] ?: return null
     return when (value) {
         is Number -> value.toFloat()
@@ -687,144 +702,140 @@ private fun Map<String, Any?>.floatOrNull(key: String): Float? {
     }
 }
 
-private fun Map<String, Any?>.dp(key: String, defaultValue: Dp = 0.dp): Dp {
+internal fun Map<String, Any?>.dp(key: String, defaultValue: Dp = 0.dp): Dp {
     return (floatOrNull(key) ?: defaultValue.value).dp
 }
 
 @Composable
-private fun Map<String, Any?>.textStyle(key: String): androidx.compose.ui.text.TextStyle {
-    return when (string(key).lowercase()) {
-        "headlinesmall" -> MaterialTheme.typography.headlineSmall
-        "headlinemedium" -> MaterialTheme.typography.headlineMedium
-        "titlelarge" -> MaterialTheme.typography.titleLarge
-        "titlemedium" -> MaterialTheme.typography.titleMedium
-        "bodylarge" -> MaterialTheme.typography.bodyLarge
-        "bodysmall" -> MaterialTheme.typography.bodySmall
-        "labellarge" -> MaterialTheme.typography.labelLarge
-        "labelmedium" -> MaterialTheme.typography.labelMedium
-        "labelsmall" -> MaterialTheme.typography.labelSmall
-        else -> MaterialTheme.typography.bodyMedium
-    }
+internal fun Map<String, Any?>.textStyle(key: String): androidx.compose.ui.text.TextStyle {
+    val typography = MaterialTheme.typography
+    val token = normalizeToken(string(key))
+    val getter = typographyGetterByToken[token]
+    return (getter?.invoke(typography) as? androidx.compose.ui.text.TextStyle) ?: typography.bodyMedium
 }
 
-private fun Map<String, Any?>.horizontalAlignment(key: String): Alignment.Horizontal {
-    return when (string(key).lowercase()) {
-        "center" -> Alignment.CenterHorizontally
-        "end" -> Alignment.End
-        else -> Alignment.Start
-    }
+internal fun Map<String, Any?>.horizontalAlignment(key: String): Alignment.Horizontal {
+    val token = normalizeToken(string(key))
+    val getter =
+        horizontalAlignmentGetterByToken[token]
+            ?: horizontalAlignmentGetterByToken["${token}horizontally"]
+    return (getter?.invoke(Alignment) as? Alignment.Horizontal) ?: Alignment.Start
 }
 
-private fun Map<String, Any?>.verticalAlignment(key: String): Alignment.Vertical {
-    return when (string(key).lowercase()) {
-        "center" -> Alignment.CenterVertically
-        "end" -> Alignment.Bottom
-        else -> Alignment.Top
-    }
+internal fun Map<String, Any?>.verticalAlignment(key: String): Alignment.Vertical {
+    val token = normalizeToken(string(key))
+    val getter =
+        verticalAlignmentGetterByToken[token]
+            ?: verticalAlignmentGetterByToken["${token}vertically"]
+            ?: verticalAlignmentGetterByToken[if (token == "end") "bottom" else token]
+    return (getter?.invoke(Alignment) as? Alignment.Vertical) ?: Alignment.Top
 }
 
-private fun Map<String, Any?>.boxAlignment(key: String): Alignment {
-    return when (string(key).lowercase()) {
-        "center" -> Alignment.Center
-        "end" -> Alignment.BottomEnd
-        else -> Alignment.TopStart
-    }
+internal fun Map<String, Any?>.boxAlignment(key: String): Alignment {
+    val token = normalizeToken(string(key))
+    val getter =
+        boxAlignmentGetterByToken[token]
+            ?: boxAlignmentGetterByToken[if (token == "end") "bottomend" else token]
+    return (getter?.invoke(Alignment) as? Alignment) ?: Alignment.TopStart
 }
 
-private fun Map<String, Any?>.horizontalArrangement(key: String, spacing: Dp): Arrangement.Horizontal {
-    return when (string(key).lowercase()) {
-        "center" -> Arrangement.Center
-        "end" -> Arrangement.End
-        "spacebetween" -> Arrangement.SpaceBetween
-        "spacearound" -> Arrangement.SpaceAround
-        "spaceevenly" -> Arrangement.SpaceEvenly
-        else -> Arrangement.spacedBy(spacing)
-    }
+internal fun Map<String, Any?>.horizontalArrangement(key: String, spacing: Dp): Arrangement.Horizontal {
+    val token = normalizeToken(string(key))
+    val getter = horizontalArrangementGetterByToken[token]
+    return (getter?.invoke(Arrangement) as? Arrangement.Horizontal) ?: Arrangement.spacedBy(spacing)
 }
 
-private fun Map<String, Any?>.verticalArrangement(key: String, spacing: Dp): Arrangement.Vertical {
-    return when (string(key).lowercase()) {
-        "center" -> Arrangement.Center
-        "end" -> Arrangement.Bottom
-        "spacebetween" -> Arrangement.SpaceBetween
-        "spacearound" -> Arrangement.SpaceAround
-        "spaceevenly" -> Arrangement.SpaceEvenly
-        else -> Arrangement.spacedBy(spacing)
-    }
+internal fun Map<String, Any?>.verticalArrangement(key: String, spacing: Dp): Arrangement.Vertical {
+    val token = normalizeToken(string(key))
+    val getter =
+        verticalArrangementGetterByToken[token]
+            ?: verticalArrangementGetterByToken[if (token == "end") "bottom" else token]
+    return (getter?.invoke(Arrangement) as? Arrangement.Vertical) ?: Arrangement.spacedBy(spacing)
 }
 
-private fun Map<String, Any?>.fontWeightOrNull(key: String): FontWeight? {
-    return when (string(key).lowercase()) {
-        "thin" -> FontWeight.Thin
-        "extralight", "ultralight" -> FontWeight.ExtraLight
-        "light" -> FontWeight.Light
-        "normal", "regular" -> FontWeight.Normal
-        "medium" -> FontWeight.Medium
-        "semibold", "demibold" -> FontWeight.SemiBold
-        "bold" -> FontWeight.Bold
-        "extrabold", "ultrabold" -> FontWeight.ExtraBold
-        "black", "heavy" -> FontWeight.Black
-        else -> null
-    }
+internal fun Map<String, Any?>.fontWeightOrNull(key: String): FontWeight? {
+    val token = normalizeToken(string(key))
+    val getter =
+        fontWeightGetterByToken[token]
+            ?: fontWeightGetterByToken[token.replace("ultra", "extra")]
+            ?: fontWeightGetterByToken[token.replace("demi", "semi")]
+            ?: fontWeightGetterByToken[if (token == "regular") "normal" else token]
+            ?: fontWeightGetterByToken[if (token == "heavy") "black" else token]
+    return getter?.invoke(FontWeight.Companion) as? FontWeight
 }
 
 @Composable
-private fun Map<String, Any?>.colorOrNull(key: String): Color? {
+internal fun Map<String, Any?>.colorOrNull(key: String): Color? {
     val raw = stringOrNull(key) ?: return null
     return resolveColorToken(raw)
 }
 
 @Composable
-private fun resolveColorToken(raw: String): Color? {
+internal fun resolveColorToken(raw: String): Color? {
     val token =
-        raw.lowercase()
-            .replace("-", "")
-            .replace("_", "")
-            .trim()
+        normalizeToken(raw)
     val scheme = MaterialTheme.colorScheme
-    return when (token) {
-        "primary" -> scheme.primary
-        "onprimary" -> scheme.onPrimary
-        "primarycontainer" -> scheme.primaryContainer
-        "onprimarycontainer" -> scheme.onPrimaryContainer
-        "secondary" -> scheme.secondary
-        "onsecondary" -> scheme.onSecondary
-        "secondarycontainer" -> scheme.secondaryContainer
-        "onsecondarycontainer" -> scheme.onSecondaryContainer
-        "tertiary" -> scheme.tertiary
-        "ontertiary" -> scheme.onTertiary
-        "tertiarycontainer" -> scheme.tertiaryContainer
-        "ontertiarycontainer" -> scheme.onTertiaryContainer
-        "error" -> scheme.error
-        "onerror" -> scheme.onError
-        "errorcontainer" -> scheme.errorContainer
-        "onerrorcontainer" -> scheme.onErrorContainer
-        "surface" -> scheme.surface
-        "onsurface" -> scheme.onSurface
-        "surfacevariant" -> scheme.surfaceVariant
-        "onsurfacevariant" -> scheme.onSurfaceVariant
-        "background" -> scheme.background
-        "onbackground" -> scheme.onBackground
-        "inverseprimary" -> scheme.inversePrimary
-        "inverseonsurface" -> scheme.inverseOnSurface
-        else -> {
-            try {
-                Color(AndroidColor.parseColor(raw))
-            } catch (_: Exception) {
-                null
+    val schemeColor =
+        colorSchemeFieldByToken[token]?.let { field ->
+            when (field.type) {
+                java.lang.Long.TYPE -> Color(field.getLong(scheme).toULong())
+                java.lang.Long::class.java -> Color((field.get(scheme) as Long).toULong())
+                else -> field.get(scheme) as? Color
             }
         }
+    if (schemeColor != null) {
+        return schemeColor
+    }
+    return try {
+        Color(AndroidColor.parseColor(raw))
+    } catch (_: Exception) {
+        null
     }
 }
 
-private fun iconFromName(name: String): ImageVector {
-    return when (name.lowercase()) {
-        "computer", "pc", "desktop" -> Icons.Default.Computer
-        "checkcircle", "check", "success" -> Icons.Default.CheckCircle
-        "error", "warning", "failed", "failure" -> Icons.Default.Error
-        "settings", "gear" -> Icons.Default.Settings
-        "share" -> Icons.Default.Share
-        "info", "information" -> Icons.Default.Info
-        else -> Icons.Default.Info
+internal fun iconFromName(name: String): ImageVector {
+    val iconKey = name.trim()
+    require(iconKey.isNotEmpty()) { "icon name is blank" }
+
+    val pascalCaseName =
+        iconKey
+            .split(Regex("[^A-Za-z0-9]+"))
+            .filter { it.isNotBlank() }
+            .joinToString(separator = "") { segment ->
+                segment.replaceFirstChar { it.uppercaseChar() }
+            }
+
+    require(pascalCaseName.isNotEmpty()) { "icon name is invalid: $name" }
+
+    val iconKtClass = Class.forName("androidx.compose.material.icons.filled.${pascalCaseName}Kt")
+    val getterMethod = iconKtClass.getMethod("get$pascalCaseName", Icons.Default::class.java)
+    return getterMethod.invoke(null, Icons.Default) as ImageVector
+}
+
+@Composable
+internal fun Map<String, Any?>.shapeOrNull(): androidx.compose.ui.graphics.Shape? {
+    val shapeValue = this["shape"]
+    if (shapeValue is Map<*, *>) {
+        val cornerRadius = (shapeValue["cornerRadius"] as? Number)?.toFloat()
+        if (cornerRadius != null) {
+            return RoundedCornerShape(cornerRadius.dp)
+        }
     }
+    return null
+}
+
+@Composable
+internal fun Map<String, Any?>.borderOrNull(): BorderStroke? {
+    val borderValue = this["border"]
+    if (borderValue is Map<*, *>) {
+        val width = (borderValue["width"] as? Number)?.toFloat() ?: 1f
+        val colorStr = borderValue["color"]?.toString()
+        val alpha = (borderValue["alpha"] as? Number)?.toFloat() ?: 1f
+
+        if (colorStr != null) {
+            val color = resolveColorToken(colorStr) ?: MaterialTheme.colorScheme.outline
+            return BorderStroke(width.dp, color.copy(alpha = alpha))
+        }
+    }
+    return null
 }

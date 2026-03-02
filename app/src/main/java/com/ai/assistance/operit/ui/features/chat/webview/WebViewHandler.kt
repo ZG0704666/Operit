@@ -27,7 +27,6 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.core.content.FileProvider
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -38,7 +37,6 @@ import java.util.Locale
 class WebViewHandler(private val context: Context) {
 
     enum class WebViewMode {
-        COMPUTER, // 模拟桌面浏览器，需要宽视口和缩放
         WORKSPACE // 用于代码/网页预览，需要自适应屏幕
     }
 
@@ -206,28 +204,6 @@ class WebViewHandler(private val context: Context) {
                 }
 
                 onCanGoBackChanged?.invoke(view?.canGoBack() == true)
-
-                // 仅在COMPUTER模式下注入JS以强制桌面视口
-                if (mode == WebViewMode.COMPUTER) {
-                    // 仅对外部网站注入JavaScript以强制桌面视口，不对本地桌面页面进行缩放
-                    if (url != null && !url.startsWith("http://localhost:${LocalWebServer.COMPUTER_PORT}")) {
-                        // 注入JavaScript来强制设置视口宽度，以请求桌面版布局
-                        view?.evaluateJavascript(
-                            """
-                        (function() {
-                            var meta = document.querySelector('meta[name="viewport"]');
-                            if (!meta) {
-                                meta = document.createElement('meta');
-                                meta.setAttribute('name', 'viewport');
-                                document.getElementsByTagName('head')[0].appendChild(meta);
-                            }
-                            meta.setAttribute('content', 'width=1024');
-                        })();
-                        """.trimIndent(),
-                            null
-                        )
-                    }
-                }
             }
 
             override fun shouldOverrideUrlLoading(

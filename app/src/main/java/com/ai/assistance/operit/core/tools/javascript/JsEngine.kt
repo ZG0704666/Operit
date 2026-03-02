@@ -607,12 +607,10 @@ class JsEngine(private val context: Context) {
             function __handleAsync(possiblePromise) {
                 if (possiblePromise instanceof Promise) {
                     // 更强大的异步处理
-                    console.log("Detected async Promise, waiting for resolution...");
                     
                     // 创建一个超时保护，确保非常长时间运行的Promise最终会被处理
                     const asyncTimeout = setTimeout(() => {
                         if (!window._hasCompleted) {
-                            console.log("Async Promise timeout reached after ${JsTimeoutConfig.ASYNC_PROMISE_TIMEOUT_SECONDS} seconds");
                             // 尝试安全地完成执行
                             try {
                                 window._hasCompleted = true;
@@ -623,7 +621,6 @@ class JsEngine(private val context: Context) {
                                 };
                                 
                                 NativeInterface.setResult(JSON.stringify(timeoutResult));
-                                console.log("Timeout result set from Promise handler");
                             } catch (e) {
                                 console.error("Error during timeout handling:", e);
                             }
@@ -633,7 +630,6 @@ class JsEngine(private val context: Context) {
                     possiblePromise
                         .then(result => {
                             clearTimeout(asyncTimeout);
-                            console.log("Async Promise resolved successfully");
                             if (!window._hasCompleted) {
                                 try {
                                     window._hasCompleted = true;
@@ -651,13 +647,10 @@ class JsEngine(private val context: Context) {
                                         });
                                     }
                                     NativeInterface.setResult(serializedResult);
-                                    console.log("Result set from Promise resolution");
                                 } catch (completionError) {
                                     console.error("Error during async completion:", completionError);
                                     NativeInterface.setError("Async completion error: " + completionError.message);
                                 }
-                            } else {
-                                console.log("Promise resolved, but execution was already completed");
                             }
                         })
                         .catch(error => {
@@ -676,8 +669,6 @@ class JsEngine(private val context: Context) {
                                         details: errorReport.details,
                                         formatted: errorReport.formatted
                                     }));
-                                    
-                                    console.log("Detailed error information reported from Promise rejection");
                                 } catch (errorHandlingError) {
                                     console.error("Error during async error handling:", errorHandlingError);
                                     
@@ -1818,7 +1809,6 @@ class JsEngine(private val context: Context) {
         @JavascriptInterface
         fun sendIntermediateResult(result: String) {
             try {
-                AppLogger.d(TAG, "Received intermediate result from JS: ${result.take(200)}")
                 ContextCompat.getMainExecutor(context).execute {
                     intermediateResultCallback?.invoke(result)
                 }
@@ -2195,7 +2185,7 @@ class JsEngine(private val context: Context) {
                 // 加入更详细的日志，帮助排查异步问题
                 AppLogger.d(
                         TAG,
-                        "Setting result from JavaScript: result=${result.take(500)}, length=${result.length}, callback=${callback != null}, isDone=${callback?.isDone}"
+                        "Setting result from JavaScript: length=${result.length}, callback=${callback != null}, isDone=${callback?.isDone}"
                 )
 
                 // 确保回调仍然有效
@@ -2214,7 +2204,6 @@ class JsEngine(private val context: Context) {
                     try {
                         // 返回成功结果
                         if (!callback.isDone) {
-                            AppLogger.d(TAG, "Actually completing the result callback")
                             callback.complete(result)
                         } else {
                             AppLogger.w(TAG, "Callback became complete between check and execution")
@@ -2239,7 +2228,7 @@ class JsEngine(private val context: Context) {
                 // 加入更详细的日志
                 AppLogger.d(
                         TAG,
-                        "Setting error from JavaScript: $error, callback=${callback != null}, isDone=${callback?.isDone}"
+                        "Setting error from JavaScript: length=${error.length}, callback=${callback != null}, isDone=${callback?.isDone}"
                 )
 
                 // 尝试解析错误信息，看是否是JSON格式

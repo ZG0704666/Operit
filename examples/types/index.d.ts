@@ -65,6 +65,7 @@ export * from './tool-types';
 
 // Export compose-dsl definitions for toolpkg ui_modules
 export * from './compose-dsl';
+export * from './compose-dsl.material3.generated';
 
 import { Files as FilesType } from './files';
 import { Net as NetType } from './network';

@@ -13,7 +13,6 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileNotFoundException
-import com.ai.assistance.operit.util.AssetCopyUtils
 import java.io.IOException
 import java.net.ServerSocket
 import java.net.Socket
@@ -51,8 +50,7 @@ private constructor(
         .build()
 
     enum class ServerType {
-        WORKSPACE,
-        COMPUTER
+        WORKSPACE
     }
 
     companion object {
@@ -60,7 +58,6 @@ private constructor(
 
         // Port constants
         const val WORKSPACE_PORT = 8093
-        const val COMPUTER_PORT = 8094
 
         @Volatile
         private var instances = mutableMapOf<ServerType, LocalWebServer>()
@@ -81,33 +78,8 @@ private constructor(
                             ServerType.WORKSPACE
                         )
                     }
-
-                    ServerType.COMPUTER -> {
-                        val computerRoot = getComputerRootPath()
-                        // Asset copying logic is now in start() to ensure overwrite on each launch
-                        LocalWebServer(
-                            context.applicationContext,
-                            COMPUTER_PORT,
-                            computerRoot.absolutePath,
-                            ServerType.COMPUTER
-                        )
-                    }
                 }
                 server
-            }
-        }
-
-        private fun getComputerRootPath(): File {
-            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            return File(downloadDir, "Operit/computer")
-        }
-
-        private fun copyAssetsToDirectory(context: Context, assetDir: String, destDir: File) {
-            try {
-                AssetCopyUtils.copyAssetDirRecursive(context, assetDir, destDir, overwrite = true)
-                AppLogger.d("LocalWebServer", "Assets copied: $assetDir -> ${destDir.absolutePath}")
-            } catch (e: IOException) {
-                AppLogger.e("LocalWebServer", "Failed to copy assets from '$assetDir'", e)
             }
         }
     }
@@ -120,12 +92,6 @@ private constructor(
         if (isServerRunning.get()) {
             AppLogger.d(TAG, "服务器已在端口 $port 上运行，跳过启动")
             return
-        }
-        
-        if (type == ServerType.COMPUTER) {
-            val computerRoot = getComputerRootPath()
-            AppLogger.d(TAG, "确保AI电脑资源已是最新，路径: ${computerRoot.absolutePath}")
-            copyAssetsToDirectory(context, "computer_desktop", computerRoot)
         }
         super.start(SOCKET_READ_TIMEOUT, false)
         AppLogger.d(TAG, "本地Web服务器已在端口 $port 上启动, 根目录: $rootPath")

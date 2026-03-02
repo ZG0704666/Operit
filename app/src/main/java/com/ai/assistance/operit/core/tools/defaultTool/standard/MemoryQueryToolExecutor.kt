@@ -20,6 +20,7 @@ import java.util.*
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Executes queries against the AI's memory graph and manages user preferences.
@@ -30,17 +31,24 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
         private const val TAG = "MemoryQueryToolExecutor"
     }
 
-    private val activeProfileId by lazy {
-        runBlocking { preferencesManager.activeProfileIdFlow.first() }
+    private val memoryRepositories = ConcurrentHashMap<String, MemoryRepository>()
+    private val settingsRepositories = ConcurrentHashMap<String, MemorySearchSettingsPreferences>()
+
+    private fun resolveActiveProfileId(): String {
+        return runBlocking { preferencesManager.activeProfileIdFlow.first() }
     }
 
-    private val memoryRepository by lazy {
-        MemoryRepository(context, activeProfileId)
-    }
+    private val memoryRepository: MemoryRepository
+        get() {
+            val profileId = resolveActiveProfileId()
+            return memoryRepositories.computeIfAbsent(profileId) { MemoryRepository(context, it) }
+        }
 
-    private val memorySearchSettingsPreferences by lazy {
-        MemorySearchSettingsPreferences(context, activeProfileId)
-    }
+    private val memorySearchSettingsPreferences: MemorySearchSettingsPreferences
+        get() {
+            val profileId = resolveActiveProfileId()
+            return settingsRepositories.computeIfAbsent(profileId) { MemorySearchSettingsPreferences(context, it) }
+        }
 
     override fun invoke(tool: AITool): ToolResult = runBlocking {
         return@runBlocking when (tool.name) {

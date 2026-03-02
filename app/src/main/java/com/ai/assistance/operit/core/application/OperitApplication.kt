@@ -482,11 +482,6 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
                 webServer.stop()
                 AppLogger.d(TAG, "应用终止，已关闭本地Web服务器")
             }
-            val computerServer = LocalWebServer.getInstance(applicationContext, LocalWebServer.ServerType.COMPUTER)
-            if (computerServer.isRunning()) {
-                computerServer.stop()
-                AppLogger.d(TAG, "应用终止，已关闭AI电脑服务器")
-            }
         } catch (e: Exception) {
             AppLogger.e(TAG, "关闭本地Web服务器失败: ${e.message}", e)
         }
