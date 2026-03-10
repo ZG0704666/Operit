@@ -37,6 +37,20 @@ class OperitQuickJsEngine : Closeable {
         return decodeJsonValue(result.valueJson) as T?
     }
 
+    @Suppress("UNCHECKED_CAST")
+    fun <T> callFunction(
+        functionName: String,
+        argsJson: String,
+        callSite: String = "<call:$functionName>"
+    ): T? {
+        val result = runtime.callFunction(functionName, argsJson, callSite)
+        runtime.executePendingJobs()
+        if (!result.success) {
+            error(result.describeFailure("QuickJS function call failed"))
+        }
+        return decodeJsonValue(result.valueJson) as T?
+    }
+
     fun interrupt() {
         runtime.interrupt()
     }

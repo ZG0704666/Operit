@@ -214,13 +214,7 @@ public:
 
     std::string Eval(const std::string& script, const std::string& file_name) {
         std::lock_guard<std::mutex> guard(lock_);
-        interrupted_.store(false);
-        current_file_name_ = file_name;
-        current_script_length_ = script.size();
-        current_script_preview_ = PreviewText(script);
-        recent_host_calls_.clear();
-        host_call_counter_ = 0;
-        active_host_call_depth_ = 0;
+        BeginExecutionTrace(file_name, script.size(), script);
 
         JSValue result = JS_Eval(
             context_,
@@ -229,6 +223,120 @@ public:
             file_name.c_str(),
             JS_EVAL_TYPE_GLOBAL
         );
+        if (JS_IsException(result)) {
+            return TakeExceptionEnvelope();
+        }
+
+        std::string value_json = SerializeValue(result);
+        JS_FreeValue(context_, result);
+        return BuildEvalEnvelope(true, value_json, std::nullopt, std::nullopt);
+    }
+
+    std::string CallFunction(
+        const std::string& function_name,
+        const std::string& args_json,
+        const std::string& call_site
+    ) {
+        std::lock_guard<std::mutex> guard(lock_);
+        const std::string normalized_args_json = args_json.empty() ? "[]" : args_json;
+        BeginExecutionTrace(
+            call_site,
+            normalized_args_json.size(),
+            std::string("call ") + function_name + "(" + normalized_args_json + ")"
+        );
+
+        JSValue global = JS_GetGlobalObject(context_);
+        JSValue function = JS_GetPropertyStr(context_, global, function_name.c_str());
+        if (JS_IsException(function)) {
+            JS_FreeValue(context_, global);
+            return TakeExceptionEnvelope();
+        }
+
+        if (!JS_IsFunction(context_, function)) {
+            JS_FreeValue(context_, function);
+            JS_FreeValue(context_, global);
+            return BuildEvalEnvelope(
+                false,
+                std::nullopt,
+                std::string("Global function not found or not callable: ") + function_name,
+                std::nullopt
+            );
+        }
+
+        JSValue parsed_args = JS_ParseJSON(
+            context_,
+            normalized_args_json.c_str(),
+            normalized_args_json.size(),
+            call_site.c_str()
+        );
+        if (JS_IsException(parsed_args)) {
+            JS_FreeValue(context_, function);
+            JS_FreeValue(context_, global);
+            return TakeExceptionEnvelope();
+        }
+
+        const int is_array = JS_IsArray(context_, parsed_args);
+        if (is_array <= 0) {
+            JS_FreeValue(context_, parsed_args);
+            JS_FreeValue(context_, function);
+            JS_FreeValue(context_, global);
+            return BuildEvalEnvelope(
+                false,
+                std::nullopt,
+                "QuickJS function args must be a JSON array",
+                std::nullopt
+            );
+        }
+
+        JSValue length_value = JS_GetPropertyStr(context_, parsed_args, "length");
+        if (JS_IsException(length_value)) {
+            JS_FreeValue(context_, parsed_args);
+            JS_FreeValue(context_, function);
+            JS_FreeValue(context_, global);
+            return TakeExceptionEnvelope();
+        }
+
+        uint32_t argc = 0;
+        if (JS_ToUint32(context_, &argc, length_value) != 0) {
+            JS_FreeValue(context_, length_value);
+            JS_FreeValue(context_, parsed_args);
+            JS_FreeValue(context_, function);
+            JS_FreeValue(context_, global);
+            return TakeExceptionEnvelope();
+        }
+        JS_FreeValue(context_, length_value);
+
+        std::vector<JSValue> argv;
+        argv.reserve(argc);
+        for (uint32_t index = 0; index < argc; index += 1) {
+            JSValue arg = JS_GetPropertyUint32(context_, parsed_args, index);
+            if (JS_IsException(arg)) {
+                for (JSValue& value : argv) {
+                    JS_FreeValue(context_, value);
+                }
+                JS_FreeValue(context_, parsed_args);
+                JS_FreeValue(context_, function);
+                JS_FreeValue(context_, global);
+                return TakeExceptionEnvelope();
+            }
+            argv.push_back(arg);
+        }
+
+        JSValue result = JS_Call(
+            context_,
+            function,
+            global,
+            argc,
+            argc > 0 ? argv.data() : nullptr
+        );
+
+        for (JSValue& value : argv) {
+            JS_FreeValue(context_, value);
+        }
+        JS_FreeValue(context_, parsed_args);
+        JS_FreeValue(context_, function);
+        JS_FreeValue(context_, global);
+
         if (JS_IsException(result)) {
             return TakeExceptionEnvelope();
         }
@@ -257,6 +365,20 @@ public:
     }
 
 private:
+    void BeginExecutionTrace(
+        const std::string& file_name,
+        size_t script_length,
+        const std::string& script_preview
+    ) {
+        interrupted_.store(false);
+        current_file_name_ = file_name;
+        current_script_length_ = script_length;
+        current_script_preview_ = PreviewText(script_preview);
+        recent_host_calls_.clear();
+        host_call_counter_ = 0;
+        active_host_call_depth_ = 0;
+    }
+
     static int HandleInterrupt(JSRuntime* runtime, void* opaque) {
         auto* vm = static_cast<QuickJsVm*>(opaque);
         if (vm == nullptr) {
@@ -528,6 +650,45 @@ Java_com_ai_assistance_operit_core_tools_javascript_QuickJsNativeBridge_nativeEv
     std::string result = vm->Eval(script_chars, file_name_chars);
     env->ReleaseStringUTFChars(script, script_chars);
     env->ReleaseStringUTFChars(file_name, file_name_chars);
+    return env->NewStringUTF(result.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_ai_assistance_operit_core_tools_javascript_QuickJsNativeBridge_nativeCallFunction(
+    JNIEnv* env,
+    jclass,
+    jlong handle,
+    jstring function_name,
+    jstring args_json,
+    jstring call_site
+) {
+    auto* vm = FromHandle(handle);
+    if (vm == nullptr || function_name == nullptr || args_json == nullptr || call_site == nullptr) {
+        std::string error = BuildEvalEnvelope(false, std::nullopt, std::string("Invalid nativeCallFunction arguments"), std::nullopt);
+        return env->NewStringUTF(error.c_str());
+    }
+
+    const char* function_name_chars = env->GetStringUTFChars(function_name, nullptr);
+    const char* args_json_chars = env->GetStringUTFChars(args_json, nullptr);
+    const char* call_site_chars = env->GetStringUTFChars(call_site, nullptr);
+    if (function_name_chars == nullptr || args_json_chars == nullptr || call_site_chars == nullptr) {
+        if (function_name_chars != nullptr) {
+            env->ReleaseStringUTFChars(function_name, function_name_chars);
+        }
+        if (args_json_chars != nullptr) {
+            env->ReleaseStringUTFChars(args_json, args_json_chars);
+        }
+        if (call_site_chars != nullptr) {
+            env->ReleaseStringUTFChars(call_site, call_site_chars);
+        }
+        std::string error = BuildEvalEnvelope(false, std::nullopt, std::string("GetStringUTFChars failed"), std::nullopt);
+        return env->NewStringUTF(error.c_str());
+    }
+
+    std::string result = vm->CallFunction(function_name_chars, args_json_chars, call_site_chars);
+    env->ReleaseStringUTFChars(function_name, function_name_chars);
+    env->ReleaseStringUTFChars(args_json, args_json_chars);
+    env->ReleaseStringUTFChars(call_site, call_site_chars);
     return env->NewStringUTF(result.c_str());
 }
 

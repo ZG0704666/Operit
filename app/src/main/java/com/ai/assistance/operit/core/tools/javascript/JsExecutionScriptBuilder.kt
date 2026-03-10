@@ -2,6 +2,8 @@ package com.ai.assistance.operit.core.tools.javascript
 
 import org.json.JSONObject
 
+internal const val TOOLPKG_EXECUTION_ENTRY_FUNCTION = "__operitExecuteScriptFunction"
+
 private fun buildExecutionPreludeSource(): String {
     return """
         function __operitGetActiveCallRuntime() {
@@ -85,7 +87,7 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
             var root = typeof globalThis !== 'undefined'
                 ? globalThis
                 : (typeof window !== 'undefined' ? window : this);
-            if (typeof root.__operitExecuteScriptFunction === 'function') {
+            if (typeof root.$TOOLPKG_EXECUTION_ENTRY_FUNCTION === 'function') {
                 return;
             }
 
@@ -197,8 +199,19 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
                 return root.__operitFactoryCache;
             }
 
+            function ensureModuleInstanceCache() {
+                if (!root.__operitModuleInstanceCache || typeof root.__operitModuleInstanceCache !== 'object') {
+                    root.__operitModuleInstanceCache = Object.create(null);
+                }
+                return root.__operitModuleInstanceCache;
+            }
+
             function buildFactoryKey(kind, identity, source) {
                 return [text(kind), text(identity), text(source).length, hashText(source)].join(':');
+            }
+
+            function buildModuleInstanceKey(kind, identity, source) {
+                return ['instance', text(kind), text(identity), text(source).length, hashText(source)].join(':');
             }
 
             function createFactory(source) {
@@ -302,7 +315,7 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
                 return names;
             }
 
-            root.__operitExecuteScriptFunction = function(
+            root.$TOOLPKG_EXECUTION_ENTRY_FUNCTION = function(
                 callId,
                 params,
                 scriptText,
@@ -509,7 +522,9 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
                             : ''
                     )
                 );
-                var moduleCache = Object.create(null);
+                var moduleCache = registrationMode
+                    ? Object.create(null)
+                    : ensureModuleInstanceCache();
 
                 function readToolPkgModule(modulePath) {
                     if (
@@ -532,19 +547,25 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
                 }
 
                 function executeModule(modulePath, moduleText, requireInternal) {
-                    if (moduleCache[modulePath]) {
-                        return moduleCache[modulePath].exports;
-                    }
-
                     markStage('execute_required_module');
                     markModule(modulePath);
 
+                    var moduleKey = buildModuleInstanceKey('module', packageTarget + ':' + modulePath, moduleText);
+                    if (moduleCache[moduleKey]) {
+                        return moduleCache[moduleKey].exports;
+                    }
+
                     var module = { exports: {} };
-                    moduleCache[modulePath] = module;
+                    moduleCache[moduleKey] = module;
 
                     if (/\.json$/i.test(modulePath)) {
-                        module.exports = JSON.parse(moduleText);
-                        return module.exports;
+                        try {
+                            module.exports = JSON.parse(moduleText);
+                            return module.exports;
+                        } catch (error) {
+                            delete moduleCache[moduleKey];
+                            throw error;
+                        }
                     }
 
                     var localRequire = function(nextName) {
@@ -557,6 +578,9 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
                     root.__operitActiveModuleExports = module.exports;
                     try {
                         factory(module, module.exports, localRequire, callRuntime);
+                    } catch (error) {
+                        delete moduleCache[moduleKey];
+                        throw error;
                     } finally {
                         root.__operitActiveModule = previousActiveModule;
                         root.__operitActiveModuleExports = previousActiveExports;
@@ -615,26 +639,42 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
 
                 try {
                     markFunction(targetFunctionName);
-                    var module = { exports: {} };
-                    var exports = module.exports;
+                    var mainModuleIdentity = packageTarget + ':' + (screenPath || '<root>');
+                    var mainModuleKey = buildModuleInstanceKey('main', mainModuleIdentity, scriptText);
+                    var module = moduleCache[mainModuleKey];
+                    var exports = module && module.exports ? module.exports : null;
                     var require = function(moduleName) {
                         markStage('require_request');
                         markRequire(moduleName, screenPath || '<root>', '');
                         return requireInternal(moduleName, screenPath);
                     };
 
-                    markStage('compile_main_script');
-                    var mainFactory = getFactory('main', packageTarget + ':' + screenPath, scriptText);
-                    markStage('execute_main_script');
-                    var previousActiveModule = root.__operitActiveModule;
-                    var previousActiveExports = root.__operitActiveModuleExports;
-                    root.__operitActiveModule = module;
-                    root.__operitActiveModuleExports = exports;
-                    try {
-                        mainFactory(module, exports, require, callRuntime);
-                    } finally {
-                        root.__operitActiveModule = previousActiveModule;
-                        root.__operitActiveModuleExports = previousActiveExports;
+                    if (!module) {
+                        module = { exports: {} };
+                        moduleCache[mainModuleKey] = module;
+                        exports = module.exports;
+                        markStage('compile_main_script');
+                        var mainFactory = getFactory('main', packageTarget + ':' + screenPath, scriptText);
+                        markStage('execute_main_script');
+                        var previousActiveModule = root.__operitActiveModule;
+                        var previousActiveExports = root.__operitActiveModuleExports;
+                        root.__operitActiveModule = module;
+                        root.__operitActiveModuleExports = exports;
+                        try {
+                            mainFactory(module, exports, require, callRuntime);
+                        } catch (error) {
+                            delete moduleCache[mainModuleKey];
+                            throw error;
+                        } finally {
+                            root.__operitActiveModule = previousActiveModule;
+                            root.__operitActiveModuleExports = previousActiveExports;
+                        }
+                    } else {
+                        if (exports == null) {
+                            exports = {};
+                            module.exports = exports;
+                        }
+                        markStage('reuse_main_script');
                     }
                     var rootExports = module.exports || exports || {};
                     tagModuleExports(screenPath || '<root>', rootExports);
@@ -697,39 +737,6 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
                     );
                 }
             };
-        })();
-    """.trimIndent()
-}
-
-internal fun buildExecutionScript(
-    callIdJson: String,
-    paramsJson: String,
-    scriptJson: String,
-    functionNameJson: String,
-    timeoutSec: Long,
-    preTimeoutSeconds: Long
-): String {
-    val safeTimeoutSec = if (timeoutSec <= 0L) 1L else timeoutSec
-    val safePreTimeoutSec = if (preTimeoutSeconds <= 0L) 1L else preTimeoutSeconds
-    val preTimeoutMs = safePreTimeoutSec * 1000L
-
-    return """
-        (function() {
-            var root = typeof globalThis !== 'undefined'
-                ? globalThis
-                : (typeof window !== 'undefined' ? window : this);
-            if (typeof root.__operitExecuteScriptFunction !== 'function') {
-                NativeInterface.setCallError($callIdJson, 'JS execution runtime bridge is unavailable');
-                return;
-            }
-            root.__operitExecuteScriptFunction(
-                $callIdJson,
-                $paramsJson,
-                $scriptJson,
-                $functionNameJson,
-                $safeTimeoutSec,
-                $preTimeoutMs
-            );
         })();
     """.trimIndent()
 }

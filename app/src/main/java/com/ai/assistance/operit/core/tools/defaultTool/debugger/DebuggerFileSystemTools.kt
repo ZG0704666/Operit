@@ -1108,10 +1108,56 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
 
         return try {
-            val deleteCommand = if (recursive) "rm -rf '$path'" else "rm -f '$path'"
+            val quotedPath = shQuote(path)
+            val existsResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "test -e $quotedPath && echo 'exists' || echo 'missing'"
+                    )
+            if (existsResult.stdout.trim() != "exists") {
+                ToolProgressBus.update(tool.name, 1f, "Delete failed")
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "delete",
+                                        path = path,
+                                        successful = false,
+                                        details = "File or directory does not exist: $path"
+                                ),
+                        error = "File or directory does not exist: $path"
+                )
+            }
+
+            val typeResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "if test -d $quotedPath; then echo 'directory'; elif test -f $quotedPath; then echo 'file'; else echo 'other'; fi"
+                    )
+            val isDirectory = typeResult.stdout.trim() == "directory"
+
+            ToolProgressBus.update(
+                    tool.name,
+                    0.1f,
+                    if (isDirectory) "Deleting directory..." else "Deleting file..."
+            )
+
+            val deleteCommand =
+                    if (recursive) "rm -rf $quotedPath" else if (isDirectory) "rmdir $quotedPath" else "rm -f $quotedPath"
             val result = AndroidShellExecutor.executeShellCommand(deleteCommand)
 
-            if (result.success) {
+            if (result.success && isDirectory && recursive) {
+                ToolProgressBus.update(tool.name, 0.85f, "Finalizing directory deletion...")
+                AndroidShellExecutor.executeShellCommand("rmdir $quotedPath")
+            }
+
+            val verifyDeletedResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "test -e $quotedPath && echo 'exists' || echo 'missing'"
+                    )
+            val deleted = verifyDeletedResult.stdout.trim() != "exists"
+
+            if (result.success && deleted) {
+                ToolProgressBus.update(tool.name, 1f, "Delete completed")
                 return ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -1125,6 +1171,14 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         error = ""
                 )
             } else {
+                val errorMessage =
+                        when {
+                            !result.success && result.stderr.isNotBlank() ->
+                                    "Failed to delete: ${result.stderr}"
+                            !deleted -> "Failed to delete: target still exists after delete command"
+                            else -> "Failed to delete: unknown error"
+                        }
+                ToolProgressBus.update(tool.name, 1f, "Delete failed")
                 return ToolResult(
                         toolName = tool.name,
                         success = false,
@@ -1133,13 +1187,14 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                         operation = "delete",
                                         path = path,
                                         successful = false,
-                                        details = "Failed to delete: ${result.stderr}"
+                                        details = errorMessage
                                 ),
-                        error = "Failed to delete: ${result.stderr}"
+                        error = errorMessage
                 )
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error deleting file/directory", e)
+            ToolProgressBus.update(tool.name, 1f, "Delete failed")
             return ToolResult(
                     toolName = tool.name,
                     success = false,

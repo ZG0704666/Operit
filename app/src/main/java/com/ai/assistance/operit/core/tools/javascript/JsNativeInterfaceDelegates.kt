@@ -150,6 +150,13 @@ internal object JsNativeInterfaceDelegates {
         return value.trim().takeIf { it.isNotBlank() }
     }
 
+    private fun parseBooleanFlag(value: String): Boolean {
+        return when (value.trim().lowercase()) {
+            "1", "true", "yes", "y", "on" -> true
+            else -> false
+        }
+    }
+
     private fun applyEnvValue(
         preferences: EnvPreferences,
         key: String,
@@ -271,10 +278,12 @@ internal object JsNativeInterfaceDelegates {
     }
 
     fun readToolPkgResource(
+        context: Context,
         packageManager: PackageManager,
         packageNameOrSubpackageId: String,
         resourceKey: String,
-        outputFileName: String
+        outputFileName: String,
+        internal: String
     ): String {
         return guard(
             fallback = "",
@@ -290,8 +299,14 @@ internal object JsNativeInterfaceDelegates {
                 )
                 ?: "$key.bin"
             val safeName = fileName.substringAfterLast('/').substringAfterLast('\\').ifBlank { "$key.bin" }
+            val outputDir =
+                if (parseBooleanFlag(internal)) {
+                    OperitPaths.cleanOnExitInternalDir(context)
+                } else {
+                    OperitPaths.cleanOnExitDir()
+                }
 
-            val outputFile = File(OperitPaths.cleanOnExitDir().apply { mkdirs() }, safeName)
+            val outputFile = File(outputDir, safeName)
             val copied =
                 packageManager.copyToolPkgResourceToFile(target, key, outputFile) ||
                     packageManager.copyToolPkgResourceToFileBySubpackageId(

@@ -259,7 +259,7 @@ internal fun buildToolPkgRegistrationBridgeScript(): String {
                 return '';
             }
 
-            function readToolPkgResource(key, outputFileName) {
+            function readToolPkgResource(key, outputFileName, internal) {
                 var resourceKey = String(key || '').trim();
                 if (!resourceKey) {
                     return Promise.reject(new Error('resource key is required'));
@@ -271,7 +271,8 @@ internal fun buildToolPkgRegistrationBridgeScript(): String {
                 var path = requireNative('readToolPkgResource')(
                     target,
                     resourceKey,
-                    outputFileName == null ? '' : String(outputFileName).trim()
+                    outputFileName == null ? '' : String(outputFileName).trim(),
+                    internal === true ? 'true' : ''
                 );
                 if (typeof path === 'string' && path.trim()) {
                     return Promise.resolve(path);

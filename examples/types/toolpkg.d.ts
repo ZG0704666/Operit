@@ -386,7 +386,7 @@ export namespace ToolPkg {
         registerSystemPromptComposeHook(definition: SystemPromptComposeHookRegistration): void;
         registerToolPromptComposeHook(definition: ToolPromptComposeHookRegistration): void;
         registerPromptFinalizeHook(definition: PromptFinalizeHookRegistration): void;
-        readResource(key: string, outputFileName?: string): Promise<string>;
+        readResource(key: string, outputFileName?: string, internal?: boolean): Promise<string>;
     }
 }
 

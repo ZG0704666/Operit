@@ -61,6 +61,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         private const val ACTIVE_PACKAGES_KEY = "active_packages"
         private const val TOOLPKG_SUBPACKAGE_STATES_KEY = "toolpkg_subpackage_states"
         private const val TOOLPKG_EXTENSION = ".toolpkg"
+        private const val TOOLPKG_CACHE_DIR = "toolpkg_cache"
+        private const val TOOLPKG_CACHE_SIGNATURE_FILE = ".toolpkg-cache-signature"
 
         @Volatile
         private var INSTANCE: PackageManager? = null
@@ -185,6 +187,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
     @Volatile
     private var isInitialized = false
     private val initLock = Any()
+    private val toolPkgCacheLock = Any()
     @Volatile
     private var initializationFuture: CompletableFuture<Unit>? = null
     private val initializationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -227,6 +230,19 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         return toolPkgExecutionEngines.computeIfAbsent(normalizedKey) { JsEngine(context) }
     }
 
+    private fun destroyToolPkgExecutionEngine(contextKey: String) {
+        val normalizedKey = contextKey.trim().ifBlank { return }
+        toolPkgExecutionEngines.remove(normalizedKey)?.destroy()
+    }
+
+    private fun destroyDefaultToolPkgExecutionEngine(packageName: String) {
+        val normalizedPackageName = normalizePackageName(packageName)
+        if (normalizedPackageName.isBlank()) {
+            return
+        }
+        destroyToolPkgExecutionEngine("toolpkg_main:$normalizedPackageName")
+    }
+
     internal val toolPkgContainersInternal: MutableMap<String, ToolPkgContainerRuntime>
         get() = toolPkgContainers
 
@@ -249,6 +265,15 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 dir.mkdirs()
             }
             AppLogger.d(TAG, "External packages directory: ${dir.absolutePath}")
+            return dir
+        }
+
+    private val toolPkgCacheRootDir: File
+        get() {
+            val dir = File(context.filesDir, TOOLPKG_CACHE_DIR)
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
             return dir
         }
 
@@ -292,6 +317,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
                     // Automatically import built-in packages that are enabled by default
                     initializeDefaultPackages()
+                    reconcileToolPkgCaches()
 
                     synchronized(initLock) {
                         isInitialized = true
@@ -362,6 +388,155 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             }
         }
         return normalized
+    }
+
+    private fun toolPkgCacheDirName(packageName: String): String {
+        val normalized = packageName.trim()
+        val safeName =
+            normalized
+                .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                .ifBlank { "toolpkg" }
+        val hash = Integer.toHexString(normalized.hashCode())
+        return "$safeName-$hash"
+    }
+
+    private fun toolPkgCacheDir(packageName: String): File {
+        return File(toolPkgCacheRootDir, toolPkgCacheDirName(packageName))
+    }
+
+    private fun deleteToolPkgCacheDir(packageName: String) {
+        synchronized(toolPkgCacheLock) {
+            val dir = toolPkgCacheDir(packageName)
+            if (dir.exists() && !dir.deleteRecursively()) {
+                AppLogger.w(TAG, "Failed to delete toolpkg cache dir: ${dir.absolutePath}")
+            }
+        }
+    }
+
+    private fun buildToolPkgCacheSignature(runtime: ToolPkgContainerRuntime): String? {
+        return when (runtime.sourceType) {
+            ToolPkgSourceType.EXTERNAL -> {
+                val sourceFile = File(runtime.sourcePath)
+                if (!sourceFile.exists()) {
+                    null
+                } else {
+                    buildString {
+                        append("external|")
+                        append(sourceFile.absolutePath)
+                        append('|')
+                        append(sourceFile.length())
+                        append('|')
+                        append(sourceFile.lastModified())
+                        append('|')
+                        append(runtime.version)
+                        append('|')
+                        append(runtime.mainEntry)
+                    }
+                }
+            }
+            ToolPkgSourceType.ASSET -> {
+                val apkFile = File(context.packageResourcePath)
+                buildString {
+                    append("asset|")
+                    append(runtime.sourcePath)
+                    append('|')
+                    append(apkFile.length())
+                    append('|')
+                    append(apkFile.lastModified())
+                    append('|')
+                    append(runtime.version)
+                    append('|')
+                    append(runtime.mainEntry)
+                }
+            }
+        }
+    }
+
+    private fun extractToolPkgArchive(runtime: ToolPkgContainerRuntime, destinationDir: File): Boolean {
+        return when (runtime.sourceType) {
+            ToolPkgSourceType.EXTERNAL ->
+                ToolPkgArchiveParser.extractZipEntriesFromExternal(
+                    zipFilePath = runtime.sourcePath,
+                    destinationDir = destinationDir
+                )
+            ToolPkgSourceType.ASSET ->
+                ToolPkgArchiveParser.extractZipEntriesFromAsset(
+                    context = context,
+                    assetPath = runtime.sourcePath,
+                    destinationDir = destinationDir
+                )
+        }
+    }
+
+    private fun ensureToolPkgCache(runtime: ToolPkgContainerRuntime): File? {
+        val signature = buildToolPkgCacheSignature(runtime) ?: return null
+        synchronized(toolPkgCacheLock) {
+            val cacheDir = toolPkgCacheDir(runtime.packageName)
+            val signatureFile = File(cacheDir, TOOLPKG_CACHE_SIGNATURE_FILE)
+            val mainScriptFile = File(cacheDir, runtime.mainEntry)
+
+            if (cacheDir.exists() &&
+                signatureFile.exists() &&
+                signatureFile.readText() == signature &&
+                mainScriptFile.exists()
+            ) {
+                return cacheDir
+            }
+
+            deleteToolPkgCacheDir(runtime.packageName)
+            if (!cacheDir.exists() && !cacheDir.mkdirs()) {
+                throw IllegalStateException("Failed to create toolpkg cache dir: ${cacheDir.absolutePath}")
+            }
+
+            return try {
+                if (!extractToolPkgArchive(runtime, cacheDir)) {
+                    deleteToolPkgCacheDir(runtime.packageName)
+                    null
+                } else {
+                    signatureFile.writeText(signature)
+                    cacheDir
+                }
+            } catch (e: Exception) {
+                deleteToolPkgCacheDir(runtime.packageName)
+                AppLogger.e(TAG, "Failed to extract toolpkg cache: ${runtime.packageName}", e)
+                null
+            }
+        }
+    }
+
+    private fun reconcileToolPkgCaches() {
+        synchronized(toolPkgCacheLock) {
+            val importedPackages = getImportedPackagesInternal().toSet()
+            val availableContainerNames = toolPkgContainers.keys.toSet()
+            val importedContainerNames = linkedSetOf<String>().apply {
+                toolPkgContainers.keys.forEach { containerName ->
+                    if (importedPackages.contains(containerName)) {
+                        add(containerName)
+                    }
+                }
+                toolPkgSubpackageByPackageName.values.forEach { subpackage ->
+                    if (importedPackages.contains(subpackage.packageName)) {
+                        add(subpackage.containerPackageName)
+                    }
+                }
+            }
+
+            val expectedCacheDirNames = importedContainerNames.map(::toolPkgCacheDirName).toSet()
+            toolPkgCacheRootDir.listFiles()?.forEach { child ->
+                if (!expectedCacheDirNames.contains(child.name) && !child.deleteRecursively()) {
+                    AppLogger.w(TAG, "Failed to remove stale toolpkg cache: ${child.absolutePath}")
+                }
+            }
+
+            importedContainerNames.forEach { containerName ->
+                val runtime = toolPkgContainers[containerName] ?: return@forEach
+                ensureToolPkgCache(runtime)
+            }
+
+            availableContainerNames
+                .filterNot { importedContainerNames.contains(it) }
+                .forEach(::deleteToolPkgCacheDir)
+        }
     }
 
     fun resolvePackageForDisplay(packageName: String): ToolPackage? {
@@ -734,6 +909,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             toolPkgSubpackageByPackageName.clear()
             toolPkgSubpackageByPackageName.putAll(stagedToolPkgSubpackages)
         }
+        reconcileToolPkgCaches()
         logToolPkgInfo(
             "loadAvailablePackages finish, elapsedMs=${System.currentTimeMillis() - loadStart}, available=${stagedAvailablePackages.size}, containers=${stagedToolPkgContainers.size}, subpackages=${stagedToolPkgSubpackages.size}, errors=${stagedPackageLoadErrors.size}"
         )
@@ -941,19 +1117,13 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         runtime: ToolPkgContainerRuntime,
         normalizedResourcePath: String
     ): ByteArray? {
-        return when (runtime.sourceType) {
-            ToolPkgSourceType.EXTERNAL ->
-                ToolPkgArchiveParser.readZipEntryBytesFromExternal(
-                    runtime.sourcePath,
-                    normalizedResourcePath
-                )
-            ToolPkgSourceType.ASSET ->
-                ToolPkgArchiveParser.readZipEntryBytesFromAsset(
-                    context,
-                    runtime.sourcePath,
-                    normalizedResourcePath
-                )
+        val normalizedPath = ToolPkgArchiveParser.normalizeZipEntryPath(normalizedResourcePath) ?: return null
+        val cacheDir = ensureToolPkgCache(runtime) ?: return null
+        val resourceFile = File(cacheDir, normalizedPath)
+        if (!resourceFile.exists() || !resourceFile.isFile) {
+            return null
         }
+        return resourceFile.readBytes()
     }
 
     /**
@@ -1277,6 +1447,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             saveImportedPackages(importedPackages.toList())
             saveToolPkgSubpackageStates(subpackageStates)
             removeFromDisabledPackages(normalizedPackageName)
+            ensureToolPkgCache(containerRuntime)
 
             val message =
                 if (containerAlreadyImported) {
@@ -1297,6 +1468,9 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             saveImportedPackages(importedPackages.toList())
             saveToolPkgSubpackageStates(subpackageStates)
             removeFromDisabledPackages(subpackageRuntime.containerPackageName)
+            toolPkgContainers[subpackageRuntime.containerPackageName]?.let { runtime ->
+                ensureToolPkgCache(runtime)
+            }
 
             val message = "Successfully enabled toolpkg subpackage: $normalizedPackageName"
             AppLogger.d(TAG, message)
@@ -1880,6 +2054,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             saveImportedPackages(currentPackages.toList())
             saveToolPkgSubpackageStates(subpackageStates)
             addToDisabledIfDefaultEnabled(normalizedPackageName)
+            deleteToolPkgCacheDir(normalizedPackageName)
+            destroyDefaultToolPkgExecutionEngine(normalizedPackageName)
 
             return if (packageWasRemoved) {
                 "Successfully disabled toolpkg container: $normalizedPackageName"
@@ -2053,6 +2229,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         if (toolPkgContainers.containsKey(packageName)) {
             val container = toolPkgContainers.remove(packageName)
             availablePackages.remove(packageName)
+            deleteToolPkgCacheDir(packageName)
+            destroyDefaultToolPkgExecutionEngine(packageName)
 
             val states = getToolPkgSubpackageStatesInternal().toMutableMap()
             container?.subpackages?.forEach { subpackage ->
@@ -2064,6 +2242,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
             return
         }
 
+        deleteToolPkgCacheDir(packageName)
         availablePackages.remove(packageName)
         toolPkgSubpackageByPackageName.remove(packageName)
     }

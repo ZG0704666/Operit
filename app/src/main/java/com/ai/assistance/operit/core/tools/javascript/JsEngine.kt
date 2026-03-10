@@ -183,6 +183,26 @@ class JsEngine(private val context: Context) {
         }
     }
 
+    private fun launchQuickJsFunctionCall(
+        functionName: String,
+        argsJson: String,
+        callSite: String = "<call:$functionName>",
+        onError: ((Exception) -> Unit)? = null
+    ) {
+        val engine = quickJs ?: return
+        engineScope.launch {
+            try {
+                engine.callFunction<Any?>(functionName, argsJson, callSite)
+            } catch (e: Exception) {
+                if (onError != null) {
+                    onError(e)
+                } else {
+                    AppLogger.e(TAG, "QuickJS function call failed: ${e.message}", e)
+                }
+            }
+        }
+    }
+
 
     private fun nextExecutionCallId(): String {
         return "operit_call_${UUID.randomUUID().toString().replace("-", "")}" 
@@ -575,30 +595,31 @@ class JsEngine(private val context: Context) {
         activeExecutionSessions[callId] = session
 
         val buildExecutionScriptStartTime = if (shouldLogTiming) messageTimingNow() else 0L
-        val paramsJson = JSONObject(effectiveParams).toString()
-        val scriptJson = JSONObject.quote(script)
-        val functionNameJson = JSONObject.quote(functionName)
-        val callIdJson = JSONObject.quote(callId)
-        val executionScript =
-            buildExecutionScript(
-                callIdJson = callIdJson,
-                paramsJson = paramsJson,
-                scriptJson = scriptJson,
-                functionNameJson = functionNameJson,
-                timeoutSec = timeoutSec,
-                preTimeoutSeconds = JsTimeoutConfig.PRE_TIMEOUT_SECONDS
-            )
+        val paramsObject = JSONObject(effectiveParams)
+        val paramsJson = paramsObject.toString()
+        val safeTimeoutSec = if (timeoutSec <= 0L) 1L else timeoutSec
+        val preTimeoutMs = JsTimeoutConfig.PRE_TIMEOUT_SECONDS * 1000L
+        val executionArgsJson =
+            JSONArray()
+                .put(callId)
+                .put(paramsObject)
+                .put(script)
+                .put(functionName)
+                .put(safeTimeoutSec)
+                .put(preTimeoutMs)
+                .toString()
         if (shouldLogTiming) {
             logMessageTiming(
                 stage = "toolpkg.jsEngine.buildExecutionScript",
                 startTimeMs = buildExecutionScriptStartTime,
-                details = "function=$functionName, plugin=$timingPluginId, scriptLength=${script.length}, paramsLength=${paramsJson.length}"
+                details = "function=$functionName, plugin=$timingPluginId, scriptLength=${script.length}, paramsLength=${paramsJson.length}, argsLength=${executionArgsJson.length}, directInvoke=true"
             )
         }
 
-        launchQuickJsEvaluation(
-            script = executionScript,
-            fileName = "quickjs/runtime/execute-script.js",
+        launchQuickJsFunctionCall(
+            functionName = TOOLPKG_EXECUTION_ENTRY_FUNCTION,
+            argsJson = executionArgsJson,
+            callSite = "quickjs/runtime/execute-script.call",
             onError = { e ->
                 AppLogger.e(
                     TAG,
@@ -629,7 +650,6 @@ class JsEngine(private val context: Context) {
                 JsTimeoutConfig.PRE_TIMEOUT_SECONDS * 1000
             )
 
-            val safeTimeoutSec = if (timeoutSec <= 0L) 1L else timeoutSec
             val result = session.future.get(safeTimeoutSec, TimeUnit.SECONDS)
             removeExecutionSession(callId)
             if (shouldLogTiming) {
@@ -947,13 +967,16 @@ class JsEngine(private val context: Context) {
         fun readToolPkgResource(
                 packageNameOrSubpackageId: String,
                 resourceKey: String,
-                outputFileName: String
+                outputFileName: String,
+                internal: String
         ): String {
             return JsNativeInterfaceDelegates.readToolPkgResource(
+                    context = context,
                     packageManager = packageManager,
                     packageNameOrSubpackageId = packageNameOrSubpackageId,
                     resourceKey = resourceKey,
-                    outputFileName = outputFileName
+                    outputFileName = outputFileName,
+                    internal = internal
             )
         }
 

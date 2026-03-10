@@ -11,6 +11,7 @@
     "zh": "Windows 一键配置与控制工具包",
     "en": "Windows one-click setup and control bundle"
   },
+  "enabled_by_default": true,
   "subpackages": [
     {
       "id": "windows_control",

@@ -905,49 +905,65 @@ class MainActivity : ComponentActivity() {
         ).show()
     }
 
-    /** 清理临时文件目录 删除Download/Operit/cleanOnExit目录中的所有文件 */
+    /** 清理临时文件目录 删除外部/内部 cleanOnExit 目录中的所有临时文件 */
     private fun cleanTemporaryFiles() {
         lifecycleScope.launch {
             try {
-                val tempDir = java.io.File(OperitPaths.cleanOnExitPathSdcard())
-                if (tempDir.exists() && tempDir.isDirectory) {
-                    // 确保.nomedia文件存在
-                    val noMediaFile = java.io.File(tempDir, ".nomedia")
-                    if (!noMediaFile.exists()) {
-                        noMediaFile.createNewFile()
-                    }
-
-                    AppLogger.d(TAG, "开始清理临时文件目录: ${tempDir.absolutePath}")
-
-                    fun deleteRecursively(file: java.io.File, isRoot: Boolean = false): Int {
-                        var deletedCount = 0
-                        if (file.isDirectory) {
-                            val children = file.listFiles()
-                            children?.forEach { child ->
-                                // 递归删除所有子目录和文件，是否为根目录通过 isRoot 控制目录本身是否删除
-                                deletedCount += deleteRecursively(child, isRoot = false)
-                            }
-                            // 根目录本身不删除，只删除其子目录
-                            if (!isRoot && file.exists()) {
-                                if (file.delete()) {
-                                    // 目录删除不计入文件数量统计
-                                }
-                            }
-                        } else if (file.isFile) {
-                            // 保留根目录下的 .nomedia 文件，其余全部删除
-                            val isRootNoMedia =
-                                    (file.parentFile?.absolutePath == tempDir.absolutePath &&
-                                            file.name == ".nomedia")
-                            if (!isRootNoMedia && file.delete()) {
-                                deletedCount++
-                            }
+                fun deleteRecursively(
+                    rootDir: java.io.File,
+                    file: java.io.File,
+                    preserveRootNoMedia: Boolean,
+                    isRoot: Boolean = false
+                ): Int {
+                    var deletedCount = 0
+                    if (file.isDirectory) {
+                        val children = file.listFiles()
+                        children?.forEach { child ->
+                            deletedCount += deleteRecursively(
+                                rootDir = rootDir,
+                                file = child,
+                                preserveRootNoMedia = preserveRootNoMedia,
+                                isRoot = false
+                            )
                         }
-                        return deletedCount
+                        if (!isRoot && file.exists()) {
+                            file.delete()
+                        }
+                    } else if (file.isFile) {
+                        val isRootNoMedia =
+                            preserveRootNoMedia &&
+                                file.parentFile?.absolutePath == rootDir.absolutePath &&
+                                file.name == ".nomedia"
+                        if (!isRootNoMedia && file.delete()) {
+                            deletedCount++
+                        }
                     }
-
-                    val totalDeleted = deleteRecursively(tempDir, isRoot = true)
-                    AppLogger.d(TAG, "已删除${totalDeleted}个临时文件")
+                    return deletedCount
                 }
+
+                fun cleanDirectory(tempDir: java.io.File, preserveRootNoMedia: Boolean) {
+                    if (!tempDir.exists() || !tempDir.isDirectory) {
+                        return
+                    }
+                    if (preserveRootNoMedia) {
+                        val noMediaFile = java.io.File(tempDir, ".nomedia")
+                        if (!noMediaFile.exists()) {
+                            noMediaFile.createNewFile()
+                        }
+                    }
+                    AppLogger.d(TAG, "开始清理临时文件目录: ${tempDir.absolutePath}")
+                    val totalDeleted =
+                        deleteRecursively(
+                            rootDir = tempDir,
+                            file = tempDir,
+                            preserveRootNoMedia = preserveRootNoMedia,
+                            isRoot = true
+                        )
+                    AppLogger.d(TAG, "已删除${totalDeleted}个临时文件: ${tempDir.absolutePath}")
+                }
+
+                cleanDirectory(java.io.File(OperitPaths.cleanOnExitPathSdcard()), preserveRootNoMedia = true)
+                cleanDirectory(OperitPaths.cleanOnExitInternalDir(this@MainActivity), preserveRootNoMedia = false)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "清理临时文件失败", e)
             }

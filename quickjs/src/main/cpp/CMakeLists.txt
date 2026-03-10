@@ -22,11 +22,14 @@ target_compile_definitions(
     PRIVATE
     _GNU_SOURCE
     CONFIG_VERSION="${QUICKJS_VERSION}"
+    NDEBUG
 )
 
 target_compile_options(
     quickjsjni
     PRIVATE
+    # Keep QuickJS optimized on latency-sensitive paths even in debug app builds.
+    -O3
     -fwrapv
     -funsigned-char
     -Wall

@@ -33,6 +33,10 @@ object OperitPaths {
         return ensureDir(File(operitRootDir(), CLEAN_ON_EXIT_DIR_NAME))
     }
 
+    fun cleanOnExitInternalDir(context: Context): File {
+        return ensureDir(File(ensureDir(File(context.cacheDir, OPERIT_DIR_NAME)), CLEAN_ON_EXIT_DIR_NAME))
+    }
+
     fun mcpPluginsDir(): File {
         return ensureDir(File(operitRootDir(), MCP_PLUGINS_DIR_NAME))
     }

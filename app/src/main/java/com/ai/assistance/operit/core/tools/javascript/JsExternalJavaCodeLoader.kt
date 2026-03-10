@@ -1,13 +1,17 @@
 package com.ai.assistance.operit.core.tools.javascript
 
 import android.content.Context
+import android.os.Build
 import com.ai.assistance.operit.util.AppLogger
 import dalvik.system.DexClassLoader
 import java.io.File
+import java.io.FileOutputStream
 import java.util.LinkedHashMap
 import java.util.zip.ZipFile
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
+import java.util.Locale
 
 internal class JsExternalJavaCodeLoader(private val context: Context) {
     private enum class SourceType(val wireName: String) {
@@ -82,6 +86,7 @@ internal class JsExternalJavaCodeLoader(private val context: Context) {
 
             val canonicalPath = sourceFile.canonicalPath
             validateSourceFile(sourceType = sourceType, sourceFile = sourceFile, canonicalPath = canonicalPath)
+            ensureJvmCompatibilitySystemProperties()
 
             val nativeLibraryDir = resolveNativeLibraryDir(options.nativeLibraryDir)
             val artifactKey = buildArtifactKey(sourceType, canonicalPath, nativeLibraryDir)
@@ -89,11 +94,17 @@ internal class JsExternalJavaCodeLoader(private val context: Context) {
                 return success(existing.toJson(indexOf(artifactKey), alreadyLoaded = true))
             }
 
+            val preparedSourceFile =
+                prepareLoadableSourceFile(
+                    sourceType = sourceType,
+                    sourceFile = sourceFile,
+                    canonicalPath = canonicalPath
+                )
             val optimizedDir = ensureOptimizedDir()
             val parent = getEffectiveClassLoader(baseClassLoader)
             val classLoader =
                 DexClassLoader(
-                    canonicalPath,
+                    preparedSourceFile.absolutePath,
                     optimizedDir.absolutePath,
                     nativeLibraryDir,
                     parent
@@ -102,7 +113,7 @@ internal class JsExternalJavaCodeLoader(private val context: Context) {
             val artifact =
                 LoadedArtifact(
                     sourceType = sourceType,
-                    sourcePath = canonicalPath,
+                    sourcePath = preparedSourceFile.absolutePath,
                     nativeLibraryDir = nativeLibraryDir,
                     classLoader = classLoader
                 )
@@ -162,16 +173,100 @@ internal class JsExternalJavaCodeLoader(private val context: Context) {
         return dir.canonicalPath
     }
 
+    private fun prepareLoadableSourceFile(
+        sourceType: SourceType,
+        sourceFile: File,
+        canonicalPath: String
+    ): File {
+        val targetDir = ensurePreparedSourceDir()
+        val targetFile = File(targetDir, buildPreparedSourceFileName(sourceType, canonicalPath))
+
+        if (targetFile.exists()) {
+            require(targetFile.delete()) {
+                "failed to replace prepared external ${sourceType.wireName}: ${targetFile.absolutePath}"
+            }
+        }
+
+        sourceFile.inputStream().use { input ->
+            FileOutputStream(targetFile).use { output ->
+                require(targetFile.setReadOnly()) {
+                    "failed to mark prepared external ${sourceType.wireName} as read-only: ${targetFile.absolutePath}"
+                }
+                input.copyTo(output)
+                output.fd.sync()
+            }
+        }
+
+        require(targetFile.exists() && targetFile.isFile) {
+            "prepared external ${sourceType.wireName} is unavailable: ${targetFile.absolutePath}"
+        }
+        require(targetFile.canRead()) {
+            "prepared external ${sourceType.wireName} is not readable: ${targetFile.absolutePath}"
+        }
+        require(!targetFile.canWrite()) {
+            "prepared external ${sourceType.wireName} must be read-only: ${targetFile.absolutePath}"
+        }
+
+        return targetFile
+    }
+
+    private fun ensureJvmCompatibilitySystemProperties() {
+        val filesDirPath = context.filesDir.absolutePath
+        val cacheDirPath = (context.cacheDir ?: context.codeCacheDir ?: context.filesDir).absolutePath
+        val locale = Locale.getDefault()
+        val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
+        val osArch = if (is64Bit) "aarch64" else "arm"
+        val archDataModel = if (is64Bit) "64" else "32"
+
+        ensureSystemProperty("os.name", "Linux")
+        ensureSystemProperty("os.arch", osArch)
+        ensureSystemProperty("sun.arch.data.model", archDataModel)
+        ensureSystemProperty("user.home", filesDirPath)
+        ensureSystemProperty("user.dir", filesDirPath)
+        ensureSystemProperty("java.io.tmpdir", cacheDirPath)
+        ensureSystemProperty("user.language", locale.language.ifBlank { "en" })
+        if (locale.country.isNotBlank()) {
+            ensureSystemProperty("user.country", locale.country)
+        }
+    }
+
+    private fun ensureSystemProperty(key: String, value: String) {
+        if (value.isBlank()) {
+            return
+        }
+        val current = System.getProperty(key)?.trim().orEmpty()
+        if (current.isBlank()) {
+            System.setProperty(key, value)
+        }
+    }
+
     private fun ensureOptimizedDir(): File {
-        val preferredDir = context.codeCacheDir ?: context.cacheDir
-        requireNotNull(preferredDir) { "app cache directory is unavailable" }
-        if (!preferredDir.exists()) {
-            preferredDir.mkdirs()
+        return ensureManagedDirectory("js-external-code-optimized")
+    }
+
+    private fun ensurePreparedSourceDir(): File {
+        return ensureManagedDirectory("js-external-code-sources")
+    }
+
+    private fun ensureManagedDirectory(childName: String): File {
+        val parentDir = context.codeCacheDir ?: context.cacheDir
+        requireNotNull(parentDir) { "app cache directory is unavailable" }
+        val managedDir = File(parentDir, childName)
+        if (!managedDir.exists()) {
+            managedDir.mkdirs()
         }
-        require(preferredDir.exists() && preferredDir.isDirectory) {
-            "optimized dex directory is unavailable: ${preferredDir.absolutePath}"
+        require(managedDir.exists() && managedDir.isDirectory) {
+            "managed code directory is unavailable: ${managedDir.absolutePath}"
         }
-        return preferredDir
+        return managedDir
+    }
+
+    private fun buildPreparedSourceFileName(sourceType: SourceType, canonicalPath: String): String {
+        val digest =
+            MessageDigest.getInstance("SHA-256")
+                .digest("${sourceType.wireName}|$canonicalPath".toByteArray())
+                .joinToString(separator = "") { byte -> "%02x".format(byte) }
+        return "${sourceType.wireName}-$digest.${sourceType.wireName}"
     }
 
     private fun buildArtifactKey(

@@ -521,7 +521,7 @@ internal object JsJavaBridgeDelegates {
         } catch (e: InvocationTargetException) {
             val cause = e.targetException ?: e
             AppLogger.e(TAG, "Java bridge invocation error: ${cause.message}", cause)
-            failure(cause.message ?: cause.javaClass.name)
+            failure(describeThrowable(cause))
         } catch (e: Exception) {
             val shouldLog =
                 e !is NoSuchFieldException &&
@@ -529,8 +529,21 @@ internal object JsJavaBridgeDelegates {
             if (shouldLog) {
                 AppLogger.e(TAG, "Java bridge error: ${e.message}", e)
             }
-            failure(e.message ?: e.javaClass.name)
+            failure(describeThrowable(e))
         }
+    }
+
+    private fun describeThrowable(error: Throwable): String {
+        val parts = ArrayList<String>()
+        val seen = HashSet<Throwable>()
+        var current: Throwable? = error
+        while (current != null && seen.add(current) && parts.size < 6) {
+            val label = current.message?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: current.javaClass.name
+            parts += label
+            current = current.cause
+        }
+        return parts.joinToString(separator = " | caused by: ")
     }
 
     private fun callSuspendInternal(

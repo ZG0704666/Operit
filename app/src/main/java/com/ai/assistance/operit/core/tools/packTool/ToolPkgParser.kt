@@ -98,6 +98,7 @@ internal data class ToolPkgManifest(
     val main: String = "",
     @SerialName("display_name") val displayName: LocalizedText = LocalizedText.of(""),
     val description: LocalizedText = LocalizedText.of(""),
+    @SerialName("enabled_by_default") val enabledByDefault: Boolean = true,
     val subpackages: List<ToolPkgManifestSubpackage> = emptyList(),
     val resources: List<ToolPkgManifestResource> = emptyList()
 )
@@ -604,7 +605,7 @@ internal object ToolPkgArchiveParser {
                 description = containerDescription,
                 tools = emptyList(),
                 isBuiltIn = isBuiltIn,
-                enabledByDefault = true,
+                enabledByDefault = manifest.enabledByDefault,
                 displayName = containerDisplayName,
                 category = "ToolPkg"
             )
@@ -672,55 +673,64 @@ internal object ToolPkgArchiveParser {
         return entries.entries.firstOrNull { it.key.equals(normalizedPath, ignoreCase = true) }?.value
     }
 
-    fun readZipEntryBytesFromExternal(zipFilePath: String, rawEntryPath: String): ByteArray? {
-        val normalizedPath = normalizeZipEntryPath(rawEntryPath) ?: return null
+    fun extractZipEntriesFromExternal(zipFilePath: String, destinationDir: File): Boolean {
         val zipFile = File(zipFilePath)
         if (!zipFile.exists()) {
-            return null
+            return false
         }
 
         ZipFile(zipFile).use { archive ->
-            val direct = archive.getEntry(normalizedPath)
-            if (direct != null) {
-                archive.getInputStream(direct).use { input ->
-                    return input.readBytes()
-                }
-            }
-
             val entries = archive.entries()
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
-                val normalizedEntry = normalizeZipEntryPath(entry.name)
-                if (!entry.isDirectory && normalizedEntry != null && normalizedEntry.equals(normalizedPath, ignoreCase = true)) {
-                    archive.getInputStream(entry).use { input ->
-                        return input.readBytes()
+                if (entry.isDirectory) {
+                    continue
+                }
+                val normalizedEntry = normalizeZipEntryPath(entry.name) ?: continue
+                val outputFile = File(destinationDir, normalizedEntry)
+                val parent = outputFile.parentFile
+                if (parent != null && !parent.exists()) {
+                    parent.mkdirs()
+                }
+                archive.getInputStream(entry).use { input ->
+                    outputFile.outputStream().use { output ->
+                        input.copyTo(output)
                     }
                 }
             }
         }
-
-        return null
+        return true
     }
 
-    fun readZipEntryBytesFromAsset(
+    fun extractZipEntriesFromAsset(
         context: Context,
         assetPath: String,
-        rawEntryPath: String
-    ): ByteArray? {
-        val normalizedPath = normalizeZipEntryPath(rawEntryPath) ?: return null
+        destinationDir: File
+    ): Boolean {
         context.assets.open(assetPath).use { input ->
             ZipInputStream(input.buffered()).use { zipInput ->
                 while (true) {
                     val entry = zipInput.nextEntry ?: break
+                    if (entry.isDirectory) {
+                        zipInput.closeEntry()
+                        continue
+                    }
                     val normalizedEntry = normalizeZipEntryPath(entry.name)
-                    if (!entry.isDirectory && normalizedEntry != null && normalizedEntry.equals(normalizedPath, ignoreCase = true)) {
-                        return zipInput.readBytes()
+                    if (normalizedEntry != null) {
+                        val outputFile = File(destinationDir, normalizedEntry)
+                        val parent = outputFile.parentFile
+                        if (parent != null && !parent.exists()) {
+                            parent.mkdirs()
+                        }
+                        outputFile.outputStream().use { output ->
+                            zipInput.copyTo(output)
+                        }
                     }
                     zipInput.closeEntry()
                 }
             }
         }
-        return null
+        return true
     }
 
     private fun containsZipEntry(entries: Map<String, ByteArray>, normalizedPath: String): Boolean {

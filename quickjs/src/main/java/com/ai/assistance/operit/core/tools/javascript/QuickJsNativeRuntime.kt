@@ -19,6 +19,14 @@ internal object QuickJsNativeBridge {
     external fun nativeEvaluate(handle: Long, script: String, fileName: String): String
 
     @JvmStatic
+    external fun nativeCallFunction(
+        handle: Long,
+        functionName: String,
+        argsJson: String,
+        callSite: String
+    ): String
+
+    @JvmStatic
     external fun nativeExecutePendingJobs(handle: Long, maxJobs: Int): Int
 
     @JvmStatic
@@ -54,6 +62,21 @@ class QuickJsNativeRuntime private constructor(
 
     fun eval(script: String, fileName: String = "<eval>"): EvalResult {
         val resultJson = QuickJsNativeBridge.nativeEvaluate(requireHandle(), script, fileName)
+        return parseEvalResult(resultJson)
+    }
+
+    fun callFunction(
+        functionName: String,
+        argsJson: String,
+        callSite: String = "<call:$functionName>"
+    ): EvalResult {
+        val resultJson =
+            QuickJsNativeBridge.nativeCallFunction(
+                requireHandle(),
+                functionName,
+                argsJson,
+                callSite
+            )
         return parseEvalResult(resultJson)
     }
 
