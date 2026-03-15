@@ -581,8 +581,6 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
             // This is handled by the ViewModel
         }
     }
-    // 判断是否有默认配置可用
-    val hasDefaultConfig = apiKey.isNotBlank()
 
     // 确定是否显示配置界面的最终逻辑
     val showConfig = shouldShowConfigDialog && !ConfigurationStateHolder.hasConfirmedDefaultInSession

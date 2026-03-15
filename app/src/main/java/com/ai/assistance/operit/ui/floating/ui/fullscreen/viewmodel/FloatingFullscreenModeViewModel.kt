@@ -29,6 +29,7 @@ private const val FULLSCREEN_TTS_CAPTURE_SUPPRESS_MS = 1200L
 
 data class VoiceAvatarMotionRequest(
     val emotion: AvatarEmotion = AvatarEmotion.IDLE,
+    val triggerName: String? = null,
     val playOnce: Boolean = false,
     val sequence: Long = 0L
 )
@@ -646,6 +647,16 @@ class FloatingFullscreenModeViewModel(
                 }
                 lastHandledVoiceAvatarMessageKey = messageKey
 
+                val triggerName = AvatarEmotionManager.extractMoodTagValue(message.content)
+                if (!triggerName.isNullOrBlank()) {
+                    pushVoiceAvatarMotion(
+                        emotion = AvatarEmotionManager.analyzeEmotion(message.content),
+                        triggerName = triggerName,
+                        playOnce = true
+                    )
+                    return
+                }
+
                 val emotion = AvatarEmotionManager.analyzeEmotion(message.content)
                 if (emotion == AvatarEmotion.IDLE) {
                     resetVoiceAvatarToIdle()
@@ -662,6 +673,7 @@ class FloatingFullscreenModeViewModel(
     ) {
         val shouldResetThinking =
             (state is InputProcessingState.Idle || state is InputProcessingState.Error) &&
+                voiceAvatarMotionRequest.triggerName.isNullOrBlank() &&
                 voiceAvatarMotionRequest.emotion == AvatarEmotion.THINKING
         if (!shouldResetThinking) {
             return
@@ -678,10 +690,15 @@ class FloatingFullscreenModeViewModel(
         return "${message.sender}:${message.timestamp}:${message.content.hashCode()}:${message.contentStream == null}"
     }
 
-    private fun pushVoiceAvatarMotion(emotion: AvatarEmotion, playOnce: Boolean) {
+    private fun pushVoiceAvatarMotion(
+        emotion: AvatarEmotion,
+        triggerName: String? = null,
+        playOnce: Boolean
+    ) {
         voiceAvatarSequence += 1
         voiceAvatarMotionRequest = VoiceAvatarMotionRequest(
             emotion = emotion,
+            triggerName = triggerName,
             playOnce = playOnce,
             sequence = voiceAvatarSequence
         )

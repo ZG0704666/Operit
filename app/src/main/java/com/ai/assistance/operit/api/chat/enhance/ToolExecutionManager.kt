@@ -65,9 +65,8 @@ object ToolExecutionManager {
             if (chunkString.isEmpty()) return@collect
 
             if (group.tag is StreamXmlPlugin) {
-                val toolMatch = ChatMarkupRegex.toolCallPattern.find(chunkString)
-                if (toolMatch != null) {
-                    val toolName = toolMatch.groupValues.getOrNull(2) ?: return@collect
+                ChatMarkupRegex.toolCallPattern.findAll(chunkString).forEach { toolMatch ->
+                    val toolName = toolMatch.groupValues.getOrNull(2) ?: return@forEach
                     val toolBody = toolMatch.groupValues.getOrNull(3).orEmpty()
 
                     val parameters = mutableListOf<ToolParameter>()
@@ -79,7 +78,13 @@ object ToolExecutionManager {
                         }
 
                     val tool = AITool(name = toolName, parameters = parameters)
-                    invocations.add(ToolInvocation(tool, chunkString, chunkString.indices))
+                    invocations.add(
+                        ToolInvocation(
+                            tool = tool,
+                            rawText = toolMatch.value,
+                            responseLocation = toolMatch.range
+                        )
+                    )
                 }
             }
         }
@@ -291,7 +296,8 @@ object ToolExecutionManager {
         // 2. 按并行/串行对工具进行分组
         val parallelizableToolNames = setOf(
             "list_files", "read_file", "read_file_part", "read_file_full", "file_exists",
-            "find_files", "file_info", "grep_code", "query_memory", "calculate", "ffmpeg_info"
+            "find_files", "file_info", "grep_code", "calculate", "ffmpeg_info",
+            "visit_web", "download_file"
         )
         val (parallelInvocations, serialInvocations) = injectedInvocations.partition {
             parallelizableToolNames.contains(

@@ -357,7 +357,8 @@ fun ModelApiSettingsSection(
 
     // 检查是否使用默认API密钥（仅用于UI显示）
     val isUsingDefaultApiKey = apiKeyInput == ApiPreferences.DEFAULT_API_KEY
-    val providerRequiresApiKey = selectedApiProvider != ApiProviderType.OLLAMA
+    val providerRequiresApiKey =
+        ApiProviderConfigs.requiresApiKey(selectedApiProvider, apiEndpointInput)
 
     // 移除了强制锁定模型名称的逻辑，允许用户自由修改
 

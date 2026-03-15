@@ -11,6 +11,9 @@ enum class AvatarType {
     /** Frame-by-frame animation using WEBP format. */
     WEBP,
 
+    /** Video-based animation using MP4 format. */
+    MP4,
+
     /** Real-time 3D glTF/glb model animation. */
     GLTF,
 

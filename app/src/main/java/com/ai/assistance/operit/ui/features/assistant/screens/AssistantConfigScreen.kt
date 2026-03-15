@@ -135,7 +135,7 @@ fun AssistantConfigScreen() {
         ) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 result.data?.data?.let { uri ->
-                    // 导入选择的 zip / glb / gltf 文件
+                    // 导入选择的 zip / glb / gltf / mp4 文件
                     viewModel.importAvatarFromZip(uri)
                 }
             }
@@ -154,6 +154,7 @@ fun AssistantConfigScreen() {
                         "application/x-zip-compressed",
                         "model/gltf-binary",
                         "model/gltf+json",
+                        "video/mp4",
                         "application/octet-stream"
                     )
                 )

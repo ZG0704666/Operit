@@ -16,7 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import moe.shizuku.server.IShizukuService
-import rikka.shizuku.Shizuku
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -461,17 +460,12 @@ class DebuggerShellExecutor(private val context: Context) : ShellExecutor {
             }
 
     /** 获取Shizuku服务 */
-    @Throws(RemoteException::class)
     private fun getShizukuService(): IShizukuService? {
         try {
-            val uid = Shizuku.getUid()
-            if (uid < 0) {
-                AppLogger.d(TAG, "Invalid Shizuku UID: $uid")
-                return null
-            }
+            val connection = ShizukuAuthorizer.getOrResolveShizukuConnection() ?: return null
 
             // 检查缓存的服务是否可用
-            val cached = serviceCache[uid]
+            val cached = serviceCache[connection.uid]
             if (cached != null) {
                 val isCachedAlive =
                         try {
@@ -485,26 +479,18 @@ class DebuggerShellExecutor(private val context: Context) : ShellExecutor {
                     return cached
                 } else {
                     AppLogger.d(TAG, "Cached Shizuku service is dead, removing from cache")
-                    serviceCache.remove(uid)
+                    serviceCache.remove(connection.uid)
                 }
             }
 
-            // 获取新的Binder
-            val binder = Shizuku.getBinder()
-            if (binder == null) {
-                AppLogger.d(TAG, "Shizuku binder is null")
+            val service = IShizukuService.Stub.asInterface(connection.binder)
+            if (service == null) {
+                AppLogger.d(TAG, "Failed to create Shizuku service interface")
                 return null
             }
 
-            if (!binder.isBinderAlive) {
-                AppLogger.d(TAG, "Shizuku binder is not alive")
-                return null
-            }
-
-            // 创建新的服务实例
             AppLogger.d(TAG, "Creating new Shizuku service interface")
-            val service = IShizukuService.Stub.asInterface(binder)
-            serviceCache[uid] = service
+            serviceCache[connection.uid] = service
             return service
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error getting Shizuku service", e)

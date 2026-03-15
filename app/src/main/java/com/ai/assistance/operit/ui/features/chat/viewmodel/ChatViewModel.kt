@@ -19,6 +19,7 @@ import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.chat.AIMessageManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.data.collects.ApiProviderConfigs
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.AITool
@@ -26,7 +27,6 @@ import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.ApiPreferences
-import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.R
@@ -439,12 +439,22 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 初始化语音服务
         initializeVoiceService()
 
-        // 观察ApiConfigDelegate的初始化状态
+        // 配置提示只跟随当前活跃聊天配置，避免被其他未使用配置误伤。
         viewModelScope.launch {
-            isApiConfigInitialized.collect { initialized ->
-                if (initialized) {
-                    checkConfigAndShowDialog()
-                }
+            combine(
+                isApiConfigInitialized,
+                apiKey,
+                apiProviderType,
+                apiEndpoint
+            ) { initialized, currentApiKey, currentProviderType, currentApiEndpoint ->
+                initialized &&
+                    ApiProviderConfigs.requiresApiKey(
+                        currentProviderType,
+                        currentApiEndpoint
+                    ) &&
+                    currentApiKey == ApiPreferences.DEFAULT_API_KEY
+            }.collect { shouldShow ->
+                _shouldShowConfigDialog.value = shouldShow
             }
         }
     }
@@ -1777,30 +1787,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         _webViewRefreshCounter.value += 1
     }
 
-    // 判断是否正在使用默认API配置
-    private suspend fun checkConfigAndShowDialog() {
-        // 初始化ModelConfigManager以检查所有配置
-        val modelConfigManager = ModelConfigManager(context)
-        var hasDefaultKey = false
-
-        // 异步检查所有配置
-        withContext(Dispatchers.IO) {
-            // 获取所有配置ID
-            val configIds = modelConfigManager.configListFlow.first()
-
-            // 检查每个配置是否使用默认API key
-            for (id in configIds) {
-                val config = modelConfigManager.getModelConfigFlow(id).first()
-                if (config.apiKey == ApiPreferences.DEFAULT_API_KEY) {
-                    hasDefaultKey = true
-                    break
-                }
-            }
-        }
-
-        _shouldShowConfigDialog.value = hasDefaultKey
-    }
-    
     // 用于启动文件选择器并处理结果
     fun startFileChooserForResult(intent: Intent, callback: (Int, Intent?) -> Unit) {
         fileChooserCallback = callback

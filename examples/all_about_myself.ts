@@ -122,6 +122,9 @@
 - 再调用 set_sandbox_package_enabled(package_name, enabled) 执行启停。
 5) 制作包文档：
 - https://github.com/AAswordman/Operit/blob/main/docs/SCRIPT_DEV_GUIDE.md
+6) 软件内调试烧录：
+- 普通 `.js` 沙盒包优先用 `debug_install_js_package`。
+- `ToolPkg` 优先用 `debug_install_toolpkg`；它会处理目录/manifest/.toolpkg 的打包或安装，并触发 ToolPkg 的刷新链路。
 
 【Package 兼容模型（重要）】
 - AI 看到的 package 是统一抽象，底层可能来自 MCP、Skill、Sandbox Package 任意一种。
@@ -343,6 +346,9 @@
 - Then call set_sandbox_package_enabled(package_name, enabled) to apply changes.
 5) Package authoring guide:
 - https://github.com/AAswordman/Operit/blob/main/docs/SCRIPT_DEV_GUIDE.md
+6) In-app debug install:
+- For plain `.js` sandbox packages, prefer `debug_install_js_package`.
+- For `ToolPkg`, prefer `debug_install_toolpkg`; it handles packaging/install flow for folder/manifest/.toolpkg sources and triggers the ToolPkg refresh path.
 
 [Package compatibility model (important)]
 - The package list seen by AI is a unified abstraction, and each item may come from MCP, Skill, or Sandbox Package.
@@ -503,6 +509,87 @@
           }
           type: boolean
           required: true
+        }
+      ]
+    },
+    {
+      name: "debug_install_js_package"
+      description: {
+        zh: '''将 Android 侧的普通 `.js` 沙盒包直接烧录到外部 packages 目录，并刷新、启用、重新加载，便于在软件内调试。'''
+        en: '''Install an Android-side plain `.js` sandbox package into the external packages directory, refresh it, enable it, and reload it for in-app debugging.'''
+      }
+      parameters: [
+        {
+          name: "source_path"
+          description: {
+            zh: "Android 侧 `.js` 源文件路径"
+            en: "Android-side `.js` source file path"
+          }
+          type: string
+          required: true
+        },
+        {
+          name: "enable_after_install"
+          description: {
+            zh: "安装后是否自动启用，默认 true"
+            en: "Whether to enable it automatically after install, default true"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "activate_after_install"
+          description: {
+            zh: "安装后是否自动 use_package 重新加载，默认 true"
+            en: "Whether to automatically call use_package after install, default true"
+          }
+          type: boolean
+          required: false
+        }
+      ]
+    },
+    {
+      name: "debug_install_toolpkg"
+      description: {
+        zh: '''根据 Android 侧的 ToolPkg 目录、manifest 或现成 `.toolpkg`，直接打包/烧录到外部 packages 目录，并触发 ToolPkg 安装与刷新链路。'''
+        en: '''Package or install an Android-side ToolPkg folder, manifest, or existing `.toolpkg` into the external packages directory and trigger the ToolPkg install/refresh flow.'''
+      }
+      parameters: [
+        {
+          name: "source_path"
+          description: {
+            zh: "Android 侧 ToolPkg 目录、manifest.json/manifest.hjson 或 `.toolpkg` 路径"
+            en: "Android-side ToolPkg folder, manifest.json/manifest.hjson, or `.toolpkg` path"
+          }
+          type: string
+          required: true
+        },
+        {
+          name: "reset_subpackage_states"
+          description: {
+            zh: "是否按 manifest 默认值重置子包启用状态，默认 true"
+            en: "Whether to reset subpackage enable states from manifest defaults, default true"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "activate_subpackages"
+          description: {
+            zh: "可选，逗号或换行分隔的子包 ID；安装后会自动启用并 use_package"
+            en: "Optional comma/newline separated subpackage IDs; they will be enabled and activated after install"
+          }
+          type: string
+          required: false
+        },
+        {
+          name: "wait_ms"
+          description: {
+            zh: "安装广播后等待并轮询刷新的毫秒数，默认 1500"
+            en: "Milliseconds to wait and poll for refresh after sending the install broadcast, default 1500"
+          }
+          type: integer
+          required: false
         }
       ]
     },
@@ -1375,7 +1462,7 @@ async function all_about_myself(params: { query?: string }) {
     const { query } = params ?? {};
     complete({
       success: true,
-      message: "配置排查手册已加载（MCP/Skill/Sandbox Package/功能模型与模型配置/TTS-STT语音服务），将按配置链路执行排查。",
+      message: "配置排查手册已加载（MCP/Skill/Sandbox Package/沙盒包调试烧录/功能模型与模型配置/TTS-STT语音服务），将按配置链路执行排查。",
       data: {
         query: query ?? ""
       }
@@ -1473,6 +1560,812 @@ async function set_sandbox_package_enabled(params?: { package_name?: string; ena
       success: false,
       message: get_error_message(error)
     });
+  }
+}
+
+const SANDBOX_EXTERNAL_PACKAGES_DIR = "/sdcard/Android/data/com.ai.assistance.operit/files/packages";
+const TOOLPKG_DEBUG_INSTALL_ACTION = "com.ai.assistance.operit.DEBUG_INSTALL_TOOLPKG";
+const TOOLPKG_DEBUG_INSTALL_COMPONENT =
+  "com.ai.assistance.operit/.core.tools.packTool.ToolPkgDebugInstallReceiver";
+const DEFAULT_SANDBOX_REFRESH_TIMEOUT_MS = 1500;
+const DEFAULT_TOOLPKG_INSTALL_WAIT_MS = 1500;
+const JS_METADATA_BLOCK_PATTERN = /\/\*\s*METADATA([\s\S]*?)\*\//m;
+const JS_PACKAGE_NAME_PATTERN = /^\s*["']?name["']?\s*:\s*["']([^"']+)["']/m;
+const TOOLPKG_ID_PATTERN = /^\s*["']?toolpkg_id["']?\s*:\s*["']([^"']+)["']/m;
+const TOOLPKG_MAIN_PATTERN = /^\s*["']?main["']?\s*:\s*["']([^"']+)["']/m;
+const TOOLPKG_SUBPACKAGE_ID_PATTERN = /^\s*["']?id["']?\s*:\s*["']([^"']+)["']/gm;
+const TOOLPKG_SKIP_DIR_NAMES = new Set([".git", "__pycache__"]);
+const TOOLPKG_SKIP_FILE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
+
+type SandboxPackageEntry = {
+  packageName?: string;
+  displayName?: string;
+  description?: string;
+  isBuiltIn?: boolean;
+  enabledByDefault?: boolean;
+  enabled?: boolean;
+  imported?: boolean;
+  isDisabledByUser?: boolean;
+  toolCount?: number;
+  manageMode?: string;
+};
+
+type SandboxPackagesPayload = {
+  externalPackagesPath?: string;
+  totalCount?: number;
+  builtInCount?: number;
+  externalCount?: number;
+  enabledCount?: number;
+  disabledCount?: number;
+  packages?: SandboxPackageEntry[];
+};
+
+type SandboxRefreshResult = {
+  payload: SandboxPackagesPayload | null;
+  packageEntry: SandboxPackageEntry | null;
+  raw: string;
+};
+
+type JsPackageSourceInfo = {
+  packageName: string;
+  metadataBlock: string;
+};
+
+type ToolPkgManifestSummary = {
+  packageId: string;
+  mainEntry: string;
+  subpackageIds: string[];
+};
+
+type ToolPkgResolvedSource = {
+  sourceKind: "folder" | "archive";
+  sourcePath: string;
+  folderPath: string;
+  manifestPath: string;
+  packageId: string;
+  mainEntry: string;
+  subpackageIds: string[];
+  archivePath?: string;
+  temporaryPaths: string[];
+};
+
+function normalize_android_path(raw?: string): string {
+  const normalized = String(raw ?? "").trim().replace(/\\/g, "/");
+  if (!normalized) return "";
+  if (/^[a-zA-Z]+:\/\//.test(normalized)) return normalized;
+  if (normalized.startsWith("/")) return normalized;
+  if (normalized.startsWith("sdcard/")) return `/${normalized}`;
+  if (normalized.startsWith("Android/") || normalized.startsWith("Download/")) {
+    return `/sdcard/${normalized}`;
+  }
+  return normalized;
+}
+
+function normalize_package_key(raw?: string): string {
+  return String(raw ?? "").trim().toLowerCase();
+}
+
+function normalize_directory_path(path: string): string {
+  const normalized = normalize_android_path(path).replace(/\/+/g, "/");
+  if (normalized === "/") return normalized;
+  return normalized.replace(/\/+$/, "");
+}
+
+function same_android_path(left: string, right: string): boolean {
+  return normalize_directory_path(left) === normalize_directory_path(right);
+}
+
+function path_dirname(path: string): string {
+  const normalized = normalize_directory_path(path);
+  const index = normalized.lastIndexOf("/");
+  if (index < 0) return "";
+  if (index === 0) return "/";
+  return normalized.slice(0, index);
+}
+
+function path_basename(path: string): string {
+  const normalized = normalize_directory_path(path);
+  const index = normalized.lastIndexOf("/");
+  return index >= 0 ? normalized.slice(index + 1) : normalized;
+}
+
+function path_join(...parts: string[]): string {
+  const filtered = parts
+    .map((part) => String(part ?? "").trim().replace(/\\/g, "/"))
+    .filter(Boolean);
+  if (filtered.length === 0) return "";
+
+  const leadingSlash = filtered[0].startsWith("/");
+  const joined = filtered.map((part) => part.replace(/^\/+|\/+$/g, "")).filter(Boolean).join("/");
+  return leadingSlash ? `/${joined}` : joined;
+}
+
+function safe_debug_file_stem(raw: string, fallback: string): string {
+  const normalized = String(raw ?? "").trim().replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[_\.]+|[_\.]+$/g, "");
+  return normalized || fallback;
+}
+
+function parse_boolean_like(value: unknown, defaultValue: boolean): boolean {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return defaultValue;
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function parse_integer_like(value: unknown, defaultValue: number): number {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : defaultValue;
+}
+
+async function android_path_exists(path: string): Promise<boolean> {
+  const result = (await Tools.Files.exists(path, "android")) as { exists?: boolean };
+  return !!result?.exists;
+}
+
+async function get_android_file_type(path: string): Promise<string> {
+  const result = (await Tools.Files.info(path, "android")) as { fileType?: string };
+  return String(result?.fileType ?? "").trim().toLowerCase();
+}
+
+async function ensure_android_directory(path: string) {
+  await Tools.Files.mkdir(path, true, "android");
+}
+
+async function delete_android_path_if_exists(path: string) {
+  if (!path) return;
+  if (!(await android_path_exists(path))) return;
+  await Tools.Files.deleteFile(path, true, "android");
+}
+
+async function cleanup_android_paths(paths: string[]) {
+  const uniquePaths = Array.from(new Set(paths.map((path) => normalize_android_path(path)).filter(Boolean)));
+  uniquePaths.sort((left, right) => right.length - left.length);
+
+  for (const path of uniquePaths) {
+    try {
+      await delete_android_path_if_exists(path);
+    } catch {
+      // Ignore cleanup failures.
+    }
+  }
+}
+
+async function read_android_text_file(path: string): Promise<string> {
+  const result = (await Tools.Files.read({ path, environment: "android" })) as { content?: string };
+  const content = typeof result?.content === "string" ? result.content : extract_string_result(result);
+  if (typeof content !== "string") {
+    throw new Error(`Failed to read text file: ${path}`);
+  }
+  return content;
+}
+
+function parse_json_record(raw: string): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function parse_sandbox_packages_payload(raw: string): SandboxPackagesPayload | null {
+  const parsed = parse_json_record(raw);
+  if (!parsed) return null;
+  const packages = Array.isArray(parsed.packages) ? (parsed.packages as SandboxPackageEntry[]) : [];
+  return {
+    externalPackagesPath:
+      typeof parsed.externalPackagesPath === "string" ? parsed.externalPackagesPath : undefined,
+    totalCount: typeof parsed.totalCount === "number" ? parsed.totalCount : undefined,
+    builtInCount: typeof parsed.builtInCount === "number" ? parsed.builtInCount : undefined,
+    externalCount: typeof parsed.externalCount === "number" ? parsed.externalCount : undefined,
+    enabledCount: typeof parsed.enabledCount === "number" ? parsed.enabledCount : undefined,
+    disabledCount: typeof parsed.disabledCount === "number" ? parsed.disabledCount : undefined,
+    packages
+  };
+}
+
+function find_sandbox_package_entry(
+  payload: SandboxPackagesPayload | null,
+  packageName: string
+): SandboxPackageEntry | null {
+  const targetKey = normalize_package_key(packageName);
+  const packages = payload?.packages ?? [];
+  return (
+    packages.find((entry) => normalize_package_key(entry?.packageName) === targetKey) ?? null
+  );
+}
+
+async function refresh_sandbox_packages_until(
+  packageName: string,
+  timeoutMs: number
+): Promise<SandboxRefreshResult> {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let lastRaw = "";
+  let lastPayload: SandboxPackagesPayload | null = null;
+  let lastEntry: SandboxPackageEntry | null = null;
+
+  while (true) {
+    const result = await Tools.SoftwareSettings.listSandboxPackages();
+    lastRaw = extract_string_result(result);
+    lastPayload = parse_sandbox_packages_payload(lastRaw);
+    lastEntry = find_sandbox_package_entry(lastPayload, packageName);
+    if (lastEntry) {
+      return {
+        payload: lastPayload,
+        packageEntry: lastEntry,
+        raw: lastRaw
+      };
+    }
+
+    if (Date.now() >= deadline) {
+      return {
+        payload: lastPayload,
+        packageEntry: lastEntry,
+        raw: lastRaw
+      };
+    }
+
+    await Tools.System.sleep(Math.min(300, Math.max(50, deadline - Date.now())));
+  }
+}
+
+function extract_js_metadata_block(sourceText: string, sourcePath: string): string {
+  const match = JS_METADATA_BLOCK_PATTERN.exec(sourceText);
+  if (!match) {
+    throw new Error(`Missing METADATA block: ${sourcePath}`);
+  }
+  return match[1].trim();
+}
+
+function parse_js_package_source(sourceText: string, sourcePath: string): JsPackageSourceInfo {
+  const metadataBlock = extract_js_metadata_block(sourceText, sourcePath);
+  const packageName = JS_PACKAGE_NAME_PATTERN.exec(metadataBlock)?.[1]?.trim() ?? "";
+  if (!packageName) {
+    throw new Error(`Missing package metadata name: ${sourcePath}`);
+  }
+  return {
+    packageName,
+    metadataBlock
+  };
+}
+
+async function delete_duplicate_external_js_package_files(packageName: string, keepPath: string) {
+  const removedPaths: string[] = [];
+  const listing = (await Tools.Files.list(SANDBOX_EXTERNAL_PACKAGES_DIR, "android")) as {
+    entries?: Array<{ name?: string; isDirectory?: boolean }>;
+  };
+
+  for (const entry of listing?.entries ?? []) {
+    const entryName = String(entry?.name ?? "").trim();
+    if (!entryName || entry?.isDirectory || !entryName.toLowerCase().endsWith(".js")) {
+      continue;
+    }
+
+    const candidatePath = path_join(SANDBOX_EXTERNAL_PACKAGES_DIR, entryName);
+    if (same_android_path(candidatePath, keepPath)) {
+      continue;
+    }
+
+    try {
+      const candidateText = await read_android_text_file(candidatePath);
+      const candidateInfo = parse_js_package_source(candidateText, candidatePath);
+      if (normalize_package_key(candidateInfo.packageName) !== normalize_package_key(packageName)) {
+        continue;
+      }
+
+      await Tools.Files.deleteFile(candidatePath, false, "android");
+      removedPaths.push(candidatePath);
+    } catch {
+      // Ignore files that cannot be parsed as sandbox packages.
+    }
+  }
+
+  return removedPaths;
+}
+
+function parse_toolpkg_manifest_text(text: string, manifestPath: string): ToolPkgManifestSummary {
+  let packageId = "";
+  let mainEntry = "";
+  let subpackageIds: string[] = [];
+
+  try {
+    const parsed = JSON.parse(text) as {
+      toolpkg_id?: unknown;
+      main?: unknown;
+      subpackages?: Array<{ id?: unknown }>;
+    };
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      packageId = String(parsed.toolpkg_id ?? "").trim();
+      mainEntry = String(parsed.main ?? "").trim();
+      if (Array.isArray(parsed.subpackages)) {
+        subpackageIds = parsed.subpackages
+          .map((subpackage) => String(subpackage?.id ?? "").trim())
+          .filter(Boolean);
+      }
+    }
+  } catch {
+    // HJSON-like manifests will fall back to regex parsing below.
+  }
+
+  if (!packageId) {
+    packageId = TOOLPKG_ID_PATTERN.exec(text)?.[1]?.trim() ?? "";
+  }
+  if (!mainEntry) {
+    mainEntry = TOOLPKG_MAIN_PATTERN.exec(text)?.[1]?.trim() ?? "";
+  }
+  if (subpackageIds.length === 0) {
+    const matches: string[] = [];
+    const pattern = new RegExp(TOOLPKG_SUBPACKAGE_ID_PATTERN.source, TOOLPKG_SUBPACKAGE_ID_PATTERN.flags);
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      const subpackageId = match[1]?.trim() ?? "";
+      if (subpackageId) {
+        matches.push(subpackageId);
+      }
+    }
+    subpackageIds = matches;
+  }
+
+  if (!packageId) {
+    throw new Error(`manifest.toolpkg_id is required: ${manifestPath}`);
+  }
+  if (!mainEntry) {
+    throw new Error(`manifest.main is required: ${manifestPath}`);
+  }
+
+  return {
+    packageId,
+    mainEntry: mainEntry.replace(/\\/g, "/").replace(/^\/+/, ""),
+    subpackageIds: Array.from(new Set(subpackageIds))
+  };
+}
+
+async function find_toolpkg_manifest_in_folder(folderPath: string): Promise<string> {
+  const manifestJson = path_join(folderPath, "manifest.json");
+  if (await android_path_exists(manifestJson)) {
+    return manifestJson;
+  }
+
+  const manifestHjson = path_join(folderPath, "manifest.hjson");
+  if (await android_path_exists(manifestHjson)) {
+    return manifestHjson;
+  }
+
+  throw new Error(`Missing manifest.json or manifest.hjson in folder: ${folderPath}`);
+}
+
+async function resolve_toolpkg_source(rawSourcePath: string): Promise<ToolPkgResolvedSource> {
+  const sourcePath = normalize_android_path(rawSourcePath);
+  if (!sourcePath) {
+    throw new Error("Missing required parameter: source_path");
+  }
+  if (!(await android_path_exists(sourcePath))) {
+    throw new Error(`Source path does not exist: ${sourcePath}`);
+  }
+
+  const sourceType = await get_android_file_type(sourcePath);
+  let sourceKind: "folder" | "archive" = "folder";
+  let folderPath = sourcePath;
+  let archivePath: string | undefined;
+  const temporaryPaths: string[] = [];
+
+  const lowerBaseName = path_basename(sourcePath).toLowerCase();
+  if (sourceType === "directory") {
+    folderPath = sourcePath;
+  } else if (sourceType === "file" && (lowerBaseName === "manifest.json" || lowerBaseName === "manifest.hjson")) {
+    folderPath = path_dirname(sourcePath);
+  } else if (sourceType === "file" && lowerBaseName.endsWith(".toolpkg")) {
+    sourceKind = "archive";
+    archivePath = sourcePath;
+    const tempExtractDir = path_join(
+      OPERIT_CLEAN_ON_EXIT_DIR,
+      `all_about_myself_toolpkg_extract_${safe_debug_file_stem(lowerBaseName.replace(/\.toolpkg$/i, ""), "toolpkg")}_${Date.now()}`
+    );
+    await ensure_android_directory(tempExtractDir);
+    await Tools.Files.unzip(sourcePath, tempExtractDir, "android");
+    folderPath = tempExtractDir;
+    temporaryPaths.push(tempExtractDir);
+  } else {
+    throw new Error(
+      "ToolPkg source must be a folder, manifest.json/manifest.hjson, or an existing .toolpkg file"
+    );
+  }
+
+  const manifestPath = await find_toolpkg_manifest_in_folder(folderPath);
+  const manifestText = await read_android_text_file(manifestPath);
+  const manifest = parse_toolpkg_manifest_text(manifestText, manifestPath);
+  const mainPath = path_join(folderPath, manifest.mainEntry);
+  if (!(await android_path_exists(mainPath))) {
+    throw new Error(`manifest.main file does not exist: ${manifestPath} -> ${manifest.mainEntry}`);
+  }
+
+  return {
+    sourceKind,
+    sourcePath,
+    folderPath,
+    manifestPath,
+    packageId: manifest.packageId,
+    mainEntry: manifest.mainEntry,
+    subpackageIds: manifest.subpackageIds,
+    archivePath,
+    temporaryPaths
+  };
+}
+
+function collect_toolpkg_directory_entries(
+  rootFile: JavaBridgeInstance,
+  currentFile: JavaBridgeInstance,
+  entries: Array<{ file: JavaBridgeInstance; relativePath: string }> = []
+) {
+  const children = currentFile.listFiles();
+  const length = Number(children?.length ?? 0);
+
+  for (let index = 0; index < length; index += 1) {
+    const child = children[index] as JavaBridgeInstance;
+    const childName = String(child.getName?.() ?? child.name ?? "").trim();
+    if (!childName) {
+      continue;
+    }
+    if (child.isDirectory()) {
+      if (TOOLPKG_SKIP_DIR_NAMES.has(childName)) {
+        continue;
+      }
+      collect_toolpkg_directory_entries(rootFile, child, entries);
+      continue;
+    }
+    if (TOOLPKG_SKIP_FILE_NAMES.has(childName)) {
+      continue;
+    }
+
+    const rootPath = String(rootFile.getAbsolutePath()).replace(/\\/g, "/").replace(/\/+$/, "");
+    const childPath = String(child.getAbsolutePath()).replace(/\\/g, "/");
+    const relativePath = childPath.startsWith(`${rootPath}/`) ? childPath.slice(rootPath.length + 1) : childName;
+    entries.push({
+      file: child,
+      relativePath
+    });
+  }
+
+  return entries;
+}
+
+function create_toolpkg_archive_from_folder_contents(sourceFolderPath: string, destinationArchivePath: string) {
+  const File = Java.type("java.io.File");
+  const FileOutputStream = Java.type("java.io.FileOutputStream");
+  const BufferedOutputStream = Java.type("java.io.BufferedOutputStream");
+  const ZipOutputStream = Java.type("java.util.zip.ZipOutputStream");
+  const ZipEntry = Java.type("java.util.zip.ZipEntry");
+  const FileInputStream = Java.type("java.io.FileInputStream");
+  const Channels = Java.type("java.nio.channels.Channels");
+
+  const sourceRoot = new File(sourceFolderPath);
+  if (!sourceRoot.exists() || !sourceRoot.isDirectory()) {
+    throw new Error(`ToolPkg source folder does not exist or is not a directory: ${sourceFolderPath}`);
+  }
+
+  const destinationFile = new File(destinationArchivePath);
+  const parentDir = destinationFile.getParentFile();
+  if (parentDir && !parentDir.exists()) {
+    parentDir.mkdirs();
+  }
+  if (destinationFile.exists()) {
+    destinationFile.delete();
+  }
+
+  const entries = collect_toolpkg_directory_entries(sourceRoot, sourceRoot).sort((left, right) =>
+    left.relativePath.localeCompare(right.relativePath)
+  );
+
+  const zipStream = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(destinationFile)));
+  try {
+    for (const entry of entries) {
+      zipStream.putNextEntry(new ZipEntry(entry.relativePath));
+      const inputStream = new FileInputStream(entry.file);
+      try {
+        const sourceChannel = inputStream.getChannel();
+        const targetChannel = Channels.newChannel(zipStream);
+        sourceChannel.transferTo(0, sourceChannel.size(), targetChannel);
+      } finally {
+        inputStream.close();
+      }
+      zipStream.closeEntry();
+    }
+  } finally {
+    zipStream.close();
+  }
+}
+
+async function build_toolpkg_archive_from_folder(source: ToolPkgResolvedSource) {
+  const tempBuildDir = path_join(
+    OPERIT_CLEAN_ON_EXIT_DIR,
+    `all_about_myself_toolpkg_build_${safe_debug_file_stem(source.packageId, "toolpkg")}_${Date.now()}`
+  );
+  await ensure_android_directory(tempBuildDir);
+  const archivePath = path_join(tempBuildDir, `${safe_debug_file_stem(source.packageId, "toolpkg")}.toolpkg`);
+  create_toolpkg_archive_from_folder_contents(source.folderPath, archivePath);
+
+  if (!(await android_path_exists(archivePath))) {
+    throw new Error(`Failed to create ToolPkg archive: ${archivePath}`);
+  }
+
+  return {
+    archivePath,
+    temporaryPaths: [tempBuildDir]
+  };
+}
+
+function parse_requested_package_ids(raw?: string): string[] {
+  const input = String(raw ?? "").trim();
+  if (!input) return [];
+  return Array.from(new Set(input.split(/[\r\n,]+/).map((item) => item.trim()).filter(Boolean)));
+}
+
+async function debug_install_js_package(params?: {
+  source_path?: string;
+  enable_after_install?: boolean | string | number;
+  activate_after_install?: boolean | string | number;
+}) {
+  try {
+    const sourcePath = normalize_android_path(params?.source_path);
+    if (!sourcePath) {
+      complete({
+        success: false,
+        message: "Missing required parameter: source_path"
+      });
+      return;
+    }
+
+    const sourceType = await get_android_file_type(sourcePath);
+    if (sourceType !== "file") {
+      complete({
+        success: false,
+        message: `JS source must be a file: ${sourcePath}`
+      });
+      return;
+    }
+    if (!sourcePath.toLowerCase().endsWith(".js")) {
+      complete({
+        success: false,
+        message: `JS debug install only supports .js files: ${sourcePath}`
+      });
+      return;
+    }
+
+    const sourceText = await read_android_text_file(sourcePath);
+    const packageInfo = parse_js_package_source(sourceText, sourcePath);
+    const enableAfterInstall = parse_boolean_like(params?.enable_after_install, true);
+    const activateAfterInstall = parse_boolean_like(params?.activate_after_install, true);
+    const shouldEnable = enableAfterInstall || activateAfterInstall;
+
+    await ensure_android_directory(SANDBOX_EXTERNAL_PACKAGES_DIR);
+    const targetPath = path_join(
+      SANDBOX_EXTERNAL_PACKAGES_DIR,
+      `${safe_debug_file_stem(packageInfo.packageName, "debug_js_package")}.js`
+    );
+    const copied = !same_android_path(sourcePath, targetPath);
+    if (copied) {
+      await delete_android_path_if_exists(targetPath);
+      await Tools.Files.copy(sourcePath, targetPath, false, "android", "android");
+    }
+    if (!(await android_path_exists(targetPath))) {
+      complete({
+        success: false,
+        message: `Installed JS package file is missing after copy: ${targetPath}`
+      });
+      return;
+    }
+
+    const removedDuplicateFiles = await delete_duplicate_external_js_package_files(packageInfo.packageName, targetPath);
+    const refresh = await refresh_sandbox_packages_until(
+      packageInfo.packageName,
+      DEFAULT_SANDBOX_REFRESH_TIMEOUT_MS
+    );
+    if (!refresh.packageEntry) {
+      complete({
+        success: false,
+        message: `Sandbox package did not appear after refresh: ${packageInfo.packageName}`,
+        data: {
+          package_name: packageInfo.packageName,
+          source_path: sourcePath,
+          target_path: targetPath,
+          refresh_raw: refresh.raw
+        }
+      });
+      return;
+    }
+    if (refresh.packageEntry.isBuiltIn) {
+      complete({
+        success: false,
+        message: `External JS package '${packageInfo.packageName}' did not take precedence over a built-in package with the same name.`,
+        data: {
+          package: refresh.packageEntry,
+          source_path: sourcePath,
+          target_path: targetPath
+        }
+      });
+      return;
+    }
+
+    let enableResult: string | null = null;
+    if (shouldEnable) {
+      enableResult = extract_string_result(
+        await Tools.SoftwareSettings.setSandboxPackageEnabled(packageInfo.packageName, true)
+      );
+    }
+
+    let activateResult: string | null = null;
+    if (activateAfterInstall) {
+      activateResult = extract_string_result(
+        await toolCall("use_package", { package_name: packageInfo.packageName })
+      );
+    }
+
+    complete({
+      success: true,
+      message: `Debug JS package installed: ${packageInfo.packageName}`,
+      data: {
+        package_name: packageInfo.packageName,
+        source_path: sourcePath,
+        target_path: targetPath,
+        copied,
+        removed_duplicate_files: removedDuplicateFiles,
+        package: refresh.packageEntry,
+        enable_after_install: shouldEnable,
+        activate_after_install: activateAfterInstall,
+        enable_result: enableResult,
+        activate_result: activateResult,
+        refresh_raw: refresh.raw
+      }
+    });
+  } catch (error: unknown) {
+    complete({
+      success: false,
+      message: get_error_message(error)
+    });
+  }
+}
+
+async function debug_install_toolpkg(params?: {
+  source_path?: string;
+  reset_subpackage_states?: boolean | string | number;
+  activate_subpackages?: string;
+  wait_ms?: number | string;
+}) {
+  const cleanupPaths: string[] = [];
+
+  try {
+    const resolvedSource = await resolve_toolpkg_source(params?.source_path ?? "");
+    cleanupPaths.push(...resolvedSource.temporaryPaths);
+
+    let archivePath = resolvedSource.archivePath ?? "";
+    if (resolvedSource.sourceKind === "folder") {
+      const builtArchive = await build_toolpkg_archive_from_folder(resolvedSource);
+      archivePath = builtArchive.archivePath;
+      cleanupPaths.push(...builtArchive.temporaryPaths);
+    }
+
+    await ensure_android_directory(SANDBOX_EXTERNAL_PACKAGES_DIR);
+    const targetPath = path_join(
+      SANDBOX_EXTERNAL_PACKAGES_DIR,
+      `${safe_debug_file_stem(resolvedSource.packageId, "toolpkg")}.toolpkg`
+    );
+    if (!same_android_path(archivePath, targetPath)) {
+      await delete_android_path_if_exists(targetPath);
+      await Tools.Files.copy(archivePath, targetPath, false, "android", "android");
+    }
+    if (!(await android_path_exists(targetPath))) {
+      complete({
+        success: false,
+        message: `Installed ToolPkg archive is missing after copy: ${targetPath}`
+      });
+      return;
+    }
+
+    const resetSubpackageStates = parse_boolean_like(params?.reset_subpackage_states, true);
+    const waitMs = parse_integer_like(params?.wait_ms, DEFAULT_TOOLPKG_INSTALL_WAIT_MS);
+    const broadcastResult = await Tools.System.sendBroadcast({
+      action: TOOLPKG_DEBUG_INSTALL_ACTION,
+      component: TOOLPKG_DEBUG_INSTALL_COMPONENT,
+      extras: {
+        package_name: resolvedSource.packageId,
+        file_path: targetPath,
+        reset_subpackage_states: resetSubpackageStates
+      }
+    });
+
+    const refresh = await refresh_sandbox_packages_until(resolvedSource.packageId, waitMs);
+    if (!refresh.packageEntry) {
+      complete({
+        success: false,
+        message: `ToolPkg container did not appear after debug install: ${resolvedSource.packageId}`,
+        data: {
+          package_name: resolvedSource.packageId,
+          source_path: resolvedSource.sourcePath,
+          archive_path: targetPath,
+          broadcast_result: broadcastResult,
+          refresh_raw: refresh.raw
+        }
+      });
+      return;
+    }
+    if (refresh.packageEntry.isBuiltIn) {
+      complete({
+        success: false,
+        message: `Debug ToolPkg '${resolvedSource.packageId}' is shadowed by a built-in package with the same name.`,
+        data: {
+          package: refresh.packageEntry,
+          broadcast_result: broadcastResult,
+          refresh_raw: refresh.raw
+        }
+      });
+      return;
+    }
+
+    const requestedSubpackages = parse_requested_package_ids(params?.activate_subpackages);
+    const knownSubpackageKeys = new Set(resolvedSource.subpackageIds.map(normalize_package_key));
+    const unknownRequestedSubpackages =
+      knownSubpackageKeys.size === 0
+        ? []
+        : requestedSubpackages.filter((subpackageId) => !knownSubpackageKeys.has(normalize_package_key(subpackageId)));
+    const activationTargets = requestedSubpackages.filter(
+      (subpackageId) => !unknownRequestedSubpackages.includes(subpackageId)
+    );
+
+    const subpackageResults: Array<{
+      subpackage_id: string;
+      enable_result: string;
+      activate_result: string;
+    }> = [];
+
+    for (const subpackageId of activationTargets) {
+      const enableResult = extract_string_result(
+        await Tools.SoftwareSettings.setSandboxPackageEnabled(subpackageId, true)
+      );
+      const activateResult = extract_string_result(
+        await toolCall("use_package", { package_name: subpackageId })
+      );
+      subpackageResults.push({
+        subpackage_id: subpackageId,
+        enable_result: enableResult,
+        activate_result: activateResult
+      });
+    }
+
+    complete({
+      success: true,
+      message: `Debug ToolPkg installed: ${resolvedSource.packageId}`,
+      data: {
+        package_name: resolvedSource.packageId,
+        source_kind: resolvedSource.sourceKind,
+        source_path: resolvedSource.sourcePath,
+        manifest_path: resolvedSource.manifestPath,
+        main_entry: resolvedSource.mainEntry,
+        archive_path: targetPath,
+        subpackage_ids: resolvedSource.subpackageIds,
+        reset_subpackage_states: resetSubpackageStates,
+        requested_activate_subpackages: requestedSubpackages,
+        unknown_requested_subpackages: unknownRequestedSubpackages,
+        subpackage_results: subpackageResults,
+        package: refresh.packageEntry,
+        broadcast_result: broadcastResult,
+        refresh_raw: refresh.raw
+      }
+    });
+  } catch (error: unknown) {
+    complete({
+      success: false,
+      message: get_error_message(error)
+    });
+  } finally {
+    await cleanup_android_paths(cleanupPaths);
   }
 }
 
@@ -2127,6 +3020,8 @@ exports.all_about_myself = all_about_myself;
 exports.how_make_skill = how_make_skill;
 exports.list_sandbox_packages = list_sandbox_packages;
 exports.set_sandbox_package_enabled = set_sandbox_package_enabled;
+exports.debug_install_js_package = debug_install_js_package;
+exports.debug_install_toolpkg = debug_install_toolpkg;
 exports.read_environment_variable = read_environment_variable;
 exports.write_environment_variable = write_environment_variable;
 exports.restart_mcp_with_logs = restart_mcp_with_logs;

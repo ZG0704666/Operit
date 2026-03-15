@@ -95,6 +95,7 @@ class GltfSurfaceView @JvmOverloads constructor(
     private var currentModelPath: String? = null
     private var requestedAnimationName: String? = null
     private var requestedLooping: Boolean = false
+    private var requestedPlaybackNonce: Long = -1L
 
     private var cameraPitchDegrees: Float = DEFAULT_CAMERA_PITCH
     private var cameraYawDegrees: Float = DEFAULT_CAMERA_YAW
@@ -178,14 +179,19 @@ class GltfSurfaceView @JvmOverloads constructor(
         schedulePendingModelLoad()
     }
 
-    fun setAnimationState(animationName: String?, isLooping: Boolean) {
+    fun setAnimationState(animationName: String?, isLooping: Boolean, playbackNonce: Long) {
         val normalizedName = animationName?.trim()?.takeIf { it.isNotEmpty() }
-        if (requestedAnimationName == normalizedName && requestedLooping == isLooping) {
+        if (
+            requestedAnimationName == normalizedName &&
+            requestedLooping == isLooping &&
+            requestedPlaybackNonce == playbackNonce
+        ) {
             return
         }
 
         requestedAnimationName = normalizedName
         requestedLooping = isLooping
+        requestedPlaybackNonce = playbackNonce
         restartAnimationClock()
         applyRequestedAnimationSelection()
     }

@@ -22,8 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
-import com.ai.assistance.operit.core.avatar.common.model.IFrameSequenceAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.webp.control.WebPAvatarController
+import com.ai.assistance.operit.core.avatar.impl.webp.model.WebPAvatarModel
 import java.io.File
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -41,7 +41,7 @@ import java.nio.ByteBuffer
 @Composable
 fun WebPRenderer(
     modifier: Modifier,
-    model: IFrameSequenceAvatarModel,
+    model: WebPAvatarModel,
     controller: AvatarController,
     onError: (String) -> Unit
 ) {
@@ -53,14 +53,18 @@ fun WebPRenderer(
 
     // Listen to controller state changes to get the current animation path
     val controllerState by webpController.state.collectAsState()
-    val currentModel by webpController.currentModel.collectAsState()
     
     // Listen to transform properties
     val scale by webpController.scale.collectAsState()
     val translateX by webpController.translateX.collectAsState()
     val translateY by webpController.translateY.collectAsState()
     
-    val animationPath = currentModel.animationPath
+    val animationName = controllerState.currentAnimation
+    val animationPath = model.animationPathFor(animationName)
+    val animationKey =
+        animationName
+            ?: model.animationFileForEmotion(controllerState.emotion)
+            ?: model.availableFiles.firstOrNull()
 
     val drawableState = remember(animationPath) {
         mutableStateOf<android.graphics.drawable.Drawable?>(null)
@@ -100,7 +104,7 @@ fun WebPRenderer(
                         animationCallback =
                             object : Animatable2.AnimationCallback() {
                                 override fun onAnimationEnd(drawable: Drawable?) {
-                                    webpController.onAnimationPlaybackCompleted(animationPath)
+                                    animationKey?.let(webpController::onAnimationPlaybackCompleted)
                                 }
                             }
                         drawable.registerAnimationCallback(animationCallback)

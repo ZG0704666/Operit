@@ -51,6 +51,19 @@ interface AvatarController {
     fun estimateEmotionDurationMillis(emotion: AvatarEmotion): Long? = null
 
     /**
+     * Plays an animation trigger identified by an arbitrary string key, such as a custom
+     * `<mood>` tag value returned by the model.
+     *
+     * @return true if the trigger could be resolved and playback started.
+     */
+    fun playTrigger(triggerName: String, loop: Int = 0): Boolean = false
+
+    /**
+     * Returns the estimated duration for a trigger-based animation, in milliseconds.
+     */
+    fun estimateTriggerDurationMillis(triggerName: String): Long? = null
+
+    /**
      * Instructs the avatar to look at a specific point on the screen.
      * This is an advanced feature that may only be supported by certain avatar types.
      * Implementations for unsupported types should do nothing.
@@ -73,4 +86,10 @@ interface AvatarController {
      * Controllers that don't need this behavior can ignore it.
      */
     fun updateEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>) {}
+
+    /**
+     * Updates an optional mapping from arbitrary trigger keys (for example, `<mood>sleepy</mood>`)
+     * to model-specific animation names.
+     */
+    fun updateTriggerAnimationMapping(mapping: Map<String, String>) {}
 } 

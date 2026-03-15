@@ -1319,16 +1319,11 @@ class CustomXmlRenderer(
     /** 
      * 渲染 <mood> 标签 - 这是一个虚拟形象动画触发器，不应在聊天界面显示
      * 
-     * mood标签的格式: <mood>HAPPY</mood> 或 <mood>ANGRY</mood>
-     * 支持的mood值（在 AvatarEmotionManager 中定义）：
-     * - ANGRY: 愤怒/生气 -> 映射到 AvatarEmotion.SAD
-     * - HAPPY: 开心/快乐 -> 映射到 AvatarEmotion.HAPPY
-     * - SHY: 害羞 -> 映射到 AvatarEmotion.CONFUSED
-     * - AOJIAO: 傲娇 -> 映射到 AvatarEmotion.CONFUSED
-     * - CRY: 哭泣/难过 -> 映射到 AvatarEmotion.SAD
+     * mood标签的格式: <mood>happy</mood>、<mood>angry</mood>、
+     * 或用户在助手配置里自定义的任意 trigger key（例如 <mood>sleepy</mood>）。
      * 
      * 注意：此标签不会在UI中渲染任何内容。虚拟形象的情感控制
-     * 是在 FloatingAvatarMode 中通过 AvatarEmotionManager.analyzeEmotion() 实现的。
+     * 是在虚拟形象控制器中通过 trigger / emotion 映射实现的。
      */
     @Composable
     private fun renderMoodTag(_content: String, _modifier: Modifier, _textColor: Color) {

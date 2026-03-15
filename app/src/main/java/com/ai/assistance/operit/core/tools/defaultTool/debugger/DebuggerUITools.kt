@@ -14,6 +14,7 @@ import com.ai.assistance.operit.core.tools.UIPageResultData
 import com.ai.assistance.operit.core.tools.defaultTool.accessbility.AccessibilityUITools
 import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardUITools
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.ShellIdentity
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
@@ -30,6 +31,12 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     companion object {
         private const val TAG = "DebuggerUITools"
+    }
+
+    protected open val uiShellIdentity: ShellIdentity? = null
+
+    protected suspend fun executeUiShellCommand(command: String): AndroidShellExecutor.CommandResult {
+        return AndroidShellExecutor.executeShellCommand(command, uiShellIdentity)
     }
 
     /** 是否包含 display 相关参数（有的话强制走 ADB，不走无障碍） */
@@ -71,7 +78,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
         try {
             AppLogger.d(TAG, "Attempting to tap at coordinates: ($x, $y) via shell command")
             val command = "input ${getDisplayArg(tool)}tap $x $y"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             if (result.success) {
                 AppLogger.d(TAG, "Tap successful at coordinates: ($x, $y)")
@@ -140,7 +147,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             AppLogger.d(TAG, "Attempting to long press at coordinates: ($x, $y) via shell command")
             // Use swipe to simulate long press
             val command = "input ${getDisplayArg(tool)}swipe $x $y $x $y 800"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             if (result.success) {
                 AppLogger.d(TAG, "Long press successful at coordinates: ($x, $y)")
@@ -209,7 +216,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                     "Attempting to swipe from ($startX, $startY) to ($endX, $endY) with duration $duration ms via shell command"
             )
             val command = "input ${getDisplayArg(tool)}swipe $startX $startY $endX $endY $duration"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             if (result.success) {
                 AppLogger.d(TAG, "Swipe successful from ($startX, $startY) to ($endX, $endY)")
@@ -356,7 +363,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             // 使用KEYCODE_CLEAR清除字段，这比模拟CTRL+A和DEL更直接
             AppLogger.d(TAG, "Clearing text field with KEYCODE_CLEAR")
             val clearCommand = "input ${getDisplayArg(tool)}keyevent KEYCODE_CLEAR"
-            AndroidShellExecutor.executeShellCommand(clearCommand)
+            executeUiShellCommand(clearCommand)
 
             // 短暂延迟
             kotlinx.coroutines.delay(300)
@@ -391,7 +398,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
             // 执行粘贴命令
             val pasteCommand = "input ${getDisplayArg(tool)}keyevent KEYCODE_PASTE"
-            val pasteResult = AndroidShellExecutor.executeShellCommand(pasteCommand)
+            val pasteResult = executeUiShellCommand(pasteCommand)
 
             if (pasteResult.success) {
                 // 成功后主动隐藏overlay
@@ -450,7 +457,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
         val command = "input ${getDisplayArg(tool)}keyevent $keyCode"
 
         return try {
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             if (result.success) {
                 ToolResult(
@@ -493,7 +500,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             // 1) Debugger 模式下优先尝试 Shell 模式 (ADB) 截图
             AppLogger.d(TAG, "captureScreenshotToFile: Attempting shell screencap")
             val command = "screencap -p ${file.absolutePath}"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             if (result.success && file.exists()) {
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -597,14 +604,14 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             var dumpResult = if (displayId != null) {
                 val cmd = "uiautomator dump --display-id $displayId /sdcard/window_dump.xml"
                 AppLogger.d(TAG, "UI dump using explicit display-id=$displayId")
-                AndroidShellExecutor.executeShellCommand(cmd)
+                executeUiShellCommand(cmd)
             } else {
-                AndroidShellExecutor.executeShellCommand("uiautomator dump /sdcard/window_dump.xml")
+                executeUiShellCommand("uiautomator dump /sdcard/window_dump.xml")
             }
 
             if (!dumpResult.success && displayId != null) {
                 AppLogger.w(TAG, "uiautomator dump with explicit display-id failed, falling back: ${dumpResult.stderr}")
-                dumpResult = AndroidShellExecutor.executeShellCommand("uiautomator dump /sdcard/window_dump.xml")
+                dumpResult = executeUiShellCommand("uiautomator dump /sdcard/window_dump.xml")
             }
 
             if (!dumpResult.success) {
@@ -614,7 +621,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             AppLogger.d(TAG, "uiautomator dump成功: ${dumpResult.stdout}")
 
             // 读取dump文件内容
-            val readResult = AndroidShellExecutor.executeShellCommand("cat /sdcard/window_dump.xml")
+            val readResult = executeUiShellCommand("cat /sdcard/window_dump.xml")
             if (!readResult.success) {
                 AppLogger.e(TAG, "读取UI dump文件失败: ${readResult.stderr}")
                 return null
@@ -657,7 +664,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
         // 依次尝试每个命令，直到有一个成功
         for (command in commands) {
             try {
-                val result = AndroidShellExecutor.executeShellCommand(command)
+                val result = executeUiShellCommand(command)
                 if (result.success && result.stdout.isNotEmpty()) {
                     AppLogger.d(TAG, "成功获取窗口信息: ${result.stdout.take(100)}")
                     return result.stdout
@@ -674,7 +681,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
         try {
             val topActivityCommand =
                     "dumpsys activity activities | grep -E 'topResumedActivity|topActivity'"
-            val result = AndroidShellExecutor.executeShellCommand(topActivityCommand)
+            val result = executeUiShellCommand(topActivityCommand)
             if (result.success && result.stdout.isNotEmpty()) {
                 AppLogger.d(TAG, "使用topActivity作为窗口信息替代: ${result.stdout.take(100)}")
                 return result.stdout
@@ -1078,7 +1085,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             // 先尝试获取UI dump
             AppLogger.d(TAG, "Dumping UI hierarchy to find element")
             val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
-            val result = AndroidShellExecutor.executeShellCommand(dumpCommand)
+            val result = executeUiShellCommand(dumpCommand)
 
             if (!result.success) {
                 return ToolResult(
@@ -1091,7 +1098,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
             // 读取dump文件
             val readCommand = "cat /sdcard/window_dump.xml"
-            val readResult = AndroidShellExecutor.executeShellCommand(readCommand)
+            val readResult = executeUiShellCommand(readCommand)
 
             if (!readResult.success) {
                 return ToolResult(
@@ -1198,7 +1205,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             withContext(Dispatchers.Main) { operationOverlay.showTap(centerX, centerY) }
 
             val tapCommand = "input tap $centerX $centerY"
-            val tapResult = AndroidShellExecutor.executeShellCommand(tapCommand)
+            val tapResult = executeUiShellCommand(tapCommand)
 
             if (tapResult.success) {
                 val identifierDescription =

@@ -6,13 +6,15 @@ import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.factory.AvatarRendererFactory
 import com.ai.assistance.operit.core.avatar.common.model.AvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
-import com.ai.assistance.operit.core.avatar.common.model.IFrameSequenceAvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.ISkeletalAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.dragonbones.view.DragonBonesRenderer
 import com.ai.assistance.operit.core.avatar.impl.gltf.model.GltfAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.gltf.view.GltfRenderer
 import com.ai.assistance.operit.core.avatar.impl.mmd.model.MmdAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.mmd.view.MmdRenderer
+import com.ai.assistance.operit.core.avatar.impl.mp4.model.Mp4AvatarModel
+import com.ai.assistance.operit.core.avatar.impl.mp4.view.Mp4Renderer
+import com.ai.assistance.operit.core.avatar.impl.webp.model.WebPAvatarModel
 import com.ai.assistance.operit.core.avatar.impl.webp.view.WebPRenderer
 
 class AvatarRendererFactoryImpl : AvatarRendererFactory {
@@ -36,12 +38,27 @@ class AvatarRendererFactoryImpl : AvatarRendererFactory {
                 }
             }
             AvatarType.WEBP -> {
-                val frameSequenceModel = model as? IFrameSequenceAvatarModel
-                if (frameSequenceModel != null) {
+                val webpModel = model as? WebPAvatarModel
+                if (webpModel != null) {
                     { modifier, controller ->
                         WebPRenderer(
                             modifier = modifier,
-                            model = frameSequenceModel,
+                            model = webpModel,
+                            controller = controller,
+                            onError = { }
+                        )
+                    }
+                } else {
+                    null
+                }
+            }
+            AvatarType.MP4 -> {
+                val mp4Model = model as? Mp4AvatarModel
+                if (mp4Model != null) {
+                    { modifier, controller ->
+                        Mp4Renderer(
+                            modifier = modifier,
+                            model = mp4Model,
                             controller = controller,
                             onError = { }
                         )

@@ -5,6 +5,7 @@ import androidx.compose.runtime.remember
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 import com.ai.assistance.operit.core.avatar.common.state.AvatarState
 import com.ai.assistance.operit.core.avatar.impl.gltf.model.GltfAvatarModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +45,7 @@ class GltfAvatarController(
         get() = _availableAnimations.value
 
     private var emotionAnimationMapping: Map<AvatarEmotion, String> = emptyMap()
+    private var triggerAnimationMapping: Map<String, String> = emptyMap()
     private var animationDurationMillisByName: Map<String, Long> = emptyMap()
 
     fun updateAvailableAnimations(discoveredAnimations: List<String>) {
@@ -104,20 +106,41 @@ class GltfAvatarController(
         }
     }
 
+    override fun playTrigger(triggerName: String, loop: Int): Boolean {
+        val normalizedTrigger = AvatarMoodTypes.normalizeKey(triggerName)
+        val animationName = resolveAnimationForTrigger(normalizedTrigger) ?: return false
+        _state.value =
+            _state.value.copy(
+                emotion = AvatarMoodTypes.builtInFallbackEmotion(normalizedTrigger) ?: _state.value.emotion
+            )
+        playAnimation(animationName, loop = loop)
+        return true
+    }
+
     override fun estimateEmotionDurationMillis(emotion: AvatarEmotion): Long? {
         val animationName = resolveAnimationForEmotion(emotion) ?: return null
         return animationDurationMillisByName[animationName]
     }
 
+    override fun estimateTriggerDurationMillis(triggerName: String): Long? {
+        val animationName =
+            resolveAnimationForTrigger(AvatarMoodTypes.normalizeKey(triggerName)) ?: return null
+        return animationDurationMillisByName[animationName]
+    }
+
     override fun playAnimation(animationName: String, loop: Int) {
-        if (availableAnimations.isNotEmpty() && !availableAnimations.contains(animationName)) {
+        val normalizedName = animationName.trim()
+        if (normalizedName.isEmpty()) {
+            return
+        }
+        if (availableAnimations.isNotEmpty() && !availableAnimations.contains(normalizedName)) {
             return
         }
 
-        _state.value = _state.value.copy(currentAnimation = null, isLooping = false)
         _state.value = _state.value.copy(
-            currentAnimation = animationName,
-            isLooping = loop == 0
+            currentAnimation = normalizedName,
+            isLooping = loop == 0,
+            playbackNonce = _state.value.playbackNonce + 1
         )
     }
 
@@ -157,6 +180,18 @@ class GltfAvatarController(
             .filterValues { animationName -> animationName.isNotBlank() }
     }
 
+    override fun updateTriggerAnimationMapping(mapping: Map<String, String>) {
+        triggerAnimationMapping =
+            mapping.entries.mapNotNull { (rawKey, rawAnimationName) ->
+                val key = AvatarMoodTypes.normalizeKey(rawKey)
+                val animationName = rawAnimationName.trim()
+                if (key.isBlank() || animationName.isBlank()) {
+                    return@mapNotNull null
+                }
+                key to animationName
+            }.toMap()
+    }
+
     private fun resolveAnimationForEmotion(emotion: AvatarEmotion): String? {
         val preferred = emotionAnimationMapping[emotion]
         if (!preferred.isNullOrBlank()) {
@@ -173,6 +208,19 @@ class GltfAvatarController(
         }
 
         return availableAnimations.firstOrNull()
+    }
+
+    private fun resolveAnimationForTrigger(triggerName: String): String? {
+        val preferred = triggerAnimationMapping[triggerName]
+        if (!preferred.isNullOrBlank()) {
+            if (availableAnimations.isEmpty() || availableAnimations.contains(preferred)) {
+                return preferred
+            }
+        }
+
+        return availableAnimations.firstOrNull { animationName ->
+            animationName.equals(triggerName, ignoreCase = true)
+        }
     }
 }
 

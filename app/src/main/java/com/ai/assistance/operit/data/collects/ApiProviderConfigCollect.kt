@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.data.collects
 
 import com.ai.assistance.operit.data.model.ApiProviderType
+import java.net.URI
 
 data class ProviderEndpointOption(
     val endpoint: String,
@@ -11,7 +12,8 @@ data class ProviderApiConfig(
     val providerType: ApiProviderType,
     val defaultModelName: String = "",
     val defaultApiEndpoint: String = "",
-    val endpointOptions: List<ProviderEndpointOption> = emptyList()
+    val endpointOptions: List<ProviderEndpointOption> = emptyList(),
+    val requiresApiKey: Boolean = true
 )
 
 object ApiProviderConfigs {
@@ -172,22 +174,26 @@ object ApiProviderConfigs {
         ProviderApiConfig(
             providerType = ApiProviderType.LMSTUDIO,
             defaultModelName = "meta-llama-3.1-8b-instruct",
-            defaultApiEndpoint = "http://localhost:1234/v1/chat/completions"
+            defaultApiEndpoint = "http://localhost:1234/v1/chat/completions",
+            requiresApiKey = false
         ),
         ProviderApiConfig(
             providerType = ApiProviderType.OLLAMA,
             defaultModelName = "",
-            defaultApiEndpoint = "http://localhost:11434/v1/chat/completions"
+            defaultApiEndpoint = "http://localhost:11434/v1/chat/completions",
+            requiresApiKey = false
         ),
         ProviderApiConfig(
             providerType = ApiProviderType.MNN,
             defaultModelName = "",
-            defaultApiEndpoint = ""
+            defaultApiEndpoint = "",
+            requiresApiKey = false
         ),
         ProviderApiConfig(
             providerType = ApiProviderType.LLAMA_CPP,
             defaultModelName = "",
-            defaultApiEndpoint = ""
+            defaultApiEndpoint = "",
+            requiresApiKey = false
         ),
         ProviderApiConfig(
             providerType = ApiProviderType.PPINFRA,
@@ -217,11 +223,57 @@ object ApiProviderConfigs {
         return get(providerType).endpointOptions.takeIf { it.isNotEmpty() }
     }
 
+    fun requiresApiKey(providerType: ApiProviderType, apiEndpoint: String = ""): Boolean {
+        if (!get(providerType).requiresApiKey) {
+            return false
+        }
+
+        return !isLoopbackEndpoint(apiEndpoint)
+    }
+
     fun isDefaultModelName(modelName: String): Boolean {
         return configs.values.any { it.defaultModelName == modelName }
     }
 
     fun isDefaultApiEndpoint(endpoint: String): Boolean {
         return configs.values.any { it.defaultApiEndpoint == endpoint }
+    }
+
+    private fun isLoopbackEndpoint(apiEndpoint: String): Boolean {
+        if (apiEndpoint.isBlank()) {
+            return false
+        }
+
+        val normalizedEndpoint = apiEndpoint.trim().lowercase()
+        return try {
+            val host = URI(apiEndpoint).host
+            if (host != null) {
+                isLoopbackHost(host)
+            } else {
+                isLoopbackEndpointText(normalizedEndpoint)
+            }
+        } catch (_: Exception) {
+            isLoopbackEndpointText(normalizedEndpoint)
+        }
+    }
+
+    private fun isLoopbackHost(host: String): Boolean {
+        return when (host.lowercase().trim('[', ']')) {
+            "localhost",
+            "127.0.0.1",
+            "::1",
+            "0.0.0.0",
+            "10.0.2.2" -> true
+            else -> false
+        }
+    }
+
+    private fun isLoopbackEndpointText(apiEndpoint: String): Boolean {
+        return apiEndpoint.startsWith("localhost:") ||
+            apiEndpoint.startsWith("127.0.0.1:") ||
+            apiEndpoint.startsWith("[::1]:") ||
+            apiEndpoint.startsWith("::1:") ||
+            apiEndpoint.startsWith("0.0.0.0:") ||
+            apiEndpoint.startsWith("10.0.2.2:")
     }
 }

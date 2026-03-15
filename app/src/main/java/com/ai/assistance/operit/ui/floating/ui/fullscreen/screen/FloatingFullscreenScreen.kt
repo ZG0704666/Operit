@@ -67,6 +67,7 @@ import com.ai.assistance.operit.data.preferences.WakeWordPreferences
 import com.ai.assistance.operit.data.repository.AvatarRepository
 import com.ai.assistance.operit.data.repository.AvatarSettings
 import com.ai.assistance.operit.data.repository.getEmotionAnimationMapping
+import com.ai.assistance.operit.data.repository.getMoodAnimationMapping
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.components.BottomControlBar
@@ -149,6 +150,9 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     }
     val currentAvatarEmotionMapping = remember(currentAvatarConfig) {
         currentAvatarConfig?.getEmotionAnimationMapping().orEmpty()
+    }
+    val currentAvatarMoodAnimationMapping = remember(currentAvatarConfig) {
+        currentAvatarConfig?.getMoodAnimationMapping().orEmpty()
     }
     val currentAvatarSettings = remember(currentAvatarModel?.id, avatarInstanceSettings) {
         currentAvatarModel?.id?.let { avatarId -> avatarInstanceSettings[avatarId] }
@@ -261,6 +265,10 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         voiceAvatarController?.updateEmotionAnimationMapping(currentAvatarEmotionMapping)
     }
 
+    LaunchedEffect(voiceAvatarController, currentAvatarMoodAnimationMapping) {
+        voiceAvatarController?.updateTriggerAnimationMapping(currentAvatarMoodAnimationMapping)
+    }
+
     LaunchedEffect(voiceAvatarController, currentAvatarRuntimeSettings) {
         currentAvatarRuntimeSettings?.let { settings ->
             voiceAvatarController?.updateSettings(settings)
@@ -274,6 +282,23 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         }
 
         val request = viewModel.voiceAvatarMotionRequest
+        val triggerName = request.triggerName?.trim().orEmpty()
+        if (triggerName.isNotEmpty()) {
+            val handled = controller.playTrigger(triggerName, loop = if (request.playOnce) 1 else 0)
+            if (handled) {
+                if (request.playOnce) {
+                    val durationMillis =
+                        controller.estimateTriggerDurationMillis(triggerName)
+                            ?: controller.estimateEmotionDurationMillis(request.emotion)
+                    durationMillis?.let {
+                        delay(durationMillis)
+                        controller.setEmotion(AvatarEmotion.IDLE)
+                    }
+                }
+                return@LaunchedEffect
+            }
+        }
+
         if (request.playOnce) {
             controller.playEmotion(request.emotion, loop = 1)
             controller.estimateEmotionDurationMillis(request.emotion)?.let { durationMillis ->

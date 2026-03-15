@@ -99,7 +99,11 @@ fun GltfRenderer(
                         )
                     }
                     setModelPath(model.modelPath)
-                    setAnimationState(avatarState.currentAnimation, avatarState.isLooping)
+                    setAnimationState(
+                        avatarState.currentAnimation,
+                        avatarState.isLooping,
+                        avatarState.playbackNonce
+                    )
                     setCameraPose(cameraPitch, cameraYaw, cameraDistanceScale, cameraTargetHeight)
                     onResume()
                 }
@@ -113,7 +117,11 @@ fun GltfRenderer(
                     )
                 }
                 view.setModelPath(model.modelPath)
-                view.setAnimationState(avatarState.currentAnimation, avatarState.isLooping)
+                view.setAnimationState(
+                    avatarState.currentAnimation,
+                    avatarState.isLooping,
+                    avatarState.playbackNonce
+                )
                 view.setCameraPose(cameraPitch, cameraYaw, cameraDistanceScale, cameraTargetHeight)
             }
         )

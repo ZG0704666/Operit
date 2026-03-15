@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.chat.llmprovider
 import android.content.Context
 import android.os.Environment
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.data.collects.ApiProviderConfigs
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
@@ -180,6 +181,8 @@ object ModelListFetcher {
 
                     // 根据提供商类型获取模型列表URL
                     val modelsUrl = getModelsListUrl(completedEndpoint, apiProviderType)
+                    val providerRequiresApiKey =
+                            ApiProviderConfigs.requiresApiKey(apiProviderType, completedEndpoint)
                     AppLogger.d(TAG, "准备发送请求到: $modelsUrl, 尝试次数: ${retryCount + 1}/${maxRetries + 1}")
 
                     val requestBuilder =
@@ -214,16 +217,20 @@ object ModelListFetcher {
                         ApiProviderType.ANTHROPIC,
                         ApiProviderType.ANTHROPIC_GENERIC -> {
                             AppLogger.d(TAG, "使用Anthropic x-api-key认证方式")
-                            requestBuilder.addHeader("x-api-key", apiKey)
+                            if (apiKey.isNotBlank()) {
+                                requestBuilder.addHeader("x-api-key", apiKey)
+                            }
                             requestBuilder.addHeader("anthropic-version", ANTHROPIC_VERSION)
                         }
-                        ApiProviderType.OLLAMA -> {
-                            AppLogger.d(TAG, "Ollama模型列表请求不使用认证头")
-                        }
                         else -> {
-                            // 大多数API使用Bearer认证
-                            AppLogger.d(TAG, "使用Bearer认证方式")
-                            requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+                            if (apiKey.isNotBlank()) {
+                                AppLogger.d(TAG, "使用Bearer认证方式")
+                                requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+                            } else if (providerRequiresApiKey) {
+                                AppLogger.d(TAG, "当前提供商需要API Key，但当前请求未提供认证头")
+                            } else {
+                                AppLogger.d(TAG, "当前提供商允许无API Key访问，跳过认证头")
+                            }
                         }
                     }
 
@@ -236,7 +243,7 @@ object ModelListFetcher {
                         val errorBody = response.body?.string() ?: context.getString(R.string.model_fetch_no_error_details)
                         val responseCode = response.code
                         response.close()
-                        if ((apiProviderType == ApiProviderType.OPENAI || apiProviderType == ApiProviderType.OPENAI_RESPONSES || apiProviderType == ApiProviderType.OPENAI_RESPONSES_GENERIC || apiProviderType == ApiProviderType.OPENAI_GENERIC || apiProviderType == ApiProviderType.IFLOW || apiProviderType == ApiProviderType.NVIDIA || apiProviderType == ApiProviderType.OLLAMA) &&
+                        if ((apiProviderType == ApiProviderType.OPENAI || apiProviderType == ApiProviderType.OPENAI_RESPONSES || apiProviderType == ApiProviderType.OPENAI_RESPONSES_GENERIC || apiProviderType == ApiProviderType.OPENAI_GENERIC || apiProviderType == ApiProviderType.IFLOW || apiProviderType == ApiProviderType.NVIDIA || apiProviderType == ApiProviderType.LMSTUDIO || apiProviderType == ApiProviderType.OLLAMA) &&
                                         modelsUrl.endsWith("/v1/models")) {
                             val fallbackUrl = modelsUrl.removeSuffix("/v1/models") + "/models"
                             AppLogger.w(TAG, "API请求失败，尝试兼容路径: $fallbackUrl")

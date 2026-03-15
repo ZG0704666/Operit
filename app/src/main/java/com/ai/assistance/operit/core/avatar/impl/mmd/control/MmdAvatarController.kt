@@ -6,6 +6,7 @@ import com.ai.assistance.mmd.MmdNative
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 import com.ai.assistance.operit.core.avatar.common.state.AvatarState
 import java.io.File
 import kotlin.math.roundToLong
@@ -49,6 +50,7 @@ class MmdAvatarController(
         get() = model.displayMotionNames
 
     private var emotionAnimationMapping: Map<AvatarEmotion, String> = emptyMap()
+    private var triggerAnimationMapping: Map<String, String> = emptyMap()
 
     override fun setEmotion(newEmotion: AvatarEmotion) {
         playEmotion(newEmotion, loop = 0)
@@ -62,8 +64,31 @@ class MmdAvatarController(
         }
     }
 
+    override fun playTrigger(triggerName: String, loop: Int): Boolean {
+        val normalizedTrigger = AvatarMoodTypes.normalizeKey(triggerName)
+        val animationName = resolveAnimationForTrigger(normalizedTrigger) ?: return false
+        _state.value =
+            _state.value.copy(
+                emotion = AvatarMoodTypes.builtInFallbackEmotion(normalizedTrigger) ?: _state.value.emotion
+            )
+        playAnimation(animationName, loop)
+        return true
+    }
+
     override fun estimateEmotionDurationMillis(emotion: AvatarEmotion): Long? {
         val animationName = resolveAnimationForEmotion(emotion) ?: return null
+        val motionPath = File(model.basePath, animationName).absolutePath
+        val maxFrame = MmdNative.nativeReadMotionMaxFrame(motionPath)
+        if (maxFrame <= 0) {
+            return null
+        }
+
+        return ((maxFrame / 30f) * 1000f).roundToLong().coerceAtLeast(1L)
+    }
+
+    override fun estimateTriggerDurationMillis(triggerName: String): Long? {
+        val animationName =
+            resolveAnimationForTrigger(AvatarMoodTypes.normalizeKey(triggerName)) ?: return null
         val motionPath = File(model.basePath, animationName).absolutePath
         val maxFrame = MmdNative.nativeReadMotionMaxFrame(motionPath)
         if (maxFrame <= 0) {
@@ -130,6 +155,18 @@ class MmdAvatarController(
             .filterValues { animationName -> animationName.isNotBlank() }
     }
 
+    override fun updateTriggerAnimationMapping(mapping: Map<String, String>) {
+        triggerAnimationMapping =
+            mapping.entries.mapNotNull { (rawKey, rawAnimationName) ->
+                val key = AvatarMoodTypes.normalizeKey(rawKey)
+                val animationName = rawAnimationName.trim()
+                if (key.isBlank() || animationName.isBlank()) {
+                    return@mapNotNull null
+                }
+                key to animationName
+            }.toMap()
+    }
+
     private fun resolveAnimationForEmotion(emotion: AvatarEmotion): String? {
         val preferred = emotionAnimationMapping[emotion]
         if (!preferred.isNullOrBlank() && availableAnimations.contains(preferred)) {
@@ -142,6 +179,17 @@ class MmdAvatarController(
         }
 
         return null
+    }
+
+    private fun resolveAnimationForTrigger(triggerName: String): String? {
+        val preferred = triggerAnimationMapping[triggerName]
+        if (!preferred.isNullOrBlank() && availableAnimations.contains(preferred)) {
+            return preferred
+        }
+
+        return availableAnimations.firstOrNull { animationName ->
+            animationName.equals(triggerName, ignoreCase = true)
+        }
     }
 }
 

@@ -1,30 +1,25 @@
-package com.ai.assistance.operit.core.avatar.impl.webp.control
+package com.ai.assistance.operit.core.avatar.impl.mp4.control
 
+import android.media.MediaMetadataRetriever
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
 import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 import com.ai.assistance.operit.core.avatar.common.state.AvatarState
-import com.ai.assistance.operit.core.avatar.impl.webp.model.WebPAvatarModel
+import com.ai.assistance.operit.core.avatar.impl.mp4.model.Mp4AvatarModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 
-/**
- * A concrete implementation of [AvatarController] for WebP avatars.
- * This controller manages the state and emotion changes for frame-based animated avatars.
- *
- * @param model The WebP avatar model that contains emotion-to-file mappings.
- */
-class WebPAvatarController(
-    private val model: WebPAvatarModel
+class Mp4AvatarController(
+    private val model: Mp4AvatarModel
 ) : AvatarController {
 
     private val _state = MutableStateFlow(AvatarState())
     override val state: StateFlow<AvatarState> = _state.asStateFlow()
 
-    // Transform properties for scaling and positioning
     private val _scale = MutableStateFlow(1.0f)
     val scale: StateFlow<Float> = _scale.asStateFlow()
 
@@ -89,8 +84,41 @@ class WebPAvatarController(
         )
     }
 
+    override fun estimateEmotionDurationMillis(emotion: AvatarEmotion): Long? {
+        val animationName = resolveAnimationForEmotion(emotion) ?: return null
+        val animationPath = File(model.basePath, animationName).absolutePath
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(animationPath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.coerceAtLeast(1L)
+        } catch (_: Exception) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    override fun estimateTriggerDurationMillis(triggerName: String): Long? {
+        val animationName =
+            resolveAnimationForTrigger(AvatarMoodTypes.normalizeKey(triggerName)) ?: return null
+        val animationPath = File(model.basePath, animationName).absolutePath
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(animationPath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.coerceAtLeast(1L)
+        } catch (_: Exception) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
     override fun lookAt(x: Float, y: Float) {
-        // WebP avatars don't support lookAt functionality.
+        // MP4 avatars do not support lookAt.
     }
 
     override fun updateSettings(settings: Map<String, Any>) {
@@ -188,14 +216,7 @@ class WebPAvatarController(
     }
 }
 
-/**
- * A Composable function to create and remember a [WebPAvatarController].
- * This follows the standard pattern for creating controllers in Jetpack Compose.
- *
- * @param model The WebP avatar model to control.
- * @return An instance of [WebPAvatarController].
- */
 @Composable
-fun rememberWebPAvatarController(model: WebPAvatarModel): WebPAvatarController {
-    return remember(model) { WebPAvatarController(model) }
+fun rememberMp4AvatarController(model: Mp4AvatarModel): Mp4AvatarController {
+    return remember(model) { Mp4AvatarController(model) }
 }

@@ -2,16 +2,14 @@ package com.ai.assistance.operit.ui.floating.ui.pet
 
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 
 /**
  * Avatar表情管理器
  * 从PetOverlayService迁移的表情推理逻辑
  */
 object AvatarEmotionManager {
-    
-    // Mood枚举 - 用于解析AI返回的mood标签
-    private enum class Mood { ANGRY, HAPPY, SHY, AOJIAO, CRY }
-    
+
     /**
      * 从文本内容推理情感
      * 通过关键词匹配来判断应该使用哪种表情
@@ -39,32 +37,21 @@ object AvatarEmotionManager {
      * 从文本中提取mood标签
      * AI可能会在回复中包含<mood>标签来明确指定情感
      */
-    private fun extractMoodTag(text: String): Mood? {
+    fun extractMoodTagValue(text: String): String? {
         return try {
             val regex = Regex("<mood>([^<]+)</mood>", RegexOption.IGNORE_CASE)
             val all = regex.findAll(text).toList()
             if (all.isEmpty()) return null
-            val raw = all.last().groupValues[1].trim().lowercase()
-            when (raw) {
-                "angry" -> Mood.ANGRY
-                "happy" -> Mood.HAPPY
-                "shy" -> Mood.SHY
-                "aojiao" -> Mood.AOJIAO
-                "cry" -> Mood.CRY
-                else -> null
-            }
+            AvatarMoodTypes.normalizeKey(all.last().groupValues[1])
+                .takeIf { it.isNotBlank() }
         } catch (_: Exception) { null }
     }
     
     /**
      * 将Mood转换为AvatarEmotion
      */
-    private fun moodToEmotion(mood: Mood): AvatarEmotion = when (mood) {
-        Mood.ANGRY -> AvatarEmotion.SAD
-        Mood.HAPPY -> AvatarEmotion.HAPPY
-        Mood.SHY -> AvatarEmotion.CONFUSED
-        Mood.AOJIAO -> AvatarEmotion.CONFUSED
-        Mood.CRY -> AvatarEmotion.SAD
+    private fun moodToEmotion(mood: String): AvatarEmotion? {
+        return AvatarMoodTypes.builtInFallbackEmotion(mood)
     }
     
     /**
@@ -75,11 +62,13 @@ object AvatarEmotionManager {
         AppLogger.d("AvatarEmotionManager", "分析情感 - 原始文本: $text")
         
         // 首先尝试从mood标签获取
-        val parsedMood = extractMoodTag(text)
-        if (parsedMood != null) {
+        val parsedMood = extractMoodTagValue(text)
+        if (!parsedMood.isNullOrBlank()) {
             val emotion = moodToEmotion(parsedMood)
-            AppLogger.d("AvatarEmotionManager", "从mood标签解析: $parsedMood -> $emotion")
-            return emotion
+            if (emotion != null) {
+                AppLogger.d("AvatarEmotionManager", "从mood标签解析: $parsedMood -> $emotion")
+                return emotion
+            }
         }
         
         // 如果没有mood标签，则使用关键词推理

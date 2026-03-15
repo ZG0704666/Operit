@@ -3,10 +3,13 @@ package com.ai.assistance.operit.core.tools.system
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.util.AppLogger
 import rikka.shizuku.Shizuku
+
+internal data class ShizukuConnectionInfo(val uid: Int, val binder: IBinder)
 
 /** Shizuku授权工具类 提供Shizuku权限检查和管理功能 */
 class ShizukuAuthorizer {
@@ -21,6 +24,7 @@ class ShizukuAuthorizer {
 
         // 服务状态
         private var isServiceAvailable = false
+        private var cachedConnection: ShizukuConnectionInfo? = null
         
         // 错误消息缓存
         private var lastServiceErrorMessage = ""
@@ -123,74 +127,102 @@ class ShizukuAuthorizer {
             return lastPermissionErrorMessage
         }
 
+        private fun cacheConnection(uid: Int, binder: IBinder): ShizukuConnectionInfo {
+            val connection = ShizukuConnectionInfo(uid, binder)
+            cachedConnection = connection
+            isServiceAvailable = true
+            lastServiceErrorMessage = ""
+            return connection
+        }
+
+        private fun clearConnection(errorMessage: String) {
+            cachedConnection = null
+            isServiceAvailable = false
+            lastServiceErrorMessage = errorMessage
+        }
+
+        private fun getCachedConnection(): ShizukuConnectionInfo? {
+            val connection = cachedConnection ?: return null
+            if (!connection.binder.isBinderAlive) {
+                clearConnection("Shizuku binder is not alive")
+                return null
+            }
+            lastServiceErrorMessage = ""
+            return connection
+        }
+
+        private fun isAllowedShizukuUid(uid: Int): Boolean {
+            return uid == 0 || uid == 2000
+        }
+
+        internal fun getOrResolveShizukuConnection(): ShizukuConnectionInfo? {
+            getCachedConnection()?.let { return it }
+
+            try {
+                val pingSucceeded =
+                        try {
+                            Shizuku.pingBinder()
+                        } catch (e: Exception) {
+                            AppLogger.e(TAG, "Shizuku pingBinder check failed", e)
+                            clearConnection("Shizuku ping failed: ${e.message}")
+                            return null
+                        }
+
+                if (pingSucceeded) {
+                    AppLogger.d(TAG, "Shizuku pingBinder succeeded")
+                }
+
+                val binder =
+                        try {
+                            Shizuku.getBinder()
+                        } catch (e: Exception) {
+                            AppLogger.e(TAG, "Binder check failed", e)
+                            clearConnection("Failed to get binder: ${e.message}")
+                            return null
+                        }
+
+                if (binder == null) {
+                    clearConnection("Shizuku binder is null")
+                    return null
+                }
+
+                if (!binder.isBinderAlive) {
+                    clearConnection("Shizuku binder is not alive")
+                    return null
+                }
+
+                if (!pingSucceeded) {
+                    AppLogger.d(TAG, "Shizuku binder is alive")
+                }
+
+                val uid =
+                        try {
+                            Shizuku.getUid()
+                        } catch (e: Exception) {
+                            AppLogger.e(TAG, "UID check failed", e)
+                            clearConnection("Failed to get UID: ${e.message}")
+                            return null
+                        }
+
+                if (!isAllowedShizukuUid(uid)) {
+                    clearConnection("Invalid Shizuku UID: $uid, expected 0 or 2000")
+                    return null
+                }
+
+                return cacheConnection(uid, binder)
+            } catch (e: Throwable) {
+                AppLogger.e(TAG, "Critical error checking Shizuku service", e)
+                clearConnection("Critical error: ${e.message}")
+                return null
+            }
+        }
+
         /**
          * 检查Shizuku服务是否正在运行
          * @return 服务是否运行
          */
         fun isShizukuServiceRunning(): Boolean {
-            try {
-                // 首先检查本地缓存的状态 - 如果已经知道服务可用，直接返回
-                if (isServiceAvailable) {
-                    lastServiceErrorMessage = ""
-                    return true
-                }
-
-                // 方法1: 使用pingBinder - 这是最可靠的检测方法
-                try {
-                    if (Shizuku.pingBinder()) {
-                        AppLogger.d(TAG, "Shizuku pingBinder succeeded")
-                        isServiceAvailable = true
-                        lastServiceErrorMessage = ""
-                        return true
-                    }
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "Shizuku pingBinder check failed", e)
-                    lastServiceErrorMessage = "Shizuku ping failed: ${e.message}"
-                    return false
-                }
-
-                // 方法2: 直接获取并检查binder存活状态
-                try {
-                    val binder = Shizuku.getBinder()
-                    if (binder != null && binder.isBinderAlive) {
-                        AppLogger.d(TAG, "Shizuku binder is alive")
-                        isServiceAvailable = true
-                        lastServiceErrorMessage = ""
-                        return true
-                    } else if (binder == null) {
-                        lastServiceErrorMessage = "Shizuku binder is null"
-                        return false
-                    } else {
-                        lastServiceErrorMessage = "Shizuku binder is not alive"
-                        return false
-                    }
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "Binder check failed", e)
-                    lastServiceErrorMessage = "Failed to check binder: ${e.message}"
-                    return false
-                }
-
-                // 方法3: 尝试获取Shizuku UID (如果可以获取有效UID，说明服务在运行)
-                try {
-                    val uid = Shizuku.getUid()
-                    if (uid > 0) {
-                        isServiceAvailable = true
-                        lastServiceErrorMessage = ""
-                        return true
-                    }
-                    lastServiceErrorMessage = "Invalid Shizuku UID: $uid"
-                    return false
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "UID check failed", e)
-                    lastServiceErrorMessage = "Failed to get UID: ${e.message}"
-                    return false
-                }
-            } catch (e: Throwable) {
-                AppLogger.e(TAG, "Critical error checking Shizuku service", e)
-                isServiceAvailable = false
-                lastServiceErrorMessage = "Critical error: ${e.message}"
-                return false
-            }
+            return getOrResolveShizukuConnection() != null
         }
 
         /**
@@ -199,8 +231,7 @@ class ShizukuAuthorizer {
          */
         fun hasShizukuPermission(): Boolean {
             try {
-                val serviceRunning = isShizukuServiceRunning()
-                if (!serviceRunning) {
+                if (getOrResolveShizukuConnection() == null) {
                     lastPermissionErrorMessage = "Shizuku service not running: $lastServiceErrorMessage"
                     return false
                 }
@@ -296,6 +327,7 @@ class ShizukuAuthorizer {
 
             // 重置服务状态
             isServiceAvailable = false
+            cachedConnection = null
             lastServiceErrorMessage = ""
             lastPermissionErrorMessage = ""
 
@@ -332,6 +364,7 @@ class ShizukuAuthorizer {
                 Shizuku.addBinderDeadListener {
                     AppLogger.d(TAG, "Shizuku binder dead")
                     isServiceAvailable = false
+                    cachedConnection = null
                     notifyStateChanged()
                 }
 

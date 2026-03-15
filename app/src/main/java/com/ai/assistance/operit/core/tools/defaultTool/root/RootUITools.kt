@@ -9,7 +9,7 @@ import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.UIActionResultData
 import com.ai.assistance.operit.core.tools.UIPageResultData
 import com.ai.assistance.operit.core.tools.defaultTool.admin.AdminUITools
-import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.ShellIdentity
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
@@ -29,6 +29,8 @@ open class RootUITools(context: Context) : AdminUITools(context) {
     companion object {
         private const val TAG = "RootUITools"
     }
+
+    override val uiShellIdentity: ShellIdentity = ShellIdentity.SHELL
 
     private fun getDisplayArg(tool: AITool): String {
         val display = tool.parameters.find { it.name.equals("display", ignoreCase = true) }?.value?.trim()
@@ -55,7 +57,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
         try {
             AppLogger.d(TAG, "Attempting to tap at coordinates: ($x, $y) via shell command")
             val command = "input ${getDisplayArg(tool)}tap $x $y"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             return if (result.success) {
                 AppLogger.d(TAG, "Tap successful at coordinates: ($x, $y)")
@@ -114,7 +116,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
         try {
             AppLogger.d(TAG, "Attempting to long press at coordinates: ($x, $y) via shell swipe command")
             val command = "input ${getDisplayArg(tool)}swipe $x $y $x $y $durationMs"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             return if (result.success) {
                 AppLogger.d(TAG, "Long press successful at coordinates: ($x, $y)")
@@ -175,7 +177,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
         try {
             AppLogger.d(TAG, "Swiping from ($startX, $startY) to ($endX, $endY) via shell")
             val command = "input ${getDisplayArg(tool)}swipe $startX $startY $endX $endY $duration"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val result = executeUiShellCommand(command)
 
             return if (result.success) {
                 AppLogger.d(TAG, "Swipe successful")
@@ -257,7 +259,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             }
 
             AppLogger.d(TAG, "Clearing text field with KEYCODE_CLEAR")
-            AndroidShellExecutor.executeShellCommand("input ${getDisplayArg(tool)}keyevent KEYCODE_CLEAR")
+            executeUiShellCommand("input ${getDisplayArg(tool)}keyevent KEYCODE_CLEAR")
             delay(300)
 
             if (text.isEmpty()) {
@@ -277,7 +279,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             }
             delay(100)
 
-            val pasteResult = AndroidShellExecutor.executeShellCommand("input ${getDisplayArg(tool)}keyevent KEYCODE_PASTE")
+            val pasteResult = executeUiShellCommand("input ${getDisplayArg(tool)}keyevent KEYCODE_PASTE")
             return if (pasteResult.success) {
                 // 成功后主动隐藏overlay
                 withContext(Dispatchers.Main) { overlay.hide() }
@@ -323,7 +325,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             )
 
         try {
-            val result = AndroidShellExecutor.executeShellCommand("input ${getDisplayArg(tool)}keyevent $keyCode")
+            val result = executeUiShellCommand("input ${getDisplayArg(tool)}keyevent $keyCode")
             return if (result.success) {
                 ToolResult(
                     toolName = tool.name,
@@ -397,14 +399,14 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             var dumpResult = if (displayId != null) {
                 val cmd = "uiautomator dump --display-id $displayId /sdcard/window_dump.xml"
                 AppLogger.d(TAG, "UI dump using explicit display-id=$displayId")
-                AndroidShellExecutor.executeShellCommand(cmd)
+                executeUiShellCommand(cmd)
             } else {
-                AndroidShellExecutor.executeShellCommand("uiautomator dump /sdcard/window_dump.xml")
+                executeUiShellCommand("uiautomator dump /sdcard/window_dump.xml")
             }
 
             if (!dumpResult.success && displayId != null) {
                 AppLogger.w(TAG, "uiautomator dump with explicit display-id failed, falling back: ${dumpResult.stderr}")
-                dumpResult = AndroidShellExecutor.executeShellCommand("uiautomator dump /sdcard/window_dump.xml")
+                dumpResult = executeUiShellCommand("uiautomator dump /sdcard/window_dump.xml")
             }
 
             if (!dumpResult.success) {
@@ -412,7 +414,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
                 return null
             }
 
-            val readResult = AndroidShellExecutor.executeShellCommand("cat /sdcard/window_dump.xml")
+            val readResult = executeUiShellCommand("cat /sdcard/window_dump.xml")
             if (!readResult.success) {
                 AppLogger.e(TAG, "Reading UI dump file failed: ${readResult.stderr}")
                 return null
@@ -441,7 +443,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             )
         for (command in commands) {
             try {
-                val result = AndroidShellExecutor.executeShellCommand(command)
+                val result = executeUiShellCommand(command)
                 if (result.success && result.stdout.isNotBlank()) {
                     AppLogger.d(TAG, "Successfully got window info with: $command")
                     return result.stdout
@@ -548,11 +550,11 @@ open class RootUITools(context: Context) : AdminUITools(context) {
         val index = tool.parameters.find { it.name == "index" }?.value?.toIntOrNull() ?: 0
 
         try {
-            val dumpResult = AndroidShellExecutor.executeShellCommand("uiautomator dump /sdcard/window_dump.xml")
+            val dumpResult = executeUiShellCommand("uiautomator dump /sdcard/window_dump.xml")
             if (!dumpResult.success) {
                 return ToolResult(tool.name, false, StringResultData(""), "Failed to dump UI hierarchy: ${dumpResult.stderr}")
             }
-            val readResult = AndroidShellExecutor.executeShellCommand("cat /sdcard/window_dump.xml")
+            val readResult = executeUiShellCommand("cat /sdcard/window_dump.xml")
             if (!readResult.success) {
                 return ToolResult(tool.name, false, StringResultData(""), "Failed to read UI dump: ${readResult.stderr}")
             }
@@ -599,7 +601,7 @@ open class RootUITools(context: Context) : AdminUITools(context) {
             AppLogger.e(TAG, "Error clicking with uiautomator", e)
             return ToolResult(tool.name, false, StringResultData(""), "Error clicking element: ${e.message}")
         } finally {
-            AndroidShellExecutor.executeShellCommand("rm /sdcard/window_dump.xml")
+            executeUiShellCommand("rm /sdcard/window_dump.xml")
         }
     }
 }

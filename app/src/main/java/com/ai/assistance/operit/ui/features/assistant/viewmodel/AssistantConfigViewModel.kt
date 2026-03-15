@@ -8,12 +8,16 @@ import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.avatar.common.model.AvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
+import com.ai.assistance.operit.core.avatar.common.state.AvatarCustomMoodDefinition
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 import com.ai.assistance.operit.core.avatar.impl.factory.AvatarModelFactoryImpl
 import com.ai.assistance.operit.data.repository.AvatarConfig
 import com.ai.assistance.operit.data.repository.AvatarInstanceSettings
 import com.ai.assistance.operit.data.repository.AvatarRepository
+import com.ai.assistance.operit.data.repository.getCustomMoodDefinitions
 import com.ai.assistance.operit.data.repository.getEmotionAnimationMapping
+import com.ai.assistance.operit.data.repository.getMoodAnimationMapping
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +38,8 @@ class AssistantConfigViewModel(
         val config: AvatarInstanceSettings? = null,
         val isVoiceCallAvatarEnabled: Boolean = false,
         val emotionAnimationMapping: Map<AvatarEmotion, String> = emptyMap(),
+        val moodAnimationMapping: Map<String, String> = emptyMap(),
+        val customMoodDefinitions: List<AvatarCustomMoodDefinition> = emptyList(),
         val errorMessage: String? = null,
         val operationSuccess: Boolean = false,
         val scrollPosition: Int = 0,
@@ -62,26 +68,25 @@ class AssistantConfigViewModel(
                 val currentConfig =
                     currentAvatar?.let { avatar -> configs.find { it.id == avatar.id } }
                 val emotionAnimationMapping = currentConfig?.getEmotionAnimationMapping().orEmpty()
-                Triple(
-                    configs,
-                    currentConfig,
-                    Triple(
-                        currentSettings,
-                        currentAvatar,
-                        Pair(emotionAnimationMapping, settings.isVoiceCallAvatarEnabled)
-                    )
-                )
-            }.collectLatest { (configs, currentConfig, mergedState) ->
-                val (currentSettings, currentAvatar, emotionState) = mergedState
-                val (emotionAnimationMapping, isVoiceCallAvatarEnabled) = emotionState
-                updateUiState(
+                val moodAnimationMapping = currentConfig?.getMoodAnimationMapping().orEmpty()
+                val customMoodDefinitions = currentConfig?.getCustomMoodDefinitions().orEmpty()
+                UiState(
                     avatarConfigs = configs,
                     currentAvatarConfig = currentConfig,
                     currentAvatarModel = currentAvatar,
                     config = currentSettings,
-                    isVoiceCallAvatarEnabled = isVoiceCallAvatarEnabled,
-                    emotionAnimationMapping = emotionAnimationMapping
+                    isVoiceCallAvatarEnabled = settings.isVoiceCallAvatarEnabled,
+                    emotionAnimationMapping = emotionAnimationMapping,
+                    moodAnimationMapping = moodAnimationMapping,
+                    customMoodDefinitions = customMoodDefinitions,
+                    errorMessage = _uiState.value.errorMessage,
+                    operationSuccess = _uiState.value.operationSuccess,
+                    scrollPosition = _uiState.value.scrollPosition,
+                    isLoading = _uiState.value.isLoading,
+                    isImporting = _uiState.value.isImporting
                 )
+            }.collectLatest { latestState ->
+                _uiState.value = latestState
             }
         }
     }
@@ -94,6 +99,8 @@ class AssistantConfigViewModel(
         config: AvatarInstanceSettings? = null,
         isVoiceCallAvatarEnabled: Boolean? = null,
         emotionAnimationMapping: Map<AvatarEmotion, String>? = null,
+        moodAnimationMapping: Map<String, String>? = null,
+        customMoodDefinitions: List<AvatarCustomMoodDefinition>? = null,
         errorMessage: String? = null,
         operationSuccess: Boolean? = null,
         isImporting: Boolean? = null
@@ -110,6 +117,9 @@ class AssistantConfigViewModel(
                     isVoiceCallAvatarEnabled ?: currentState.isVoiceCallAvatarEnabled,
                 emotionAnimationMapping =
                     emotionAnimationMapping ?: currentState.emotionAnimationMapping,
+                moodAnimationMapping = moodAnimationMapping ?: currentState.moodAnimationMapping,
+                customMoodDefinitions =
+                    customMoodDefinitions ?: currentState.customMoodDefinitions,
                 errorMessage = errorMessage,
                 operationSuccess = operationSuccess ?: currentState.operationSuccess,
                 scrollPosition = currentState.scrollPosition,
@@ -169,6 +179,107 @@ class AssistantConfigViewModel(
         }
 
         repository.updateAvatarEmotionAnimationMapping(currentAvatarConfig.id, mapping)
+    }
+
+    fun updateMoodAnimationMapping(triggerKey: String, animationName: String?) {
+        val currentAvatarConfig = _uiState.value.currentAvatarConfig ?: return
+        val normalizedKey = AvatarMoodTypes.normalizeKey(triggerKey)
+        if (normalizedKey.isBlank()) {
+            return
+        }
+
+        val mapping = currentAvatarConfig.getMoodAnimationMapping().toMutableMap()
+        val normalizedName = animationName?.trim().orEmpty()
+        if (normalizedName.isBlank()) {
+            mapping.remove(normalizedKey)
+        } else {
+            mapping[normalizedKey] = normalizedName
+        }
+
+        updateUiState(errorMessage = null)
+        repository.updateAvatarMoodAnimationMapping(currentAvatarConfig.id, mapping)
+    }
+
+    fun upsertCustomMoodDefinition(
+        originalKey: String?,
+        key: String,
+        promptHint: String
+    ) {
+        val currentAvatarConfig = _uiState.value.currentAvatarConfig ?: return
+        val normalizedKey = AvatarMoodTypes.normalizeKey(key)
+        val normalizedOriginalKey =
+            AvatarMoodTypes.normalizeKey(originalKey?.takeIf { it.isNotBlank() }.orEmpty())
+                .takeIf { it.isNotBlank() }
+        val normalizedPromptHint = promptHint.trim()
+
+        if (normalizedPromptHint.isBlank()) {
+            updateUiState(
+                errorMessage = context.getString(R.string.avatar_custom_type_prompt_hint_required)
+            )
+            return
+        }
+        if (!AvatarMoodTypes.isValidCustomKey(normalizedKey) &&
+            normalizedKey != normalizedOriginalKey
+        ) {
+            updateUiState(
+                errorMessage = context.getString(R.string.avatar_custom_type_invalid_key)
+            )
+            return
+        }
+
+        val definitions = currentAvatarConfig.getCustomMoodDefinitions().toMutableList()
+        val mapping = currentAvatarConfig.getMoodAnimationMapping().toMutableMap()
+        val targetIndex = definitions.indexOfFirst { definition -> definition.key == normalizedOriginalKey }
+
+        if (definitions.any { definition ->
+                definition.key == normalizedKey && definition.key != normalizedOriginalKey
+            }
+        ) {
+            updateUiState(
+                errorMessage = context.getString(R.string.avatar_custom_type_duplicate_key)
+            )
+            return
+        }
+
+        val updatedDefinition =
+            AvatarCustomMoodDefinition(
+                key = normalizedKey,
+                promptHint = normalizedPromptHint
+            )
+        if (targetIndex >= 0) {
+            definitions[targetIndex] = updatedDefinition
+        } else {
+            definitions += updatedDefinition
+        }
+
+        if (normalizedOriginalKey != null && normalizedOriginalKey != normalizedKey) {
+            val previousAnimation = mapping.remove(normalizedOriginalKey)
+            if (!previousAnimation.isNullOrBlank()) {
+                mapping[normalizedKey] = previousAnimation
+            }
+        }
+
+        updateUiState(errorMessage = null)
+        repository.updateAvatarMoodConfig(currentAvatarConfig.id, definitions, mapping)
+    }
+
+    fun deleteCustomMoodDefinition(key: String) {
+        val currentAvatarConfig = _uiState.value.currentAvatarConfig ?: return
+        val normalizedKey = AvatarMoodTypes.normalizeKey(key)
+        if (normalizedKey.isBlank()) {
+            return
+        }
+
+        val definitions =
+            currentAvatarConfig.getCustomMoodDefinitions().filterNot { definition ->
+                definition.key == normalizedKey
+            }
+        val mapping = currentAvatarConfig.getMoodAnimationMapping().toMutableMap().apply {
+            remove(normalizedKey)
+        }
+
+        updateUiState(errorMessage = null)
+        repository.updateAvatarMoodConfig(currentAvatarConfig.id, definitions, mapping)
     }
 
     fun updateVoiceCallAvatarEnabled(enabled: Boolean) {

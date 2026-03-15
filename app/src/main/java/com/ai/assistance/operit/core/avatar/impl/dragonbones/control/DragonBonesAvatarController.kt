@@ -5,6 +5,7 @@ import androidx.compose.runtime.remember
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 import com.ai.assistance.operit.core.avatar.common.state.AvatarState
 import com.dragonbones.JniBridge
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,7 @@ class DragonBonesAvatarController(
         get() = libController.animationNames
 
     private var emotionAnimationMapping: Map<AvatarEmotion, String> = emptyMap()
+    private var triggerAnimationMapping: Map<String, String> = emptyMap()
 
     override fun setEmotion(newEmotion: AvatarEmotion) {
         playEmotion(newEmotion, loop = 0)
@@ -46,8 +48,35 @@ class DragonBonesAvatarController(
         )
     }
 
+    override fun playTrigger(triggerName: String, loop: Int): Boolean {
+        val normalizedTrigger = AvatarMoodTypes.normalizeKey(triggerName)
+        val animationName = resolveAnimationForTrigger(normalizedTrigger) ?: return false
+
+        libController.playAnimation(animationName, loop.toFloat())
+        _state.value = _state.value.copy(
+            emotion =
+                AvatarMoodTypes.builtInFallbackEmotion(normalizedTrigger)
+                    ?: resolveEmotionFromAnimationName(animationName)
+                    ?: _state.value.emotion,
+            currentAnimation = animationName,
+            isLooping = loop == 0
+        )
+        return true
+    }
+
     override fun estimateEmotionDurationMillis(emotion: AvatarEmotion): Long? {
         val animationName = resolveAnimationForEmotion(emotion) ?: return null
+        val durationSeconds = JniBridge.getAnimationDuration(animationName)
+        if (!durationSeconds.isFinite() || durationSeconds <= 0f) {
+            return null
+        }
+
+        return (durationSeconds * 1000f).toLong().coerceAtLeast(1L)
+    }
+
+    override fun estimateTriggerDurationMillis(triggerName: String): Long? {
+        val animationName =
+            resolveAnimationForTrigger(AvatarMoodTypes.normalizeKey(triggerName)) ?: return null
         val durationSeconds = JniBridge.getAnimationDuration(animationName)
         if (!durationSeconds.isFinite() || durationSeconds <= 0f) {
             return null
@@ -110,6 +139,18 @@ class DragonBonesAvatarController(
             .filterValues { animationName -> animationName.isNotBlank() }
     }
 
+    override fun updateTriggerAnimationMapping(mapping: Map<String, String>) {
+        triggerAnimationMapping =
+            mapping.entries.mapNotNull { (rawKey, rawAnimationName) ->
+                val key = AvatarMoodTypes.normalizeKey(rawKey)
+                val animationName = rawAnimationName.trim()
+                if (key.isBlank() || animationName.isBlank()) {
+                    return@mapNotNull null
+                }
+                key to animationName
+            }.toMap()
+    }
+
     private fun resolveAnimationForEmotion(emotion: AvatarEmotion): String? {
         val preferred = emotionAnimationMapping[emotion]
         if (!preferred.isNullOrBlank() && availableAnimations.contains(preferred)) {
@@ -134,6 +175,25 @@ class DragonBonesAvatarController(
         }
 
         return null
+    }
+
+    private fun resolveAnimationForTrigger(triggerName: String): String? {
+        val preferred = triggerAnimationMapping[triggerName]
+        if (!preferred.isNullOrBlank() && availableAnimations.contains(preferred)) {
+            return preferred
+        }
+
+        if (availableAnimations.contains(triggerName)) {
+            return triggerName
+        }
+
+        return null
+    }
+
+    private fun resolveEmotionFromAnimationName(animationName: String): AvatarEmotion? {
+        return AvatarEmotion.values().firstOrNull { emotion ->
+            emotion.name.lowercase() == animationName
+        }
     }
 }
 

@@ -9,7 +9,9 @@ import androidx.core.content.edit
 import com.ai.assistance.operit.core.avatar.common.factory.AvatarModelFactory
 import com.ai.assistance.operit.core.avatar.common.model.AvatarModel
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
+import com.ai.assistance.operit.core.avatar.common.state.AvatarCustomMoodDefinition
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -40,6 +42,8 @@ data class AvatarConfig(
 }
 
 private const val DATA_KEY_EMOTION_ANIMATION_MAPPING = "emotionAnimationMapping"
+private const val DATA_KEY_MOOD_ANIMATION_MAPPING = "moodAnimationMapping"
+private const val DATA_KEY_CUSTOM_MOOD_DEFINITIONS = "customMoodDefinitions"
 
 fun AvatarConfig.getEmotionAnimationMapping(): Map<AvatarEmotion, String> {
     val rawMapping = data[DATA_KEY_EMOTION_ANIMATION_MAPPING] as? Map<*, *> ?: return emptyMap()
@@ -61,6 +65,34 @@ fun AvatarConfig.getEmotionAnimationMapping(): Map<AvatarEmotion, String> {
     }.toMap()
 }
 
+fun AvatarConfig.getMoodAnimationMapping(): Map<String, String> {
+    val rawMapping = data[DATA_KEY_MOOD_ANIMATION_MAPPING] as? Map<*, *> ?: return emptyMap()
+
+    return rawMapping.entries.mapNotNull { (rawKey, rawAnimationName) ->
+        val key = AvatarMoodTypes.normalizeKey(rawKey?.toString().orEmpty())
+        val animationName = rawAnimationName?.toString()?.trim().orEmpty()
+        if (key.isBlank() || animationName.isBlank()) {
+            return@mapNotNull null
+        }
+        key to animationName
+    }.toMap()
+}
+
+fun AvatarConfig.getCustomMoodDefinitions(): List<AvatarCustomMoodDefinition> {
+    val rawDefinitions = data[DATA_KEY_CUSTOM_MOOD_DEFINITIONS] as? List<*> ?: return emptyList()
+
+    val parsed = rawDefinitions.mapNotNull { entry ->
+        val rawMap = entry as? Map<*, *> ?: return@mapNotNull null
+        val key = rawMap["key"]?.toString().orEmpty()
+        val promptHint = rawMap["promptHint"]?.toString().orEmpty()
+        AvatarCustomMoodDefinition(
+            key = key,
+            promptHint = promptHint
+        )
+    }
+    return AvatarMoodTypes.sanitizeCustomDefinitions(parsed)
+}
+
 fun AvatarConfig.withEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>): AvatarConfig {
     val normalized = mapping
         .mapValues { (_, animationName) -> animationName.trim() }
@@ -72,6 +104,46 @@ fun AvatarConfig.withEmotionAnimationMapping(mapping: Map<AvatarEmotion, String>
         updatedData.remove(DATA_KEY_EMOTION_ANIMATION_MAPPING)
     } else {
         updatedData[DATA_KEY_EMOTION_ANIMATION_MAPPING] = normalized
+    }
+
+    return copy(data = updatedData)
+}
+
+fun AvatarConfig.withMoodAnimationMapping(mapping: Map<String, String>): AvatarConfig {
+    val normalized = mapping.entries.mapNotNull { (rawKey, rawAnimationName) ->
+        val key = AvatarMoodTypes.normalizeKey(rawKey)
+        val animationName = rawAnimationName.trim()
+        if (key.isBlank() || animationName.isBlank()) {
+            return@mapNotNull null
+        }
+        key to animationName
+    }.toMap()
+
+    val updatedData = data.toMutableMap()
+    if (normalized.isEmpty()) {
+        updatedData.remove(DATA_KEY_MOOD_ANIMATION_MAPPING)
+    } else {
+        updatedData[DATA_KEY_MOOD_ANIMATION_MAPPING] = normalized
+    }
+
+    return copy(data = updatedData)
+}
+
+fun AvatarConfig.withCustomMoodDefinitions(
+    definitions: List<AvatarCustomMoodDefinition>
+): AvatarConfig {
+    val sanitized = AvatarMoodTypes.sanitizeCustomDefinitions(definitions)
+    val updatedData = data.toMutableMap()
+    if (sanitized.isEmpty()) {
+        updatedData.remove(DATA_KEY_CUSTOM_MOOD_DEFINITIONS)
+    } else {
+        updatedData[DATA_KEY_CUSTOM_MOOD_DEFINITIONS] =
+            sanitized.map { definition ->
+                mapOf(
+                    "key" to definition.key,
+                    "promptHint" to definition.promptHint
+                )
+            }
     }
 
     return copy(data = updatedData)
@@ -233,6 +305,43 @@ class WebPPersistenceDelegate : AvatarPersistenceDelegate {
     }
 }
 
+class Mp4PersistenceDelegate : AvatarPersistenceDelegate {
+    override val type = AvatarType.MP4
+
+    override fun scanDirectory(directory: File, isBuiltIn: Boolean): List<AvatarConfig> {
+        val allConfigs = mutableListOf<AvatarConfig>()
+        if (!directory.exists() || !directory.isDirectory) {
+            AppLogger.d("AvatarRepository", "MP4 scan skipped (not dir): ${directory.absolutePath}")
+            return allConfigs
+        }
+
+        val mp4Files = directory.listFiles { file ->
+            file.isFile && file.extension.equals("mp4", ignoreCase = true)
+        } ?: emptyArray()
+
+        if (mp4Files.isEmpty()) {
+            return allConfigs
+        }
+
+        val config = AvatarConfig(
+            id = buildAvatarConfigId(AvatarType.MP4, directory, isBuiltIn),
+            name = directory.name,
+            type = AvatarType.MP4,
+            isBuiltIn = isBuiltIn,
+            data = mapOf(
+                "basePath" to directory.absolutePath,
+                "mp4Files" to mp4Files.map { it.name }
+            )
+        )
+        AppLogger.i(
+            "AvatarRepository",
+            "MP4 config recognized: ${directory.absolutePath}, files=${mp4Files.joinToString { it.name }}"
+        )
+        allConfigs.add(config)
+        return allConfigs
+    }
+}
+
 class MmdPersistenceDelegate : AvatarPersistenceDelegate {
     override val type = AvatarType.MMD
 
@@ -356,6 +465,7 @@ class AvatarRepository(
     private val delegates: Map<AvatarType, AvatarPersistenceDelegate> = listOf(
         DragonBonesPersistenceDelegate(),
         WebPPersistenceDelegate(),
+        Mp4PersistenceDelegate(),
         MmdPersistenceDelegate(),
         GltfPersistenceDelegate()
     ).associateBy { it.type }
@@ -590,9 +700,51 @@ class AvatarRepository(
         avatarId: String,
         mapping: Map<AvatarEmotion, String>
     ) {
+        updateAvatarConfig(avatarId) { config ->
+            config.withEmotionAnimationMapping(mapping)
+        }
+    }
+
+    fun updateAvatarMoodAnimationMapping(
+        avatarId: String,
+        mapping: Map<String, String>
+    ) {
+        updateAvatarConfig(avatarId) { config ->
+            config.withMoodAnimationMapping(mapping)
+        }
+    }
+
+    fun updateAvatarCustomMoodDefinitions(
+        avatarId: String,
+        definitions: List<AvatarCustomMoodDefinition>
+    ) {
+        updateAvatarConfig(avatarId) { config ->
+            config.withCustomMoodDefinitions(definitions)
+        }
+    }
+
+    fun updateAvatarMoodConfig(
+        avatarId: String,
+        definitions: List<AvatarCustomMoodDefinition>,
+        moodAnimationMapping: Map<String, String>
+    ) {
+        updateAvatarConfig(avatarId) { config ->
+            config.withCustomMoodDefinitions(definitions)
+                .withMoodAnimationMapping(moodAnimationMapping)
+        }
+    }
+
+    fun getAvatarSettings(avatarId: String): AvatarInstanceSettings {
+        return _instanceSettings.value[avatarId] ?: AvatarInstanceSettings()
+    }
+
+    private fun updateAvatarConfig(
+        avatarId: String,
+        transform: (AvatarConfig) -> AvatarConfig
+    ) {
         val updatedConfigs = _configs.value.map { config ->
             if (config.id == avatarId) {
-                config.withEmotionAnimationMapping(mapping)
+                transform(config)
             } else {
                 config
             }
@@ -600,10 +752,6 @@ class AvatarRepository(
 
         _configs.value = updatedConfigs
         saveConfigsToPrefs(updatedConfigs)
-    }
-
-    fun getAvatarSettings(avatarId: String): AvatarInstanceSettings {
-        return _instanceSettings.value[avatarId] ?: AvatarInstanceSettings()
     }
 
     private enum class AvatarImportKind {
@@ -632,7 +780,7 @@ class AvatarRepository(
         if (fileName.endsWith(".zip")) {
             return AvatarImportKind.ZIP
         }
-        if (fileName.endsWith(".glb") || fileName.endsWith(".gltf")) {
+        if (fileName.endsWith(".glb") || fileName.endsWith(".gltf") || fileName.endsWith(".mp4")) {
             return AvatarImportKind.MODEL_FILE
         }
 
@@ -640,7 +788,7 @@ class AvatarRepository(
         if (mimeType.contains("zip")) {
             return AvatarImportKind.ZIP
         }
-        if (mimeType.contains("gltf")) {
+        if (mimeType.contains("gltf") || mimeType.contains("mp4")) {
             return AvatarImportKind.MODEL_FILE
         }
 
@@ -709,14 +857,15 @@ class AvatarRepository(
         try {
             val displayName = resolveImportDisplayName(uri)
                 ?: uri.lastPathSegment
-                ?: "imported_avatar.glb"
+                ?: "imported_avatar"
             val safeFileName = sanitizeImportFileName(displayName)
             val mimeType = context.contentResolver.getType(uri)?.lowercase().orEmpty()
             val currentExt = File(safeFileName).extension.lowercase()
             val normalizedExt = when {
-                currentExt == "glb" || currentExt == "gltf" -> currentExt
+                currentExt == "glb" || currentExt == "gltf" || currentExt == "mp4" -> currentExt
                 mimeType.contains("gltf+json") -> "gltf"
                 mimeType.contains("gltf") -> "glb"
+                mimeType.contains("mp4") -> "mp4"
                 else -> {
                     AppLogger.w(TAG, "Unable to determine model extension for uri=$uri mime=$mimeType name=$displayName")
                     return@withContext false
@@ -870,7 +1019,7 @@ class AvatarRepository(
                 AppLogger.w(TAG, "No valid avatar configs found in the imported ZIP. topLevel=$topLevelEntries")
                 AppLogger.w(
                     TAG,
-                    "Import hints: DragonBones needs *_tex.json + *_tex.png; WebP needs .webp; MMD needs .pmx/.pmd (optional .vmd); glTF needs .glb/.gltf (+ referenced resources)."
+                    "Import hints: DragonBones needs *_tex.json + *_tex.png; WebP needs .webp; MP4 needs .mp4; MMD needs .pmx/.pmd (optional .vmd); glTF needs .glb/.gltf (+ referenced resources)."
                 )
                 return@withContext false
             }

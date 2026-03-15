@@ -5,8 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,12 +16,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,10 +46,14 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.avatar.common.control.AvatarController
 import com.ai.assistance.operit.core.avatar.common.control.AvatarSettingKeys
 import com.ai.assistance.operit.core.avatar.common.model.AvatarType
+import com.ai.assistance.operit.core.avatar.common.state.AvatarCustomMoodDefinition
 import com.ai.assistance.operit.core.avatar.common.state.AvatarEmotion
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypeDefinition
+import com.ai.assistance.operit.core.avatar.common.state.AvatarMoodTypes
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @Composable
 fun AvatarConfigSection(
@@ -135,12 +138,18 @@ fun AvatarConfigSection(
             }
 
             if (currentAvatarModel != null) {
-                EmotionAnimationMappingSection(
+                MoodTriggerMappingSection(
+                    avatarController = avatarController,
                     availableAnimations = availableAnimations,
-                    emotionAnimationMapping = uiState.emotionAnimationMapping,
-                    onEmotionAnimationMappingChange = { emotion, animationName ->
-                        viewModel.updateEmotionAnimationMapping(emotion, animationName)
-                    }
+                    moodAnimationMapping = uiState.moodAnimationMapping,
+                    customMoodDefinitions = uiState.customMoodDefinitions,
+                    onMoodAnimationMappingChange = { triggerKey, animationName ->
+                        viewModel.updateMoodAnimationMapping(triggerKey, animationName)
+                    },
+                    onUpsertCustomMoodDefinition = { originalKey, key, promptHint ->
+                        viewModel.upsertCustomMoodDefinition(originalKey, key, promptHint)
+                    },
+                    onDeleteCustomMoodDefinition = viewModel::deleteCustomMoodDefinition
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -228,7 +237,11 @@ fun AvatarConfigSection(
                         currentSettings.customSettings[AvatarSettingKeys.MMD_CAMERA_TARGET_HEIGHT] ?: 0f
 
                     Text(
-                        text = "MMD Camera Pitch (${String.format("%.1f deg", cameraPitch)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_mmd_camera_pitch,
+                                String.format("%.1f deg", cameraPitch)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -244,7 +257,11 @@ fun AvatarConfigSection(
                     )
 
                     Text(
-                        text = "MMD Camera Yaw (${String.format("%.1f deg", initialRotationY)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_mmd_camera_yaw,
+                                String.format("%.1f deg", initialRotationY)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -260,7 +277,11 @@ fun AvatarConfigSection(
                     )
 
                     Text(
-                        text = "MMD Camera Distance (${String.format("%.2fx", cameraDistanceScale)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_mmd_camera_distance,
+                                String.format("%.2fx", cameraDistanceScale)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -276,7 +297,11 @@ fun AvatarConfigSection(
                     )
 
                     Text(
-                        text = "MMD Orbit Pivot Height (${String.format("%.2f", cameraTargetHeight)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_mmd_orbit_pivot_height,
+                                String.format("%.2f", cameraTargetHeight)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -303,7 +328,11 @@ fun AvatarConfigSection(
                         currentSettings.customSettings[AvatarSettingKeys.GLTF_CAMERA_TARGET_HEIGHT] ?: 0f
 
                     Text(
-                        text = "glTF Camera Pitch (${String.format("%.1f deg", cameraPitch)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_gltf_camera_pitch,
+                                String.format("%.1f deg", cameraPitch)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -319,7 +348,11 @@ fun AvatarConfigSection(
                     )
 
                     Text(
-                        text = "glTF Camera Yaw (${String.format("%.1f deg", cameraYaw)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_gltf_camera_yaw,
+                                String.format("%.1f deg", cameraYaw)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -335,7 +368,11 @@ fun AvatarConfigSection(
                     )
 
                     Text(
-                        text = "glTF Camera Distance (${String.format("%.3fx", cameraDistanceScale)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_gltf_camera_distance,
+                                String.format("%.3fx", cameraDistanceScale)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -351,7 +388,11 @@ fun AvatarConfigSection(
                     )
 
                     Text(
-                        text = "glTF Orbit Pivot Height (${String.format("%.2f", cameraTargetHeight)})",
+                        text =
+                            stringResource(
+                                R.string.avatar_gltf_orbit_pivot_height,
+                                String.format("%.2f", cameraTargetHeight)
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -376,177 +417,401 @@ fun AvatarConfigSection(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EmotionAnimationMappingSection(
+private fun MoodTriggerMappingSection(
+    avatarController: AvatarController?,
     availableAnimations: List<String>,
-    emotionAnimationMapping: Map<AvatarEmotion, String>,
-    onEmotionAnimationMappingChange: (AvatarEmotion, String?) -> Unit
+    moodAnimationMapping: Map<String, String>,
+    customMoodDefinitions: List<AvatarCustomMoodDefinition>,
+    onMoodAnimationMappingChange: (String, String?) -> Unit,
+    onUpsertCustomMoodDefinition: (String?, String, String) -> Unit,
+    onDeleteCustomMoodDefinition: (String) -> Unit
 ) {
-    val allEmotions = remember { AvatarEmotion.values().toList() }
-    var selectedEmotion by remember { mutableStateOf(AvatarEmotion.IDLE) }
-    var emotionDropdownExpanded by remember { mutableStateOf(false) }
-    var animationDropdownExpanded by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var editingCustomMood by remember { mutableStateOf<AvatarCustomMoodDefinition?>(null) }
+
+    if (showCreateDialog) {
+        MoodTypeEditorDialog(
+            initialDefinition = null,
+            onDismiss = { showCreateDialog = false },
+            onConfirm = { key, promptHint ->
+                onUpsertCustomMoodDefinition(null, key, promptHint)
+                showCreateDialog = false
+            }
+        )
+    }
+
+    editingCustomMood?.let { definition ->
+        MoodTypeEditorDialog(
+            initialDefinition = definition,
+            onDismiss = { editingCustomMood = null },
+            onConfirm = { key, promptHint ->
+                onUpsertCustomMoodDefinition(definition.key, key, promptHint)
+                editingCustomMood = null
+            }
+        )
+    }
 
     Spacer(modifier = Modifier.height(8.dp))
 
     Text(
-        text = "Emotion Mapping",
+        text = stringResource(R.string.avatar_mood_trigger_mapping_title),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary
     )
+    Text(
+        text = stringResource(R.string.avatar_mood_trigger_mapping_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp)
+    )
 
-    if (emotionAnimationMapping.isNotEmpty()) {
+    if (availableAnimations.isEmpty()) {
+        Text(
+            text = stringResource(R.string.avatar_no_model_actions),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+
+    Spacer(modifier = Modifier.height(6.dp))
+
+    AvatarMoodTypes.builtInDefinitions.forEach { definition ->
+        MoodMappingCard(
+            title = definition.toLocalizedDisplayName(),
+            triggerKey = definition.key,
+            promptHint = definition.toLocalizedPromptHint(),
+            mappedAnimation = moodAnimationMapping[definition.key],
+            availableAnimations = availableAnimations,
+            builtInDefinition = definition,
+            onMoodAnimationMappingChange = onMoodAnimationMappingChange,
+            onPreview = {
+                previewMoodTrigger(
+                    coroutineScope = coroutineScope,
+                    avatarController = avatarController,
+                    triggerKey = definition.key,
+                    mappedAnimation = moodAnimationMapping[definition.key],
+                    fallbackEmotion = definition.fallbackEmotion
+                )
+            }
+        )
         Spacer(modifier = Modifier.height(6.dp))
+    }
 
-        FlowRow(
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.avatar_custom_types_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        TextButton(onClick = { showCreateDialog = true }) {
+            Text(text = stringResource(R.string.avatar_custom_type_add))
+        }
+    }
+
+    if (customMoodDefinitions.isEmpty()) {
+        Text(
+            text = stringResource(R.string.avatar_custom_type_none),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else {
+        customMoodDefinitions.forEachIndexed { index, definition ->
+            MoodMappingCard(
+                title = definition.key,
+                triggerKey = definition.key,
+                promptHint = definition.promptHint,
+                mappedAnimation = moodAnimationMapping[definition.key],
+                availableAnimations = availableAnimations,
+                onMoodAnimationMappingChange = onMoodAnimationMappingChange,
+                onPreview = {
+                    previewMoodTrigger(
+                        coroutineScope = coroutineScope,
+                        avatarController = avatarController,
+                        triggerKey = definition.key,
+                        mappedAnimation = moodAnimationMapping[definition.key],
+                        fallbackEmotion = null
+                    )
+                },
+                onEdit = { editingCustomMood = definition },
+                onDelete = { onDeleteCustomMoodDefinition(definition.key) }
+            )
+            if (index < customMoodDefinitions.lastIndex) {
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoodMappingCard(
+    title: String,
+    triggerKey: String,
+    promptHint: String,
+    mappedAnimation: String?,
+    availableAnimations: List<String>,
+    builtInDefinition: AvatarMoodTypeDefinition? = null,
+    onMoodAnimationMappingChange: (String, String?) -> Unit,
+    onPreview: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
+    val canPreview = onPreview != null && !mappedAnimation.isNullOrBlank()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                RoundedCornerShape(10.dp)
+            )
+            .padding(10.dp)
+    ) {
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            maxItemsInEachRow = 2
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
         ) {
-            allEmotions.forEach { emotion ->
-                val mappedAnimation = emotionAnimationMapping[emotion] ?: return@forEach
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.avatar_trigger_key_label, triggerKey),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                Text(
+                    text = promptHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                builtInDefinition?.fallbackEmotion?.let { fallbackEmotion ->
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.avatar_fallback_emotion_label,
+                                fallbackEmotion.toDisplayName()
+                            ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
 
-                FilterChip(
-                    selected = selectedEmotion == emotion,
-                    onClick = { selectedEmotion = emotion },
-                    label = {
-                        Text(
-                            text = "${emotion.toDisplayName()}: $mappedAnimation"
-                        )
+            if (onEdit != null || onDelete != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    onEdit?.let { editAction ->
+                        IconButton(onClick = editAction) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = stringResource(R.string.avatar_edit_custom_mood_type)
+                            )
+                        }
+                    }
+                    onDelete?.let { deleteAction ->
+                        IconButton(onClick = deleteAction) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.avatar_delete_custom_mood_type)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AnimationSelectionField(
+            stateKey = triggerKey,
+            availableAnimations = availableAnimations,
+            selectedAnimation = mappedAnimation,
+            label = stringResource(R.string.avatar_mapped_action),
+            onAnimationSelected = { animationName ->
+                onMoodAnimationMappingChange(triggerKey, animationName)
+            }
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(
+                onClick = { onPreview?.invoke() },
+                enabled = canPreview
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = stringResource(R.string.avatar_preview_action),
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+                Text(text = stringResource(R.string.avatar_preview_action))
+            }
+            TextButton(
+                onClick = {
+                    onMoodAnimationMappingChange(triggerKey, null)
+                },
+                enabled = !mappedAnimation.isNullOrBlank()
+            ) {
+                Text(text = stringResource(R.string.clear))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnimationSelectionField(
+    stateKey: String,
+    availableAnimations: List<String>,
+    selectedAnimation: String?,
+    label: String,
+    onAnimationSelected: (String) -> Unit
+) {
+    var expanded by remember(stateKey) { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            if (availableAnimations.isNotEmpty()) {
+                expanded = !expanded
+            }
+        }
+    ) {
+        OutlinedTextField(
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            value = selectedAnimation ?: stringResource(R.string.avatar_unmapped),
+            onValueChange = {},
+            readOnly = true,
+            enabled = availableAnimations.isNotEmpty(),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodySmall,
+            label = { Text(text = label) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(
+                    expanded = expanded
+                )
+            }
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            availableAnimations.forEach { animationName ->
+                DropdownMenuItem(
+                    text = { Text(text = animationName) },
+                    onClick = {
+                        onAnimationSelected(animationName)
+                        expanded = false
                     }
                 )
             }
         }
     }
+}
 
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        ExposedDropdownMenuBox(
-            modifier = Modifier.weight(0.4f),
-            expanded = emotionDropdownExpanded,
-            onExpandedChange = {
-                emotionDropdownExpanded = !emotionDropdownExpanded
-            }
-        ) {
-            OutlinedTextField(
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
-                value = selectedEmotion.toDisplayName(),
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall,
-                label = { Text(text = "Emotion") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = emotionDropdownExpanded
-                    )
-                }
-            )
-
-            ExposedDropdownMenu(
-                expanded = emotionDropdownExpanded,
-                onDismissRequest = { emotionDropdownExpanded = false }
-            ) {
-                allEmotions.forEach { emotion ->
-                    DropdownMenuItem(
-                        text = { Text(text = emotion.toDisplayName()) },
-                        onClick = {
-                            selectedEmotion = emotion
-                            emotionDropdownExpanded = false
-                        }
-                    )
-                }
-            }
-        }
-
-        ExposedDropdownMenuBox(
-            modifier = Modifier.weight(0.6f),
-            expanded = animationDropdownExpanded,
-            onExpandedChange = {
-                animationDropdownExpanded = !animationDropdownExpanded
-            }
-        ) {
-            OutlinedTextField(
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
-                value =
-                    emotionAnimationMapping[selectedEmotion]
-                        ?: "Unmapped",
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall,
-                label = { Text(text = "Mapped Action") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = animationDropdownExpanded
-                    )
-                }
-            )
-
-            ExposedDropdownMenu(
-                expanded = animationDropdownExpanded,
-                onDismissRequest = { animationDropdownExpanded = false }
-            ) {
-                availableAnimations.forEach { animationName ->
-                    DropdownMenuItem(
-                        text = { Text(text = animationName) },
-                        onClick = {
-                            onEmotionAnimationMappingChange(
-                                selectedEmotion,
-                                animationName
-                            )
-                            animationDropdownExpanded = false
-                        }
-                    )
-                }
-            }
-        }
+@Composable
+private fun MoodTypeEditorDialog(
+    initialDefinition: AvatarCustomMoodDefinition?,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit
+) {
+    var keyInput by remember(initialDefinition?.key) {
+        mutableStateOf(initialDefinition?.key.orEmpty())
     }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
-    ) {
-        TextButton(
-            onClick = {
-                onEmotionAnimationMappingChange(selectedEmotion, null)
-            }
-        ) {
-            Text(text = "Clear Selected Mapping")
-        }
+    var promptHintInput by remember(initialDefinition?.promptHint) {
+        mutableStateOf(initialDefinition?.promptHint.orEmpty())
     }
+    val normalizedKeyPreview = remember(keyInput) {
+        AvatarMoodTypes.normalizeKey(keyInput)
+    }
+    val canConfirm = keyInput.trim().isNotEmpty() && promptHintInput.trim().isNotEmpty()
 
-    if (availableAnimations.isNotEmpty()) {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            maxItemsInEachRow = 5
-        ) {
-            availableAnimations.forEach { animationName ->
-                FilterChip(
-                    selected = emotionAnimationMapping[selectedEmotion] == animationName,
-                    onClick = {
-                        onEmotionAnimationMappingChange(selectedEmotion, animationName)
-                    },
-                    label = { Text(animationName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text =
+                    if (initialDefinition == null) {
+                        stringResource(R.string.avatar_custom_type_add_title)
+                    } else {
+                        stringResource(R.string.avatar_custom_type_edit_title)
+                    }
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = keyInput,
+                    onValueChange = { keyInput = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.avatar_custom_type_key)) }
+                )
+                Text(
+                    text =
+                        stringResource(
+                            R.string.avatar_custom_type_key_hint,
+                            normalizedKeyPreview.ifBlank {
+                                stringResource(R.string.avatar_empty_value_placeholder)
+                            }
+                        ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = promptHintInput,
+                    onValueChange = { promptHintInput = it },
+                    label = { Text(stringResource(R.string.avatar_custom_type_prompt_hint_label)) }
+                )
+                Text(
+                    text = stringResource(R.string.avatar_custom_type_prompt_hint_help),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(keyInput, promptHintInput)
+                },
+                enabled = canConfirm
+            ) {
+                Text(
+                    text =
+                        if (initialDefinition == null) {
+                            stringResource(R.string.add)
+                        } else {
+                            stringResource(R.string.save)
+                        }
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.cancel))
+            }
         }
-    } else {
-        Text(
-            text = "No model actions found for this avatar",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+    )
 }
 
 @Composable
@@ -711,14 +976,67 @@ fun ModelSelector(
     }
 }
 
+@Composable
 private fun AvatarEmotion.toDisplayName(): String {
     return when (this) {
-        AvatarEmotion.IDLE -> "Idle"
-        AvatarEmotion.LISTENING -> "Listening"
-        AvatarEmotion.THINKING -> "Thinking"
-        AvatarEmotion.HAPPY -> "Happy"
-        AvatarEmotion.SAD -> "Sad"
-        AvatarEmotion.CONFUSED -> "Confused"
-        AvatarEmotion.SURPRISED -> "Surprised"
+        AvatarEmotion.IDLE -> stringResource(R.string.avatar_emotion_idle)
+        AvatarEmotion.LISTENING -> stringResource(R.string.avatar_emotion_listening)
+        AvatarEmotion.THINKING -> stringResource(R.string.avatar_emotion_thinking)
+        AvatarEmotion.HAPPY -> stringResource(R.string.avatar_emotion_happy)
+        AvatarEmotion.SAD -> stringResource(R.string.avatar_emotion_sad)
+        AvatarEmotion.CONFUSED -> stringResource(R.string.avatar_emotion_confused)
+        AvatarEmotion.SURPRISED -> stringResource(R.string.avatar_emotion_surprised)
+    }
+}
+
+@Composable
+private fun AvatarMoodTypeDefinition.toLocalizedDisplayName(): String {
+    return when (key) {
+        "angry" -> stringResource(R.string.avatar_mood_angry_name)
+        "happy" -> stringResource(R.string.avatar_mood_happy_name)
+        "shy" -> stringResource(R.string.avatar_mood_shy_name)
+        "aojiao" -> stringResource(R.string.avatar_mood_aojiao_name)
+        "cry" -> stringResource(R.string.avatar_mood_cry_name)
+        else -> displayName
+    }
+}
+
+@Composable
+private fun AvatarMoodTypeDefinition.toLocalizedPromptHint(): String {
+    return when (key) {
+        "angry" -> stringResource(R.string.avatar_mood_angry_hint)
+        "happy" -> stringResource(R.string.avatar_mood_happy_hint)
+        "shy" -> stringResource(R.string.avatar_mood_shy_hint)
+        "aojiao" -> stringResource(R.string.avatar_mood_aojiao_hint)
+        "cry" -> stringResource(R.string.avatar_mood_cry_hint)
+        else -> promptHint
+    }
+}
+
+private fun previewMoodTrigger(
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    avatarController: AvatarController?,
+    triggerKey: String,
+    mappedAnimation: String?,
+    fallbackEmotion: AvatarEmotion?
+) {
+    if (avatarController == null || mappedAnimation.isNullOrBlank()) {
+        return
+    }
+
+    coroutineScope.launch {
+        val handled = avatarController.playTrigger(triggerKey, loop = 1)
+        if (!handled) {
+            avatarController.playAnimation(mappedAnimation, loop = 1)
+        }
+
+        val durationMillis =
+            avatarController.estimateTriggerDurationMillis(triggerKey)
+                ?: fallbackEmotion?.let { avatarController.estimateEmotionDurationMillis(it) }
+
+        durationMillis?.let {
+            delay(it)
+            avatarController.setEmotion(AvatarEmotion.IDLE)
+        }
     }
 }

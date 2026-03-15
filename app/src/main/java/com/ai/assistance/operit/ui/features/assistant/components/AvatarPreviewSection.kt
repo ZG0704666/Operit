@@ -91,6 +91,12 @@ fun AvatarPreviewSection(
                             lastEmotionAnimationMappingState.value = latestMapping
                         }
 
+                        LaunchedEffect(avatarController, uiState.moodAnimationMapping) {
+                            avatarController.updateTriggerAnimationMapping(
+                                uiState.moodAnimationMapping
+                            )
+                        }
+
                         val runtimeSettings =
                             remember(uiState.config) {
                                 uiState.config?.let { settings ->

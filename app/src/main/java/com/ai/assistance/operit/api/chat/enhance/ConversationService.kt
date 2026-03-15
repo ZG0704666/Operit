@@ -45,6 +45,8 @@ import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.api.chat.enhance.MultiServiceManager
 import com.ai.assistance.operit.data.repository.CustomEmojiRepository
 import com.ai.assistance.operit.api.chat.llmprovider.MediaLinkBuilder
+import com.ai.assistance.operit.data.repository.getCustomMoodDefinitions
+import com.ai.assistance.operit.data.repository.getMoodAnimationMapping
 
 /** 处理会话相关功能的服务类，包括会话总结、偏好处理和对话切割准备 */
 class ConversationService(
@@ -754,11 +756,24 @@ class ConversationService(
 
     /**
      * 桌宠模式的<mood>标签规则，仅在桌宠环境下添加到系统提示中。
-     * 标签内容仅允许：angry, happy, shy, aojiao, cry。
-     * 当心情平静或无特殊情绪时不要输出<mood>标签（应用将自动使用默认视频）。
+     * 会自动拼接当前头像启用的自定义 mood 类型。
      */
     private fun buildDesktopPetMoodRulesText(): String {
-        return FunctionalPrompts.desktopPetMoodRulesText()
+        val currentAvatarId = avatarRepository.currentAvatar.value?.id
+        val currentConfig =
+            avatarRepository.configs.value.firstOrNull { config ->
+                config.id == currentAvatarId
+            }
+
+        val moodAnimationMapping = currentConfig?.getMoodAnimationMapping().orEmpty()
+        val customMoodDefinitions =
+            currentConfig?.getCustomMoodDefinitions()
+                .orEmpty()
+                .filter { definition ->
+                    moodAnimationMapping[definition.key]?.isNotBlank() == true
+                }
+
+        return FunctionalPrompts.desktopPetMoodRulesText(customMoodDefinitions)
     }
 
     private fun shouldInjectMoodRules(promptFunctionType: PromptFunctionType): Boolean {
