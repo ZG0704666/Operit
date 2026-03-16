@@ -254,25 +254,25 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                 }
 
                 // 在XML中查找匹配的节点
-                val matchedNodes = findNodesInXml(uiXml) { nodeParser ->
+                val matchedNodes = findNodesInXml(uiXml) { parser ->
                     val hasSelectors = resourceId != null || className != null || contentDesc != null
                     if (!hasSelectors) {
                         return@findNodesInXml false
                     }
 
-                    val nodeId = nodeParser.getAttributeValue(null, "resource-id")
-                    val nodeClass = nodeParser.getAttributeValue(null, "class")
-                    val nodeDesc = nodeParser.getAttributeValue(null, "content-desc")
+                    val actualId = parser.getAttributeValue(null, "resource-id")
+                    val actualClass = parser.getAttributeValue(null, "class")
+                    val actualDesc = parser.getAttributeValue(null, "content-desc")
 
-                    if(resourceId !=null && nodeId != null && !nodeId.endsWith(resourceId)){
+                    if(resourceId != null && (actualId == null || !actualId.endsWith(resourceId))){
                         return@findNodesInXml false
                     }
 
-                    if(className != null && nodeClass != null && nodeClass != className){
+                    if(className != null && (actualClass == null || actualClass != className)){
                         return@findNodesInXml false
                     }
 
-                    if(contentDesc != null && nodeDesc != null && !nodeDesc.equals(contentDesc, ignoreCase = true)){
+                    if(contentDesc != null && (actualDesc == null || !actualDesc.equals(contentDesc, ignoreCase = true))){
                         return@findNodesInXml false
                     }
                     

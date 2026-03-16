@@ -853,12 +853,12 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
         // 尝试多种mCurrentFocus格式模式
         val currentFocusPatterns =
                 listOf(
-                        // 标准格式，具有包/活动
-                        "mCurrentFocus=.*?\\{.*?\\s+([a-zA-Z0-9_.]+)/([^\\s}]+)".toRegex(),
+                        // 标准格式，具有包/活动（同时也支持 mFocusedWindow）
+                        "(?:mCurrentFocus|mFocusedWindow)=.*?\\{.*?\\s+([a-zA-Z0-9_.]+)/([^\\s}]+)".toRegex(),
                         // 有时会看到的替代格式
-                        "mCurrentFocus=.*?\\s+([a-zA-Z0-9_.]+)/([^\\s}]+)\\}".toRegex(),
+                        "(?:mCurrentFocus|mFocusedWindow)=.*?\\s+([a-zA-Z0-9_.]+)/([^\\s}]+)\\}".toRegex(),
                         // 只有包名的格式（活动将单独处理）
-                        "mCurrentFocus=.*?\\{.*?\\s+([a-zA-Z0-9_.]+)(?:/|\\s)".toRegex()
+                        "(?:mCurrentFocus|mFocusedWindow)=.*?\\{.*?\\s+([a-zA-Z0-9_.]+)(?:/|\\s)".toRegex()
                 )
 
         for (pattern in currentFocusPatterns) {
@@ -892,6 +892,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                 listOf(
                         // 带有ActivityRecord的标准格式
                         "mFocusedApp=.*?ActivityRecord\\{.*?\\s+([a-zA-Z0-9_.]+)/\\.?([^\\s}]+)".toRegex(),
+                        // 处理类似于 mFocusedApp=null 后的真实输出行
+                        "ActivityRecord\\{.*?\\s+([a-zA-Z0-9_.]+)/\\.?([^\\s}]+)".toRegex(),
                         // 有时会看到的替代格式
                         "mFocusedApp=.*?\\s+([a-zA-Z0-9_.]+)/\\.?([^\\s}]+)\\s".toRegex(),
                         // 只有包名的格式
@@ -1072,7 +1074,6 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
 
     /** 使用uiautomator点击元素 */
-    @SuppressLint("SuspiciousIndentation")
     private suspend fun clickElementWithUiautomator(tool: AITool): ToolResult {
         AppLogger.d(TAG, "Using uiautomator to click element")
 
@@ -1080,6 +1081,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
         val className = tool.parameters.find { it.name == "className" }?.value
         val contentDesc = tool.parameters.find { it.name == "contentDesc" }?.value
         val index = tool.parameters.find { it.name == "index" }?.value?.toIntOrNull() ?: 0
+        val partialMatch =
+                tool.parameters.find { it.name == "partialMatch" }?.value?.toBoolean() ?: false
 
         try {
             // 先尝试获取UI dump
@@ -1111,52 +1114,81 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
             val xml = readResult.stdout
 
-            // 在XML中查找匹配的元素
-            val partialMatch =
-                    tool.parameters.find { it.name == "partialMatch" }?.value?.toBoolean() ?: false
-
-            // 构建搜索模式
-            val resourceIdPattern =
-                    if (resourceId != null) {
-                        if (partialMatch)
-                                "resource-id=\".*?${Regex.escape(resourceId)}.*?\"".toRegex()
-                        else "resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"".toRegex()
-                    } else null
-
-            val classNamePattern =
-                    if (className != null) {
-                        if (partialMatch) "class=\".*?${Regex.escape(className)}.*?\"".toRegex()
-                        else "class=\".*?${Regex.escape(className)}\"".toRegex()
-                    } else null
-
-            val contentDescPattern =
-                if (contentDesc != null) {
-                    if (partialMatch) "content-desc=\".*?${Regex.escape(contentDesc)}.*?\"".toRegex()
-                    else "content-desc=\"${Regex.escape(contentDesc)}\"".toRegex()
-                    } else null
-
-            val boundsPattern = "bounds=\"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]\"".toRegex()
-
-            // 提取节点元素
-            val nodeRegexPattern = StringBuilder("<node[^>]*?")
-
-            // 检查是否至少有一个选择器
+            // 使用XML Parser查找匹配的元素（取代有问题的正则方式）
             val hasSelectors = resourceId != null || className != null || contentDesc != null
             if (!hasSelectors) {
-                // 如果没有选择器，则不应匹配任何内容
-                // 我们可以构建一个不可能匹配的正则表达式
-                nodeRegexPattern.append(" impossible-attribute='impossible-value'")
-            } else {
-            if (resourceIdPattern != null)
-                    nodeRegexPattern.append(".*?${resourceIdPattern.pattern}")
-            if (classNamePattern != null) nodeRegexPattern.append(".*?${classNamePattern.pattern}")
-                if (contentDescPattern != null) nodeRegexPattern.append(".*?${contentDescPattern.pattern}")
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "No element selector provided."
+                )
             }
-            
-            nodeRegexPattern.append("[^>]*?>")
 
-            val nodeRegex = nodeRegexPattern.toString().toRegex()
-            val matchingNodes = nodeRegex.findAll(xml).toList()
+            // 用XmlPullParser逐节点匹配，避免正则跨节点匹配的问题
+            data class MatchedNode(val bounds: String?)
+            val matchingNodes = mutableListOf<MatchedNode>()
+
+            try {
+                val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = false }
+                val parser = factory.newPullParser().apply { setInput(StringReader(xml)) }
+
+                while (parser.eventType != XmlPullParser.END_DOCUMENT) {
+                    if (parser.eventType == XmlPullParser.START_TAG && parser.name == "node") {
+                        val actualId = parser.getAttributeValue(null, "resource-id")
+                        val actualClass = parser.getAttributeValue(null, "class")
+                        val actualDesc = parser.getAttributeValue(null, "content-desc")
+                        val actualBounds = parser.getAttributeValue(null, "bounds")
+
+                        var matches = true
+
+                        if (resourceId != null) {
+                            if (actualId == null) {
+                                matches = false
+                            } else if (partialMatch) {
+                                matches = actualId.contains(resourceId)
+                            } else {
+                                // 支持短ID (expand_search) 和完整ID (tv.danmaku.bili:id/expand_search)
+                                matches = actualId == resourceId || actualId.endsWith(":id/$resourceId")
+                            }
+                        }
+
+                        if (matches && className != null) {
+                            if (actualClass == null) {
+                                matches = false
+                            } else if (partialMatch) {
+                                matches = actualClass.contains(className)
+                            } else {
+                                // 支持短类名 (ImageView) 和完整类名 (android.widget.ImageView)
+                                matches = actualClass == className || actualClass.endsWith(".$className")
+                            }
+                        }
+
+                        if (matches && contentDesc != null) {
+                            if (actualDesc == null) {
+                                matches = false
+                            } else if (partialMatch) {
+                                matches = actualDesc.contains(contentDesc, ignoreCase = true)
+                            } else {
+                                matches = actualDesc.equals(contentDesc, ignoreCase = true)
+                            }
+                        }
+
+                        if (matches) {
+                            matchingNodes.add(MatchedNode(bounds = actualBounds))
+                        }
+                    }
+                    parser.next()
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error parsing UI XML", e)
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to parse UI hierarchy XML: ${e.message}"
+                )
+            }
 
             if (matchingNodes.isEmpty()) {
                 return ToolResult(
@@ -1177,17 +1209,26 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                 )
             }
 
-            // 获取指定索引的节点
-            val nodeText = matchingNodes[index].value
+            // 获取指定索引的节点bounds
+            val nodeBounds = matchingNodes[index].bounds
+            if (nodeBounds == null) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Target element has no bounds."
+                )
+            }
 
             // 提取边界坐标
-            val boundsMatch = boundsPattern.find(nodeText)
+            val boundsPattern = "\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]".toRegex()
+            val boundsMatch = boundsPattern.find(nodeBounds)
             if (boundsMatch == null || boundsMatch.groupValues.size < 5) {
                 return ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "Failed to extract bounds from the element."
+                        error = "Failed to extract bounds from the element: $nodeBounds"
                 )
             }
 
@@ -1237,7 +1278,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                 )
             } else {
                 withContext(Dispatchers.Main) {
-                    operationOverlay.hide() // 隐藏反馈（在主线程上执行）
+                    operationOverlay.hide()
                 }
                 return ToolResult(
                         toolName = tool.name,
@@ -1249,7 +1290,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error clicking element with uiautomator", e)
             withContext(Dispatchers.Main) {
-                operationOverlay.hide() // 隐藏反馈（在主线程上执行）
+                operationOverlay.hide()
             }
             return ToolResult(
                     toolName = tool.name,
