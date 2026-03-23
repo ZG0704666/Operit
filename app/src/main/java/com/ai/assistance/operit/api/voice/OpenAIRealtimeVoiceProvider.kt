@@ -6,7 +6,6 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.util.Base64
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.core.audio.MediaPlayerEchoReferenceTap
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
 import com.ai.assistance.operit.util.AppLogger
 import java.io.ByteArrayOutputStream
@@ -85,7 +84,6 @@ class OpenAIRealtimeVoiceProvider(
     private val stateLock = Any()
 
     private var mediaPlayer: MediaPlayer? = null
-    private val echoReferenceTap = MediaPlayerEchoReferenceTap()
     private var currentPlaybackDone: CompletableDeferred<Boolean>? = null
     private var currentPlaybackFile: File? = null
     private var currentResponseDeferred: CompletableDeferred<ByteArray>? = null
@@ -485,7 +483,6 @@ class OpenAIRealtimeVoiceProvider(
                             true
                         }
                         prepare()
-                        echoReferenceTap.attachToSession(audioSessionId)
                         start()
                     }
 
@@ -529,7 +526,6 @@ class OpenAIRealtimeVoiceProvider(
             }
             mediaPlayer = null
         }
-        echoReferenceTap.release()
         _isSpeaking.value = false
         runCatching { file.delete() }
         if (!done.isCompleted) {
@@ -573,7 +569,6 @@ class OpenAIRealtimeVoiceProvider(
             }
             runCatching { playbackFile?.delete() }
 
-            echoReferenceTap.release()
             _isSpeaking.value = false
             true
         } catch (e: Exception) {
@@ -634,7 +629,6 @@ class OpenAIRealtimeVoiceProvider(
             playbackDeferred.complete(false)
         }
         runCatching { playbackFile?.delete() }
-        echoReferenceTap.release()
         _isSpeaking.value = false
         _isInitialized.value = false
     }

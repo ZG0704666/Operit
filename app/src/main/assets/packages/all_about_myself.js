@@ -214,10 +214,11 @@
 - 先确认选中的引擎类型是否正确（TTS 与 STT 分开看）。
 - 再检查 endpoint / key / model 三件套是否完整。
 - 再检查 HTTP 模板字段（headers JSON、method、body、占位符）。
-- 最后做一次真实语音测试（播报 + 识别），看是否能端到端通过。
+- 至少做一次真实 TTS 播报测试；若还要排查 STT，再另外走语音识别链路。
 8) 对应工具（可直接用）：
 - `get_speech_services_config`：获取当前 TTS/STT 配置快照（含引擎类型与关键字段）。
 - `set_speech_services_config`：按字段修改 TTS/STT 配置（支持只改部分字段）。
+- `test_tts_playback`：按当前 TTS 配置播放一次测试文本（支持临时覆盖语速/音调）。
 
 【多模态输入规则】
 1) 能力开关含义：
@@ -438,10 +439,11 @@
 - Confirm the selected engine type first (TTS and STT separately).
 - Check endpoint/key/model as a bundle.
 - Then verify HTTP template fields (headers JSON, method, body, placeholder).
-- Finally run real voice tests (playback + recognition) end to end.
+- Run at least one real TTS playback test; if STT also needs troubleshooting, verify recognition in a separate speech flow.
 8) Related tools:
 - `get_speech_services_config`: fetch current TTS/STT config snapshot (engine types + key fields).
 - `set_speech_services_config`: update TTS/STT config fields (partial update supported).
+- `test_tts_playback`: play one test utterance with the current TTS config (supports temporary rate/pitch overrides).
 
 [Multimodal input rules]
 1) Meaning of capability switches:
@@ -813,6 +815,51 @@
             en: "Optional STT model name"
           }
           type: string
+          required: false
+        }
+      ]
+    },
+    {
+      name: "test_tts_playback"
+      description: {
+        zh: '''按当前 TTS 配置播放一次测试文本。'''
+        en: '''Play one TTS test utterance with the current configuration.'''
+      }
+      parameters: [
+        {
+          name: "text"
+          description: {
+            zh: "必填，要播放的测试文本"
+            en: "Required test text to play"
+          }
+          type: string
+          required: true
+        },
+        {
+          name: "interrupt"
+          description: {
+            zh: "可选，播放前是否先中断当前播报"
+            en: "Optional, interrupt current playback before this test"
+          }
+          type: boolean
+          required: false
+        },
+        {
+          name: "speech_rate"
+          description: {
+            zh: "可选，仅本次测试生效的语速覆盖值"
+            en: "Optional speech-rate override for this test only"
+          }
+          type: number
+          required: false
+        },
+        {
+          name: "pitch"
+          description: {
+            zh: "可选，仅本次测试生效的音调覆盖值"
+            en: "Optional pitch override for this test only"
+          }
+          type: number
           required: false
         }
       ]
@@ -2380,6 +2427,33 @@ async function set_speech_services_config(params) {
         });
     }
 }
+async function test_tts_playback(params) {
+    try {
+        const text = (params?.text ?? "").trim();
+        if (!text) {
+            complete({
+                success: false,
+                message: "Missing required parameter: text"
+            });
+            return;
+        }
+        const options = { ...(params ?? {}) };
+        delete options.text;
+        const result = await Tools.SoftwareSettings.testTtsPlayback(text, options);
+        const success = !!result?.success;
+        complete({
+            success,
+            message: success ? "TTS playback test triggered." : "TTS playback test failed.",
+            data: result
+        });
+    }
+    catch (error) {
+        complete({
+            success: false,
+            message: get_error_message(error)
+        });
+    }
+}
 async function list_model_configs() {
     try {
         const result = await Tools.SoftwareSettings.listModelConfigs();
@@ -2726,6 +2800,7 @@ exports.write_environment_variable = write_environment_variable;
 exports.restart_mcp_with_logs = restart_mcp_with_logs;
 exports.get_speech_services_config = get_speech_services_config;
 exports.set_speech_services_config = set_speech_services_config;
+exports.test_tts_playback = test_tts_playback;
 exports.list_model_configs = list_model_configs;
 exports.create_model_config = create_model_config;
 exports.update_model_config = update_model_config;

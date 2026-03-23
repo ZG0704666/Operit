@@ -21,6 +21,8 @@ data class ExternalChatRequest(
     val createIfNone: Boolean = true,
     @SerialName("show_floating")
     val showFloating: Boolean = false,
+    @SerialName("return_tool_status")
+    val returnToolStatus: Boolean = true,
     @SerialName("initial_mode")
     val initialMode: String? = null,
     @SerialName("auto_exit_after_ms")
@@ -64,6 +66,8 @@ data class ExternalChatHttpRequest(
     val createIfNone: Boolean = true,
     @SerialName("show_floating")
     val showFloating: Boolean = false,
+    @SerialName("return_tool_status")
+    val returnToolStatus: Boolean = true,
     @SerialName("initial_mode")
     val initialMode: String? = null,
     @SerialName("auto_exit_after_ms")
@@ -98,6 +102,7 @@ data class ExternalChatHttpRequest(
             chatId = chatId,
             createIfNone = createIfNone,
             showFloating = showFloating,
+            returnToolStatus = returnToolStatus,
             initialMode = initialMode,
             autoExitAfterMs = autoExitAfterMs,
             stopAfter = stopAfter

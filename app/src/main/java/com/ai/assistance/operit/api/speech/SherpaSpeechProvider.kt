@@ -5,8 +5,6 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import com.ai.assistance.operit.core.audio.AecReferenceAudioBus
-import com.ai.assistance.operit.core.audio.WebRtcAec3Processor
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.OperitPaths
 import com.k2fsa.sherpa.ncnn.*
@@ -44,7 +42,6 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
     private var vad: OnnxSileroVad? = null
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job? = null
-    private var webRtcAec3: WebRtcAec3Processor? = null
     private val scope = CoroutineScope(Dispatchers.Default)
 
     private fun clearAndReleaseAudioRecord() {
@@ -65,16 +62,6 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                 AppLogger.w(TAG, "Error releasing AudioRecord", e)
             }
         }
-
-        releaseAec3Processor()
-    }
-
-    private fun releaseAec3Processor() {
-        try {
-            webRtcAec3?.close()
-        } catch (_: Exception) {
-        }
-        webRtcAec3 = null
     }
 
     private val _recognitionState = MutableStateFlow(SpeechService.RecognitionState.UNINITIALIZED)
@@ -289,18 +276,6 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                 return@withLock false
             }
 
-            try {
-                AecReferenceAudioBus.clear()
-                webRtcAec3?.close()
-                webRtcAec3 = WebRtcAec3Processor(sampleRateInHz, channels = 1)
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Failed to initialize WebRTC AEC3 processor", e)
-                _recognitionState.value = SpeechService.RecognitionState.ERROR
-                _recognitionError.value =
-                    SpeechService.RecognitionError(-5, e.message ?: "WebRTC AEC3 init failed")
-                return@withLock false
-            }
-
             audioRecord =
                     AudioRecord(
                             MediaRecorder.AudioSource.VOICE_COMMUNICATION,
@@ -364,7 +339,6 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                             }
                             if (ret <= 0) break
 
-                            webRtcAec3?.processCaptureInPlace(audioBuffer, ret)
                             SpeechPrerollStore.appendPcm(audioBuffer, ret)
                             val volumeLevel = calculateVolumeLevel(audioBuffer, ret)
                             _volumeLevelFlow.value = volumeLevel
@@ -552,8 +526,6 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
             _volumeLevelFlow.value = 0f // 重置音量
             _recognitionResult.value = SpeechService.RecognitionResult(text = "", isFinal = false, confidence = 0f)
         }
-
-        releaseAec3Processor()
     }
 
     override suspend fun getSupportedLanguages(): List<String> =

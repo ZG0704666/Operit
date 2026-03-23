@@ -5,6 +5,7 @@
 import {
     StringResultData,
     SpeechServicesConfigResultData,
+    SpeechServicesTtsPlaybackTestResultData,
     SpeechServicesUpdateResultData,
     ModelConfigsResultData,
     ModelConfigCreateResultData,
@@ -37,6 +38,12 @@ export namespace SoftwareSettings {
         stt_endpoint_url?: string;
         stt_api_key?: string;
         stt_model_name?: string;
+    }
+
+    interface TtsPlaybackTestOptions {
+        interrupt?: boolean;
+        speech_rate?: number;
+        pitch?: number;
     }
 
     interface ModelConfigUpdateOptions {
@@ -128,6 +135,16 @@ export namespace SoftwareSettings {
     function setSpeechServicesConfig(
         updates?: Partial<SpeechServicesUpdateOptions>
     ): Promise<SpeechServicesUpdateResultData>;
+
+    /**
+     * Play one TTS test utterance using the current speech-service configuration.
+     * @param text - Text to play once
+     * @param options - Optional one-off playback overrides
+     */
+    function testTtsPlayback(
+        text: string,
+        options?: Partial<TtsPlaybackTestOptions>
+    ): Promise<SpeechServicesTtsPlaybackTestResultData>;
 
     /**
      * List all model configs and current function bindings.

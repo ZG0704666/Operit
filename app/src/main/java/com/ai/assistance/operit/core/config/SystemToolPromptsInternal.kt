@@ -1921,6 +1921,38 @@ object SystemToolPromptsInternal {
                                 )
                         ),
                         ToolPrompt(
+                            name = "test_tts_playback",
+                            description = "Play one TTS test utterance using the current speech-service configuration.",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "text",
+                                        type = "string",
+                                        description = "required, text to play once via the current TTS service",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "interrupt",
+                                        type = "boolean",
+                                        description = "optional, whether to interrupt current playback first",
+                                        required = false,
+                                        default = "true"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "speech_rate",
+                                        type = "number",
+                                        description = "optional, override speech rate for this test only",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "pitch",
+                                        type = "number",
+                                        description = "optional, override pitch for this test only",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
                             name = "list_model_configs",
                             description = "List all model configs and function-to-config bindings.",
                             parametersStructured = listOf()
@@ -4647,6 +4679,38 @@ object SystemToolPromptsInternal {
                                         name = "stt_model_name",
                                         type = "string",
                                         description = "可选，STT 模型名",
+                                        required = false
+                                    )
+                                )
+                        ),
+                        ToolPrompt(
+                            name = "test_tts_playback",
+                            description = "使用当前语音服务配置播放一次 TTS 测试文本。",
+                            parametersStructured =
+                                listOf(
+                                    ToolParameterSchema(
+                                        name = "text",
+                                        type = "string",
+                                        description = "必填，要通过当前 TTS 服务播放的一次性文本",
+                                        required = true
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "interrupt",
+                                        type = "boolean",
+                                        description = "可选，播放前是否先中断当前播报",
+                                        required = false,
+                                        default = "true"
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "speech_rate",
+                                        type = "number",
+                                        description = "可选，仅对本次测试生效的语速覆盖值",
+                                        required = false
+                                    ),
+                                    ToolParameterSchema(
+                                        name = "pitch",
+                                        type = "number",
+                                        description = "可选，仅对本次测试生效的音调覆盖值",
                                         required = false
                                     )
                                 )

@@ -1039,6 +1039,18 @@ export interface SpeechServicesUpdateResultData {
     toString(): string;
 }
 
+export interface SpeechServicesTtsPlaybackTestResultData {
+    ttsServiceType: string;
+    providerClass: string;
+    initialized: boolean;
+    playbackTriggered: boolean;
+    interrupt: boolean;
+    textLength: number;
+    speechRate: number;
+    pitch: number;
+    toString(): string;
+}
+
 export interface ModelConfigResultItem {
     id: string;
     name: string;

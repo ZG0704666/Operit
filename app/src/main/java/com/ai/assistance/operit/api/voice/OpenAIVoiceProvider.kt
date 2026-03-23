@@ -3,7 +3,6 @@ package com.ai.assistance.operit.api.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
-import com.ai.assistance.operit.core.audio.MediaPlayerEchoReferenceTap
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences
 import com.ai.assistance.operit.util.AppLogger
@@ -81,7 +80,6 @@ class OpenAIVoiceProvider(
     override val speakingStateFlow: Flow<Boolean> = _isSpeaking.asStateFlow()
 
     private var mediaPlayer: MediaPlayer? = null
-    private val echoReferenceTap = MediaPlayerEchoReferenceTap()
 
     private val playbackMutex = Mutex()
     private val playerLock = Any()
@@ -234,7 +232,6 @@ class OpenAIVoiceProvider(
                              true
                          }
                          prepare()
-                         echoReferenceTap.attachToSession(audioSessionId)
                          start()
                      }
 
@@ -278,7 +275,6 @@ class OpenAIVoiceProvider(
              }
              mediaPlayer = null
          }
-         echoReferenceTap.release()
 
          _isSpeaking.value = false
          try {
@@ -308,7 +304,6 @@ class OpenAIVoiceProvider(
                 }
                 mediaPlayer = null
             }
-            echoReferenceTap.release()
             _isSpeaking.value = false
             file?.delete()
             if (done != null && !done.isCompleted) {
@@ -354,7 +349,6 @@ class OpenAIVoiceProvider(
             currentPlaybackDone = null
             currentPlaybackFile = null
         }
-        echoReferenceTap.release()
         _isSpeaking.value = false
         _isInitialized.value = false
     }

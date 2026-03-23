@@ -27,6 +27,7 @@ class ExternalChatReceiver : BroadcastReceiver() {
         const val EXTRA_CREATE_IF_NONE = "create_if_none"
 
         const val EXTRA_SHOW_FLOATING = "show_floating"
+        const val EXTRA_RETURN_TOOL_STATUS = "return_tool_status"
         const val EXTRA_INITIAL_MODE = "initial_mode"
         const val EXTRA_AUTO_EXIT_AFTER_MS = "auto_exit_after_ms"
         const val EXTRA_STOP_AFTER = "stop_after"
@@ -58,6 +59,7 @@ class ExternalChatReceiver : BroadcastReceiver() {
                         chatId = intent.getStringExtra(EXTRA_CHAT_ID),
                         createIfNone = intent.getBooleanExtra(EXTRA_CREATE_IF_NONE, true),
                         showFloating = intent.getBooleanExtra(EXTRA_SHOW_FLOATING, false),
+                        returnToolStatus = intent.getBooleanExtra(EXTRA_RETURN_TOOL_STATUS, true),
                         initialMode = intent.getStringExtra(EXTRA_INITIAL_MODE),
                         autoExitAfterMs = intent.getLongExtra(EXTRA_AUTO_EXIT_AFTER_MS, -1L),
                         stopAfter = intent.getBooleanExtra(EXTRA_STOP_AFTER, false)

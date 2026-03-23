@@ -509,6 +509,13 @@ fun getJsToolsDefinition(): String {
                     }
                     return toolCall("set_speech_services_config", params);
                 },
+                testTtsPlayback: (text, options = {}) => {
+                    const params = { ...(options || {}), text: String(text ?? "") };
+                    if (params.interrupt !== undefined && params.interrupt !== null) {
+                        params.interrupt = !!params.interrupt;
+                    }
+                    return toolCall("test_tts_playback", params);
+                },
                 listModelConfigs: () => {
                     return toolCall("list_model_configs", {});
                 },

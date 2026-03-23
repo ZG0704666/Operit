@@ -17,6 +17,7 @@ import com.ai.assistance.operit.core.tools.ModelConfigResultItem
 import com.ai.assistance.operit.core.tools.ModelConfigUpdateResultData
 import com.ai.assistance.operit.core.tools.ModelConfigsResultData
 import com.ai.assistance.operit.core.tools.SpeechServicesConfigResultData
+import com.ai.assistance.operit.core.tools.SpeechServicesTtsPlaybackTestResultData
 import com.ai.assistance.operit.core.tools.SpeechServicesUpdateResultData
 import com.ai.assistance.operit.core.tools.SpeechSttHttpConfigResultItem
 import com.ai.assistance.operit.core.tools.SpeechTtsHttpConfigResultItem
@@ -542,6 +543,104 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
                 success = false,
                 result = StringResultData(""),
                 error = e.message ?: "Failed to set speech services config"
+            )
+        }
+    }
+
+    suspend fun testTtsPlayback(tool: AITool): ToolResult {
+        val text = getParameterValue(tool, "text")?.trim().orEmpty()
+        if (text.isBlank()) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Missing required parameter: text"
+            )
+        }
+
+        return try {
+            val prefs = SpeechServicesPreferences(context)
+            val ttsServiceType = prefs.ttsServiceTypeFlow.first()
+            val hasSpeechRateOverride = tool.parameters.any { it.name == "speech_rate" }
+            val hasPitchOverride = tool.parameters.any { it.name == "pitch" }
+            val interrupt =
+                getParameterValue(tool, "interrupt")?.let { raw ->
+                    parseBooleanParameter(raw)
+                        ?: throw IllegalArgumentException("Invalid boolean parameter: interrupt")
+                } ?: true
+            val speechRate =
+                if (hasSpeechRateOverride) {
+                    getParameterValue(tool, "speech_rate")?.trim()?.toFloatOrNull()
+                        ?: throw IllegalArgumentException("Invalid number parameter: speech_rate")
+                } else {
+                    prefs.ttsSpeechRateFlow.first()
+                }
+            val pitch =
+                if (hasPitchOverride) {
+                    getParameterValue(tool, "pitch")?.trim()?.toFloatOrNull()
+                        ?: throw IllegalArgumentException("Invalid number parameter: pitch")
+                } else {
+                    prefs.ttsPitchFlow.first()
+                }
+
+            VoiceServiceFactory.resetInstance()
+            val voiceService = VoiceServiceFactory.getInstance(context)
+            val initialized = voiceService.initialize()
+            if (!initialized) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                        SpeechServicesTtsPlaybackTestResultData(
+                            ttsServiceType = ttsServiceType.name,
+                            providerClass = voiceService.javaClass.simpleName,
+                            initialized = false,
+                            playbackTriggered = false,
+                            interrupt = interrupt,
+                            textLength = text.length,
+                            speechRate = speechRate,
+                            pitch = pitch
+                        ),
+                    error = "TTS service initialization returned false"
+                )
+            }
+
+            val playbackTriggered = voiceService.speak(
+                text = text,
+                interrupt = interrupt,
+                rate = speechRate,
+                pitch = pitch
+            )
+
+            ToolResult(
+                toolName = tool.name,
+                success = playbackTriggered,
+                result =
+                    SpeechServicesTtsPlaybackTestResultData(
+                        ttsServiceType = ttsServiceType.name,
+                        providerClass = voiceService.javaClass.simpleName,
+                        initialized = true,
+                        playbackTriggered = playbackTriggered,
+                        interrupt = interrupt,
+                        textLength = text.length,
+                        speechRate = speechRate,
+                        pitch = pitch
+                    ),
+                error = if (playbackTriggered) null else "TTS playback did not start"
+            )
+        } catch (e: IllegalArgumentException) {
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = e.message ?: "Invalid parameter"
+            )
+        } catch (e: Exception) {
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = e.message ?: "Failed to test TTS playback"
             )
         }
     }

@@ -285,6 +285,20 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     handler.registerTool(
+            name = "test_tts_playback",
+            dangerCheck = { false },
+            descriptionGenerator = { tool ->
+                val text = tool.parameters.find { it.name == "text" }?.value.orEmpty()
+                val preview = text.take(24).replace('\n', ' ')
+                "Play one TTS test utterance using current speech settings: $preview"
+            },
+            executor = { tool ->
+                val softwareSettingsTools = ToolGetter.getSoftwareSettingsModifyTools(context)
+                runBlocking(Dispatchers.IO) { softwareSettingsTools.testTtsPlayback(tool) }
+            }
+    )
+
+    handler.registerTool(
             name = "list_model_configs",
             dangerCheck = { false },
             descriptionGenerator = { _ ->

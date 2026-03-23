@@ -47,7 +47,11 @@ class ExternalChatRequestExecutor(context: Context) {
                 is PreparationResult.Ready -> {
                     try {
                         val sendResult = preparation.chatTool.sendMessageToAI(preparation.sendTool)
-                        toExternalChatResult(preparation.requestId, sendResult)
+                        toExternalChatResult(
+                            requestId = preparation.requestId,
+                            sendResult = sendResult,
+                            returnToolStatus = preparation.returnToolStatus
+                        )
                     } finally {
                         preparation.cleanup()
                     }
@@ -72,7 +76,11 @@ class ExternalChatRequestExecutor(context: Context) {
                         is MessageSendStreamStartResult.Failed -> {
                             preparation.cleanup()
                             ExternalChatStreamingStartResult.Failed(
-                                toExternalChatResult(preparation.requestId, startResult.result)
+                                toExternalChatResult(
+                                    requestId = preparation.requestId,
+                                    sendResult = startResult.result,
+                                    returnToolStatus = preparation.returnToolStatus
+                                )
                             )
                         }
 
@@ -186,6 +194,7 @@ class ExternalChatRequestExecutor(context: Context) {
             requestId = requestId,
             resolvedRequestId = resolvedRequestId,
             message = message,
+            returnToolStatus = request.returnToolStatus,
             chatTool = chatTool,
             sendTool = AITool(
                 name = "send_message_to_ai",
@@ -203,13 +212,17 @@ class ExternalChatRequestExecutor(context: Context) {
         )
     }
 
-    private fun toExternalChatResult(requestId: String?, sendResult: ToolResult): ExternalChatResult {
+    private suspend fun toExternalChatResult(
+        requestId: String?,
+        sendResult: ToolResult,
+        returnToolStatus: Boolean
+    ): ExternalChatResult {
         val resultData = sendResult.result as? MessageSendResultData
         return ExternalChatResult(
             requestId = requestId,
             success = sendResult.success,
             chatId = resultData?.chatId?.takeIf { it.isNotBlank() },
-            aiResponse = resultData?.aiResponse?.takeIf { it.isNotBlank() },
+            aiResponse = ExternalChatResponseSanitizer.sanitize(resultData?.aiResponse, returnToolStatus),
             error = sendResult.error?.takeIf { it.isNotBlank() }
         )
     }
@@ -219,6 +232,7 @@ class ExternalChatRequestExecutor(context: Context) {
             val requestId: String?,
             val resolvedRequestId: String,
             val message: String,
+            val returnToolStatus: Boolean,
             val chatTool: StandardChatManagerTool,
             val sendTool: AITool,
             val cleanupAction: () -> Unit

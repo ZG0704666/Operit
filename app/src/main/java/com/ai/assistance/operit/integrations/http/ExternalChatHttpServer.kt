@@ -8,6 +8,7 @@ import com.ai.assistance.operit.integrations.externalchat.ExternalChatHealthResp
 import com.ai.assistance.operit.integrations.externalchat.ExternalChatHttpRequest
 import com.ai.assistance.operit.integrations.externalchat.ExternalChatRequestExecutor
 import com.ai.assistance.operit.integrations.externalchat.ExternalChatResponseMode
+import com.ai.assistance.operit.integrations.externalchat.ExternalChatResponseSanitizer
 import com.ai.assistance.operit.integrations.externalchat.ExternalChatResult
 import com.ai.assistance.operit.integrations.externalchat.ExternalChatStreamEnvelope
 import com.ai.assistance.operit.integrations.externalchat.ExternalChatStreamingStartResult
@@ -261,9 +262,17 @@ class ExternalChatHttpServer(
                                     )
                                 )
 
-                                val fullResponse = StringBuilder()
-                                streamSession.responseStreamSession.responseStream.collect { chunk ->
-                                    fullResponse.append(chunk)
+                                val filteredResponseStream =
+                                    ExternalChatResponseSanitizer.sanitizeStream(
+                                        streamSession.responseStreamSession.responseStream,
+                                        request.returnToolStatus
+                                    )
+                                val finalResponse = StringBuilder()
+                                filteredResponseStream.collect { chunk ->
+                                    if (chunk.isEmpty()) {
+                                        return@collect
+                                    }
+                                    finalResponse.append(chunk)
                                     writeSseEvent(
                                         writer,
                                         ExternalChatStreamEnvelope(
@@ -276,6 +285,7 @@ class ExternalChatHttpServer(
                                 }
 
                                 val finalState = streamSession.responseStreamSession.currentState()
+                                val finalResponseText = finalResponse.toString().takeIf { it.isNotBlank() }
                                 if (finalState is InputProcessingState.Error) {
                                     writeSseEvent(
                                         writer,
@@ -283,7 +293,7 @@ class ExternalChatHttpServer(
                                             event = STREAM_EVENT_ERROR,
                                             requestId = streamSession.requestId,
                                             chatId = streamSession.chatId,
-                                            aiResponse = fullResponse.toString().takeIf { it.isNotBlank() },
+                                            aiResponse = finalResponseText,
                                             success = false,
                                             error = finalState.message
                                         )
@@ -295,7 +305,7 @@ class ExternalChatHttpServer(
                                             event = STREAM_EVENT_DONE,
                                             requestId = streamSession.requestId,
                                             chatId = streamSession.chatId,
-                                            aiResponse = fullResponse.toString(),
+                                            aiResponse = finalResponseText,
                                             success = true
                                         )
                                     )

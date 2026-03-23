@@ -1792,6 +1792,23 @@ data class SpeechServicesUpdateResultData(
     }
 }
 
+/** TTS 单次播放测试结果 */
+@Serializable
+data class SpeechServicesTtsPlaybackTestResultData(
+    val ttsServiceType: String,
+    val providerClass: String,
+    val initialized: Boolean,
+    val playbackTriggered: Boolean,
+    val interrupt: Boolean,
+    val textLength: Int,
+    val speechRate: Float,
+    val pitch: Float
+) : ToolResultData() {
+    override fun toString(): String {
+        return "TTS playback test: type=$ttsServiceType, initialized=$initialized, triggered=$playbackTriggered"
+    }
+}
+
 /** 模型配置条目 */
 @Serializable
 data class ModelConfigResultItem(

@@ -90,7 +90,7 @@ fun ExternalHttpChatSettingsScreen(onBackPressed: () -> Unit) {
 curl -X POST "$sampleBaseUrl/api/external-chat" \
   -H "Authorization: Bearer $curlToken" \
   -H "Content-Type: application/json; charset=utf-8" \
-  -d '{"message":"你好","response_mode":"sync","show_floating":true,"initial_mode":"WINDOW"}'
+  -d '{"message":"你好","response_mode":"sync","show_floating":true,"initial_mode":"WINDOW","return_tool_status":false}'
         """.trimIndent()
     }
     val asyncCurl = remember(sampleBaseUrl, curlToken) {
@@ -118,6 +118,7 @@ adb shell am broadcast \
   --es request_id "req-001" \
   --es message "你好" \
   --ez show_floating true \
+  --ez return_tool_status false \
   --es initial_mode "WINDOW" \
   --es reply_package "YOUR.APP.PACKAGE"
         """.trimIndent()

@@ -6,8 +6,6 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.core.audio.AecReferenceAudioBus
-import com.ai.assistance.operit.core.audio.WebRtcAec3Processor
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.api.speech.SpeechPrerollStore
 import java.io.File
@@ -70,7 +68,6 @@ class OpenAISttProvider(
     private var pcmBytesWritten: Long = 0
     private var lastLanguageCode: String? = null
     private var vad: OnnxSileroVad? = null
-    private var webRtcAec3: WebRtcAec3Processor? = null
 
     private val _recognitionState = MutableStateFlow(SpeechService.RecognitionState.UNINITIALIZED)
     override val currentState: SpeechService.RecognitionState
@@ -155,14 +152,6 @@ class OpenAISttProvider(
                 val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
                 if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
                     throw IOException("AudioRecord buffer init failed")
-                }
-
-                try {
-                    AecReferenceAudioBus.clear()
-                    webRtcAec3?.close()
-                    webRtcAec3 = WebRtcAec3Processor(SAMPLE_RATE, channels = 1)
-                } catch (e: Exception) {
-                    throw IOException("WebRTC AEC3 init failed: ${e.message}", e)
                 }
 
                 val record = AudioRecord(
@@ -256,7 +245,6 @@ class OpenAISttProvider(
                             while (isActive && _recognitionState.value == SpeechService.RecognitionState.RECOGNIZING) {
                                 val read = record.read(audioBuffer, 0, audioBuffer.size)
                                 if (read > 0) {
-                                    webRtcAec3?.processCaptureInPlace(audioBuffer, read)
                                     SpeechPrerollStore.appendPcm(audioBuffer, read)
                                     updateVolumeLevel(audioBuffer, read)
 
@@ -326,7 +314,6 @@ class OpenAISttProvider(
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "OpenAI STT startRecognition failed", e)
-            releaseAec3Processor()
             _recognitionState.value = SpeechService.RecognitionState.ERROR
             _recognitionError.value = SpeechService.RecognitionError(-1, e.message ?: "startRecognition failed")
             false
@@ -387,7 +374,6 @@ class OpenAISttProvider(
             scope.cancel()
         } catch (_: Exception) {
         }
-        releaseAec3Processor()
         runCatching { audioRecord?.release() }
         audioRecord = null
         runCatching { outputStream?.close() }
@@ -467,7 +453,6 @@ class OpenAISttProvider(
             record?.stop()
         } catch (_: Exception) {
         }
-        releaseAec3Processor()
         try {
             record?.release()
         } catch (_: Exception) {
@@ -502,15 +487,6 @@ class OpenAISttProvider(
 
         return null
     }
-
-    private fun releaseAec3Processor() {
-        try {
-            webRtcAec3?.close()
-        } catch (_: Exception) {
-        }
-        webRtcAec3 = null
-    }
-
     private fun writePcm16le(stream: FileOutputStream, pcm: ShortArray, length: Int, offset: Int = 0) {
         if (length <= 0) return
         val bytes = ByteArray(length * 2)
